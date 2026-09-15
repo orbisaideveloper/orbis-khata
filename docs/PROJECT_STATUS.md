@@ -2,10 +2,11 @@
 
 **Last updated:** 2026-09-15 UTC  
 **Repository:** `orbisaideveloper/orbis-khata`  
-**Current work branch:** `chore/project-baseline`  
+**Current baseline branch:** `main`  
 **Main baseline before this work:** `d6f5a00011642c5fc1b6b543b0319244c62fbb6c`  
 **Baseline content commit:** `154b4e8d1d43083bbd63f1386cd51f19399640db`  
-**Open PR:** `#1` — `docs: establish Orbis Khata Boi project baseline`  
+**Correction source branch:** `chore/project-baseline`  
+**PR #1:** Closed without merge after correcting the workflow  
 **Phase:** Product and architecture baseline  
 **Production code:** Not started
 
@@ -16,14 +17,14 @@
 - Created an isolated baseline branch.
 - Converted the earlier full concept into structured, AI-readable repository documentation.
 - Recorded mandatory AI/contributor rules, architecture boundaries, MVP scope, workflow and durable decisions.
-- Preserved the mobile/Termux verification model, optional PR Preview policy and production smoke requirement.
+- Preserved the mobile/Termux verification model and production smoke requirement.
+- Corrected the workflow to feature branch → verification → one owner-authorized direct update to `main`, with no default PR, PR Preview or staging.
 
 ## Baseline file set
 
 - `README.md`
 - `AGENTS.md`
 - `SECURITY.md`
-- `.github/pull_request_template.md`
 - `docs/PRODUCT_BLUEPRINT.md`
 - `docs/ARCHITECTURE.md`
 - `docs/MVP_SPECIFICATION.md`
@@ -36,12 +37,13 @@
 - Repository and main README inspected before work.
 - Documentation checked for internal links and conflicting locked/open decisions.
 - No runtime tests are applicable because no application code or dependency manifest exists.
-- GitHub comparison verified the branch is ahead of main with the expected baseline files.
-- PR #1 was fetched after creation and reported open, unmerged and mergeable.
+- GitHub comparison verified the correction branch against the original main baseline before the direct update.
+- Main was updated to the verified correction commit in one authorized fast-forward step.
+- PR #1 was closed without merge.
 
 ## External state
 
-- `main`: untouched after the owner’s initial repository creation.
+- `main`: contains the verified documentation baseline and corrected no-PR/no-staging workflow.
 - Staging: not created or changed.
 - Production/Render: not created or changed.
 - Database/Supabase: not created or changed.
@@ -49,7 +51,6 @@
 
 ## Unverified/open
 
-- Owner review and manual merge of the baseline PR.
 - Final MVP screen/navigation approval.
 - Technology stack, database, sync conflict rules and providers.
 - GitHub branch protection/ruleset and future CI checks.
@@ -57,8 +58,8 @@
 
 ## Exact next action
 
-Review the baseline PR. After the owner approves and manually merges it, begin a **Chat Mode** MVP architecture review using `docs/MVP_SPECIFICATION.md`. Do not write application code until that review resolves the open pre-coding decisions.
+Begin a **Chat Mode** MVP architecture review using `docs/MVP_SPECIFICATION.md`. Do not write application code until that review resolves the open pre-coding decisions.
 
 ## Resume instruction for any AI
 
-Read `AGENTS.md`, then this file, then `docs/DECISIONS.md`. Inspect the current GitHub branch/HEAD before acting. Report any difference from this checkpoint. Do not assume a PR was merged, staging exists or coding began.
+Read `AGENTS.md`, then this file, then `docs/DECISIONS.md`. Inspect the current GitHub branch/HEAD before acting. Report any difference from this checkpoint. Do not create a PR, PR Preview or staging unless the owner explicitly requests it. Do not assume coding began.

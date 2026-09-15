@@ -163,10 +163,9 @@ Expected environments:
 
 - local/Termux for daily development and targeted checks;
 - Ubuntu/Linux or GitHub Actions for platform-sensitive verification;
-- one permanent staging environment for risky/cloud-dependent validation;
-- production from protected main after approved merge.
+- production from protected main after an approved direct main update.
 
-Per-PR preview deployments are optional. Production migration validation and post-deploy smoke testing remain mandatory for relevant releases.
+Pull requests, PR Preview and staging are absent from the default workflow. They are introduced only by an explicit owner decision for a specific change. The verified feature branch moves to `main` in one owner-authorized step; GitHub Actions then performs a clean verification. Production migration validation and post-deploy smoke testing remain mandatory for relevant releases.
 
 ## 13. Open architecture decisions
 

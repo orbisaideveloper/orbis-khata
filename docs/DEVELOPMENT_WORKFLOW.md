@@ -9,19 +9,23 @@
 5. Run changed-area targeted checks.
 6. Save a recoverable checkpoint and update project status.
 7. When the whole requested work is declared finished, run final certification.
-8. Open a PR with scope, evidence, risks and deployment impact.
-9. Owner reviews and manually merges.
-10. Deploy from protected main through the approved release process.
-11. Verify migrations/schema and perform production smoke testing.
+8. Present the exact branch diff, evidence, risks and deployment impact to the owner.
+9. After explicit owner authorization, update `main` from the verified branch in one controlled step without a pull request.
+10. Let GitHub Actions perform an additional clean verification.
+11. Deploy from protected main only through an separately approved release action.
+12. Verify migrations/schema and perform production smoke testing.
 
-## 2. Branch and PR policy
+## 2. Branch and main-update policy
 
 - `main` is protected and must remain releasable.
 - Use names such as `feat/...`, `fix/...`, `chore/...` or `docs/...`.
-- No direct push to main.
-- No AI-initiated merge or production action.
-- PRs should remain focused and reviewable.
-- The PR description records scope, changed files, tests, migrations, security/tenant impact, screenshots when useful, known gaps and rollout/rollback notes.
+- Do not update `main` while development is unfinished.
+- Do not open a PR, trigger PR Preview or create/use staging in the default workflow.
+- Keep the feature branch focused, reviewable and recoverable.
+- Before the final main update, report scope, exact changed files, tests, migrations, security/tenant impact, visual evidence when useful, known gaps and rollout/rollback notes.
+- After final verification, one explicit owner instruction authorizes the verified feature state to move directly to `main`.
+- A PR or staging workflow is allowed only if the owner explicitly requests it for that change.
+- No AI-initiated deployment or production action.
 
 ## 3. Development verification
 
@@ -36,7 +40,7 @@ Do not run unrelated whole-repository quality suites after every small edit.
 
 ## 4. Final certification
 
-Run only when the owner says the work is finished and ready for GitHub. The single `orbis verify` order is:
+Run only when the owner says the work is finished and ready for `main`. The single `orbis verify` order is:
 
 1. Ubuntu preflight/runtime.
 2. KNIP.
@@ -59,18 +63,11 @@ The owner works primarily on Android Termux with Ubuntu through proot-distro.
 - Use Ubuntu/Linux/CI for Prisma, KNIP, JSCPD or other platform-sensitive authoritative gates.
 - Treat confirmed platform incompatibility separately from a code defect.
 
-## 6. Preview and staging policy
+## 6. Cloud validation policy
 
-PR Preview is not mandatory for every change. Use one permanent staging environment for changes that need real cloud behavior, especially:
+PR Preview and staging are not default gates and must not be created automatically. When a change involves cloud-only risk—such as authentication, database migrations, tenant policies, API integrations, sync, backup or infrastructure—document that risk before the final main update.
 
-- authentication/identity;
-- database migrations or tenant policies;
-- API/integration changes;
-- sync and backup;
-- large UI redesigns;
-- infrastructure/runtime changes.
-
-Small isolated logic, copy or normal component changes may proceed with targeted local checks and CI.
+Use Ubuntu/Linux and the feature-branch verification that is available, then perform GitHub Actions clean verification after the owner-authorized main update. Create a dedicated preview or staging environment only when the owner explicitly requests it.
 
 ## 7. Production validation
 
@@ -104,7 +101,7 @@ If work approaches two hours, a usage limit or a risky transition, checkpoint be
 
 ## 9. Reporting
 
-Reports are created after verification, not as a substitute for verification. When the repository has implementation work, maintain appropriately scoped implementation, preview/release and audit reports. Completion percentages are allowed only when derived from a named, counted checklist.
+Reports are created after verification, not as a substitute for verification. When the repository has implementation work, maintain appropriately scoped implementation, release and audit reports. Completion percentages are allowed only when derived from a named, counted checklist.
 
 ## 10. Work Mode vs Chat Mode
 

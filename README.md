@@ -31,7 +31,7 @@ The app converts the statement into a proposed transaction and always shows **Co
 - Local-first operation with optional secure cloud sync and backup.
 - Bengali, Hindi and English from the beginning.
 - AI is restricted to the user’s own accounting context; it is not a general-purpose chatbot.
-- Per-PR preview deployments are optional. A permanent staging environment is used only for cloud-dependent or high-risk changes.
+- Pull requests, PR Preview and staging are not part of the default workflow. They are used only when the owner explicitly requests them.
 
 ## Repository map
 
@@ -39,7 +39,7 @@ The app converts the statement into a proposed transaction and always shows **Co
 - [Product blueprint](docs/PRODUCT_BLUEPRINT.md) — full vision, users, capabilities and roadmap.
 - [Architecture baseline](docs/ARCHITECTURE.md) — system boundaries, data, offline sync, identity and security.
 - [MVP specification](docs/MVP_SPECIFICATION.md) — first-release scope, flows and acceptance gates.
-- [Development workflow](docs/DEVELOPMENT_WORKFLOW.md) — branches, tests, PRs, staging and production checks.
+- [Development workflow](docs/DEVELOPMENT_WORKFLOW.md) — branches, tests, direct main updates and production checks.
 - [Decision log](docs/DECISIONS.md) — locked decisions and deliberately open questions.
 - [Project status](docs/PROJECT_STATUS.md) — latest durable checkpoint and exact resume point.
 - [Security policy](SECURITY.md) — vulnerability and sensitive-data handling policy.

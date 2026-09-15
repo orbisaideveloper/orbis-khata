@@ -45,12 +45,13 @@ This repository is in product/architecture definition. Do not begin production c
 
 - Treat `main` as protected.
 - Work only on an isolated feature or chore branch explicitly authorized for the task.
-- Never push directly to `main`.
-- Never merge a PR, deploy, promote staging, run production migrations or perform a production write without the user’s explicit approval.
-- The normal path is: local/Termux work → feature branch → targeted verification → PR checks → manual merge → production verification.
-- PR Preview is optional, not a universal gate.
-- Use permanent staging for large or risky UI, authentication, database, API, sync or infrastructure changes.
-- Production success is separate from staging success. Verify production migration/schema state and critical flows after deployment.
+- Never update `main` during unfinished development.
+- Do not open a pull request, create PR Preview or create/use staging by default.
+- The normal path is: local/Termux work → feature branch → targeted development checks → final verification → one owner-authorized update to `main` → GitHub Actions clean verification → production verification.
+- After all requested work is complete and verified, update `main` directly from the verified feature branch in one controlled step only when the owner explicitly instructs it. A pull request is not required.
+- A PR, preview or staging environment may be used only when the owner explicitly requests that exact step.
+- Never deploy, run production migrations or perform a production write without the user’s explicit approval.
+- Local, feature-branch and CI success do not prove production success. Verify production migration/schema state and critical flows after deployment.
 
 ## 6. Verification model
 
@@ -60,7 +61,7 @@ During normal development:
 - stop on the first meaningful failure and diagnose it;
 - do not spend time or credits on unrelated full-repository gates after every small edit.
 
-Only when the user explicitly says the work is finished and ready for GitHub, run one final `orbis verify` certification in this order:
+Only when the user explicitly says the work is finished and ready for `main`, run one final `orbis verify` certification in this order:
 
 1. Ubuntu preflight/runtime.
 2. KNIP.
@@ -147,4 +148,4 @@ If work may exceed two hours or tool/usage limits may interrupt it, checkpoint e
 
 ## 14. Definition of a complete handoff
 
-A handoff is complete only when it states the outcome, branch/commit, changed files, checks performed, remaining risks, whether any external environment changed, and the next exact action. Never merge or deploy merely because checks are green.
+A handoff is complete only when it states the outcome, branch/commit, changed files, checks performed, remaining risks, whether any external environment changed, and the next exact action. Never update `main` or deploy merely because checks are green; the owner must explicitly authorize the transition.
