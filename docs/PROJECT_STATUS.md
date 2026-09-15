@@ -4,6 +4,8 @@
 **Repository:** `orbisaideveloper/orbis-khata`  
 **Current work branch:** `chore/project-baseline`  
 **Main baseline before this work:** `d6f5a00011642c5fc1b6b543b0319244c62fbb6c`  
+**Baseline content commit:** `154b4e8d1d43083bbd63f1386cd51f19399640db`  
+**Open PR:** `#1` — `docs: establish Orbis Khata Boi project baseline`  
 **Phase:** Product and architecture baseline  
 **Production code:** Not started
 
@@ -34,7 +36,8 @@
 - Repository and main README inspected before work.
 - Documentation checked for internal links and conflicting locked/open decisions.
 - No runtime tests are applicable because no application code or dependency manifest exists.
-- Branch and PR state must be verified again after the baseline commit is created.
+- GitHub comparison verified the branch is ahead of main with the expected baseline files.
+- PR #1 was fetched after creation and reported open, unmerged and mergeable.
 
 ## External state
 
