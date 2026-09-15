@@ -6,7 +6,7 @@
 **Main baseline before this work:** `d6f5a00011642c5fc1b6b543b0319244c62fbb6c`  
 **Baseline content commit:** `154b4e8d1d43083bbd63f1386cd51f19399640db`  
 **Correction source branch:** `chore/project-baseline`  
-**PR #1:** Closed without merge after correcting the workflow  
+**PR #1:** GitHub automatically classified it as merged when `main` was fast-forwarded to the same verified commit; no PR merge action was used  
 **Phase:** Product and architecture baseline  
 **Production code:** Not started
 
@@ -39,7 +39,7 @@
 - No runtime tests are applicable because no application code or dependency manifest exists.
 - GitHub comparison verified the correction branch against the original main baseline before the direct update.
 - Main was updated to the verified correction commit in one authorized fast-forward step.
-- PR #1 was closed without merge.
+- PR #1 closed automatically and GitHub classified it as merged because `main` contains the same commits; no PR merge action/API was used.
 
 ## External state
 
