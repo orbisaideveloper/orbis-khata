@@ -16,7 +16,7 @@ const issues = await get('/api/issues/search', { ...common, resolved: 'false', p
 if (!Number.isInteger(issues.total)) throw Error('Sonar issue count missing')
 console.log(`Open Sonar issues: ${issues.total}`)
 if (issues.total !== 0) throw Error('Open issues must be zero')
-const hotspots = await get('/api/hotspots/search', { project, status: 'TO_REVIEW', ps: '1' })
+const hotspots = await get('/api/hotspots/search', { projectKey: project, status: 'TO_REVIEW', ps: '1' })
 if (!Number.isInteger(hotspots.paging?.total)) throw Error('Security hotspot count missing')
 console.log(`Unreviewed security hotspots: ${hotspots.paging.total}`)
 if (hotspots.paging.total !== 0) throw Error('Unreviewed security hotspots must be zero')
