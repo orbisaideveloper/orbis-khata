@@ -4,26 +4,26 @@
 
 1. Discuss and approve scope.
 2. Inspect current source before planning edits.
-3. Create an isolated feature branch.
+3. Work on local `main` under the owner-approved main-only workflow.
 4. Implement a small coherent slice.
 5. Run changed-area targeted checks.
 6. Save a recoverable checkpoint and update project status.
 7. When the whole requested work is declared finished, run final certification.
-8. Present the exact branch diff, evidence, risks and deployment impact to the owner.
-9. After explicit owner authorization, update `main` from the verified branch in one controlled step without a pull request.
-10. Let GitHub Actions perform an additional clean verification.
+8. Present the exact staged diff, evidence, risks and deployment impact to the owner.
+9. After explicit owner authorization, push the locally verified main commit without a pull request.
+10. Run GitHub Actions and SonarCloud Free main-branch analysis; repair any failure with a reviewed new commit before release.
 11. Deploy from protected main only through an separately approved release action.
 12. Verify migrations/schema and perform production smoke testing.
 
 ## 2. Branch and main-update policy
 
-- `main` is protected and must remain releasable.
-- Use names such as `feat/...`, `fix/...`, `chore/...` or `docs/...`.
-- Do not update `main` while development is unfinished.
+- `main` is owner-controlled; remote verification happens after main push, so a failure means main needs a corrective commit.
+- Do not create feature branches by default under the current owner-approved Free plan.
+- Do not push incomplete or unverified changes to `main`; local changes may exist during development.
 - Do not open a PR, trigger PR Preview or create/use staging in the default workflow.
-- Keep the feature branch focused, reviewable and recoverable.
-- Before the final main update, report scope, exact changed files, tests, migrations, security/tenant impact, visual evidence when useful, known gaps and rollout/rollback notes.
-- After final verification, one explicit owner instruction authorizes the verified feature state to move directly to `main`.
+- Keep main commits focused, reviewable and recoverable; preserve failed CI evidence.
+- Before main push, report scope, exact changed files, tests, migrations, security/tenant impact, visual evidence when useful, known gaps and rollout/rollback notes.
+- The owner authorizes and executes each main push from Termux; CI/Sonar follow the push. Never force push or erase failing history.
 - A PR or staging workflow is allowed only if the owner explicitly requests it for that change.
 - No AI-initiated deployment or production action.
 
@@ -67,7 +67,7 @@ The owner works primarily on Android Termux with Ubuntu through proot-distro.
 
 PR Preview and staging are not default gates and must not be created automatically. When a change involves cloud-only risk—such as authentication, database migrations, tenant policies, API integrations, sync, backup or infrastructure—document that risk before the final main update.
 
-Use Ubuntu/Linux and the feature-branch verification that is available, then perform GitHub Actions clean verification after the owner-authorized main update. Create a dedicated preview or staging environment only when the owner explicitly requests it.
+Use Ubuntu/Linux local verification, then perform GitHub Actions and SonarCloud Free analysis after the owner-authorized main push. Create a dedicated preview or staging environment only when the owner explicitly requests it.
 
 ## 7. Production validation
 

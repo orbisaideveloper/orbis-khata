@@ -1,0 +1,90 @@
+name: Khata Quality
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  quality:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '24'
+          cache: npm
+      - name: Validate Sonar configuration (fail closed)
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+          SONAR_PROJECT_KEY: ${{ vars.SONAR_PROJECT_KEY }}
+          SONAR_ORGANIZATION: ${{ vars.SONAR_ORGANIZATION }}
+        run: |
+          set -euo pipefail
+          mkdir -p quality-reports
+          {
+            test -n "$SONAR_TOKEN" || { echo 'SONAR_TOKEN missing'; exit 1; }
+            test -n "$SONAR_PROJECT_KEY" || { echo 'SONAR_PROJECT_KEY missing'; exit 1; }
+            test -n "$SONAR_ORGANIZATION" || { echo 'SONAR_ORGANIZATION missing'; exit 1; }
+            echo 'Sonar configuration: available (values hidden)'
+          } 2>&1 | tee quality-reports/sonar-preflight.txt
+      - name: Install and run local-equivalent gates
+        run: |
+          set -euo pipefail
+          mkdir -p quality-reports
+          npm ci --no-fund 2>&1 | tee quality-reports/install.txt
+          npm audit --audit-level=low 2>&1 | tee quality-reports/audit.txt
+          npm run lint 2>&1 | tee quality-reports/lint.txt
+          npm run typecheck 2>&1 | tee quality-reports/typecheck.txt
+          npm run test:coverage 2>&1 | tee quality-reports/coverage.txt
+          npm run quality:knip 2>&1 | tee quality-reports/knip.txt
+          npm run quality:jscpd 2>&1 | tee quality-reports/jscpd.txt
+          npm run build 2>&1 | tee quality-reports/build.txt
+      - name: Install Chromium for CI
+        run: |
+          set -o pipefail
+          npx playwright install --with-deps chromium 2>&1 | tee quality-reports/chromium-install.txt
+      - name: Playwright mobile smoke
+        run: |
+          set -o pipefail
+          npm run test:e2e 2>&1 | tee quality-reports/playwright.txt
+      - name: Sonar analysis AND quality gate
+        uses: SonarSource/sonarqube-scan-action@v8.2.1
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+          SONAR_HOST_URL: ${{ vars.SONAR_HOST_URL || 'https://sonarcloud.io' }}
+        with:
+          args: >
+            -Dsonar.organization=${{ vars.SONAR_ORGANIZATION }}
+            -Dsonar.projectKey=${{ vars.SONAR_PROJECT_KEY }}
+            -Dsonar.qualitygate.wait=true
+            -Dsonar.qualitygate.timeout=300
+      - name: Strict overall Sonar metrics
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+          SONAR_PROJECT_KEY: ${{ vars.SONAR_PROJECT_KEY }}
+          SONAR_HOST_URL: ${{ vars.SONAR_HOST_URL || 'https://sonarcloud.io' }}
+        run: |
+          set -o pipefail
+          node scripts/check-sonar.mjs 2>&1 | tee quality-reports/sonar-metrics.txt
+      - name: Preserve final job outcome
+        if: always()
+        run: |
+          mkdir -p quality-reports
+          echo 'GitHub quality job status: ${{ job.status }}' > quality-reports/final-status.txt
+          echo 'Run: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}' >> quality-reports/final-status.txt
+      - name: Preserve reports even on failure
+        if: always()
+        uses: actions/upload-artifact@v5
+        with:
+          name: khata-quality-${{ github.run_id }}
+          path: |
+            quality-reports/
+            coverage/
+            playwright-report/
+            test-results/
+          if-no-files-found: warn
+          retention-days: 14

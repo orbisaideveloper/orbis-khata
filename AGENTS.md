@@ -43,12 +43,12 @@ This repository is in product/architecture definition. Do not begin production c
 
 ## 5. Git and release safety
 
-- Treat `main` as protected.
-- Work only on an isolated feature or chore branch explicitly authorized for the task.
-- Never update `main` during unfinished development.
+- Treat `main` as owner-controlled; remote Actions cannot undo a failing pushed commit.
+- Owner-approved Khata main-only workflow is permitted; do not create/use feature branches by default.
+- `main` may receive a local change only after relevant targeted checks and explicit owner-controlled push; failing remote CI must be repaired before any release.
 - Do not open a pull request, create PR Preview or create/use staging by default.
-- The normal path is: local/Termux work → feature branch → targeted development checks → final verification → one owner-authorized update to `main` → GitHub Actions clean verification → production verification.
-- After all requested work is complete and verified, update `main` directly from the verified feature branch in one controlled step only when the owner explicitly instructs it. A pull request is not required.
+- The current owner-approved path is: local/Termux work on main → targeted checks → final certification when ready → owner-controlled main push → GitHub Actions + SonarCloud Free main analysis → corrections until green → separately authorized manual deployment and production verification.
+- Do not push, merge, publish, or deploy without explicit owner authorization. The owner performs the final push from Termux; a pull request is not required.
 - A PR, preview or staging environment may be used only when the owner explicitly requests that exact step.
 - Never deploy, run production migrations or perform a production write without the user’s explicit approval.
 - Local, feature-branch and CI success do not prove production success. Verify production migration/schema state and critical flows after deployment.

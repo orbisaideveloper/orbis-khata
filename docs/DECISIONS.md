@@ -16,7 +16,7 @@ Statuses: **Locked**, **Provisional**, **Open**, **Deferred**.
 | D-008 | AI is accounting-scoped and grounded in authorized business data, not a general chatbot. | Reliability, cost and privacy. |
 | D-009 | AI never finalizes a financial mutation without Confirm/Edit/Cancel. | Prevents silent financial corruption. |
 | D-010 | UI begins with Money In, Money Out, To Receive and To Pay. | Accessible to non-accountants. |
-| D-011 | `main` stays unchanged during development; work uses a feature branch; after final verification and explicit owner authorization, the verified state moves directly to `main` without a PR. | Recoverability, fewer repeated steps and owner control. |
+| D-011 | Owner-approved main-only workflow: targeted local development checks, final local certification, owner-controlled direct main push, then Main GitHub Actions and SonarCloud on Free plan. Red CI requires a corrective commit; deployment stays manual. | The current Free subscription cannot run pre-main branch analysis; owner accepted Main CI repair without PR/staging. |
 | D-012 | No PR, PR Preview or staging is created by default. Any one of them requires an explicit owner request for the specific change. | Avoids staging/production mismatch and unnecessary mobile workflow cost. |
 | D-013 | Development uses targeted tests; full `orbis verify` runs only at final certification. | Efficient mobile workflow without weakening the release gate. |
 | D-014 | Final verify order: Ubuntu preflight → KNIP → JSCPD → Playwright → remaining Termux gates → summary. | Stable, approved verification order. |
