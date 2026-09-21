@@ -40,7 +40,7 @@ Do not run unrelated whole-repository quality suites after every small edit.
 
 ## 4. Final certification
 
-Run only when the owner says the work is finished and ready for `main`. The single `orbis verify` order is:
+Run only when the owner says the work is finished and ready for `main`. The single `khata verify` order is:
 
 1. Ubuntu preflight/runtime.
 2. KNIP.

@@ -61,7 +61,7 @@ During normal development:
 - stop on the first meaningful failure and diagnose it;
 - do not spend time or credits on unrelated full-repository gates after every small edit.
 
-Only when the user explicitly says the work is finished and ready for `main`, run one final `orbis verify` certification in this order:
+Only when the user explicitly says the work is finished and ready for `main`, run one final `khata verify` certification in this order:
 
 1. Ubuntu preflight/runtime.
 2. KNIP.
@@ -149,3 +149,15 @@ If work may exceed two hours or tool/usage limits may interrupt it, checkpoint e
 ## 14. Definition of a complete handoff
 
 A handoff is complete only when it states the outcome, branch/commit, changed files, checks performed, remaining risks, whether any external environment changed, and the next exact action. Never update `main` or deploy merely because checks are green; the owner must explicitly authorize the transition.
+
+## 15. Permanent Khata verification runner
+
+`khata doctor|test|preview|verify|status|resume` invokes `scripts/khata.py`.
+Use targeted checks during development and preview the actual local Vite source; obtain
+owner approval before final certification. Ubuntu runs KNIP, JSCPD and mobile Playwright
+from exact source with separate Ubuntu-native node_modules; preflight native bindings and
+actual browser launch. Termux runs unit tests, audit, lint, typecheck, build and coverage
+(last). Resume only evidence-backed checkpoints. Only completed report goes to
+`~/storage/downloads/ORBIS-KHATA-LATEST-REPORT.txt`; private logs and backups stay in
+`~/.cache/orbis-khata-quality/`. Termux command receipts are never certification.
+No unauthorized Git writes, deployment or financial data changes.

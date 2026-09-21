@@ -1,8 +1,33 @@
 import { expect, test } from '@playwright/test'
 
-test('mobile starter renders and counter works', async ({ page }) => {
+test('mobile approved UI shell: Bengali welcome through Khata and back', async ({ page }) => {
   await page.goto('/')
-  await expect(page.getByRole('heading', { name: 'Get started' })).toBeVisible()
-  await page.getByRole('button', { name: 'Count is 0' }).click()
-  await expect(page.getByRole('button', { name: 'Count is 1' })).toBeVisible()
+  await expect(page.getByRole('heading', { name: /আপনার ব্যবসা/ })).toBeVisible()
+  await expect(page.locator('.welcome .orb svg')).toHaveCount(1)
+  await expect(page.locator('.paper .balance')).toHaveText('—')
+  await page.getByRole('button', { name: /শুরু করুন/ }).click()
+  await expect(page.getByRole('button', { name: /বাস্তব লগইন/ })).toBeDisabled()
+  await expect(page.getByPlaceholder('এখন পাসওয়ার্ড দেবেন না')).toBeDisabled()
+  await page.getByRole('button', { name: /লগইন ছাড়া অ্যাপ খুলুন/ }).click()
+  await expect(page.getByRole('heading', { name: 'স্বাগতম! 👋' })).toBeVisible()
+  await expect(page.getByText('ফার্মিং', { exact: true })).toBeVisible()
+  await page.getByRole('button', { name: /খাতাবই.*খুলুন/ }).click()
+  await expect(page.getByRole('heading', { name: 'খাতাবই' })).toBeVisible()
+  await expect(page.locator('.metric strong')).toHaveCount(4)
+  await expect(page.getByRole('button', { name: 'বিক্রি' })).toBeDisabled()
+  await page.getByRole('button', { name: 'আপনার মডিউল বেছে নিন' }).click()
+  await page.getByRole('button', { name: 'ওয়েলকামে ফিরুন' }).click()
+  await expect(page.getByRole('heading', { name: /আপনার ব্যবসা/ })).toBeVisible()
+})
+
+test('English language persists but guest navigation does not', async ({ page }) => {
+  await page.goto('/')
+  await page.getByRole('combobox', { name: 'ভাষা নির্বাচন' }).selectOption('en')
+  await expect(page.getByRole('heading', { name: /Your business/ })).toBeVisible()
+  await page.getByRole('button', { name: /Get started/ }).click()
+  await page.getByRole('button', { name: /Open app without signing in/ }).click()
+  await expect(page.getByText('Choose your module')).toBeVisible()
+  await page.reload()
+  await expect(page.getByRole('heading', { name: /Your business/ })).toBeVisible()
+  await expect(page.getByRole('combobox', { name: 'Choose language' })).toHaveValue('en')
 })

@@ -1,121 +1,158 @@
-import { useState } from 'react'
-import heroImg from './assets/hero.png'
-import reactLogo from './assets/react.svg'
-import viteLogo from './assets/vite.svg'
+import { useEffect, useRef, useState } from 'react'
+import { languageOptions, readLanguage, saveLanguage, translations } from './i18n'
+import type { Language, TextKey } from './i18n'
 import './App.css'
 
+type View = 'welcome' | 'login' | 'workspace' | 'khata'
+
+// UI-only guest route. This flag is NOT an authentication control; any future
+// API must independently enforce AuthN/AuthZ and tenant boundaries.
+const guestUiEnabled = import.meta.env.VITE_KHATA_GUEST_UI !== 'false'
+
+function OrbitMark() {
+  return (
+    <svg viewBox="0 0 32 32" fill="none" aria-hidden="true" focusable="false">
+      <circle cx="16" cy="16" r="9" stroke="currentColor" strokeWidth="2" />
+      <ellipse cx="16" cy="16" rx="15" ry="6" transform="rotate(-36 16 16)" stroke="#9bceff" strokeWidth="1.5" />
+      <circle cx="25.7" cy="8.8" r="2.4" fill="currentColor" />
+    </svg>
+  )
+}
+
 function App() {
-  const [count, setCount] = useState(0)
+  // No demo session, user, financial values, company or token is persisted.
+  const [view, setView] = useState<View>('welcome')
+  const [language, setLanguage] = useState<Language>(readLanguage)
+  const guestEntered = useRef(false)
+  const t = (key: TextKey) => translations[language][key]
+
+  useEffect(() => {
+    document.documentElement.lang = language
+    document.title = language === 'bn' ? 'ORBIS খাতাবই' : language === 'hi' ? 'ORBIS खाताबही' : 'ORBIS Khata Boi'
+  }, [language])
+
+  useEffect(() => {
+    window.history.replaceState({ khataView: 'welcome' }, '')
+    function onBack(event: PopStateEvent) {
+      const target = (event.state as { khataView?: View } | null)?.khataView
+      // Browser history only navigates within public UI; never grants data access.
+      if (target === 'login' || target === 'welcome') setView(target)
+      else if (guestUiEnabled && guestEntered.current && (target === 'workspace' || target === 'khata')) setView(target)
+      else setView('welcome')
+    }
+    window.addEventListener('popstate', onBack)
+    return () => window.removeEventListener('popstate', onBack)
+  }, [])
+
+  function navigate(next: View) {
+    if (!guestUiEnabled && (next === 'workspace' || next === 'khata')) return
+    if (next === 'workspace' && view === 'login') guestEntered.current = true
+    if (next === 'khata' && !guestEntered.current) return
+    window.history.pushState({ khataView: next }, '')
+    setView(next)
+    document.documentElement.scrollTop = 0
+  }
+
+  function backToWelcome() {
+    guestEntered.current = false
+    // Explicit exit clears the current UI navigation trail, not any sensitive data.
+    window.history.replaceState({ khataView: 'welcome' }, '')
+    setView('welcome')
+    document.documentElement.scrollTop = 0
+  }
+
+  function languagePicker(light = false) {
+    return (
+      <select
+        className={`lang${light ? ' light' : ''}`}
+        aria-label={language === 'bn' ? 'ভাষা নির্বাচন' : language === 'hi' ? 'भाषा चुनें' : 'Choose language'}
+        value={language}
+        onChange={(event) => {
+          const selected = event.target.value as Language
+          setLanguage(selected)
+          saveLanguage(selected)
+        }}
+      >
+        {languageOptions.map(({ code, name }) => <option key={code} value={code}>{name}</option>)}
+      </select>
+    )
+  }
 
   return (
-    <>
-      <section id="center">
-        <div className="hero">
-          <img src={heroImg} className="base" width="170" height="179" alt="" />
-          <img src={reactLogo} className="framework" alt="React logo" />
-          <img src={viteLogo} className="vite" alt="Vite logo" />
-        </div>
-        <div>
-          <h1>Get started</h1>
-          <p>
-            Edit <code>src/App.tsx</code> and save to test <code>HMR</code>
-          </p>
-        </div>
-        <button
-          type="button"
-          className="counter"
-          onClick={() => setCount((count) => count + 1)}
-        >
-          Count is {count}
-        </button>
-      </section>
+    <main className="phone">
+      {view === 'welcome' && (
+        <section className="scene welcome active" aria-label={t('h1a')}>
+          <header className="top">
+            <div className="brand"><span className="orb"><OrbitMark /></span><span>ORBIS<small>{t('brand')}</small></span></div>
+            {languagePicker()}
+          </header>
+          <div className="headline">
+            <span className="eyebrow">{t('tag')}</span>
+            <h1><span>{t('h1a')}</span><br /><span>{t('h1b')}</span><br /><span style={{ color: 'white' }}>{t('h1c')}</span></h1>
+            <p>{t('intro')}</p>
+          </div>
+          <div className="art">
+            <div className="paper">
+              <div className="cap">{t('paper')}</div>
+              <div className="balance">—</div>
+              <div className="muted">{t('noFigures')}</div>
+              <div className="empty-bars" aria-hidden="true"><i /><i /><i /><i /><i /></div>
+              <div className="lower"><span>{t('in')}</span><span>{t('out')}</span></div>
+            </div>
+            <span className="bubble one">{t('one')}</span><span className="bubble two">{t('mods')}</span>
+          </div>
+          <div className="actions">
+            <button type="button" className="primary" onClick={() => navigate('login')}>{t('start')}</button>
+            <button type="button" className="secondary" onClick={() => navigate('login')}>{t('existing')}</button>
+            <p className="welcome-foot">{t('foot')}</p>
+          </div>
+        </section>
+      )}
 
-      <div className="ticks"></div>
+      {view === 'login' && (
+        <section className="scene light-scene active" aria-label={t('loginTag')}>
+          <header className="bar"><button type="button" className="back" onClick={() => navigate('welcome')} aria-label={t('exit')}>←</button><span className="pill">{t('loginTag')}</span>{languagePicker(true)}</header>
+          <div className="login-title"><div className="login-mark">O</div><h1>{t('back')}</h1><p className="subtitle">{t('authInfo')}</p></div>
+          <div className="form">
+            <label className="field"><span>{t('email')}</span><span className="input"><span aria-hidden="true">✉</span><input autoComplete="off" disabled placeholder={t('pending')} /></span></label>
+            <label className="field"><span>{t('pass')}</span><span className="input"><span aria-hidden="true">⌑</span><input type="password" autoComplete="off" disabled placeholder={t('noPass')} /></span></label>
+            <div className="options"><span>{t('remember')}</span><span>{t('recover')}</span></div>
+            <button type="button" className="disabled" disabled>{t('loginOff')}</button>
+            <div className="divider">{t('or')}</div>
+            {guestUiEnabled && <button type="button" className="gradient" onClick={() => navigate('workspace')}>{t('skip')}</button>}
+            <div className="note" role="note">{t('authGuard')}</div>
+          </div>
+          <div className="login-footer">{t('signup')}</div>
+        </section>
+      )}
 
-      <section id="next-steps">
-        <div id="docs">
-          <svg className="icon" role="presentation" aria-hidden="true">
-            <use href="/icons.svg#documentation-icon"></use>
-          </svg>
-          <h2>Documentation</h2>
-          <p>Your questions, answered</p>
-          <ul>
-            <li>
-              <a href="https://vite.dev/" target="_blank">
-                <img className="logo" src={viteLogo} alt="" />{' '}
-                Explore Vite
-              </a>
-            </li>
-            <li>
-              <a href="https://react.dev/" target="_blank">
-                <img className="button-icon" src={reactLogo} alt="" />{' '}
-                Learn more
-              </a>
-            </li>
-          </ul>
-        </div>
-        <div id="social">
-          <svg className="icon" role="presentation" aria-hidden="true">
-            <use href="/icons.svg#social-icon"></use>
-          </svg>
-          <h2>Connect with us</h2>
-          <p>Join the Vite community</p>
-          <ul>
-            <li>
-              <a href="https://github.com/vitejs/vite" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#github-icon"></use>
-                </svg>
-                GitHub
-              </a>
-            </li>
-            <li>
-              <a href="https://chat.vite.dev/" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#discord-icon"></use>
-                </svg>
-                Discord
-              </a>
-            </li>
-            <li>
-              <a href="https://x.com/vite_js" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#x-icon"></use>
-                </svg>
-                X.com
-              </a>
-            </li>
-            <li>
-              <a href="https://bsky.app/profile/vite.dev" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#bluesky-icon"></use>
-                </svg>
-                Bluesky
-              </a>
-            </li>
-          </ul>
-        </div>
-      </section>
+      {view === 'workspace' && guestUiEnabled && (
+        <section className="scene light-scene active" aria-label={t('choose')}>
+          <header className="bar workspace-header"><div className="brand"><span className="orb"><OrbitMark /></span><span>ORBIS<small>{t('workBrand')}</small></span></div>{languagePicker(true)}</header>
+          <div className="workspace-title"><span className="eyebrow l">{t('workBadge')}</span><h1>{t('hi')}</h1><p className="subtitle">{t('choose')}</p></div>
+          <div className="welcome-panel"><strong>{t('panel')}</strong><p>{t('panelDesc')}</p></div>
+          <div className="modules">
+            <button type="button" className="module" onClick={() => navigate('khata')}><span className="ic" aria-hidden="true">📘</span><span className="copy"><strong>{t('khata')}</strong><small>{t('khataDesc')}</small></span><span className="status">{t('open')}</span></button>
+            <div className="module planned"><span className="ic farm" aria-hidden="true">🌱</span><span className="copy"><strong>{t('farm')}</strong><small>{t('farmDesc')}</small></span><span className="status">{t('later')}</span></div>
+            <div className="module planned"><span className="ic lot" aria-hidden="true">🎟️</span><span className="copy"><strong>{t('lot')}</strong><small>{t('lotDesc')}</small></span><span className="status">{t('soon')}</span></div>
+          </div>
+          <div className="settings"><h2>{t('settings')}</h2><p>{t('settingsDesc')}</p><button type="button" className="exit" onClick={backToWelcome}>{t('exit')}</button></div>
+        </section>
+      )}
 
-      <div className="ticks"></div>
-      <section id="spacer"></section>
-    </>
+      {view === 'khata' && guestUiEnabled && (
+        <section className="scene light-scene active" aria-label={t('khata')}>
+          <header className="bar"><button type="button" className="back" onClick={() => navigate('workspace')} aria-label={t('choose')}>←</button><span className="pill">{t('khata')}</span>{languagePicker(true)}</header>
+          <div className="khata-title"><div className="bar"><span className="eyebrow l">{t('dashboard')}</span><span className="period">{t('month')}</span></div><h1>{t('khata')}</h1><p>{t('khataHead')}</p></div>
+          <div className="metrics">
+            {(['moneyIn', 'moneyOut', 'receive', 'pay'] as const).map((key) => <div className="metric" key={key}><span className="metric-label">{t(key)}</span><strong>—</strong><small>{t('emptyValue')}</small></div>)}
+          </div>
+          <div className="empty"><div className="big" aria-hidden="true">📒</div><h2>{t('emptyTitle')}</h2><p>{t('emptyDesc')}</p><span className="next">{t('next')}</span></div>
+          <div className="actions-row">{(['sale','purchase','receipt','payment'] as const).map((key) => <button type="button" className="action-chip" disabled key={key}>{t(key)}</button>)}</div>
+          <p className="screen-foot">{t('noFake')}</p>
+        </section>
+      )}
+    </main>
   )
 }
 

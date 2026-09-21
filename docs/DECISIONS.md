@@ -18,12 +18,17 @@ Statuses: **Locked**, **Provisional**, **Open**, **Deferred**.
 | D-010 | UI begins with Money In, Money Out, To Receive and To Pay. | Accessible to non-accountants. |
 | D-011 | Owner-approved main-only workflow: targeted local development checks, final local certification, owner-controlled direct main push, then Main GitHub Actions and SonarCloud on Free plan. Red CI requires a corrective commit; deployment stays manual. | The current Free subscription cannot run pre-main branch analysis; owner accepted Main CI repair without PR/staging. |
 | D-012 | No PR, PR Preview or staging is created by default. Any one of them requires an explicit owner request for the specific change. | Avoids staging/production mismatch and unnecessary mobile workflow cost. |
-| D-013 | Development uses targeted tests; full `orbis verify` runs only at final certification. | Efficient mobile workflow without weakening the release gate. |
+| D-013 | Development uses targeted tests; full `khata verify` runs only at final certification. | Efficient mobile workflow without weakening the release gate. |
 | D-014 | Final verify order: Ubuntu preflight → KNIP → JSCPD → Playwright → remaining Termux gates → summary. | Stable, approved verification order. |
 | D-015 | Unsupported Prisma engines do not run on Android ARM64. | Known platform limitation; Linux/CI is authoritative. |
 | D-016 | Long runs write timestamped Downloads reports and remain interruptible. | Mobile resilience and recoverable evidence. |
 | D-017 | Every material session updates a durable project checkpoint. | Work survives chat/usage interruption. |
 | D-018 | Exact money math and auditable correction/reversal are mandatory. | Accounting integrity. |
+| D-019 | Implement screens step-by-step: Welcome/Login UI first, then module selection and Khata Boi; Gopal Dairy is a separate future module inside the Khata product. | Explicit owner direction of 2026-09-19; no cross-tenant sharing implied. |
+| D-020 | For the first local UI slice, use the existing React/Vite/TypeScript scaffold and a non-authenticating demo session. Real Auth, persistence and backend choices are not approved. | Enables owner review in Termux without pretending demo is real login. |
+| D-021 | Step 2 explicitly replaces the former business-specific dairy module label with **Farming**, keeps **Khata Boi** first, and lists **Lottery** as Upcoming only. Bengali, Hindi and English must cover all Step 2 UI text; the user can change language at any entry screen and that non-sensitive preference persists. | Owner revision on 2026-09-19 supersedes D-019 module naming and the old two-module lineup. UI/documentation-only change; no stable IDs, Auth contracts, data migration, company data, backend, deployment or cross-product integration is authorized. |
+
+| D-022 | Owner-approved 20 Sept four-screen UI uses `ORBIS-KHATA-APP-UI-APPROVAL-PREVIEW.html` as a fixed visual/copy reference. Keep Welcome/Login/Workspace design; use a temporary UI-only no-login route, remove demo accounts/values/session, and add the empty Khata Boi dashboard shell. Real financial data is blocked pending authenticated API and tenant protection. | Owner approval after Android screenshot review; see `docs/UI_PHASE_04.md`. This supersedes demo-only UI details in D-020/D-021, not their module order or trilingual requirement. |
 
 ## Provisional decisions requiring formal review
 
@@ -39,7 +44,7 @@ Statuses: **Locked**, **Provisional**, **Open**, **Deferred**.
 
 | ID | Question |
 |---|---|
-| O-001 | Which frontend/PWA framework and package layout? |
+| O-001 | React/Vite/TypeScript is approved for Step 1 UI only; which final PWA/package layout and related architecture? |
 | O-002 | Which backend runtime, database and migration tool? |
 | O-003 | What is the exact accounting posting model and opening-balance representation? |
 | O-004 | What are the local event/outbox schema and sync protocol? |
