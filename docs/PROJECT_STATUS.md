@@ -111,3 +111,11 @@ Read `AGENTS.md`, then this file, then `docs/DECISIONS.md`. Inspect the current 
 - New targeted Vitest and Playwright tests cover the approved screen flow, no fabricated balances, disabled login/actions and language persistence. Tests in user Termux still require owner installer output; a prepared package is not a green test run.
 - Package changes are local-only; no branch change, commit, push, PR, deployment, database or remote Auth changes. `docs/UI_PHASE_04.md` records the approval and safe handoff.
 - Next: owner installs once with backup/rollback and Downloads report, opens Android browser and approves exact visuals, then final certification and owner-operated GitHub push when explicitly ready.
+
+
+## 2026-09-21 — Local runner hardening
+
+- Baseline main 9ba31088b0111c15a8b1a46813c2385c8271e339; modified scripts/khata.py, scripts/khata-selftest.py and this status file.
+- Preserve Git porcelain spaces and NUL paths; candidate/installed selftests passed.
+- Full certification pending; no commit, push, deploy, Auth or database writes.
+- Report handoff uses verified Downloads TXT and Android share chooser; exact-source CI governs release; deploy OFF.

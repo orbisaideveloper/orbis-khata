@@ -32,7 +32,7 @@ def git(*args):
     result = cmd(['git', *args])
     if result.returncode:
         raise RuntimeError('git ' + ' '.join(args) + ': ' + (result.stderr or result.stdout).strip())
-    return result.stdout.strip()
+    return result.stdout.rstrip('\r\n')
 
 
 def downloads():
@@ -329,6 +329,36 @@ node -e "const {{chromium}}=require('@playwright/test'); chromium.launch().then(
     return 0 if outcome == 'PASS' else 1
 
 
+def final_ok(run, rc, s, lines, fp, pid):
+    return (rc == 0 and (s.get('id'),s.get('pid'),s.get('status'),
+            s.get('stage'),s.get('fingerprint')) == (run,pid,'PASS','complete',fp)
+            and all(x in lines for x in ('Run ID: '+run,'Fingerprint: '+fp,
+            'FINAL SOURCE / GIT INTEGRITY: PASS',
+            'Source integrity: PASS; Git status unchanged: PASS'))
+            and lines.count('FINAL: PASS') == 1 and all('PASS: '+n in lines or
+            'REUSED VERIFIED PASS: '+n in lines for n in STAGES))
+
+
+def share_report(path, run_id):
+    try:
+        raw = path.read_bytes()
+        if 'Run ID: ' + run_id not in raw.decode().splitlines():
+            return False
+        print('REPORT FILE:', path.resolve(), 'bytes:', len(raw),
+              'sha256:', hashlib.sha256(raw).hexdigest(), flush=True)
+        opener = shutil.which('termux-open')
+        if not opener:return False
+        result = subprocess.run([opener, '--send', '--chooser', '--content-type',
+                                 'text/plain', str(path.resolve())],
+                                timeout=15, capture_output=True)
+        print('SHARE:', 'chooser requested; choose ChatGPT' if result.returncode == 0
+              else 'unavailable', flush=True)
+        return result.returncode == 0
+    except (OSError, UnicodeError, subprocess.TimeoutExpired) as exc:
+        print('REPORT HANDOFF FAIL:', exc, flush=True)
+        return False
+
+
 def start(mode):
     CACHE.mkdir(parents=True, exist_ok=True)
     lock = os.open(CACHE / 'verify.lock', os.O_CREAT | os.O_RDWR, 0o600)
@@ -344,6 +374,8 @@ def start(mode):
     baseline()
     names = safe_files()
     source = fingerprint(names)
+    before = git('status', '--porcelain=v1', '-z', '--untracked-files=all')
+    report_path = downloads() / REPORT_NAME
     # No automatic rerun. Resume is an explicit user action.
     if mode == 'resume':
         cp = read_json(CACHE / 'checkpoint.json')
@@ -358,13 +390,37 @@ def start(mode):
     process = subprocess.Popen([sys.executable, str(Path(__file__).resolve()), '__worker', mode, run_id, str(lock)],
                                stdin=subprocess.DEVNULL, stdout=log, stderr=subprocess.STDOUT,
                                start_new_session=True, pass_fds=(lock,), cwd=ROOT)
-    state['pid'] = process.pid
-    atomic(CACHE / 'state.json', json.dumps(state))
+    # Worker owns PID/state; avoid race.
     log.close()
     os.close(lock)
     print('STARTED, NOT CERTIFIED. Run ID:', run_id)
-    print('Progress is read-only via: khata status. No final PASS until worker finishes.')
-    print('ONLY final report (created after completion):', downloads() / REPORT_NAME)
+    previous = None
+    while True:
+        try:
+            rc = process.wait(timeout=5)
+            break
+        except subprocess.TimeoutExpired:
+            s = read_json(CACHE / 'state.json')
+            if s.get('id') != run_id: return 1
+            now = (s.get('status'), s.get('stage'))
+            if now != previous:
+                print('PROGRESS:', *now, flush=True)
+                previous = now
+        except KeyboardInterrupt:
+            print('Worker continues; use khata status.', flush=True)
+            return 130
+    s = read_json(CACHE / 'state.json')
+    try:
+        lines = report_path.read_text().splitlines()
+        intact = (fingerprint(safe_files()) == source and
+                  git('status', '--porcelain=v1', '-z', '--untracked-files=all') == before)
+    except Exception as exc:
+        print('INTEGRITY ERROR:', exc, flush=True)
+        lines, intact = [], False
+    passed = intact and final_ok(run_id, rc, s, lines, source, process.pid)
+    print('FINAL:', 'PASS' if passed else 'FAIL', 'exit:', rc, 'REPORT:', report_path, flush=True)
+    shared = share_report(report_path, run_id)
+    return 0 if passed and shared else 1
 
 
 def main():
@@ -385,7 +441,7 @@ def main():
         baseline()
         sys.exit(subprocess.run(['npm', 'run', 'dev', '--', '--host', '127.0.0.1', '--port', '5173', '--strictPort'], cwd=ROOT).returncode)
     elif action in ('verify', 'resume'):
-        start(action)
+        sys.exit(start(action))
     elif action == '__worker':
         sys.exit(worker(sys.argv[2], sys.argv[3], int(sys.argv[4])))
     else:

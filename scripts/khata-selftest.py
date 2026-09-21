@@ -8,6 +8,8 @@ import os
 import sys
 import tempfile
 from pathlib import Path
+from types import SimpleNamespace
+from unittest.mock import patch
 
 sys.dont_write_bytecode = True
 source = Path(__file__).with_name('khata.py')
@@ -45,4 +47,21 @@ with tempfile.TemporaryDirectory() as td:
         module.ROOT = old_root
         module.CACHE = old_cache
         module.downloads = old_downloads
+with patch.object(module, 'cmd', return_value=SimpleNamespace(returncode=0, stdout=' M x\n?? y\n', stderr='')):
+    assert module.git('status', '--porcelain=v1') == ' M x\n?? y'
+with patch.object(module, 'cmd', return_value=SimpleNamespace(returncode=0, stdout='  x\0', stderr='')):
+    assert module.git('ls-files', '-z') == '  x\0'
+s={'id':'r','pid':5,'status':'PASS','stage':'complete','fingerprint':'fp'}
+lines=['Run ID: r','Fingerprint: fp',*('PASS: '+n for n in module.STAGES),
+       'FINAL SOURCE / GIT INTEGRITY: PASS','Source integrity: PASS; Git status unchanged: PASS','FINAL: PASS']
+assert module.final_ok('r',0,s,lines,'fp',5)
+assert not module.final_ok('old',0,s,lines,'fp',5)
+assert not module.final_ok('r',1,s,lines,'fp',5)
+assert not module.final_ok('r',0,s,lines[:-1],'fp',5)
+with tempfile.TemporaryDirectory() as td:
+    p = Path(td) / module.REPORT_NAME
+    p.write_text('Run ID: r\nFINAL: PASS\n')
+    with patch.object(module.shutil, 'which', return_value='/bin/true'), patch.object(module.subprocess, 'run', return_value=SimpleNamespace(returncode=0)):
+        assert module.share_report(p, 'r')
+        assert not module.share_report(p, 'stale')
 print('SELFTEST: PASS | stage order, fingerprint invalidation, atomic state, read-only status')
