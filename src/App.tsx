@@ -9,6 +9,13 @@ type View = 'welcome' | 'login' | 'workspace' | 'khata'
 // API must independently enforce AuthN/AuthZ and tenant boundaries.
 const guestUiEnabled = import.meta.env.VITE_KHATA_GUEST_UI !== 'false'
 
+
+const languagePresentation: Record<Language, { title: string; pickerLabel: string }> = {
+  bn: { title: 'ORBIS খাতাবই', pickerLabel: 'ভাষা নির্বাচন' },
+  en: { title: 'ORBIS Khata Boi', pickerLabel: 'Choose language' },
+  hi: { title: 'ORBIS खाताबही', pickerLabel: 'भाषा चुनें' },
+}
+
 function OrbitMark() {
   return (
     <svg viewBox="0 0 32 32" fill="none" aria-hidden="true" focusable="false">
@@ -28,7 +35,7 @@ function App() {
 
   useEffect(() => {
     document.documentElement.lang = language
-    document.title = language === 'bn' ? 'ORBIS খাতাবই' : language === 'hi' ? 'ORBIS खाताबही' : 'ORBIS Khata Boi'
+    document.title = languagePresentation[language].title
   }, [language])
 
   useEffect(() => {
@@ -65,7 +72,7 @@ function App() {
     return (
       <select
         className={`lang${light ? ' light' : ''}`}
-        aria-label={language === 'bn' ? 'ভাষা নির্বাচন' : language === 'hi' ? 'भाषा चुनें' : 'Choose language'}
+        aria-label={languagePresentation[language].pickerLabel}
         value={language}
         onChange={(event) => {
           const selected = event.target.value as Language

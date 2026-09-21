@@ -94,6 +94,18 @@ describe('owner-approved final UI: Welcome → Login → Workspace → Khata Boi
     expect(screen.getByRole('heading', { name: 'खाताबही' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'बिक्री' })).toBeDisabled()
   })
+  it('keeps localized page titles and language picker labels consistent', () => {
+    render(<App />)
+    expect(document.title).toBe('ORBIS খাতাবই')
+    expect(screen.getByRole('combobox', { name: 'ভাষা নির্বাচন' })).toHaveValue('bn')
+    setLanguage('en')
+    expect(document.title).toBe('ORBIS Khata Boi')
+    expect(screen.getByRole('combobox', { name: 'Choose language' })).toHaveValue('en')
+    setLanguage('hi')
+    expect(document.title).toBe('ORBIS खाताबही')
+    expect(screen.getByRole('combobox', { name: 'भाषा चुनें' })).toHaveValue('hi')
+  })
+
   it('keeps language persistent but does not persist guest UI navigation', () => {
     const first = render(<App />)
     setLanguage('en')
