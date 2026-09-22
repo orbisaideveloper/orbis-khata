@@ -1,4 +1,8 @@
 import '@testing-library/jest-dom/vitest'
+import { configure } from '@testing-library/react'
+
+// Wait for observable UI readiness; mobile coverage instrumentation is slower.
+configure({ asyncUtilTimeout: 5000 })
 
 // Test-only fallback for Android Node/Vitest without localStorage.
 if (typeof window.localStorage === 'undefined') {

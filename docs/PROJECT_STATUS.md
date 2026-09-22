@@ -1,5 +1,66 @@
 # Project Status — Durable Resume Checkpoint
 
+## Latest checkpoint — 2026-09-22 coverage and reporting repair
+
+- Phone final run 20260922-083611-15187 stopped on coverage: one UI wait timeout,
+  statements 85.68%, functions 82.4%, branches 80.97%. No commit/push occurred.
+- Added observable UI tests for authenticated navigation/logout, company/party scope,
+  date/pagination filters, all posting types, exact retry identity, invalid amounts,
+  recovery-storage failure, pending navigation and existing correction behavior.
+- Android jsdom concurrency limited to 2 workers; asynchronous UI readiness timeout
+  5 seconds. Coverage thresholds remain lines/statements/functions 90%, branches 85%.
+- Local candidate: 75 tests / 9 files PASS; coverage statements 96.25%, branches
+  91.46%, functions 99.2%, lines 99.67%. Typecheck, KNIP, JSCPD PASS (0 clones).
+  Lint exits 0 with 3 existing React effect warnings; no clean-warning claim.
+- Release wrapper collects exact-run stage logs on both success and failure into its
+  Downloads report, with final outcome and timestamp. Phone final certification and
+  exact new commit CI/Sonar still pending; local coverage is not a remote certificate.
+- No new product features, schema, auth settings or financial records changed here.
+  Delete, full party details, items/units and inventory remain the next approved scope.
+
+## Latest checkpoint — 2026-09-22 release preparation
+
+- Phone accounting installer verified exact hashes and passed 59 tests / 8 files;
+  TERMUX-CMD-20260922-072905-301042456 exit=0. Source is installed, not yet committed.
+- GitHub main remains 2eb03ce151d9e80607378e9fa4ce9d69bd5657ed; its old quality job
+  35570208557 is success. This is NOT a scan of the new Auth/accounting source.
+- Owner requests current checkpoint commit/push then Sonar before next features.
+- Release fix: remove unused exported Party type (KNIP failed then passed); include
+  *.test.ts alongside *.test.tsx in Sonar test classification. No threshold reductions.
+- KNIP and JSCPD pass on prepared source (0 clones). Final permanent khata verify
+  still required on the exact phone source, including Ubuntu browser and coverage gates.
+- Next action: apply release-preparation patch and run python scripts/khata.py verify;
+  inspect exact-source completed report, repair any failing gate, then authorized push
+  and main Actions/Sonar inspection. No new branch/PR/staging/deploy/DB changes.
+- Delete-with-two-confirmations and full party/item/stock scope recorded in DECISIONS;
+  not implemented yet. Existing reversal-only behavior remains until next migration.
+
+## Latest checkpoint — 2026-09-21 Auth candidate
+
+- Packaging correction: first ZIP failed at `git apply --check` on the owner's clean
+  expected HEAD. Reproduced all eight failed paths using exact GitHub blob bytes.
+  The packaging copy had appended an extra trailing newline to every baseline file.
+  Rebuilt patch from base64-decoded GitHub blobs verified against their Git SHA-1 IDs;
+  strict patch application and byte-for-byte comparison of all 19 resulting files pass.
+  Earlier synthetic-copy patch verification was insufficient and is superseded.
+  User screenshot shows Confirm email OFF; saved server state has not been rechecked.
+
+- Base: main `2eb03ce151d9e80607378e9fa4ce9d69bd5657ed`; prepared copy only, phone not modified.
+- Added trilingual signup/login/recovery, persisted session restoration and refresh,
+  local logout, company setup UI and an unapplied owner-isolated SQL proposal.
+- Owner instruction: verification must not gate signup; app lock off; shared ORBIS IDs later.
+- Changed: `src/App.tsx`, `src/App.css`, `src/App.test.tsx`, `src/auth/*`, package manifests,
+  `scripts/khata.py` (known new source paths and default account test selection), decisions,
+  this checkpoint, `docs/AUTH_SETUP.md`, `docs/khata-company-proposal.sql`.
+- Targeted tests, source lint and TypeScript/build run locally; see delivered verification report.
+  Full certification/coverage, Android appearance, hosted Auth/recovery and live RLS tests pending.
+- Read-only live evidence: Khata public schema empty; email Auth on, signup on,
+  `mailer_autoconfirm=false` (Confirm email still enabled). No production settings changed.
+- No Git commit/push, GitHub main change, staging, deployment, Auth user creation or DB write.
+- Next: owner applies source patch in Termux and previews; separately authorize the proposed
+  table/RLS and turn off Confirm email. Configure recovery redirects/SMTP before live release.
+- Earlier checkpoints below are historical and do not supersede this entry.
+
 **Last updated:** 2026-09-15 UTC  
 **Repository:** `orbisaideveloper/orbis-khata`  
 **Current baseline branch:** `main`  
@@ -119,3 +180,16 @@ Read `AGENTS.md`, then this file, then `docs/DECISIONS.md`. Inspect the current 
 - Preserve Git porcelain spaces and NUL paths; candidate/installed selftests passed.
 - Full certification pending; no commit, push, deploy, Auth or database writes.
 - Report handoff uses verified Downloads TXT and Android share chooser; exact-source CI governs release; deploy OFF.
+
+## 2026-09-21 — Basic accounting candidate
+
+- Multi-company selector/create, company-scoped parties, sale/purchase/receipt/payment,
+  cash-bank separation, instalments, advances, immutable reversal and live totals/ledger.
+- Remote khata_accounting_v1 migration applied to gqyaxsczlmvppxuoqbox; existing company
+  preserved. Rollback tests passed; retained 1 company, 0 parties, 0 vouchers.
+- Candidate targeted frontend/API tests: 59 passed in 8 files; typecheck, source lint,
+  Vite build passed. Exact incremental installer check is recorded in the package report.
+- No new dependencies, Auth changes, Admin/Foundation writes, GitHub writes or deployment.
+- Android install/visual approval and real-session accounting smoke test pending. Browser
+  local-preview access blocked; full certification/coverage/CI/Sonar not claimed.
+- See ACCOUNTING_V1.md for remaining security-advisor warnings and deferred features.

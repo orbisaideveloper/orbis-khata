@@ -20,6 +20,17 @@ REPORT_NAME = 'ORBIS-KHATA-LATEST-REPORT.txt'
 EXPECTED_REMOTE = 'orbisaideveloper/orbis-khata'
 APPROVED_UNTRACKED = {'docs/UI_PHASE_01.md', 'docs/UI_PHASE_02.md', 'docs/UI_PHASE_03.md',
                       'docs/UI_PHASE_04.md', 'src/i18n.ts', 'scripts/khata.py', 'scripts/khata-selftest.py'}
+APPROVED_UNTRACKED.update({
+    'src/auth/client.ts', 'src/auth/client.test.ts', 'src/auth/copy.ts',
+    'src/auth/AppSession.test.tsx', 'src/auth/useAccount.ts', 'src/auth/useAccount.test.tsx',
+    'src/auth/AccountForm.tsx', 'src/auth/AccountForm.test.tsx',
+    'src/auth/CompanyGate.tsx', 'src/auth/CompanyGate.test.tsx',
+    'docs/khata-company-proposal.sql', 'docs/AUTH_SETUP.md',
+    'src/accounting/Accounting.tsx', 'src/accounting/Accounting.test.tsx',
+    'src/accounting/api.ts', 'src/accounting/api.test.ts', 'src/accounting/model.ts',
+    'src/accounting/model.test.ts', 'src/accounting/copy.ts', 'src/accounting/accounting.css',
+    'docs/accounting-v1.sql', 'docs/ACCOUNTING_V1.md',
+})
 STAGES = ['ubuntu-preflight', 'knip', 'jscpd', 'playwright', 'npm-ls', 'npm-audit',
           'lint', 'typecheck', 'build', 'coverage']
 
@@ -433,7 +444,7 @@ def main():
         doctor()
     elif action == 'test':
         baseline()
-        tests = sys.argv[2:] or ['src/App.test.tsx']
+        tests = sys.argv[2:] or ['src/App.test.tsx', 'src/auth', 'src/accounting']
         if any(t.startswith('-') or '..' in Path(t).parts for t in tests):
             raise RuntimeError('Pass explicit test file paths only')
         sys.exit(subprocess.run(['npm', 'test', '--', *tests], cwd=ROOT).returncode)

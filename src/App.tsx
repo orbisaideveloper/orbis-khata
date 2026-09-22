@@ -2,12 +2,17 @@ import { useEffect, useRef, useState } from 'react'
 import { languageOptions, readLanguage, saveLanguage, translations } from './i18n'
 import type { Language, TextKey } from './i18n'
 import './App.css'
+import { authClient } from './auth/client'
+import { useAccount } from './auth/useAccount'
+import { AccountForm } from './auth/AccountForm'
+import { accountCopy } from './auth/copy'
+import { CompanyGate } from './auth/CompanyGate'
 
 type View = 'welcome' | 'login' | 'workspace' | 'khata'
 
 // UI-only guest route. This flag is NOT an authentication control; any future
 // API must independently enforce AuthN/AuthZ and tenant boundaries.
-const guestUiEnabled = import.meta.env.VITE_KHATA_GUEST_UI !== 'false'
+const guestUiEnabled = !authClient && import.meta.env.VITE_KHATA_GUEST_UI !== 'false'
 
 
 const languagePresentation: Record<Language, { title: string; pickerLabel: string }> = {
@@ -30,6 +35,9 @@ function App() {
   // No demo session, user, financial values, company or token is persisted.
   const [view, setView] = useState<View>('welcome')
   const [language, setLanguage] = useState<Language>(readLanguage)
+  const account = useAccount()
+  const signedIn = Boolean(account.session)
+  const [logoutError, setLogoutError] = useState(false)
   const guestEntered = useRef(false)
   const t = (key: TextKey) => translations[language][key]
 
@@ -44,17 +52,31 @@ function App() {
       const target = (event.state as { khataView?: View } | null)?.khataView
       // Browser history only navigates within public UI; never grants data access.
       if (target === 'login' || target === 'welcome') setView(target)
-      else if (guestUiEnabled && guestEntered.current && (target === 'workspace' || target === 'khata')) setView(target)
+      else if ((signedIn || (guestUiEnabled && guestEntered.current)) && (target === 'workspace' || target === 'khata')) setView(target)
       else setView('welcome')
     }
     window.addEventListener('popstate', onBack)
     return () => window.removeEventListener('popstate', onBack)
-  }, [])
+  }, [signedIn])
+
+  useEffect(() => {
+    if (!authClient || account.loading) return
+    window.history.replaceState({ khataView: signedIn ? 'workspace' : 'welcome' }, '')
+    setView(signedIn ? 'workspace' : 'welcome')
+  }, [signedIn, account.loading])
+
+  async function logout() {
+    if (!authClient) { backToWelcome(); return }
+    try {
+      const { error } = await authClient.auth.signOut({ scope: 'local' })
+      setLogoutError(Boolean(error))
+    } catch { setLogoutError(true) }
+  }
 
   function navigate(next: View) {
-    if (!guestUiEnabled && (next === 'workspace' || next === 'khata')) return
+    if (!signedIn && !guestUiEnabled && (next === 'workspace' || next === 'khata')) return
     if (next === 'workspace' && view === 'login') guestEntered.current = true
-    if (next === 'khata' && !guestEntered.current) return
+    if (next === 'khata' && !signedIn && !guestEntered.current) return
     window.history.pushState({ khataView: next }, '')
     setView(next)
     document.documentElement.scrollTop = 0
@@ -84,6 +106,10 @@ function App() {
       </select>
     )
   }
+
+  if (account.loading) return <main className="phone"><p role="status">{accountCopy[language].network}</p></main>
+  if (account.unavailable) return <main className="phone"><p role="alert">{accountCopy[language].error}</p><button type="button" onClick={() => window.location.reload()}>{accountCopy[language].retry}</button></main>
+  if (account.recovery) return <main className="phone"><AccountForm key="recovery" language={language} recovery onRecovered={() => account.setRecovery(false)} /></main>
 
   return (
     <main className="phone">
@@ -119,7 +145,8 @@ function App() {
       {view === 'login' && (
         <section className="scene light-scene active" aria-label={t('loginTag')}>
           <header className="bar"><button type="button" className="back" onClick={() => navigate('welcome')} aria-label={t('exit')}>←</button><span className="pill">{t('loginTag')}</span>{languagePicker(true)}</header>
-          <div className="login-title"><div className="login-mark">O</div><h1>{t('back')}</h1><p className="subtitle">{t('authInfo')}</p></div>
+          <div className="login-title"><div className="login-mark">O</div><h1>{t('back')}</h1><p className="subtitle">{authClient ? accountCopy[language].persistent : t('authInfo')}</p></div>
+          {authClient ? <AccountForm language={language} onRecovered={() => account.setRecovery(false)} /> : <>
           <div className="form">
             <label className="field"><span>{t('email')}</span><span className="input"><span aria-hidden="true">✉</span><input autoComplete="off" disabled placeholder={t('pending')} /></span></label>
             <label className="field"><span>{t('pass')}</span><span className="input"><span aria-hidden="true">⌑</span><input type="password" autoComplete="off" disabled placeholder={t('noPass')} /></span></label>
@@ -129,11 +156,12 @@ function App() {
             {guestUiEnabled && <button type="button" className="gradient" onClick={() => navigate('workspace')}>{t('skip')}</button>}
             <div className="note" role="note">{t('authGuard')}</div>
           </div>
-          <div className="login-footer">{t('signup')}</div>
+          </>}
+          <div className="login-footer">{authClient ? '' : t('signup')}</div>
         </section>
       )}
 
-      {view === 'workspace' && guestUiEnabled && (
+      {view === 'workspace' && (signedIn || guestUiEnabled) && (
         <section className="scene light-scene active" aria-label={t('choose')}>
           <header className="bar workspace-header"><div className="brand"><span className="orb"><OrbitMark /></span><span>ORBIS<small>{t('workBrand')}</small></span></div>{languagePicker(true)}</header>
           <div className="workspace-title"><span className="eyebrow l">{t('workBadge')}</span><h1>{t('hi')}</h1><p className="subtitle">{t('choose')}</p></div>
@@ -143,20 +171,24 @@ function App() {
             <div className="module planned"><span className="ic farm" aria-hidden="true">🌱</span><span className="copy"><strong>{t('farm')}</strong><small>{t('farmDesc')}</small></span><span className="status">{t('later')}</span></div>
             <div className="module planned"><span className="ic lot" aria-hidden="true">🎟️</span><span className="copy"><strong>{t('lot')}</strong><small>{t('lotDesc')}</small></span><span className="status">{t('soon')}</span></div>
           </div>
-          <div className="settings"><h2>{t('settings')}</h2><p>{t('settingsDesc')}</p><button type="button" className="exit" onClick={backToWelcome}>{t('exit')}</button></div>
+          <div className="settings"><h2>{t('settings')}</h2><p>{t('settingsDesc')}</p><button type="button" className="exit" onClick={() => { void logout() }}>{signedIn ? accountCopy[language].logout : t('exit')}</button>
+          {signedIn && <p>{accountCopy[language].lock} — {accountCopy[language].lockInfo}</p>}
+          {logoutError && <p role="alert">{accountCopy[language].error}</p>}</div>
         </section>
       )}
 
-      {view === 'khata' && guestUiEnabled && (
+      {view === 'khata' && (signedIn || guestUiEnabled) && (
         <section className="scene light-scene active" aria-label={t('khata')}>
           <header className="bar"><button type="button" className="back" onClick={() => navigate('workspace')} aria-label={t('choose')}>←</button><span className="pill">{t('khata')}</span>{languagePicker(true)}</header>
-          <div className="khata-title"><div className="bar"><span className="eyebrow l">{t('dashboard')}</span><span className="period">{t('month')}</span></div><h1>{t('khata')}</h1><p>{t('khataHead')}</p></div>
+          {!signedIn && <div className="khata-title"><div className="bar"><span className="eyebrow l">{t('dashboard')}</span><span className="period">{t('month')}</span></div><h1>{t('khata')}</h1><p>{t('khataHead')}</p></div>}
+          <CompanyGate key={account.session?.user.id ?? 'guest'} userId={account.session?.user.id} language={language}>
           <div className="metrics">
             {(['moneyIn', 'moneyOut', 'receive', 'pay'] as const).map((key) => <div className="metric" key={key}><span className="metric-label">{t(key)}</span><strong>—</strong><small>{t('emptyValue')}</small></div>)}
           </div>
           <div className="empty"><div className="big" aria-hidden="true">📒</div><h2>{t('emptyTitle')}</h2><p>{t('emptyDesc')}</p><span className="next">{t('next')}</span></div>
           <div className="actions-row">{(['sale','purchase','receipt','payment'] as const).map((key) => <button type="button" className="action-chip" disabled key={key}>{t(key)}</button>)}</div>
           <p className="screen-foot">{t('noFake')}</p>
+          </CompanyGate>
         </section>
       )}
     </main>

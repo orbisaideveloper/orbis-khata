@@ -67,4 +67,52 @@ Statuses: **Locked**, **Provisional**, **Open**, **Deferred**.
 
 ## Decision-change rule
 
+### 2026-09-21 — Owner-authorized local Auth preparation
+
+D-023 supersedes the no-real-Auth portion of D-020/D-022 for this incremental slice:
+prepare Khata-owned Supabase email/password signup with first name, last name, email,
+phone contact and password. No mandatory signup email/phone verification, no repeated
+password prompt while a valid saved session exists, app lock off initially.
+Optional device lock and later verification are deferred. No shared ORBIS ID or
+Admin dependency may block signup; mutable unverified contact details cannot link identities.
+P-001 is updated to these owner-specified fields (no confirmation-password field requested).
+O-002 is resolved only for this Auth/company slice to the owner's new Khata Supabase
+project; accounting, offline sync and remaining architecture questions stay open.
+One-owner company preparation follows P-002; paid entitlements are not implemented.
+Affected source: `src/auth/*`, App, dependencies, runner test scope and AUTH_SETUP.
+Proposed schema: `docs/khata-company-proposal.sql`, not applied. UI appearance is
+preserved, with functional account inputs replacing disabled ones when configured.
+Production writes/deployment retain the explicit approval gate. No user accounts created.
+
 Changing a locked decision requires an explicit owner instruction and an entry describing the old rule, new rule, reason, affected files/migrations, compatibility impact and effective date. Never silently rewrite architecture history.
+
+### 2026-09-21 — Owner-approved multi-company accounting v1
+
+Supersedes the one-company owner restriction for this slice. Owner explicitly requested
+10/20 or more separate company books, company-scoped parties, sale/purchase/receipt/payment,
+instalments and negative party balances as advances; approved real double-entry accounting.
+TypeScript frontend and PostgreSQL remain the stack; no additional runtime is required.
+Migration khata_accounting_v1 removes only the owner uniqueness constraint, preserves
+existing company data, and adds owner-scoped immutable balanced vouchers and report APIs.
+Future GST, opening-balance import, stock, offline/local-paid-cloud storage and automatic
+backup are deferred, not represented as implemented. See ACCOUNTING_V1.md for limitations.
+Source: src/accounting/*, CompanyGate, App, runner. Remote migration applied only to
+gqyaxsczlmvppxuoqbox after rollback acceptance tests. No GitHub push or deployment.
+
+### 2026-09-22 — Owner-requested deletion and next accounting scope
+
+Owner supersedes the reversal-only user experience: all posted transaction types,
+including purchase bills, must offer Delete with two explicit confirmations.
+The ordinary ledger must remove the entry without requiring a user-entered opposite
+transaction. Implement server-authorized, idempotent, atomic voiding with an internal
+audit record; all financial totals exclude voided entries. Future stock movements
+must be voided in the same transaction; independent receipts are not silently deleted
+with an invoice. Show affected linked records and their remaining advance/dues before
+the final confirmation. A date correction uses deletion then a correctly dated entry.
+This decision is approved; implementation is pending and no financial rows are deleted now.
+
+Next feature scope after current checkpoint certification/push/Sonar: unified party
+and ledger master with contact details and expense accounts; item/unit masters;
+itemized sale/purchase; inventory movements/stock reports; deletion propagation.
+GST and offline backup remain later phases. Current push approval covers the installed
+Auth/accounting checkpoint plus release fixes; it does not authorize deployment.

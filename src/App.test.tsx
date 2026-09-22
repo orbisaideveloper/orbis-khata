@@ -1,7 +1,13 @@
 import { cleanup, fireEvent, render, screen } from '@testing-library/react'
-import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import App from './App'
 import { LANGUAGE_KEY, languageOptions, readLanguage, translations } from './i18n'
+
+// Legacy UI remains testable even when local real-auth environment is configured.
+vi.mock('./auth/client', () => {
+  vi.stubEnv('VITE_KHATA_GUEST_UI', 'true')
+  return { authClient: null }
+})
 
 beforeEach(() => {
   window.localStorage.clear()
