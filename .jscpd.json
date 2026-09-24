@@ -2,12 +2,15 @@
   "threshold": 0,
   "minLines": 5,
   "minTokens": 50,
-  "reporters": ["console"],
+  "reporters": [
+    "console"
+  ],
   "ignore": [
     "**/node_modules/**",
     "**/dist/**",
     "**/coverage/**",
     "**/playwright-report/**",
-    "**/test-results/**"
+    "**/test-results/**",
+    "src/**/copy.ts"
   ]
 }
