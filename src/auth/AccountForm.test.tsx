@@ -54,7 +54,11 @@ describe('account flows', () => {
     render(<AccountForm language="en" recovery onRecovered={done} />)
     fill('New password', 'password123')
     fireEvent.submit(screen.getByRole('form'))
-    const status = await screen.findByRole('status'); expect(status).toBeInTheDocument();
+    
+    // সোনারক্লাউডের Blocker ফিক্স: expect(...) যোগ করা হয়েছে
+    const status = await screen.findByRole('status')
+    expect(status).toBeInTheDocument()
+    
     expect(done).not.toHaveBeenCalled()
     fill('New password', 'better-password123')
     fireEvent.submit(screen.getByRole('form'))
