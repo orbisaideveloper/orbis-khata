@@ -147,6 +147,10 @@ function Books({ userId, language, company, onLock }: Props & { company: Company
     } catch { setSaveError(t.validation) }
   }
   const allowedParties = data?.parties.filter(p => kind === 'sale' || kind === 'receipt' ? p.kind !== 'supplier' : p.kind !== 'customer') ?? []
+  
+  const SectionTitle = ({ title, subtitle, children }: { readonly title: string; readonly subtitle?: React.ReactNode; readonly children?: React.ReactNode }) => (
+    <div className="books-section-title"><h2>{title}</h2>{subtitle && <span>{subtitle}</span>}{children}</div>
+  )
   const aggregate = (field: 'receivable' | 'payable', advance = false) => (data?.parties ?? []).reduce((sum, p) => {
     const n = BigInt(p[field]) * (advance ? -1n : 1n); return sum + (n > 0n ? n : 0n)
   }, 0n)
@@ -171,14 +175,14 @@ function Books({ userId, language, company, onLock }: Props & { company: Company
     {loading && <output>{t.loading}</output>}
     {error && <p className="books-warning" role="alert">{from > to || !from || !to ? t.range : t.error}</p>}
     {data && <>
-      <div className="books-section-title"><h2>{t.closing}</h2><span>{to}</span></div>
+      <SectionTitle title={t.closing} subtitle={to} />
       <div className="books-stats">
         {(['cash', 'bank'] as const).map(a => <Metric key={a} label={t[a]} value={balance(data, a)} />)}
         <Metric label={t.receivable} value={aggregate('receivable')} /><Metric label={t.payable} value={aggregate('payable')} />
       </div>
       <div className="books-mini"><span>{t.advanceCustomer}<strong>{money(aggregate('receivable', true))}</strong></span><span>{t.advanceSupplier}<strong>{money(aggregate('payable', true))}</strong></span></div>
       {balance(data, 'cash') < 0n && <p className="books-warning">{t.cashWarning}</p>}
-      <div className="books-section-title"><h2>{t.period}</h2><span>{from} → {to}</span></div>
+      <SectionTitle title={t.period} subtitle={`${from} → ${to}`} />
       <div className="books-stats two"><Metric label={t.sales} value={-balance(data, 'sales', 'movement')} /><Metric label={t.purchases} value={balance(data, 'purchases', 'movement')} /></div>
       <div className="books-actions">{actions.map((action, i) => <button type="button" key={action} disabled={Boolean(command)} onClick={() => { setDraft(null); setKind(action); setReversal(null); setSaveError(''); setMessage('') }}><span aria-hidden="true">{['↗', '↙', '＋', '−'][i]}</span>{t[action]}</button>)}</div>
       <p className="books-hint">{t.invoiceHint}</p>
@@ -195,14 +199,14 @@ function Books({ userId, language, company, onLock }: Props & { company: Company
         {saveError && <p role="alert">{saveError}</p>}
         <div className="books-buttons"><button type="submit" className="books-primary" disabled={!reversal && !allowedParties.length}>{t.review}</button><button type="button" onClick={() => { setKind(null); setReversal(null) }}>{t.cancel}</button></div>
       </form>}
-      <section className="books-card"><div className="books-section-title"><h2>{t.parties}</h2><button type="button" disabled={Boolean(command)} onClick={() => setAddParty(true)}>＋ {t.newParty}</button></div>
+      <section className="books-card"><SectionTitle title={t.parties}><button type="button" disabled={Boolean(command)} onClick={() => setAddParty(true)}>＋ {t.newParty}</button></SectionTitle>
         {!data.parties.length && <p>{t.noParties}</p>}
         {addParty && <RecordForm language={language} owner={userId} company={company.id} onCancel={() => setAddParty(false)} onCreated={() => { setAddParty(false); setVersion(n => n + 1) }} />}
         <div className="books-party-list">{data.parties.map(p => <button type="button" key={p.id} className={party === p.id ? 'selected' : ''} onClick={() => { setParty(p.id); setOffset(0) }}>
           <span><strong>{p.name}</strong><small>{t[p.kind]}</small></span><span><small>{t.receivable}: {money(p.receivable)}</small><small>{t.payable}: {money(p.payable)}</small></span>
         </button>)}</div>
       </section>
-      <section className="books-card"><div className="books-section-title"><h2>{t.ledger}</h2><span>{data.count} {t.entries}</span></div>
+      <section className="books-card"><SectionTitle title={t.ledger} subtitle={`${data.count} ${t.entries}`} />
         <label className="books-party-filter">{t.party}<select value={party} onChange={e => { setParty(e.target.value); setOffset(0) }}><option value="">{t.all}</option>{data.parties.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}</select></label>
         <div className="books-ledger-summary"><span>{t.opening} / {t.receivable}<strong>{money(data.ledger_balances.receivable?.opening ?? '0')}</strong></span><span>{t.opening} / {t.payable}<strong>{money(-BigInt(data.ledger_balances.payable?.opening ?? '0'))}</strong></span>
           <span>{t.closing} / {t.receivable}<strong>{money(data.ledger_balances.receivable?.closing ?? '0')}</strong></span><span>{t.closing} / {t.payable}<strong>{money(-BigInt(data.ledger_balances.payable?.closing ?? '0'))}</strong></span></div>

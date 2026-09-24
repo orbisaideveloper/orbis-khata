@@ -41,6 +41,16 @@ function App() {
   const guestEntered = useRef(false)
   const t = (key: TextKey) => translations[language][key]
 
+  const renderBar = (backView: View, ariaKey: TextKey, pillKey: TextKey) => (
+    <header className="bar"><button type="button" className="back" onClick={() => navigate(backView)} aria-label={t(ariaKey)}>←</button><span className="pill">{t(pillKey)}</span>{languagePicker(true)}</header>
+  )
+  const renderBrand = (subKey: TextKey) => (
+    <div className="brand"><span className="orb"><OrbitMark /></span><span>ORBIS<small>{t(subKey)}</small></span></div>
+  )
+  const renderPlanned = (ic: string, cls: string, nameKey: TextKey, descKey: TextKey, statusKey: TextKey) => (
+    <div className="module planned"><span className={`ic ${cls}`} aria-hidden="true">{ic}</span><span className="copy"><strong>{t(nameKey)}</strong><small>{t(descKey)}</small></span><span className="status">{t(statusKey)}</span></div>
+  )
+
   useEffect(() => {
     document.documentElement.lang = language
     document.title = languagePresentation[language].title
@@ -116,7 +126,7 @@ function App() {
       {view === 'welcome' && (
         <section className="scene welcome active" aria-label={t('h1a')}>
           <header className="top">
-            <div className="brand"><span className="orb"><OrbitMark /></span><span>ORBIS<small>{t('brand')}</small></span></div>
+            {renderBrand('brand')}
             {languagePicker()}
           </header>
           <div className="headline">
@@ -144,7 +154,7 @@ function App() {
 
       {view === 'login' && (
         <section className="scene light-scene active" aria-label={t('loginTag')}>
-          <header className="bar"><button type="button" className="back" onClick={() => navigate('welcome')} aria-label={t('exit')}>←</button><span className="pill">{t('loginTag')}</span>{languagePicker(true)}</header>
+          {renderBar('welcome', 'exit', 'loginTag')}
           <div className="login-title"><div className="login-mark">O</div><h1>{t('back')}</h1><p className="subtitle">{authClient ? accountCopy[language].persistent : t('authInfo')}</p></div>
           {authClient ? <AccountForm language={language} onRecovered={() => account.setRecovery(false)} /> : (
           <div className="form">
@@ -163,13 +173,13 @@ function App() {
 
       {view === 'workspace' && (signedIn || guestUiEnabled) && (
         <section className="scene light-scene active" aria-label={t('choose')}>
-          <header className="bar workspace-header"><div className="brand"><span className="orb"><OrbitMark /></span><span>ORBIS<small>{t('workBrand')}</small></span></div>{languagePicker(true)}</header>
+          <header className="bar workspace-header">{renderBrand('workBrand')}{languagePicker(true)}</header>
           <div className="workspace-title"><span className="eyebrow l">{t('workBadge')}</span><h1>{t('hi')}</h1><p className="subtitle">{t('choose')}</p></div>
           <div className="welcome-panel"><strong>{t('panel')}</strong><p>{t('panelDesc')}</p></div>
           <div className="modules">
             <button type="button" className="module" onClick={() => navigate('khata')}><span className="ic" aria-hidden="true">📘</span><span className="copy"><strong>{t('khata')}</strong><small>{t('khataDesc')}</small></span><span className="status">{t('open')}</span></button>
-            <div className="module planned"><span className="ic farm" aria-hidden="true">🌱</span><span className="copy"><strong>{t('farm')}</strong><small>{t('farmDesc')}</small></span><span className="status">{t('later')}</span></div>
-            <div className="module planned"><span className="ic lot" aria-hidden="true">🎟️</span><span className="copy"><strong>{t('lot')}</strong><small>{t('lotDesc')}</small></span><span className="status">{t('soon')}</span></div>
+            {renderPlanned('🌱', 'farm', 'farm', 'farmDesc', 'later')}
+            {renderPlanned('🎟️', 'lot', 'lot', 'lotDesc', 'soon')}
           </div>
           <div className="settings"><h2>{t('settings')}</h2><p>{t('settingsDesc')}</p><button type="button" className="exit" onClick={() => { void logout() }}>{signedIn ? accountCopy[language].logout : t('exit')}</button>
           {signedIn && <p>{accountCopy[language].lock} — {accountCopy[language].lockInfo}</p>}
@@ -179,7 +189,7 @@ function App() {
 
       {view === 'khata' && (signedIn || guestUiEnabled) && (
         <section className="scene light-scene active" aria-label={t('khata')}>
-          <header className="bar"><button type="button" className="back" onClick={() => navigate('workspace')} aria-label={t('choose')}>←</button><span className="pill">{t('khata')}</span>{languagePicker(true)}</header>
+          {renderBar('workspace', 'choose', 'khata')}
           {!signedIn && <div className="khata-title"><div className="bar"><span className="eyebrow l">{t('dashboard')}</span><span className="period">{t('month')}</span></div><h1>{t('khata')}</h1><p>{t('khataHead')}</p></div>}
           <CompanyGate key={account.session?.user.id ?? 'guest'} userId={account.session?.user.id} language={language}>
           <div className="metrics">
