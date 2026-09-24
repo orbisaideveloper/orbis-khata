@@ -54,7 +54,7 @@ describe('account flows', () => {
     render(<AccountForm language="en" recovery onRecovered={done} />)
     fill('New password', 'password123')
     fireEvent.submit(screen.getByRole('form'))
-    await screen.findByRole('status')
+    const status = await screen.findByRole('status'); expect(status).toBeInTheDocument();
     expect(done).not.toHaveBeenCalled()
     fill('New password', 'better-password123')
     fireEvent.submit(screen.getByRole('form'))

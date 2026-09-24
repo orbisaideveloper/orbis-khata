@@ -1,6 +1,6 @@
 import { authClient } from '../auth/client'
 import type { Command, Company, Report } from './model'
-function client() { if (!authClient) throw new Error('AUTH_REQUIRED'); return authClient }
+function client() { if (!authClient) { throw new Error('AUTH_REQUIRED'); } return authClient }
 export async function companies(owner: string): Promise<Company[]> {
   const result: Company[] = []
   for (let start = 0; ; start += 500) {
@@ -15,7 +15,7 @@ export async function createRecord(table: 'khata_companies' | 'khata_parties', r
   if (!error) return data as Company
   if (error.code !== '23505') throw error
   const retry = await client().from(table).select('*').eq('id', row.id).single()
-  if (retry.error || !retry.data || Object.entries(row).some(([k, v]) => retry.data[k] !== v)) throw error
+  if (retry.error || !retry.data || Object.entries(row).some(([k, v]) => retry.data[k] !== v)) { throw error; }
   return { id: retry.data.id, name: retry.data.name }
 }
 export async function report(company: string, from: string, to: string, party: string, offset: number): Promise<Report> {
