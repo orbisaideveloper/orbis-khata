@@ -107,7 +107,7 @@ function App() {
     )
   }
 
-  if (account.loading) return <main className="phone"><p role="status">{accountCopy[language].network}</p></main>
+  if (account.loading) return <main className="phone"><output>{accountCopy[language].network}</output></main>
   if (account.unavailable) return <main className="phone"><p role="alert">{accountCopy[language].error}</p><button type="button" onClick={() => window.location.reload()}>{accountCopy[language].retry}</button></main>
   if (account.recovery) return <main className="phone"><AccountForm key="recovery" language={language} recovery onRecovered={() => account.setRecovery(false)} /></main>
 
@@ -146,7 +146,7 @@ function App() {
         <section className="scene light-scene active" aria-label={t('loginTag')}>
           <header className="bar"><button type="button" className="back" onClick={() => navigate('welcome')} aria-label={t('exit')}>←</button><span className="pill">{t('loginTag')}</span>{languagePicker(true)}</header>
           <div className="login-title"><div className="login-mark">O</div><h1>{t('back')}</h1><p className="subtitle">{authClient ? accountCopy[language].persistent : t('authInfo')}</p></div>
-          {authClient ? <AccountForm language={language} onRecovered={() => account.setRecovery(false)} /> : <>
+          {authClient ? <AccountForm language={language} onRecovered={() => account.setRecovery(false)} /> : (
           <div className="form">
             <label className="field"><span>{t('email')}</span><span className="input"><span aria-hidden="true">✉</span><input autoComplete="off" disabled placeholder={t('pending')} /></span></label>
             <label className="field"><span>{t('pass')}</span><span className="input"><span aria-hidden="true">⌑</span><input type="password" autoComplete="off" disabled placeholder={t('noPass')} /></span></label>
@@ -156,7 +156,7 @@ function App() {
             {guestUiEnabled && <button type="button" className="gradient" onClick={() => navigate('workspace')}>{t('skip')}</button>}
             <div className="note" role="note">{t('authGuard')}</div>
           </div>
-          </>}
+          )}
           <div className="login-footer">{authClient ? '' : t('signup')}</div>
         </section>
       )}
