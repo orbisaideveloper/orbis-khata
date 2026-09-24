@@ -139,9 +139,9 @@ function Books({ userId, language, company, onLock }: Props & { company: Company
     e.preventDefault(); setSaveError(''); setMessage('')
     const f = new FormData(e.currentTarget)
     try {
-      const amount = reversal?.amount_minor ?? minor(String(f.get('amount')))
-      setCommand({ id: crypto.randomUUID(), company: company.id, party: reversal?.party_id ?? String(f.get('party')),
-        kind: kind!, date: String(f.get('date')), amount, method: f.get('method') === 'bank' ? 'bank' : 'cash',
+      const amount = reversal?.amount_minor ?? minor(String(f.get('amount') ?? ''))
+      setCommand({ id: crypto.randomUUID(), company: company.id, party: reversal?.party_id ?? String(f.get('party') ?? ''),
+        kind: kind!, date: String(f.get('date') ?? ''), amount, method: f.get('method') === 'bank' ? 'bank' : 'cash',
         reference: String(f.get('reference') ?? '').trim(), note: String(f.get('note') ?? '').trim(), reverses: reversal?.id ?? null })
       setAttempted(false)
     } catch { setSaveError(t.validation) }
