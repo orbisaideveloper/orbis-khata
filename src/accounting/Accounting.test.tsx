@@ -68,7 +68,7 @@ it('does not treat a failed report refresh as a failed save', async () => {
   api.report.mockRejectedValueOnce(new Error('network'))
   fireEvent.click(screen.getByRole('button', { name: 'Confirm & save' }))
   await screen.findByText('Saved successfully.')
-  await screen.findByRole('alert')
+  await screen.findByRole('status')
   expect(api.post).toHaveBeenCalledTimes(1)
   expect(sessionStorage.getItem('khata-pending-v1:u')).toBeNull()
 })
@@ -113,7 +113,7 @@ it('rejects invalid amounts and allows abandoning an unsaved form', async () => 
   const form = screen.getByLabelText('Amount (INR)').closest('form')!
   fireEvent.change(within(form).getByLabelText('Amount (INR)'), { target: { value: '1.001' } })
   fireEvent.submit(form)
-  expect(screen.getByRole('alert')).toHaveTextContent('valid positive amount')
+  expect(screen.getByRole('status')).toHaveTextContent('valid positive amount')
   expect(api.post).not.toHaveBeenCalled()
   fireEvent.click(within(form).getByRole('button', { name: 'Cancel' }))
   expect(screen.queryByLabelText('Amount (INR)')).toBeNull()
@@ -135,7 +135,7 @@ it('keeps date, party and pagination filters within the selected company', async
   await screen.findByText('Customer advances')
   const calls = api.report.mock.calls.length
   fireEvent.change(screen.getByLabelText('From'), { target: { value: '2026-02-01' } })
-  expect(await screen.findByRole('alert')).toHaveTextContent('valid date range')
+  expect(await screen.findByRole('status')).toHaveTextContent('valid date range')
   expect(api.report).toHaveBeenCalledTimes(calls)
   fireEvent.change(screen.getByLabelText('From'), { target: { value: '2026-01-01' } })
   fireEvent.click(await screen.findByRole('button', { name: 'Refresh' }))
@@ -170,7 +170,7 @@ it('blocks posting when recovery storage fails and warns before leaving a pendin
   try {
     fireEvent.click(screen.getByRole('button', { name: 'Confirm & save' }))
     expect(storage).toHaveBeenCalledOnce()
-    expect(screen.getByRole('alert')).toHaveTextContent('Browser storage is unavailable')
+    expect(screen.getByRole('status')).toHaveTextContent('Browser storage is unavailable')
     expect(api.post).not.toHaveBeenCalled()
   } finally { storage.mockRestore() }
 })

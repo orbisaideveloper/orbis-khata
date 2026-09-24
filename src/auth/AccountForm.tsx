@@ -11,7 +11,7 @@ interface Props {
   readonly onRecovered: () => void;
 }
 
-export function AccountForm({ language, recovery = false, onRecovered }: Props) {
+export function AccountForm({ language, recovery = false, onRecovered }: Readonly<Props>) {
   const [mode, setMode] = useState<Mode>(recovery ? 'reset' : 'login')
   const [busy, setBusy] = useState(false)
   const inFlight = useRef(false)
@@ -45,20 +45,20 @@ export function AccountForm({ language, recovery = false, onRecovered }: Props) 
     }
   }
 
-  async function submit(event: React.FormEvent<HTMLFormElement>) {
+  async function submit(event: React.SyntheticEvent<HTMLFormElement>) {
     event.preventDefault()
     if (!authClient || inFlight.current) return
     const form = event.currentTarget
     const data = new FormData(form)
     const email = getVal(data, 'email')
     const password = getVal(data, 'password')
-    
+
     inFlight.current = true
     setBusy(true); setMessage('')
     try {
       await processAuth(mode, email, password, data)
-    } catch { 
-      setMessage(t.error) 
+    } catch {
+      setMessage(t.error)
     } finally {
       const field = form.elements.namedItem('password')
       if (field instanceof HTMLInputElement) field.value = ''
@@ -88,6 +88,5 @@ export function AccountForm({ language, recovery = false, onRecovered }: Props) 
       <button type="button" disabled={busy} onClick={() => change(mode === 'login' ? 'signup' : 'login')}>{mode === 'login' ? t.signup : t.login}</button>
       {mode === 'login' && <button type="button" disabled={busy} onClick={() => change('recover')}>{t.forgot}</button>}
     </div>}
-    <p className="note">{t.persistent}</p>
-  </div>
+    <p className="note">{t.persistent}</p>    </div>
 }

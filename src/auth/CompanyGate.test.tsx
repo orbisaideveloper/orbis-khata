@@ -35,7 +35,7 @@ it('creates another company with a stable client id and the current owner', asyn
 it('blocks books on load failure and supports retry', async () => {
   api.companies.mockRejectedValueOnce(new Error('offline')).mockResolvedValueOnce([])
   render(<CompanyGate userId="owner-a" language="en">Preview</CompanyGate>)
-  await screen.findByRole('alert'); expect(api.report).not.toHaveBeenCalled()
+  await screen.findByRole('status'); expect(api.report).not.toHaveBeenCalled()
   fireEvent.click(screen.getByRole('button', { name: 'Retry' }))
   await screen.findByLabelText('Company name')
 })

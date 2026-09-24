@@ -10,15 +10,17 @@ type Props = { readonly userId: string; readonly language: Language }
 const actions = ['sale', 'purchase', 'receipt', 'payment'] as const
 const accounts: Account[] = ['cash', 'bank', 'receivable', 'payable', 'sales', 'purchases']
 const pendingKey = (user: string) => `khata-pending-v1:${user}`
+
 function restore(user: string): Command | null {
   try {
     const raw = sessionStorage.getItem(pendingKey(user))
     if (!raw) return null
     const c = JSON.parse(raw) as Command
-    return c.id && c.company && c.party && /^\d+$/.test(c.amount) && [...actions, 'reversal'].includes(c.kind) ? c : null
+    return c.id && c.company && c.party && /^\d+$/.test(c.amount) && [...actions, 'reversal'].includes(c.kind as any) ? c : null
   } catch { return null }
 }
-export function Accounting({ userId, language }: Props) {
+
+export function Accounting({ userId, language }: Readonly<Props>) {
   const t = accountingCopy[language]
   const [list, setList] = useState<Company[]>([])
   const [selected, setSelected] = useState(() => restore(userId)?.company ?? '')
@@ -27,19 +29,28 @@ export function Accounting({ userId, language }: Props) {
   const [refresh, setRefresh] = useState(0)
   const [create, setCreate] = useState(false)
   const [locked, setLocked] = useState(Boolean(restore(userId)))
+
   useEffect(() => {
     let alive = true
     setLoading(true); setError(false)
     void api.companies(userId).then(items => {
       if (!alive) return
-      setList(items); setSelected(old => items.some(c => c.id === old) ? old : (items[0]?.id ?? ''))
+      setList(items); 
+      setSelected(old => {
+        if (items.some(c => c.id === old)) return old;
+        return items[0]?.id ?? '';
+      })
       setLoading(false)
     }, () => { if (alive) { setLoading(false); setError(true) } })
     return () => { alive = false }
   }, [userId, refresh])
-  if (loading) return <output>{t.loading}</output>
-  if (error) return <div role="alert"><p>{t.error}</p><button type="button" onClick={() => setRefresh(n => n + 1)}>{t.retry}</button></div>
+
+  if (loading) return <output aria-live="polite">{t.loading}</output>
+  if (error) return <output aria-live="polite"><p>{t.error}</p><button type="button" onClick={() => setRefresh(n => n + 1)}>{t.retry}</button></output>
+
   const company = list.find(c => c.id === selected)
+  const showRecordForm = create || !list.length;
+
   return <div className="books">
     <div className="books-company">
       <label>{t.company}<select aria-label={t.company} value={selected} disabled={locked || !list.length} onChange={e => setSelected(e.target.value)}>
@@ -48,41 +59,62 @@ export function Accounting({ userId, language }: Props) {
       <button type="button" disabled={locked} onClick={() => setCreate(true)}>＋ {t.newCompany}</button>
     </div>
     {locked && <p className="books-warning">{t.locked}</p>}
-    {(create || !list.length) && <RecordForm language={language} owner={userId} onCancel={list.length ? () => setCreate(false) : undefined}
+    
+    {showRecordForm && <RecordForm language={language} owner={userId} onCancel={list.length ? () => setCreate(false) : undefined}
       onCreated={c => { setList(old => [...old.filter(x => x.id !== c.id), c]); setSelected(c.id); setCreate(false) }} />}
+      
     {company && <Books key={company.id} {...{ userId, language, company }} onLock={setLocked} />}
   </div>
 }
-function RecordForm({ language, owner, company, onCreated, onCancel }: {
+
+function RecordForm({ language, owner, company, onCreated, onCancel }: Readonly<{
   language: Language; owner: string; company?: string; onCreated: (record: Company) => void; onCancel?: () => void
-}) {
+}>) {
   const t = accountingCopy[language]
   const [busy, setBusy] = useState(false)
   const [failed, setFailed] = useState(false)
   const guard = useRef(false)
   const pending = useRef<Record<string, string> | null>(null)
-  async function save(e: React.FormEvent<HTMLFormElement>) {
+
+  async function save(e: React.SyntheticEvent<HTMLFormElement>) {
     e.preventDefault()
     if (guard.current) return
     const form = new FormData(e.currentTarget)
     pending.current ??= company
-      ? { id: crypto.randomUUID(), company_id: company, name: String(form.get('name')).trim(), kind: String(form.get('kind')) }
-      : { id: crypto.randomUUID(), owner_id: owner, name: String(form.get('name')).trim() }
+      ? { id: crypto.randomUUID(), company_id: company, name: String(form.get('name') ?? '').trim(), kind: String(form.get('kind') ?? '') }
+      : { id: crypto.randomUUID(), owner_id: owner, name: String(form.get('name') ?? '').trim() }
+    
     guard.current = true; setBusy(true); setFailed(false)
     try { onCreated(await api.createRecord(company ? 'khata_parties' : 'khata_companies', pending.current)) }
     catch { setFailed(true) }
     finally { guard.current = false; setBusy(false) }
   }
-  return <form className="books-card books-form" onSubmit={e => { void save(e) }}>
+
+  let recordBtnLabel = t.create;
+  if (busy) recordBtnLabel = t.saving;
+  else if (failed) recordBtnLabel = t.retry;
+
+  return <form className="books-card books-form" onSubmit={save}>
     <h2>{company ? t.newParty : t.newCompany}</h2>
     <label>{company ? t.partyName : t.companyName}<input name="name" required maxLength={120} pattern=".*\S.*" disabled={busy || failed} /></label>
     {company && <label>{t.kind}<select name="kind" disabled={busy || failed}><option value="customer">{t.customer}</option><option value="supplier">{t.supplier}</option><option value="both">{t.both}</option></select></label>}
-    {failed && <p role="alert">{t.pending}</p>}
-    <div className="books-buttons"><button type="submit" className="books-primary" disabled={busy}>{busy ? t.saving : (failed ? t.retry : t.create)}</button>
-      {onCancel && !failed && <button type="button" onClick={onCancel} disabled={busy}>{t.cancel}</button>}</div>
+    {failed && <output aria-live="polite">{t.pending}</output>}
+    <div className="books-buttons">
+      <button type="submit" className="books-primary" disabled={busy}>{recordBtnLabel}</button>
+      {onCancel && !failed && <button type="button" onClick={onCancel} disabled={busy}>{t.cancel}</button>}
+    </div>
   </form>
 }
-function Books({ userId, language, company, onLock }: Props & { company: Company; onLock: (locked: boolean) => void }) {
+
+function SectionTitle({ title, subtitle, children }: Readonly<{ title: string; subtitle?: React.ReactNode; children?: React.ReactNode }>) {
+  return <div className="books-section-title"><h2>{title}</h2>{subtitle && <span>{subtitle}</span>}{children}</div>
+}
+
+function Metric({ label, value }: Readonly<{ label: string; value: bigint }>) {
+  return <div className="books-metric"><span>{label}</span><strong>{money(value)}</strong></div>
+}
+
+function Books({ userId, language, company, onLock }: Readonly<Props & { company: Company; onLock: (locked: boolean) => void }>) {
   const t = accountingCopy[language]
   const [from, setFrom] = useState(() => `${today().slice(0, 7)}-01`)
   const [to, setTo] = useState(today)
@@ -102,6 +134,7 @@ function Books({ userId, language, company, onLock }: Props & { company: Company
   const [saveError, setSaveError] = useState('')
   const [draft, setDraft] = useState<Command | null>(null)
   const guard = useRef(false)
+
   useEffect(() => { onLock(Boolean(command) || busy); }, [command, busy, onLock])
   useEffect(() => {
     if (!command) return
@@ -109,6 +142,7 @@ function Books({ userId, language, company, onLock }: Props & { company: Company
     window.addEventListener('beforeunload', warn)
     return () => window.removeEventListener('beforeunload', warn)
   }, [command])
+
   useEffect(() => {
     let alive = true
     setLoading(true); setError(false); setData(null)
@@ -118,6 +152,7 @@ function Books({ userId, language, company, onLock }: Props & { company: Company
     }, () => { if (alive) { setError(true); setLoading(false) } })
     return () => { alive = false }
   }, [company.id, from, to, party, offset, version])
+
   async function save() {
     if (!command || guard.current) return
     try { sessionStorage.setItem(pendingKey(userId), JSON.stringify(command)) }
@@ -135,45 +170,70 @@ function Books({ userId, language, company, onLock }: Props & { company: Company
     }
     finally { guard.current = false; setBusy(false) }
   }
-  function review(e: React.FormEvent<HTMLFormElement>) {
+
+  function review(e: React.SyntheticEvent<HTMLFormElement>) {
     e.preventDefault(); setSaveError(''); setMessage('')
     const f = new FormData(e.currentTarget)
     try {
-      const amount = reversal?.amount_minor ?? minor(String(f.get('amount') ?? ''))
-      setCommand({ id: crypto.randomUUID(), company: company.id, party: reversal?.party_id ?? String(f.get('party') ?? ''),
-        kind: kind!, date: String(f.get('date') ?? ''), amount, method: f.get('method') === 'bank' ? 'bank' : 'cash',
-        reference: String(f.get('reference') ?? '').trim(), note: String(f.get('note') ?? '').trim(), reverses: reversal?.id ?? null })
+      const amountStr = String(f.get('amount') ?? '')
+      const partyStr = String(f.get('party') ?? '')
+      const dateStr = String(f.get('date') ?? '')
+      const refStr = String(f.get('reference') ?? '').trim()
+      const noteStr = String(f.get('note') ?? '').trim()
+      
+      const amount = reversal?.amount_minor ?? minor(amountStr)
+      setCommand({ id: crypto.randomUUID(), company: company.id, party: reversal?.party_id ?? partyStr,
+        kind: kind!, date: dateStr, amount, method: f.get('method') === 'bank' ? 'bank' : 'cash',
+        reference: refStr, note: noteStr, reverses: reversal?.id ?? null })
       setAttempted(false)
     } catch { setSaveError(t.validation) }
   }
+
   const allowedParties = data?.parties.filter(p => kind === 'sale' || kind === 'receipt' ? p.kind !== 'supplier' : p.kind !== 'customer') ?? []
   
-  const SectionTitle = ({ title, subtitle, children }: { readonly title: string; readonly subtitle?: React.ReactNode; readonly children?: React.ReactNode }) => (
-    <div className="books-section-title"><h2>{title}</h2>{subtitle && <span>{subtitle}</span>}{children}</div>
-  )
   const aggregate = (field: 'receivable' | 'payable', advance = false) => (data?.parties ?? []).reduce((sum, p) => {
     const n = BigInt(p[field]) * (advance ? -1n : 1n); return sum + (n > 0n ? n : 0n)
   }, 0n)
+
+  let saveButtonLabel = t.confirm;
+  if (busy) saveButtonLabel = t.saving;
+  else if (attempted) saveButtonLabel = t.retry;
+
   return <>
     <section className="books-hero"><span className="books-kicker">ORBIS / {company.name}</span><h2>{t.title}</h2><p>{t.subtitle}</p><small>{t.separate}</small></section>
-    <div className="books-filters"><label>{t.from}<input type="date" value={from} onChange={e => { setFrom(e.target.value); setOffset(0) }} /></label>
+    
+    <div className="books-filters">
+      <label>{t.from}<input type="date" value={from} onChange={e => { setFrom(e.target.value); setOffset(0) }} /></label>
       <label>{t.to}<input type="date" value={to} max={today()} onChange={e => { setTo(e.target.value); setOffset(0) }} /></label>
-      <button type="button" onClick={() => setVersion(n => n + 1)} disabled={loading}>{t.refresh}</button></div>
-    {message && <output className="books-success">{message}</output>}
+      <button type="button" onClick={() => setVersion(n => n + 1)} disabled={loading}>{t.refresh}</button>
+    </div>
+    
+    {message && <output aria-live="polite" className="books-success">{message}</output>}
+    
     {command && <section className="books-card books-confirm" aria-label={t.review}>
       <h2>{attempted ? t.pending : t.review}</h2><p>{t.reviewHint}</p>
-      <dl><dt>{t.company}</dt><dd>{company.name}</dd><dt>{t.party}</dt><dd>{data?.parties.find(p => p.id === command.party)?.name ?? command.party}</dd>
-        <dt>{t.kind}</dt><dd>{t[command.kind]}</dd><dt>{t.amount}</dt><dd className="books-total">{money(command.amount)}</dd>
-        <dt>{t.date}</dt><dd>{command.date}</dd>{['receipt', 'payment'].includes(command.kind) && <><dt>{t.method}</dt><dd>{t[command.method]}</dd></>}
-        <dt>{t.reference}</dt><dd>{command.reference || '—'}</dd><dt>{t.note}</dt><dd>{command.note || '—'}</dd></dl>
-      {saveError && <p role="alert">{saveError}</p>}
-      <div className="books-buttons"><button type="button" className="books-primary" disabled={busy} onClick={() => { void save() }}>{busy ? t.saving : (attempted ? t.retry : t.confirm)}</button>
+      <dl>
+        <dt>{t.company}</dt><dd>{company.name}</dd>
+        <dt>{t.party}</dt><dd>{data?.parties.find(p => p.id === command.party)?.name ?? command.party}</dd>
+        <dt>{t.kind}</dt><dd>{t[command.kind]}</dd>
+        <dt>{t.amount}</dt><dd className="books-total">{money(command.amount)}</dd>
+        <dt>{t.date}</dt><dd>{command.date}</dd>
+        {['receipt', 'payment'].includes(command.kind) && <><dt>{t.method}</dt><dd>{t[command.method]}</dd></>}
+        <dt>{t.reference}</dt><dd>{command.reference || '—'}</dd>
+        <dt>{t.note}</dt><dd>{command.note || '—'}</dd>
+      </dl>
+      {saveError && <output aria-live="polite">{saveError}</output>}
+      <div className="books-buttons">
+        <button type="button" className="books-primary" disabled={busy} onClick={() => { void save() }}>{saveButtonLabel}</button>
         {!attempted && <button type="button" onClick={() => { setDraft(command); setKind(command.kind); setCommand(null); setSaveError('') }}>{t.edit}</button>}
-        {!attempted && <button type="button" onClick={() => { setCommand(null); setKind(null); setReversal(null) }}>{t.cancel}</button>}</div>
+        {!attempted && <button type="button" onClick={() => { setCommand(null); setKind(null); setReversal(null) }}>{t.cancel}</button>}
+      </div>
       <small>ID: {command.id}</small>
     </section>}
-    {loading && <output>{t.loading}</output>}
-    {error && <p className="books-warning" role="alert">{from > to || !from || !to ? t.range : t.error}</p>}
+    
+    {loading && <output aria-live="polite">{t.loading}</output>}
+    {error && <output aria-live="polite" className="books-warning">{from > to || !from || !to ? t.range : t.error}</output>}
+    
     {data && <>
       <SectionTitle title={t.closing} subtitle={to} />
       <div className="books-stats">
@@ -182,10 +242,14 @@ function Books({ userId, language, company, onLock }: Props & { company: Company
       </div>
       <div className="books-mini"><span>{t.advanceCustomer}<strong>{money(aggregate('receivable', true))}</strong></span><span>{t.advanceSupplier}<strong>{money(aggregate('payable', true))}</strong></span></div>
       {balance(data, 'cash') < 0n && <p className="books-warning">{t.cashWarning}</p>}
+      
       <SectionTitle title={t.period} subtitle={`${from} → ${to}`} />
       <div className="books-stats two"><Metric label={t.sales} value={-balance(data, 'sales', 'movement')} /><Metric label={t.purchases} value={balance(data, 'purchases', 'movement')} /></div>
-      <div className="books-actions">{actions.map((action, i) => <button type="button" key={action} disabled={Boolean(command)} onClick={() => { setDraft(null); setKind(action); setReversal(null); setSaveError(''); setMessage('') }}><span aria-hidden="true">{['↗', '↙', '＋', '−'][i]}</span>{t[action]}</button>)}</div>
+      <div className="books-actions">
+        {actions.map((action, i) => <button type="button" key={action} disabled={Boolean(command)} onClick={() => { setDraft(null); setKind(action); setReversal(null); setSaveError(''); setMessage('') }}><span aria-hidden="true">{['↗', '↙', '＋', '−'][i]}</span>{t[action]}</button>)}
+      </div>
       <p className="books-hint">{t.invoiceHint}</p>
+      
       {kind && !command && <form key={kind} className="books-card books-form" onSubmit={review}>
         <h2>{t[kind]}</h2>
         {reversal ? <p>{reversal.party_name} · {money(reversal.amount_minor)} · {reversal.reference}</p> : <>
@@ -196,17 +260,24 @@ function Books({ userId, language, company, onLock }: Props & { company: Company
         {(kind === 'receipt' || kind === 'payment') && <label>{t.method}<select name="method" defaultValue={draft?.method ?? 'cash'}><option value="cash">{t.cash}</option><option value="bank">{t.bank}</option></select></label>}
         <label>{t.reference}<input name="reference" maxLength={80} defaultValue={draft?.reference ?? ''} /></label>
         <label>{t.note}<textarea name="note" maxLength={500} required={kind === 'reversal'} defaultValue={draft?.note ?? ''} /></label>
-        {saveError && <p role="alert">{saveError}</p>}
-        <div className="books-buttons"><button type="submit" className="books-primary" disabled={!reversal && !allowedParties.length}>{t.review}</button><button type="button" onClick={() => { setKind(null); setReversal(null) }}>{t.cancel}</button></div>
+        {saveError && <output aria-live="polite">{saveError}</output>}
+        <div className="books-buttons">
+          <button type="submit" className="books-primary" disabled={!reversal && !allowedParties.length}>{t.review}</button>
+          <button type="button" onClick={() => { setKind(null); setReversal(null) }}>{t.cancel}</button>
+        </div>
       </form>}
-      <section className="books-card"><SectionTitle title={t.parties}><button type="button" disabled={Boolean(command)} onClick={() => setAddParty(true)}>＋ {t.newParty}</button></SectionTitle>
+      
+      <section className="books-card">
+        <SectionTitle title={t.parties}><button type="button" disabled={Boolean(command)} onClick={() => setAddParty(true)}>＋ {t.newParty}</button></SectionTitle>
         {!data.parties.length && <p>{t.noParties}</p>}
         {addParty && <RecordForm language={language} owner={userId} company={company.id} onCancel={() => setAddParty(false)} onCreated={() => { setAddParty(false); setVersion(n => n + 1) }} />}
         <div className="books-party-list">{data.parties.map(p => <button type="button" key={p.id} className={party === p.id ? 'selected' : ''} onClick={() => { setParty(p.id); setOffset(0) }}>
           <span><strong>{p.name}</strong><small>{t[p.kind]}</small></span><span><small>{t.receivable}: {money(p.receivable)}</small><small>{t.payable}: {money(p.payable)}</small></span>
         </button>)}</div>
       </section>
-      <section className="books-card"><SectionTitle title={t.ledger} subtitle={`${data.count} ${t.entries}`} />
+      
+      <section className="books-card">
+        <SectionTitle title={t.ledger} subtitle={`${data.count} ${t.entries}`} />
         <label className="books-party-filter">{t.party}<select value={party} onChange={e => { setParty(e.target.value); setOffset(0) }}><option value="">{t.all}</option>{data.parties.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}</select></label>
         <div className="books-ledger-summary"><span>{t.opening} / {t.receivable}<strong>{money(data.ledger_balances.receivable?.opening ?? '0')}</strong></span><span>{t.opening} / {t.payable}<strong>{money(-BigInt(data.ledger_balances.payable?.opening ?? '0'))}</strong></span>
           <span>{t.closing} / {t.receivable}<strong>{money(data.ledger_balances.receivable?.closing ?? '0')}</strong></span><span>{t.closing} / {t.payable}<strong>{money(-BigInt(data.ledger_balances.payable?.closing ?? '0'))}</strong></span></div>
@@ -218,12 +289,13 @@ function Books({ userId, language, company, onLock }: Props & { company: Company
           <details><summary>ID</summary><small>{v.id}</small></details>
           {v.reversed ? <small>{t.reversed}</small> : v.kind !== 'reversal' && <button type="button" disabled={Boolean(command)} onClick={() => { setDraft(null); setKind('reversal'); setReversal(v); setSaveError('') }}>{t.reverse}</button>}
         </article>)}
-        <div className="books-buttons"><button type="button" disabled={offset === 0} onClick={() => setOffset(n => Math.max(0, n - 50))}>{t.previous}</button><span>{Math.floor(offset / 50) + 1}</span><button type="button" disabled={offset + 50 >= data.count} onClick={() => setOffset(n => n + 50)}>{t.next}</button></div>
+        <div className="books-buttons">
+          <button type="button" disabled={offset === 0} onClick={() => setOffset(n => Math.max(0, n - 50))}>{t.previous}</button><span>{Math.floor(offset / 50) + 1}</span>
+          <button type="button" disabled={offset + 50 >= data.count} onClick={() => setOffset(n => n + 50)}>{t.next}</button>
+        </div>
       </section>
+      
       <footer className="books-foot"><span>{accounts.reduce((sum, a) => sum + balance(data, a), 0n) === 0n ? `✓ ${t.trial}` : '⚠ Journal mismatch'}</span><p>{t.scope}</p></footer>
     </>}
   </>
-}
-function Metric({ label, value }: { readonly label: string; readonly value: bigint }) {
-  return <div className="books-metric"><span>{label}</span><strong>{money(value)}</strong></div>
 }

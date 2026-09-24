@@ -17,8 +17,8 @@ export type Command = {
   method: 'cash' | 'bank'; reference: string; note: string; reverses: string | null
 }
 export function minor(input: string): string {
-  const normalized = input.trim().replace(/[০-৯]/g, c => String(c.charCodeAt(0) - 0x09e6))
-    .replace(/[०-९]/g, c => String(c.charCodeAt(0) - 0x0966))
+  const normalized = input.trim().replace(/[০-৯]/g, c => String((c.codePointAt(0) ?? 0) - 0x09e6))
+    .replace(/[०-९]/g, c => String((c.codePointAt(0) ?? 0) - 0x0966))
   if (!/^\d{1,10}(\.\d{1,2})?$/.test(normalized)) throw new Error('INVALID_AMOUNT')
   const [whole, fraction = ''] = normalized.split('.')
   const value = BigInt(whole) * 100n + BigInt(fraction.padEnd(2, '0'))
