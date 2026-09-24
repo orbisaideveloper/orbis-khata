@@ -81,8 +81,8 @@ function RecordForm({ language, owner, company, onCreated, onCancel }: Readonly<
     if (guard.current) return
     const form = new FormData(e.currentTarget)
     pending.current ??= company
-      ? { id: crypto.randomUUID(), company_id: company, name: String(form.get('name') ?? '').trim(), kind: String(form.get('kind') ?? '') }
-      : { id: crypto.randomUUID(), owner_id: owner, name: String(form.get('name') ?? '').trim() }
+      ? { id: crypto.randomUUID(), company_id: company, name: (form.get('name') as string || '').trim(), kind: (form.get('kind') as string || '') }
+      : { id: crypto.randomUUID(), owner_id: owner, name: (form.get('name') as string || '').trim() }
     
     guard.current = true; setBusy(true); setFailed(false)
     try { onCreated(await api.createRecord(company ? 'khata_parties' : 'khata_companies', pending.current)) }
@@ -175,11 +175,11 @@ function Books({ userId, language, company, onLock }: Readonly<Props & { company
     e.preventDefault(); setSaveError(''); setMessage('')
     const f = new FormData(e.currentTarget)
     try {
-      const amountStr = String(f.get('amount') ?? '')
-      const partyStr = String(f.get('party') ?? '')
-      const dateStr = String(f.get('date') ?? '')
-      const refStr = String(f.get('reference') ?? '').trim()
-      const noteStr = String(f.get('note') ?? '').trim()
+      const amountStr = (f.get('amount') as string || '')
+      const partyStr = (f.get('party') as string || '')
+      const dateStr = (f.get('date') as string || '')
+      const refStr = (f.get('reference') as string || '').trim()
+      const noteStr = (f.get('note') as string || '').trim()
       
       const amount = reversal?.amount_minor ?? minor(amountStr)
       setCommand({ id: crypto.randomUUID(), company: company.id, party: reversal?.party_id ?? partyStr,

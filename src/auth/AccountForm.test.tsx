@@ -29,7 +29,7 @@ describe('account flows', () => {
     fireEvent.submit(form); fireEvent.submit(form)
     expect(auth.signInWithPassword).toHaveBeenCalledTimes(1)
     finish({ error: { code: 'invalid_credentials' } })
-    await screen.findByText('Email or password is incorrect.')
+    expect(await screen.findByText('Email or password is incorrect.')).toBeDefined()
     expect(screen.getByLabelText('Password')).toHaveValue('')
   })
   it('does not claim signup succeeded when confirmation is still enabled', async () => {
@@ -37,7 +37,7 @@ describe('account flows', () => {
     render(<AccountForm language="en" onRecovered={() => {}} />)
     fireEvent.click(screen.getByText('Create account'))
     fireEvent.submit(screen.getByRole('form', { name: 'Create account' }))
-    await screen.findByText(/Signup did not open a session/)
+    expect(await screen.findByText(/Signup did not open a session/)).toBeDefined()
   })
   it('requests recovery without disclosing whether the account exists', async () => {
     auth.resetPasswordForEmail.mockResolvedValue({ error: null })
@@ -45,7 +45,7 @@ describe('account flows', () => {
     fireEvent.click(screen.getByText('Forgot password?'))
     fill('Email', 'ajay@example.com')
     fireEvent.submit(screen.getByRole('form', { name: 'Send recovery link' }))
-    await screen.findByText(/If recovery is available/)
+    expect(await screen.findByText(/If recovery is available/)).toBeDefined()
     expect(auth.resetPasswordForEmail).toHaveBeenCalledWith('ajay@example.com', { redirectTo: window.location.origin + '/' })
   })
   it('finishes recovery only after password update succeeds', async () => {
