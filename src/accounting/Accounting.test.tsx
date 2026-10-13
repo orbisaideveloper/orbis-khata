@@ -68,7 +68,7 @@ it('does not treat a failed report refresh as a failed save', async () => {
   api.report.mockRejectedValueOnce(new Error('network'))
   fireEvent.click(screen.getByRole('button', { name: 'Confirm & save' }))
   await screen.findByText('Saved successfully.')
-  await screen.findByRole('status')
+  await screen.findByText('Could not load the books. Check your connection and retry.')
   expect(api.post).toHaveBeenCalledTimes(1)
   expect(sessionStorage.getItem('khata-pending-v1:u')).toBeNull()
 })

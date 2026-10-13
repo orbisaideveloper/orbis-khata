@@ -12,7 +12,7 @@ beforeEach(() => {
     return { data: { subscription: { unsubscribe: auth.unsubscribe } } }
   })
 })
-afterEach(() => { cleanup(); vi.useRealTimers() })
+afterEach(() => { cleanup(); vi.useRealTimers(); vi.restoreAllMocks() })
 it('restores the saved session without asking for another password', async () => {
   const session = { user: { id: 'owner-a' } }
   auth.getSession.mockResolvedValue({ data: { session }, error: null })
@@ -62,4 +62,29 @@ it('provides a retry state when restoration stalls', async () => {
   act(() => vi.advanceTimersByTime(16000))
   expect(result.current.loading).toBe(false)
   expect(result.current.unavailable).toBe(true)
+})
+
+it('ignores late session notifications and restoration failures after unmount', async () => {
+  let reject!: (error: Error) => void
+  auth.getSession.mockReturnValue(new Promise((_yes, no) => { reject = no }))
+  const { unmount } = renderHook(useAccount); unmount()
+  await act(async () => { notify('SIGNED_IN', { user: { id: 'stale' } }); reject(new Error('offline')) })
+  expect(auth.unsubscribe).toHaveBeenCalledOnce()
+})
+it('does not mark an observed live session unavailable when earlier restoration fails', async () => {
+  let reject!: (error: Error) => void
+  auth.getSession.mockReturnValue(new Promise((_yes, no) => { reject = no }))
+  const { result } = renderHook(useAccount)
+  act(() => notify('SIGNED_IN', { user: { id: 'current' } }))
+  await act(async () => reject(new Error('offline')))
+  expect(result.current.unavailable).toBe(false); expect(result.current.session?.user.id).toBe('current')
+})
+it('ignores an already queued loading deadline after observation or disposal', async () => {
+  let deadline!: () => void
+  vi.spyOn(window, 'setTimeout').mockImplementation((handler: TimerHandler) => { deadline = handler as () => void; return 123 })
+  vi.spyOn(window, 'clearTimeout').mockImplementation(() => {})
+  auth.getSession.mockReturnValue(new Promise(() => {}))
+  const { result, unmount } = renderHook(useAccount)
+  act(() => notify('SIGNED_IN', { user: { id: 'current' } })); act(() => deadline())
+  expect(result.current.unavailable).toBe(false); unmount(); act(() => deadline())
 })

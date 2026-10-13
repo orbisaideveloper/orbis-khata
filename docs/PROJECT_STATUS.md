@@ -1,5 +1,23 @@
 # Project Status — Durable Resume Checkpoint
 
+## Latest checkpoint — 2026-09-24 documentation reconciliation
+
+- Current main HEAD inspected: `3d1d7c5145eb62137dbc9c5da834023c5adf14b8`.
+- Documentation is being reconciled to the current implemented accounting foundation.
+- Implemented foundation: Auth/company boundary, multiple companies, company-scoped
+  parties, Sale/Purchase, Receipt/Payment, advances, Cash/Bank, party ledger/totals,
+  exact money, retry/idempotency, tenant isolation and immutable reversal.
+- Current source audit confirms Party/Ledger Master is still incomplete; Item/Unit,
+  itemized Sale/Purchase, Inventory and Delete/Void are not yet implemented.
+- Owner-approved next order is: Party + Ledger Master → Item + Unit Master →
+  Itemized Sale/Purchase → Inventory → Delete/Void propagation → Dashboard/Reports.
+- This documentation update does not implement a product feature and does not authorize
+  deployment, database changes, Auth-setting changes or a Git push.
+- Exact-SHA GitHub Actions/Sonar status is not certified by this checkpoint.
+- Deployment remains OFF/not authorized.
+- Historical checkpoints below remain evidence only; they do not override this current
+  checkpoint or the current source.
+
 ## Latest checkpoint — 2026-09-22 coverage and reporting repair
 
 - Phone final run 20260922-083611-15187 stopped on coverage: one UI wait timeout,
@@ -193,3 +211,46 @@ Read `AGENTS.md`, then this file, then `docs/DECISIONS.md`. Inspect the current 
 - Android install/visual approval and real-session accounting smoke test pending. Browser
   local-preview access blocked; full certification/coverage/CI/Sonar not claimed.
 - See ACCOUNTING_V1.md for remaining security-advisor warnings and deferred features.
+
+
+## 2026-10-12 — Central account source checkpoint
+
+Owner clarifies Khata is new and unreleased; no active legacy customer/book is assumed.
+Preserve accounting rules and UI. Replace independent product Auth with Admin-owned
+central identity; common profile remains in Admin, financial data in Khata. The
+product-owned gateway enforces existing RLS using a transaction-local canonical ID.
+The proposed product schema requires empty company/party/voucher tables and aborts
+on unexpected data. No book or identity is deleted. One responsive web source
+serves desktop/mobile; a development-only visual preview does not authorize data.
+
+Prepared source: central browser adapter, product data client/gateway and a guarded
+review SQL. Await targeted Termux lint/type/tests, actual product SQL/RLS/Deno checks,
+central/provider runtime configuration, password recovery and full coverage/E2E.
+Admin managed migration 20261012160546 is applied; twelve existing identities remain,
+customer count is zero. No Khata product migration, gateway deployment, Git commit,
+push, release or real signup/login verification has occurred at this checkpoint.
+
+
+## 2026-10-12 — Central password recovery source checkpoint
+
+Admin recovery/verify/password endpoints and Khata recovery-link session adapter are
+prepared. Email recovery uses a link; signup remains OTP-free. Accounting 18/18
+passed in owner Termux, including failed-report-after-successful-save (473ms).
+Recovery tests below must pass before claiming source verification. SMTP, provider
+redirect/template configuration, product SQL/RLS/Deno checks, coverage, other product
+browser adapters, and real mobile/desktop signup/login/reset remain pending.
+No commit/push/deployment or new database write is performed by this patch.
+See Admin docs/CENTRAL-RECOVERY-SETUP.md for exact setup and remaining checks.
+
+
+## 2026-10-12 — Local central-account closeout verification prepared
+
+Dedicated mobile/desktop protocol browser tests and disposable SQL checks are added.
+The runner checks exact source hashes, cross-user/company RLS, financial invariants,
+idempotency, nonempty/drift aborts, Deno adapter types, Linux gates, builds and
+changed-code four-metric 100% coverage. Results must come from the timestamped
+ORBIS-LOGIN-CLOSEOUT report; source preparation alone is not a PASS. SQL executes
+only in a private temporary cluster; browser APIs use test fixtures. Render Admin
+still has the old d0af060 staging deployment and no Khata service was listed.
+Real signup/login, deployment/provider/SMTP setup and remote CI/Sonar are pending.
+No commit, push, production migration or deployment is performed by this runner.

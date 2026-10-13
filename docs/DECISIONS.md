@@ -116,3 +116,37 @@ and ledger master with contact details and expense accounts; item/unit masters;
 itemized sale/purchase; inventory movements/stock reports; deletion propagation.
 GST and offline backup remain later phases. Current push approval covers the installed
 Auth/accounting checkpoint plus release fixes; it does not authorize deployment.
+
+## D-024 — 2026-09-24 — Accounting expansion order
+
+Existing Accounting v1 is the foundation and must not be re-designed. Future
+accounting work proceeds in this order:
+
+1. Party/Ledger Master
+2. Item/Unit Master
+3. Itemized Sale/Purchase
+4. Inventory
+5. Delete/Void propagation
+6. Dashboard/Reports refinement
+
+Each slice requires source implementation, focused tests, local preview/owner
+review and evidence before the next slice. GST, offline sync/backup, AI
+automation and subscription remain later phases.
+
+
+## 2026-10-12 — Central account source checkpoint
+
+Owner clarifies Khata is new and unreleased; no active legacy customer/book is assumed.
+Preserve accounting rules and UI. Replace independent product Auth with Admin-owned
+central identity; common profile remains in Admin, financial data in Khata. The
+product-owned gateway enforces existing RLS using a transaction-local canonical ID.
+The proposed product schema requires empty company/party/voucher tables and aborts
+on unexpected data. No book or identity is deleted. One responsive web source
+serves desktop/mobile; a development-only visual preview does not authorize data.
+
+Prepared source: central browser adapter, product data client/gateway and a guarded
+review SQL. Await targeted Termux lint/type/tests, actual product SQL/RLS/Deno checks,
+central/provider runtime configuration, password recovery and full coverage/E2E.
+Admin managed migration 20261012160546 is applied; twelve existing identities remain,
+customer count is zero. No Khata product migration, gateway deployment, Git commit,
+push, release or real signup/login verification has occurred at this checkpoint.

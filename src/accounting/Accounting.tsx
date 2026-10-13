@@ -8,6 +8,13 @@ import './accounting.css'
 
 type Props = { readonly userId: string; readonly language: Language }
 const actions = ['sale', 'purchase', 'receipt', 'payment'] as const
+function aggregateParties(parties: Report['parties'], field: 'receivable' | 'payable', advance = false) {
+  return parties.reduce((sum, party) => {
+    const amount = BigInt(party[field]) * (advance ? -1n : 1n)
+    return sum + (amount > 0n ? amount : 0n)
+  }, 0n)
+}
+
 const accounts: Account[] = ['cash', 'bank', 'receivable', 'payable', 'sales', 'purchases']
 const pendingKey = (user: string) => `khata-pending-v1:${user}`
 
@@ -24,15 +31,16 @@ export function Accounting({ userId, language }: Readonly<Props>) {
   const t = accountingCopy[language]
   const [list, setList] = useState<Company[]>([])
   const [selected, setSelected] = useState(() => restore(userId)?.company ?? '')
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState(false)
   const [refresh, setRefresh] = useState(0)
+  const [outcome, setOutcome] = useState<{ user: string; refresh: number; error: boolean } | null>(null)
+  const currentOutcome = outcome && outcome.user === userId && outcome.refresh === refresh ? outcome : null
+  const loading = currentOutcome === null
+  const error = Boolean(currentOutcome?.error)
   const [create, setCreate] = useState(false)
   const [locked, setLocked] = useState(Boolean(restore(userId)))
 
   useEffect(() => {
     let alive = true
-    setLoading(true); setError(false)
     void api.companies(userId).then(items => {
       if (!alive) return
       setList(items); 
@@ -40,8 +48,8 @@ export function Accounting({ userId, language }: Readonly<Props>) {
         if (items.some(c => c.id === old)) return old;
         return items[0]?.id ?? '';
       })
-      setLoading(false)
-    }, () => { if (alive) { setLoading(false); setError(true) } })
+      setOutcome({ user: userId, refresh, error: false })
+    }, () => { if (alive) setOutcome({ user: userId, refresh, error: true }) })
     return () => { alive = false }
   }, [userId, refresh])
 
@@ -120,10 +128,14 @@ function Books({ userId, language, company, onLock }: Readonly<Props & { company
   const [to, setTo] = useState(today)
   const [party, setParty] = useState('')
   const [offset, setOffset] = useState(0)
-  const [data, setData] = useState<Report | null>(null)
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState(false)
   const [version, setVersion] = useState(0)
+  const query = JSON.stringify([company.id, from, to, party, offset, version])
+  const validRange = Boolean(from && to && from <= to)
+  const [result, setResult] = useState<{ query: string; data: Report | null; error: boolean } | null>(null)
+  const currentResult = result?.query === query ? result : null
+  const data = validRange ? currentResult?.data ?? null : null
+  const loading = validRange && currentResult === null
+  const error = !validRange || Boolean(currentResult?.error)
   const [addParty, setAddParty] = useState(false)
   const [kind, setKind] = useState<Kind | null>(null)
   const [reversal, setReversal] = useState<Voucher | null>(null)
@@ -145,13 +157,12 @@ function Books({ userId, language, company, onLock }: Readonly<Props & { company
 
   useEffect(() => {
     let alive = true
-    setLoading(true); setError(false); setData(null)
-    if (!from || !to || from > to) { setLoading(false); setError(true); return }
+    if (!from || !to || from > to) return
     void api.report(company.id, from, to, party, offset).then(report => {
-      if (alive) { setData(report); setLoading(false) }
-    }, () => { if (alive) { setError(true); setLoading(false) } })
+      if (alive) setResult({ query, data: report, error: false })
+    }, () => { if (alive) setResult({ query, data: null, error: true }) })
     return () => { alive = false }
-  }, [company.id, from, to, party, offset, version])
+  }, [company.id, from, to, party, offset, version, query])
 
   async function save() {
     if (!command || guard.current) return
@@ -191,9 +202,6 @@ function Books({ userId, language, company, onLock }: Readonly<Props & { company
 
   const allowedParties = data?.parties.filter(p => kind === 'sale' || kind === 'receipt' ? p.kind !== 'supplier' : p.kind !== 'customer') ?? []
   
-  const aggregate = (field: 'receivable' | 'payable', advance = false) => (data?.parties ?? []).reduce((sum, p) => {
-    const n = BigInt(p[field]) * (advance ? -1n : 1n); return sum + (n > 0n ? n : 0n)
-  }, 0n)
 
   let saveButtonLabel = t.confirm;
   if (busy) saveButtonLabel = t.saving;
@@ -238,9 +246,9 @@ function Books({ userId, language, company, onLock }: Readonly<Props & { company
       <SectionTitle title={t.closing} subtitle={to} />
       <div className="books-stats">
         {(['cash', 'bank'] as const).map(a => <Metric key={a} label={t[a]} value={balance(data, a)} />)}
-        <Metric label={t.receivable} value={aggregate('receivable')} /><Metric label={t.payable} value={aggregate('payable')} />
+        <Metric label={t.receivable} value={aggregateParties(data.parties, 'receivable')} /><Metric label={t.payable} value={aggregateParties(data.parties, 'payable')} />
       </div>
-      <div className="books-mini"><span>{t.advanceCustomer}<strong>{money(aggregate('receivable', true))}</strong></span><span>{t.advanceSupplier}<strong>{money(aggregate('payable', true))}</strong></span></div>
+      <div className="books-mini"><span>{t.advanceCustomer}<strong>{money(aggregateParties(data.parties, 'receivable', true))}</strong></span><span>{t.advanceSupplier}<strong>{money(aggregateParties(data.parties, 'payable', true))}</strong></span></div>
       {balance(data, 'cash') < 0n && <p className="books-warning">{t.cashWarning}</p>}
       
       <SectionTitle title={t.period} subtitle={`${from} → ${to}`} />

@@ -8,11 +8,10 @@ import { AccountForm } from './auth/AccountForm'
 import { accountCopy } from './auth/copy'
 import { CompanyGate } from './auth/CompanyGate'
 
-type View = 'welcome' | 'login' | 'workspace' | 'khata'
+import { resolveKhataView, type View } from './navigation-policy'
 
-// UI-only guest route. This flag is NOT an authentication control; any future
-// API must independently enforce AuthN/AuthZ and tenant boundaries.
-const guestUiEnabled = !authClient && import.meta.env.VITE_KHATA_GUEST_UI !== 'false'
+// Central customer login is required. The data gateway enforces authorization.
+const guestUiEnabled = import.meta.env.DEV && !authClient && import.meta.env.VITE_KHATA_GUEST_UI === 'true'
 
 
 const languagePresentation: Record<Language, { title: string; pickerLabel: string }> = {
@@ -33,9 +32,15 @@ function OrbitMark() {
 
 function App() {
   // No demo session, user, financial values, company or token is persisted.
-  const [view, setView] = useState<View>('welcome')
-  const [language, setLanguage] = useState<Language>(readLanguage)
   const account = useAccount()
+  const [view, setView] = useState<View>(() => authClient && account.session ? 'workspace' : 'welcome')
+  const [language, setLanguage] = useState<Language>(readLanguage)
+  const sessionId = account.session?.user.id ?? null
+  const [knownSession, setKnownSession] = useState(sessionId)
+  if (authClient && !account.loading && sessionId !== knownSession) {
+    setKnownSession(sessionId)
+    setView(sessionId ? 'workspace' : 'welcome')
+  }
   const signedIn = Boolean(account.session)
   const [logoutError, setLogoutError] = useState(false)
   const guestEntered = useRef(false)
@@ -60,10 +65,8 @@ function App() {
     window.history.replaceState({ khataView: 'welcome' }, '')
     function onBack(event: PopStateEvent) {
       const target = (event.state as { khataView?: View } | null)?.khataView
-      // Browser history only navigates within public UI; never grants data access.
-      if (target === 'login' || target === 'welcome') setView(target)
-      else if ((signedIn || (guestUiEnabled && guestEntered.current)) && (target === 'workspace' || target === 'khata')) setView(target)
-      else setView('welcome')
+      // Browser history uses the same access policy as button navigation.
+      setView(resolveKhataView(target, signedIn, guestUiEnabled, guestEntered.current))
     }
     window.addEventListener('popstate', onBack)
     return () => window.removeEventListener('popstate', onBack)
@@ -72,7 +75,6 @@ function App() {
   useEffect(() => {
     if (!authClient || account.loading) return
     window.history.replaceState({ khataView: signedIn ? 'workspace' : 'welcome' }, '')
-    setView(signedIn ? 'workspace' : 'welcome')
   }, [signedIn, account.loading])
 
   async function logout() {
@@ -84,12 +86,12 @@ function App() {
   }
 
   function navigate(next: View) {
-    if (!signedIn && !guestUiEnabled && (next === 'workspace' || next === 'khata')) return
-    if (next === 'workspace' && view === 'login') guestEntered.current = true
-    if (next === 'khata' && !signedIn && !guestEntered.current) return
-    window.history.pushState({ khataView: next }, '')
-    setView(next)
-    document.documentElement.scrollTop = 0
+    const enteringGuest = next === 'workspace' && view === 'login'
+    const target = resolveKhataView(next, signedIn, guestUiEnabled, guestEntered.current || enteringGuest)
+    if (target === 'workspace' && view === 'login') guestEntered.current = true
+    window.history.pushState({ khataView: target }, '')
+    setView(target)
+    document.scrollingElement?.scroll?.({ top: 0 })
   }
 
   function backToWelcome() {
@@ -97,7 +99,7 @@ function App() {
     // Explicit exit clears the current UI navigation trail, not any sensitive data.
     window.history.replaceState({ khataView: 'welcome' }, '')
     setView('welcome')
-    document.documentElement.scrollTop = 0
+    document.scrollingElement?.scroll?.({ top: 0 })
   }
 
   function languagePicker(light = false) {
@@ -174,7 +176,7 @@ function App() {
       {view === 'workspace' && (signedIn || guestUiEnabled) && (
         <section className="scene light-scene active" aria-label={t('choose')}>
           <header className="bar workspace-header">{renderBrand('workBrand')}{languagePicker(true)}</header>
-          <div className="workspace-title"><span className="eyebrow l">{t('workBadge')}</span><h1>{t('hi')}</h1><p className="subtitle">{t('choose')}</p></div>
+          <div className="workspace-title"><p className="orbis-account-id">{account.session?.user.user_metadata?.orbis_display_id}</p><span className="eyebrow l">{t('workBadge')}</span><h1>{t('hi')}</h1><p className="subtitle">{t('choose')}</p></div>
           <div className="welcome-panel"><strong>{t('panel')}</strong><p>{t('panelDesc')}</p></div>
           <div className="modules">
             <button type="button" className="module" onClick={() => navigate('khata')}><span className="ic" aria-hidden="true">📘</span><span className="copy"><strong>{t('khata')}</strong><small>{t('khataDesc')}</small></span><span className="status">{t('open')}</span></button>

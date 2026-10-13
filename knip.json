@@ -1,1 +1,18 @@
-{}
+{
+  "entry": [
+    "supabase/functions/orbis-khata-data/index.ts"
+  ],
+  "playwright": {
+    "config": [
+      "playwright.config.ts",
+      "playwright.central.config.ts"
+    ]
+  },
+  "ignoreDependencies": [
+    "npm"
+  ],
+  "ignore": [
+    "coverage-central/**",
+    "coverage-login-repair/**"
+  ]
+}

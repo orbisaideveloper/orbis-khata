@@ -5,44 +5,15 @@
 Orbis Khata Boi is a mobile-first, voice-first, regional-language-first and offline-first business khata and accounting product. It is designed so that a small-business owner can maintain professional records without first learning accounting terminology.
 
 ## Product status
-
-**Phase:** Product and architecture baseline  
-**Runtime code:** Not started  
-**Next gate:** Review and approve the MVP architecture and product specification before selecting the final technology stack or writing production code.
-
-## Core promise
-
-The interface stays simple—Money In, Money Out, To Receive and To Pay—while the system maintains structured, auditable accounting data underneath.
-
-The primary interaction is natural language. For example, a user may say:
-
-- “রহিমের কাছে আজ ১২০০ টাকা পেলাম।”
-- “আজ ডিজেল ৮৫০ টাকা খরচ।”
-- “মদনকে ২০ লিটার দুধ দিলাম ৫০ টাকা লিটার।”
-
-The app converts the statement into a proposed transaction and always shows **Confirm / Edit / Cancel** before any financial record is finalized.
-
-## Locked product direction
-
-- Standalone Orbis product with its own repository, deployment, database, environment and release lifecycle.
-- Shared Orbis ID for identity and Orbis Admin for central product-level control.
-- Business data remains private to this product and its tenant; it is not automatically shared with other Orbis apps.
-- Mobile-first PWA for the first release, followed by Android packaging and later public store release.
-- Local-first operation with optional secure cloud sync and backup.
-- Bengali, Hindi and English from the beginning.
-- AI is restricted to the user’s own accounting context; it is not a general-purpose chatbot.
-- Pull requests, PR Preview and staging are not part of the default workflow. They are used only when the owner explicitly requests them.
-
-## Repository map
-
-- [AGENTS.md](AGENTS.md) — mandatory operating rules for every AI or contributor.
-- [Product blueprint](docs/PRODUCT_BLUEPRINT.md) — full vision, users, capabilities and roadmap.
-- [Architecture baseline](docs/ARCHITECTURE.md) — system boundaries, data, offline sync, identity and security.
-- [MVP specification](docs/MVP_SPECIFICATION.md) — first-release scope, flows and acceptance gates.
-- [Development workflow](docs/DEVELOPMENT_WORKFLOW.md) — branches, tests, direct main updates and production checks.
-- [Decision log](docs/DECISIONS.md) — locked decisions and deliberately open questions.
-- [Project status](docs/PROJECT_STATUS.md) — latest durable checkpoint and exact resume point.
-- [Security policy](SECURITY.md) — vulnerability and sensitive-data handling policy.
+**Phase:** Accounting foundation implemented; incremental product completion in progress.
+**Runtime code:** Real Auth/company boundary and Accounting v1 foundation are implemented.
+**Current foundation:** Multiple companies, company-scoped parties, Sale/Purchase,
+Receipt/Payment, advances, Cash/Bank, party ledger/totals, exact money,
+retry/idempotency, tenant isolation and immutable reversal.
+**Next implementation order:** Party + Ledger Master → Item + Unit Master →
+Itemized Sale/Purchase → Inventory → Delete/Void propagation → Dashboard/Reports.
+**Certification:** Exact-SHA GitHub Actions/Sonar status is not certified by this document.
+**Deployment:** OFF / not authorized.
 
 ## Working rule
 
