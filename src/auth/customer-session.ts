@@ -61,19 +61,22 @@ export function createCustomerSessionClient(options: {
     current = next
     return next
   }
+  const readStored = (raw: string): CentralSession => {
+        if (raw.length > 20000) throw new CustomerSessionError('CUSTOMER_RESPONSE_INVALID')
+        const stored = JSON.parse(raw) as CentralSession & { version: unknown }
+        if (stored.version !== 1 || !Number.isFinite(stored.expiresAt)) throw new CustomerSessionError('CUSTOMER_RESPONSE_INVALID')
+        const recovered = session({ version: 'orbis.customer.v1', customer: stored.customer, session: {
+          accessToken: stored.accessToken, refreshToken: stored.refreshToken, expiresIn: 1,
+        } }, now())
+        recovered.expiresAt = stored.expiresAt
+        return recovered
+  }
   const restoreOnce = async (): Promise<CentralSession | null> => {
     const expected = revision
     if (!current) {
       const raw = options.storage.getItem(storageKey)
       if (!raw) return null
-      try {
-        if (raw.length > 20000) throw new CustomerSessionError('CUSTOMER_RESPONSE_INVALID')
-        const stored = JSON.parse(raw) as CentralSession & { version: unknown }
-        if (stored.version !== 1 || !Number.isFinite(stored.expiresAt)) throw new CustomerSessionError('CUSTOMER_RESPONSE_INVALID')
-        current = session({ version: 'orbis.customer.v1', customer: stored.customer, session: {
-          accessToken: stored.accessToken, refreshToken: stored.refreshToken, expiresIn: 1,
-        } }, now())
-        current.expiresAt = stored.expiresAt
+      try { current = readStored(raw)
       } catch { clear(); return null }
     }
     const active = current
@@ -95,7 +98,7 @@ export function createCustomerSessionClient(options: {
   return {
     snapshot: () => current,
     restore() {
-      if (!restoring) restoring = restoreOnce().finally(() => { restoring = null })
+      restoring ??= restoreOnce().finally(() => { restoring = null })
       return restoring
     },
     async authenticate(mode: 'login' | 'signup', input: { identifier: string; password: string; name?: string }) {

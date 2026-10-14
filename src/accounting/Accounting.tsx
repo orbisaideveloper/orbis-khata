@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import type { Language } from '../i18n'
 import * as api from './api'
+import { pendingCommand } from './pending-command'
 import { accountingCopy } from './copy'
 import { balance, minor, money, today } from './model'
 import type { Account, Command, Company, Kind, Report, Voucher } from './model'
@@ -22,8 +23,7 @@ function restore(user: string): Command | null {
   try {
     const raw = sessionStorage.getItem(pendingKey(user))
     if (!raw) return null
-    const c = JSON.parse(raw) as Command
-    return c.id && c.company && c.party && /^\d+$/.test(c.amount) && [...actions, 'reversal'].includes(c.kind as any) ? c : null
+    return pendingCommand(JSON.parse(raw.startsWith('{') ? raw : decodeURIComponent(raw)))
   } catch { return null }
 }
 
@@ -33,7 +33,7 @@ export function Accounting({ userId, language }: Readonly<Props>) {
   const [selected, setSelected] = useState(() => restore(userId)?.company ?? '')
   const [refresh, setRefresh] = useState(0)
   const [outcome, setOutcome] = useState<{ user: string; refresh: number; error: boolean } | null>(null)
-  const currentOutcome = outcome && outcome.user === userId && outcome.refresh === refresh ? outcome : null
+  const currentOutcome = outcome?.user === userId && outcome.refresh === refresh ? outcome : null
   const loading = currentOutcome === null
   const error = Boolean(currentOutcome?.error)
   const [create, setCreate] = useState(false)
@@ -43,7 +43,7 @@ export function Accounting({ userId, language }: Readonly<Props>) {
     let alive = true
     void api.companies(userId).then(items => {
       if (!alive) return
-      setList(items); 
+      setList(items);
       setSelected(old => {
         if (items.some(c => c.id === old)) return old;
         return items[0]?.id ?? '';
@@ -67,10 +67,10 @@ export function Accounting({ userId, language }: Readonly<Props>) {
       <button type="button" disabled={locked} onClick={() => setCreate(true)}>＋ {t.newCompany}</button>
     </div>
     {locked && <p className="books-warning">{t.locked}</p>}
-    
+
     {showRecordForm && <RecordForm language={language} owner={userId} onCancel={list.length ? () => setCreate(false) : undefined}
       onCreated={c => { setList(old => [...old.filter(x => x.id !== c.id), c]); setSelected(c.id); setCreate(false) }} />}
-      
+
     {company && <Books key={company.id} {...{ userId, language, company }} onLock={setLocked} />}
   </div>
 }
@@ -91,7 +91,7 @@ function RecordForm({ language, owner, company, onCreated, onCancel }: Readonly<
     pending.current ??= company
       ? { id: crypto.randomUUID(), company_id: company, name: (form.get('name') as string || '').trim(), kind: (form.get('kind') as string || '') }
       : { id: crypto.randomUUID(), owner_id: owner, name: (form.get('name') as string || '').trim() }
-    
+
     guard.current = true; setBusy(true); setFailed(false)
     try { onCreated(await api.createRecord(company ? 'khata_parties' : 'khata_companies', pending.current)) }
     catch { setFailed(true) }
@@ -166,7 +166,7 @@ function Books({ userId, language, company, onLock }: Readonly<Props & { company
 
   async function save() {
     if (!command || guard.current) return
-    try { sessionStorage.setItem(pendingKey(userId), JSON.stringify(command)) }
+    try { sessionStorage.setItem(pendingKey(userId), encodeURIComponent(JSON.stringify(command))) }
     catch { setSaveError(t.storage); return }
     guard.current = true; setBusy(true); setAttempted(true); setSaveError('')
     try {
@@ -191,7 +191,7 @@ function Books({ userId, language, company, onLock }: Readonly<Props & { company
       const dateStr = (f.get('date') as string || '')
       const refStr = (f.get('reference') as string || '').trim()
       const noteStr = (f.get('note') as string || '').trim()
-      
+
       const amount = reversal?.amount_minor ?? minor(amountStr)
       setCommand({ id: crypto.randomUUID(), company: company.id, party: reversal?.party_id ?? partyStr,
         kind: kind!, date: dateStr, amount, method: f.get('method') === 'bank' ? 'bank' : 'cash',
@@ -201,7 +201,7 @@ function Books({ userId, language, company, onLock }: Readonly<Props & { company
   }
 
   const allowedParties = data?.parties.filter(p => kind === 'sale' || kind === 'receipt' ? p.kind !== 'supplier' : p.kind !== 'customer') ?? []
-  
+
 
   let saveButtonLabel = t.confirm;
   if (busy) saveButtonLabel = t.saving;
@@ -209,15 +209,15 @@ function Books({ userId, language, company, onLock }: Readonly<Props & { company
 
   return <>
     <section className="books-hero"><span className="books-kicker">ORBIS / {company.name}</span><h2>{t.title}</h2><p>{t.subtitle}</p><small>{t.separate}</small></section>
-    
+
     <div className="books-filters">
       <label>{t.from}<input type="date" value={from} onChange={e => { setFrom(e.target.value); setOffset(0) }} /></label>
       <label>{t.to}<input type="date" value={to} max={today()} onChange={e => { setTo(e.target.value); setOffset(0) }} /></label>
       <button type="button" onClick={() => setVersion(n => n + 1)} disabled={loading}>{t.refresh}</button>
     </div>
-    
+
     {message && <output aria-live="polite" className="books-success">{message}</output>}
-    
+
     {command && <section className="books-card books-confirm" aria-label={t.review}>
       <h2>{attempted ? t.pending : t.review}</h2><p>{t.reviewHint}</p>
       <dl>
@@ -238,10 +238,10 @@ function Books({ userId, language, company, onLock }: Readonly<Props & { company
       </div>
       <small>ID: {command.id}</small>
     </section>}
-    
+
     {loading && <output aria-live="polite">{t.loading}</output>}
     {error && <output aria-live="polite" className="books-warning">{from > to || !from || !to ? t.range : t.error}</output>}
-    
+
     {data && <>
       <SectionTitle title={t.closing} subtitle={to} />
       <div className="books-stats">
@@ -250,14 +250,14 @@ function Books({ userId, language, company, onLock }: Readonly<Props & { company
       </div>
       <div className="books-mini"><span>{t.advanceCustomer}<strong>{money(aggregateParties(data.parties, 'receivable', true))}</strong></span><span>{t.advanceSupplier}<strong>{money(aggregateParties(data.parties, 'payable', true))}</strong></span></div>
       {balance(data, 'cash') < 0n && <p className="books-warning">{t.cashWarning}</p>}
-      
+
       <SectionTitle title={t.period} subtitle={`${from} → ${to}`} />
       <div className="books-stats two"><Metric label={t.sales} value={-balance(data, 'sales', 'movement')} /><Metric label={t.purchases} value={balance(data, 'purchases', 'movement')} /></div>
       <div className="books-actions">
         {actions.map((action, i) => <button type="button" key={action} disabled={Boolean(command)} onClick={() => { setDraft(null); setKind(action); setReversal(null); setSaveError(''); setMessage('') }}><span aria-hidden="true">{['↗', '↙', '＋', '−'][i]}</span>{t[action]}</button>)}
       </div>
       <p className="books-hint">{t.invoiceHint}</p>
-      
+
       {kind && !command && <form key={kind} className="books-card books-form" onSubmit={review}>
         <h2>{t[kind]}</h2>
         {reversal ? <p>{reversal.party_name} · {money(reversal.amount_minor)} · {reversal.reference}</p> : <>
@@ -274,7 +274,7 @@ function Books({ userId, language, company, onLock }: Readonly<Props & { company
           <button type="button" onClick={() => { setKind(null); setReversal(null) }}>{t.cancel}</button>
         </div>
       </form>}
-      
+
       <section className="books-card">
         <SectionTitle title={t.parties}><button type="button" disabled={Boolean(command)} onClick={() => setAddParty(true)}>＋ {t.newParty}</button></SectionTitle>
         {!data.parties.length && <p>{t.noParties}</p>}
@@ -283,7 +283,7 @@ function Books({ userId, language, company, onLock }: Readonly<Props & { company
           <span><strong>{p.name}</strong><small>{t[p.kind]}</small></span><span><small>{t.receivable}: {money(p.receivable)}</small><small>{t.payable}: {money(p.payable)}</small></span>
         </button>)}</div>
       </section>
-      
+
       <section className="books-card">
         <SectionTitle title={t.ledger} subtitle={`${data.count} ${t.entries}`} />
         <label className="books-party-filter">{t.party}<select value={party} onChange={e => { setParty(e.target.value); setOffset(0) }}><option value="">{t.all}</option>{data.parties.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}</select></label>
@@ -302,7 +302,7 @@ function Books({ userId, language, company, onLock }: Readonly<Props & { company
           <button type="button" disabled={offset + 50 >= data.count} onClick={() => setOffset(n => n + 50)}>{t.next}</button>
         </div>
       </section>
-      
+
       <footer className="books-foot"><span>{accounts.reduce((sum, a) => sum + balance(data, a), 0n) === 0n ? `✓ ${t.trial}` : '⚠ Journal mismatch'}</span><p>{t.scope}</p></footer>
     </>}
   </>

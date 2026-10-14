@@ -11,28 +11,38 @@ function date(value: unknown) {
   const parsed = new Date(value + 'T00:00:00Z')
   return !Number.isNaN(parsed.getTime()) && parsed.toISOString().slice(0, 10) === value
 }
+function createInput(input: Record<string, unknown>) {
+  if (!keys(input, ['table', 'row']) || !object(input.row)) return false
+  const row = input.row
+  const name = typeof row.name === 'string' && row.name.trim().length > 0 && row.name.trim().length <= 120
+  if (!id(row.id) || !name) return false
+  if (input.table === 'khata_companies') return keys(row, ['id', 'name'])
+  return input.table === 'khata_parties' && keys(row, ['id', 'name', 'company_id', 'kind']) && id(row.company_id) &&
+    ['customer', 'supplier', 'both'].includes(String(row.kind))
+}
+function reportInput(input: Record<string, unknown>) {
+  return keys(input, ['company', 'from', 'to', 'party', 'offset']) && id(input.company) &&
+    date(input.from) && date(input.to) && String(input.from) <= String(input.to) &&
+    (input.party === null || id(input.party)) && typeof input.offset === 'number' && Number.isSafeInteger(input.offset) && input.offset >= 0
+}
+function postInput(input: Record<string, unknown>) {
+  return keys(input, ['id', 'company', 'party', 'kind', 'date', 'amount', 'method', 'reference', 'note', 'reverses']) &&
+    id(input.id) && id(input.company) && id(input.party) && date(input.date) &&
+    ['sale', 'purchase', 'receipt', 'payment', 'reversal'].includes(String(input.kind)) &&
+    typeof input.amount === 'string' && /^\d{1,12}$/u.test(input.amount) && BigInt(input.amount) > 0n &&
+    ['cash', 'bank'].includes(String(input.method)) && typeof input.reference === 'string' && input.reference.length <= 80 &&
+    typeof input.note === 'string' && input.note.length <= 500 && (input.reverses === null || id(input.reverses))
+}
 export function khataOperation(value: unknown): KhataOperation | null {
   if (!object(value) || !keys(value, ['version', 'operation', 'input']) || value.version !== 'orbis.khata.data.v1' || !object(value.input)) return null
   const input = value.input
-  if (value.operation === 'companies' && keys(input, []) ) return { operation: value.operation, input }
-  if (value.operation === 'create' && keys(input, ['table', 'row']) && object(input.row)) {
-    const row = input.row
-    const name = typeof row.name === 'string' && row.name.trim().length > 0 && row.name.trim().length <= 120
-    if (!id(row.id) || !name) return null
-    if (input.table === 'khata_companies' && keys(row, ['id', 'name'])) return { operation: value.operation, input }
-    if (input.table === 'khata_parties' && keys(row, ['id', 'name', 'company_id', 'kind']) && id(row.company_id) &&
-      ['customer', 'supplier', 'both'].includes(String(row.kind))) return { operation: value.operation, input }
+  switch (value.operation) {
+    case 'companies': return keys(input, []) ? { operation: value.operation, input } : null
+    case 'create': return createInput(input) ? { operation: value.operation, input } : null
+    case 'report': return reportInput(input) ? { operation: value.operation, input } : null
+    case 'post': return postInput(input) ? { operation: value.operation, input } : null
+    default: return null
   }
-  if (value.operation === 'report' && keys(input, ['company', 'from', 'to', 'party', 'offset']) && id(input.company) &&
-    date(input.from) && date(input.to) && String(input.from) <= String(input.to) &&
-    (input.party === null || id(input.party)) && typeof input.offset === 'number' && Number.isSafeInteger(input.offset) && input.offset >= 0) return { operation: value.operation, input }
-  if (value.operation === 'post' && keys(input, ['id', 'company', 'party', 'kind', 'date', 'amount', 'method', 'reference', 'note', 'reverses']) &&
-    id(input.id) && id(input.company) && id(input.party) && date(input.date) &&
-    ['sale', 'purchase', 'receipt', 'payment', 'reversal'].includes(String(input.kind)) &&
-    typeof input.amount === 'string' && /^[0-9]{1,12}$/u.test(input.amount) && BigInt(input.amount) > 0n &&
-    ['cash', 'bank'].includes(String(input.method)) && typeof input.reference === 'string' && input.reference.length <= 80 &&
-    typeof input.note === 'string' && input.note.length <= 500 && (input.reverses === null || id(input.reverses))) return { operation: value.operation, input }
-  return null
 }
 export function createCentralVerifier(options: { baseUrl: string; fetchImpl?: typeof fetch; verificationKey?: string }) {
   const endpoint = new URL(options.baseUrl)

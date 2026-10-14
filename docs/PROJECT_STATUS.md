@@ -254,3 +254,13 @@ only in a private temporary cluster; browser APIs use test fixtures. Render Admi
 still has the old d0af060 staging deployment and no Khata service was listed.
 Real signup/login, deployment/provider/SMTP setup and remote CI/Sonar are pending.
 No commit, push, production migration or deployment is performed by this runner.
+
+
+## 2026-10-14 — Sonar corrective source verification
+
+- Parent main: 6ce1827334855a8012493983295c67926d18c1d2.
+- Encode pending voucher storage; validate decoded and legacy recovery data; preserve identical IDs/payloads on reload and uncertain retries.
+- Fix six reported code smells and cover money/error-alias gaps without lowering gates.
+- Exact-source Ubuntu tests, four-metric 100% coverage, lint/types/build/audit/KNIP/JSCPD and mocked mobile/desktop browser checks passed in the owner foreground runner.
+- Corrective owner-authorized main push follows these checks. Remote CI/Sonar result is in the Downloads ORBIS-KHATA-SONAR-FIX report; no production claim is made here.
+- Real central/server login, SMTP and deployment remain unverified; no production database or deployment change.

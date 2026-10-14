@@ -174,7 +174,7 @@ it('blocks posting when recovery storage fails and warns before leaving a pendin
     expect(api.post).not.toHaveBeenCalled()
   } finally { storage.mockRestore() }
 })
-it.each(['{broken', '{"kind":"sale"}'])('ignores malformed pending data: %s', async raw => {
+it.each(['{broken', '{"kind":"sale"}', '%invalid'])('ignores malformed pending data: %s', async raw => {
   sessionStorage.setItem('khata-pending-v1:u', raw)
   render(<Accounting userId="u" language="en" />)
   expect(await screen.findByRole('button', { name: 'Receive money' })).toBeEnabled()
@@ -191,4 +191,26 @@ it('reviews a correction with the original amount and voucher identity', async (
   fireEvent.click(screen.getByRole('button', { name: 'Confirm & save' }))
   await screen.findByText('Saved successfully.')
   expect(api.post).toHaveBeenCalledWith(expect.objectContaining({ kind: 'reversal', reverses: 'original', amount: '10000', party: 'p', note: 'Wrong date' }))
+})
+
+it('encodes user text in recovery storage and preserves exact retry after reload', async () => {
+  api.post.mockRejectedValueOnce(new Error('offline')).mockResolvedValueOnce(undefined)
+  await startReceipt()
+  fireEvent.click(screen.getByRole('button', { name: 'Edit' }))
+  const form = screen.getByLabelText('Amount (INR)').closest('form')!
+  const note = '<img src=x onerror=alert(1)> বাংলা নোট'
+  fireEvent.change(within(form).getByLabelText('Note / reversal reason'), { target: { value: note } })
+  fireEvent.submit(form)
+  fireEvent.click(screen.getByRole('button', { name: 'Confirm & save' }))
+  await screen.findByRole('button', { name: 'Retry' })
+  const stored = sessionStorage.getItem('khata-pending-v1:u')!
+  expect(stored).not.toContain('<img')
+  expect(JSON.parse(decodeURIComponent(stored))).toMatchObject({ note })
+  expect(document.querySelector('img')).toBeNull()
+  const posted = api.post.mock.calls[0][0]
+  cleanup()
+  render(<Accounting userId="u" language="en" />)
+  fireEvent.click(await screen.findByRole('button', { name: 'Retry' }))
+  await screen.findByText('Saved successfully.')
+  expect(api.post.mock.calls[1][0]).toEqual(posted)
 })

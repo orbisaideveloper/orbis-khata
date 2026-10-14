@@ -67,6 +67,7 @@ export function AccountForm({ language, recovery = false, onRecovered }: Readonl
     }
   }
 
+  const identifierPlaceholder = { bn: 'ইমেইল বা মোবাইল নম্বর', hi: 'ईमेल या मोबाइल नंबर', en: 'Email or mobile number' }[language]
   const title = { login: t.login, signup: t.signup, recover: t.recover, reset: t.save }[mode]
   function change(next: Mode) { setMode(next); setMessage('') }
 
@@ -78,7 +79,7 @@ export function AccountForm({ language, recovery = false, onRecovered }: Readonl
           <label className="field">{t.last}<input className="input" name="last" autoComplete="family-name" required maxLength={80} pattern=".*\S.*" /></label>
           <label className="field">{t.phone}<input className="input" name="phone" type="tel" autoComplete="tel" minLength={6} maxLength={25} pattern={String.raw`\+?[0-9][0-9 \(\)\-]{4,23}[0-9]`} /></label>
         </>}
-        {mode !== 'reset' && <label className="field">{t.email}<input className="input" name="email" type={mode === 'recover' ? 'email' : 'text'} autoComplete="username" placeholder={language === 'bn' ? 'ইমেইল বা মোবাইল নম্বর' : language === 'hi' ? 'ईमेल या मोबाइल नंबर' : 'Email or mobile number'} required maxLength={254} /></label>}
+        {mode !== 'reset' && <label className="field">{t.email}<input className="input" name="email" type={mode === 'recover' ? 'email' : 'text'} autoComplete="username" placeholder={identifierPlaceholder} required maxLength={254} /></label>}
         {mode !== 'recover' && <label className="field">{mode === 'reset' ? t.newPassword : t.password}<input className="input" name="password" type="password" autoComplete={mode === 'login' ? 'current-password' : 'new-password'} required minLength={mode === 'login' ? 1 : 8} maxLength={128} /></label>}
         <button className="gradient" type="submit">{busy ? t.waiting : title}</button>
       </fieldset>
