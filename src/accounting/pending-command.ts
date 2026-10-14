@@ -1,7 +1,7 @@
 import type { Command } from './model'
 
 function text(value: unknown, limit: number): value is string {
-  return typeof value === 'string' && value.length <= limit
+  return typeof value === 'string' && value.length <= limit && /^[^<>]*$/u.test(value)
 }
 function identifier(value: unknown): value is string {
   return text(value, 128) && /^[\w-]+$/u.test(value)

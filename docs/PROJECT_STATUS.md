@@ -264,3 +264,13 @@ No commit, push, production migration or deployment is performed by this runner.
 - Exact-source Ubuntu tests, four-metric 100% coverage, lint/types/build/audit/KNIP/JSCPD and mocked mobile/desktop browser checks passed in the owner foreground runner.
 - Corrective owner-authorized main push follows these checks. Remote CI/Sonar result is in the Downloads ORBIS-KHATA-SONAR-FIX report; no production claim is made here.
 - Real central/server login, SMTP and deployment remain unverified; no production database or deployment change.
+
+
+## 2026-10-14 — Sonar remaining storage validation and digit conversion
+
+- Parent main: d211bcd70ca32aafea6ffa3e779f40c8fa516d80.
+- Validate a bounded plain-text recovery record before storage; reject markup without silently changing the entry; retain encoded storage, validated restore, identical retry ID/payload and multilingual notes.
+- Normalize Bengali/Hindi digits by their explicit digit alphabets; remove code-unit warnings while retaining exact minor-unit math and full coverage.
+- Exact-source Ubuntu tests, four-metric 100% coverage, lint/types/build/audit/KNIP/JSCPD and mocked mobile/desktop browser checks passed in the owner foreground runner.
+- Corrective owner-authorized main push follows these checks. Remote CI/Sonar result is in the Downloads ORBIS-KHATA-SONAR-FIX report; no production claim is made here.
+- Real central/server login, SMTP and deployment remain unverified; no production database or deployment change.

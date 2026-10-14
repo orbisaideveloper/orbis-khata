@@ -198,7 +198,7 @@ it('encodes user text in recovery storage and preserves exact retry after reload
   await startReceipt()
   fireEvent.click(screen.getByRole('button', { name: 'Edit' }))
   const form = screen.getByLabelText('Amount (INR)').closest('form')!
-  const note = '<img src=x onerror=alert(1)> বাংলা নোট'
+  const note = 'বাংলা নোট — भुगतान ₹1200; ref ABC-1'
   fireEvent.change(within(form).getByLabelText('Note / reversal reason'), { target: { value: note } })
   fireEvent.submit(form)
   fireEvent.click(screen.getByRole('button', { name: 'Confirm & save' }))
@@ -213,4 +213,18 @@ it('encodes user text in recovery storage and preserves exact retry after reload
   fireEvent.click(await screen.findByRole('button', { name: 'Retry' }))
   await screen.findByText('Saved successfully.')
   expect(api.post.mock.calls[1][0]).toEqual(posted)
+})
+
+it.each(['Note / reversal reason', 'Bill / reference'])('refuses markup in %s before storing or posting a voucher', async label => {
+  await startReceipt()
+  fireEvent.click(screen.getByRole('button', { name: 'Edit' }))
+  const form = screen.getByLabelText('Amount (INR)').closest('form')!
+  fireEvent.change(within(form).getByLabelText(label), { target: { value: '<img src=x onerror=alert(1)>' } })
+  fireEvent.submit(form)
+  fireEvent.click(screen.getByRole('button', { name: 'Confirm & save' }))
+  expect(screen.getByRole('status')).toHaveTextContent('Use plain text')
+  expect(sessionStorage.getItem('khata-pending-v1:u')).toBeNull()
+  expect(api.post).not.toHaveBeenCalled()
+  expect(document.querySelector('img')).toBeNull()
+  expect(screen.getByRole('button', { name: 'Edit' })).toBeEnabled()
 })

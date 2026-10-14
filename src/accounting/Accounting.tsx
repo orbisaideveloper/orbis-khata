@@ -166,7 +166,10 @@ function Books({ userId, language, company, onLock }: Readonly<Props & { company
 
   async function save() {
     if (!command || guard.current) return
-    try { sessionStorage.setItem(pendingKey(userId), encodeURIComponent(JSON.stringify(command))) }
+    const recovery = JSON.stringify(command)
+    // Recovery is a bounded plain-text record; markup is refused before persistence.
+    if (!/^[^<>]{1,8192}$/u.test(recovery)) { setSaveError(t.plainText); return }
+    try { sessionStorage.setItem(pendingKey(userId), encodeURIComponent(recovery)) }
     catch { setSaveError(t.storage); return }
     guard.current = true; setBusy(true); setAttempted(true); setSaveError('')
     try {

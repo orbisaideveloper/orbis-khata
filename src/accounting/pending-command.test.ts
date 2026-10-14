@@ -11,6 +11,6 @@ it.each([
   ['id', undefined], ['id', 'x'.repeat(129)], ['id', ''], ['id', '<script>'],
   ['company', null], ['party', 1], ['date', 1], ['date', 'x'.repeat(11)], ['date', 'invalid'], ['date', '2026-99-01'], ['date', '2026-02-30'],
   ['amount', 1], ['amount', '1'.repeat(13)], ['amount', '-1'], ['amount', '0'],
-  ['kind', 'script'], ['kind', ['sale']], ['method', 'script'], ['reference', 1], ['reference', 'x'.repeat(81)],
-  ['note', null], ['note', 'x'.repeat(501)], ['reverses', ''],
+  ['kind', 'script'], ['kind', ['sale']], ['method', 'script'], ['reference', '<script>'], ['reference', 1], ['reference', 'x'.repeat(81)],
+  ['note', '<img src=x>'], ['note', null], ['note', 'x'.repeat(501)], ['reverses', ''],
 ])('rejects invalid %s without restoring a poisoned command', (key, value) => expect(pendingCommand({ ...command, [key as string]: value })).toBeNull())
