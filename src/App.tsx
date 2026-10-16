@@ -7,6 +7,7 @@ import { useAccount } from './auth/useAccount'
 import { AccountForm } from './auth/AccountForm'
 import { accountCopy } from './auth/copy'
 import { CompanyGate } from './auth/CompanyGate'
+import { CommonAccountProfile } from './profile/CommonAccountProfile'
 
 import { resolveKhataView, type View } from './navigation-policy'
 
@@ -184,6 +185,7 @@ function App() {
             {renderPlanned('🎟️', 'lot', 'lot', 'lotDesc', 'soon')}
           </div>
           <div className="settings"><h2>{t('settings')}</h2><p>{t('settingsDesc')}</p><button type="button" className="exit" onClick={() => { void logout() }}>{signedIn ? accountCopy[language].logout : t('exit')}</button>
+          {signedIn && <CommonAccountProfile key={account.session!.user.id} userId={account.session!.user.id} language={language} />}
           {signedIn && <p>{accountCopy[language].lock} — {accountCopy[language].lockInfo}</p>}
           {logoutError && <p role="alert">{accountCopy[language].error}</p>}</div>
         </section>

@@ -1,4 +1,25 @@
 # Khata accounting v1 — owner-approved basic ledger
+## Current checkpoint — 2026-09-24
+
+The existing Accounting v1 implementation is the approved foundation and is
+not being re-designed.
+
+Implemented foundation: Auth/company boundary, multiple companies,
+company-scoped parties, Sale/Purchase, Receipt/Payment, advances, Cash/Bank,
+party ledger/totals, exact money, retry/idempotency, tenant isolation and
+immutable reversal.
+
+Current source audit: Party/Ledger Master is incomplete. Item/Unit,
+itemized Sale/Purchase, Inventory and Delete/Void are not yet implemented.
+
+Next approved implementation order: Party/Ledger Master → Item/Unit Master →
+Itemized Sale/Purchase → Inventory → Delete/Void propagation →
+Dashboard/Reports refinement.
+
+This document is not a release certificate. Exact-SHA GitHub Actions/Sonar
+results, final browser certification and deployment authorization remain
+separate gates.
+
 
 ## Implemented scope
 

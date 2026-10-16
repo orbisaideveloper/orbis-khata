@@ -1,5 +1,19 @@
 # MVP Product Specification
 
+## Current implementation reconciliation — 2026-09-24
+
+This specification remains the historical MVP baseline. The repository now
+contains owner-approved Supabase email/password Auth and the Accounting v1
+foundation. Current accounting work continues incrementally from that
+foundation rather than restarting the architecture.
+
+Current approved order: Party/Ledger Master → Item/Unit Master →
+Itemized Sale/Purchase → Inventory → Delete/Void propagation →
+Dashboard/Reports refinement.
+
+This documentation reconciliation does not authorize deployment, database
+changes, Auth-setting changes or Git push.
+
 ## Status and purpose
 
 This is the baseline for the next review. It defines the smallest useful first product but is not yet an implementation authorization. The owner must approve the screen list, flows, data model and architecture choices before coding begins.

@@ -5,6 +5,7 @@ const customer = { orbisIdentityId: '11111111-1111-7111-8111-111111111111', disp
 const session = { version: 'orbis.customer.v1', customer, session: { accessToken: 'test.access', refreshToken: 'test.refresh', expiresIn: 3600 } }
 async function backend(page: Page) {
   const state = { revoked: false, paths: [] as string[], data: [] as Record<string, unknown>[], companies: [] as { id: string; name: string }[] }
+  let profile = { name: 'Sample customer', address: null as string | null, alternatePhone: null as string | null, dateOfBirth: null as string | null, gender: null as string | null }
   const headers = { 'access-control-allow-origin': 'http://127.0.0.1:4187', 'access-control-allow-methods': 'GET,POST,OPTIONS', 'access-control-allow-headers': 'content-type,authorization', 'cache-control': 'no-store' }
   await page.route('https://admin.example.test/**', async route => {
     const request = route.request(), path = new URL(request.url()).pathname.split('/').at(-1) ?? ''
@@ -12,6 +13,10 @@ async function backend(page: Page) {
     state.paths.push(path)
     let value: unknown = { version: 'orbis.customer.v1', customer }
     if (path === 'signup' || path === 'login' || path === 'recovery' || path === 'refresh') value = session
+    if (path === 'profile') {
+      if (request.method() === 'POST') profile = request.postDataJSON()
+      value = { version: 'orbis.customer.profile.v1', customer, profile, contact: { email: 'customer@example.test', phone: null } }
+    }
     if (path === 'recover') value = { accepted: true }
     if (path === 'password') {
       expect(request.headers().authorization).toBe('Bearer test.access')
@@ -120,4 +125,19 @@ test('recovery link is cleaned; verified password reset uses the same central AP
   await page.getByRole('button', { name: 'Save password', exact: true }).click()
   await expect(page.getByText(customer.displayId, { exact: true })).toBeVisible()
   expect(state.paths).toContain('recovery');expect(state.paths).toContain('password')
+})
+
+
+test('shared profile save and reload preserve the central ID', async ({ page }) => {
+  await backend(page); await login(page)
+  const profile = page.getByRole('region', { name: 'Common account profile', exact: true })
+  await profile.getByLabel('Name', { exact: true }).fill('Updated customer')
+  await profile.getByLabel('Address', { exact: true }).fill('Test address')
+  await profile.getByRole('button', { name: 'Save profile', exact: true }).click()
+  await expect(profile.getByText('Profile saved to your central account.')).toBeVisible()
+  await page.reload()
+  await expect(profile.getByLabel('Name', { exact: true })).toHaveValue('Updated customer')
+  await expect(profile.getByLabel('Address', { exact: true })).toHaveValue('Test address')
+  await expect(page.getByText(customer.displayId, { exact: true })).toBeVisible()
+  await fits(page)
 })
