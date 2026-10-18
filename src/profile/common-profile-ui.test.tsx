@@ -73,3 +73,11 @@ it.each(['resolve','reject'] as const)('aborts an in-flight save before a late %
  await act(async()=>{if(outcome==='resolve')pending.resolve(response);else pending.reject(new Error('private'));await pending.promise.catch(()=>{})})
  expect(screen.queryByText('Profile saved to your central account.')).toBeNull()
 })
+
+it('does not stringify a file-valued optional profile control',async()=>{
+ render(<CommonAccountProfile userId="sample-user" language="en"/>);await screen.findByLabelText('Name')
+ const address=screen.getByLabelText('Address') as HTMLInputElement
+ address.type='file'
+ fireEvent.click(screen.getByRole('button',{name:'Save profile'}));await screen.findByText('Profile saved to your central account.')
+ expect(api.read).toHaveBeenLastCalledWith(expect.any(Function),'sample-user',expect.any(AbortSignal),expect.objectContaining({address:null}))
+})

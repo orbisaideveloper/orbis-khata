@@ -288,3 +288,8 @@ One central account/profile for Admin, Maya and Khata; Maya five cloud birth slo
 - Profile and five-slot browser fixture acceptance added; exact local full certification, Termux publication, remote CI/Sonar and post-deploy persistence remain pending.
 - Current Supabase app connections cannot access Khata product `gqyaxsczlmvppxuoqbox`; the financial data gateway is not certified or live-ready. No financial database write or replacement book created.
 - Next: run the resumable `ORBIS-CENTRAL-RELEASE-20261016.sh`; successful local gates authorize selected owner-Termux commit/push and an Admin PR. No merge/deployment occurs inside this runner. Inspect the single Downloads report before completing remote release.
+
+
+## 2026-10-17 — Sonar corrective candidate prepared
+
+See [SONAR-CORRECTIONS-20261017.md](SONAR-CORRECTIONS-20261017.md) for every reported file/line and the source changes. Targeted and final Termux verification, new remote Sonar analysis and owner-controlled commit/push remain pending. No merge, deployment or database change is performed by this candidate.

@@ -25,7 +25,7 @@ function ProfileEditor({userId,language,onReload}:Readonly<{userId:string;langua
  },[userId,t.failed])
  async function save(event:SyntheticEvent<HTMLFormElement>,current:ProfileResult){
   event.preventDefault();if(busy)return
-  const data=new FormData(event.currentTarget),read=(key:string)=>String(data.get(key)??'').trim()
+  const data=new FormData(event.currentTarget),read=(key:string)=>{const value=data.get(key);return typeof value==='string'?value.trim():''}
   const patch:AccountProfile={name:read('name'),address:read('address')||null,alternatePhone:read('alternatePhone')||null,dateOfBirth:read('dateOfBirth')||null,gender:(read('gender')||null) as AccountProfile['gender']}
   const controller=new AbortController();operation.current=controller
   setBusy(true);setMessage('')
