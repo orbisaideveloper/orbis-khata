@@ -1,4 +1,5 @@
-import { expect, it } from 'vitest'
+import { inventoryPendingKey, restoreInventory } from './pending'
+import { afterEach, expect, it } from 'vitest'
 import { billTotal, displayQuantity, inventoryCommand, quantity } from './model'
 const id='11111111-1111-4111-8111-111111111111'
 const other='22222222-2222-4222-8222-222222222222'
@@ -31,4 +32,29 @@ it('supports arbitrary fixed unit names and enforces master and transfer shapes'
 it('bounds bill size and amount without binary floating point',()=>{
  expect(inventoryCommand({...base,lines:Array(51).fill(base.lines[0])})).toBeNull()
  expect(inventoryCommand({...base,lines:[{...base.lines[0],quantity:'999999999999',rate:'999999999999'}]})).toBeNull()
+})
+
+afterEach(()=>sessionStorage.clear())
+it('recovers encoded Unicode and legacy pending commands without changing their identity',()=>{
+ const command={...base,reference:'বিল-১',note:'দুধ কেনা'}
+ for(const stored of [JSON.stringify(command),encodeURIComponent(JSON.stringify(command))]){
+  sessionStorage.setItem(inventoryPendingKey('owner'),stored)
+  expect(restoreInventory('owner')).toEqual(command)
+  expect(restoreInventory('another-owner')).toBeNull()
+  expect(sessionStorage.getItem(inventoryPendingKey('owner'))).toBe(stored)
+ }
+})
+it('rejects poisoned, malformed and oversized retry storage without erasing it',()=>{
+ const inputs=[
+  encodeURIComponent(JSON.stringify({...base,note:'<script>attack</script>'})),
+  JSON.stringify({...base,extra:'injected'}),
+  '%E0%A4%A',
+  'x'.repeat(98305),
+  encodeURIComponent(JSON.stringify({...base,note:'x'.repeat(32769)})),
+ ]
+ for(const stored of inputs){
+  sessionStorage.setItem(inventoryPendingKey('owner'),stored)
+  expect(restoreInventory('owner')).toBeNull()
+  expect(sessionStorage.getItem(inventoryPendingKey('owner'))).toBe(stored)
+ }
 })

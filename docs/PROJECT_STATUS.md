@@ -1,3 +1,23 @@
+# Inventory retry storage hardening — 2026-10-25
+
+Main 9f3900ad5bd298c92761deb0b8b2cf61551ebcc9 pushed successfully after
+full local certification. GitHub run 40194902343 passes unit/coverage/build
+and browser gates. Previous S3776 gateway complexity issue is resolved.
+Sonar API reports one open tssecurity:S8475 at Inventory.tsx storage write,
+flowing from pending.ts restore; new security rating B fails required A.
+New coverage 96.7%, duplication 0.0%, other gate conditions pass.
+
+Inventory retry storage now encodes the serialized command, matching the
+existing voucher recovery pattern. Restore accepts encoded and legacy JSON,
+bounds encoded/decoded lengths, and revalidates the full inventory command.
+Existing pending commands are not deleted or assigned new IDs. Added tests
+for exact same-ID retry, stored encoding, Unicode, legacy data, malicious
+markup/extra fields, malformed encoding and size limits.
+Local: 49 targeted tests, typecheck, zero-warning lint, KNIP and JSCPD PASS.
+No financial/schema/auth changes, no security rule suppression or threshold
+reduction. Phone full certification, owner-run commit/push and fresh Sonar
+verification remain pending. No assistant remote Git/deploy/database writes.
+
 # Deterministic accounting status assertion repair — 2026-10-25
 
 Main remains 2a7bddf; gateway complexity fix is installed but not pushed.

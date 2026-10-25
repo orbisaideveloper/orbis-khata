@@ -41,7 +41,7 @@ export function Inventory({userId,company,companyName,language,from,to,version,p
  }
  async function save() {
   if(!pending||guard.current||blocked)return
-  try{sessionStorage.setItem(inventoryPendingKey(userId),JSON.stringify(pending))}catch{setMessage(t.storage);return}
+  try{sessionStorage.setItem(inventoryPendingKey(userId),encodeURIComponent(JSON.stringify(pending)))}catch{setMessage(t.storage);return}
   guard.current=true;setBusy(true);setAttempted(true)
   try{await postInventory(pending);sessionStorage.removeItem(inventoryPendingKey(userId));setPending(null);setAttempted(false);setMessage(t.saved);setReload(n=>n+1);onChanged()}
   catch(error){if(rejected(error)){sessionStorage.removeItem(inventoryPendingKey(userId));setPending(null);setAttempted(false);setMessage(t.rejected)}else setMessage(t.uncertain)}

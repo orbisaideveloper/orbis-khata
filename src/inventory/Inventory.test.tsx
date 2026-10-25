@@ -20,7 +20,11 @@ it('shows real unit quantities and sends one exact itemized bill only after conf
 it('persists an uncertain bill and retries the exact same ID after reload',async()=>{
  api.postInventory.mockRejectedValueOnce(new Error('offline')).mockResolvedValueOnce(undefined)
  await purchase();fireEvent.click(screen.getByRole('button',{name:'Confirm & save'}));await screen.findByText(/Save is not confirmed/)
- const first=api.postInventory.mock.calls[0][0];cleanup();mount();fireEvent.click(await screen.findByRole('button',{name:'Retry same entry'}));await screen.findByText('Saved successfully.')
+ const first=api.postInventory.mock.calls[0][0]
+ const stored=sessionStorage.getItem('khata-inventory-pending-v1:owner')!
+ expect(stored).not.toContain('{')
+ expect(JSON.parse(decodeURIComponent(stored))).toEqual(first)
+ cleanup();mount();fireEvent.click(await screen.findByRole('button',{name:'Retry same entry'}));await screen.findByText('Saved successfully.')
  expect(api.postInventory.mock.calls[1][0]).toEqual(first)
 })
 it('does not send a bill when recovery storage is unavailable',async()=>{
