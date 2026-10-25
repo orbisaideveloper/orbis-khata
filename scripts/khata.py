@@ -221,7 +221,7 @@ def worker(mode, run_id, lock_fd):
         content = log.read_text(encoding='utf-8', errors='replace')
         if rc:
             report.append('FAIL: ' + name + ' (exit ' + str(rc) + ')')
-            report.append('ERROR EXCERPT:\n' + '\n'.join(content.splitlines()[-45:]))
+            report.append('FAILED STAGE FULL LOG:\n' + content)
             raise RuntimeError(name + ' failed; full log kept privately in cache')
         report.append('PASS: ' + name)
         # Capture numerical facts in one report, without flooding Downloads or chat.

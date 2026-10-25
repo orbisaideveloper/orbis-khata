@@ -37,7 +37,7 @@ it('renders empty parties, ledger, negative cash and journal mismatch without fa
   expect(screen.getByRole('button', { name: 'Review entry' })).toBeDisabled()
   expect(api.post).not.toHaveBeenCalled()
   fireEvent.change(screen.getByLabelText('From'), { target: { value: '' } })
-  expect(await screen.findByRole('status')).toHaveTextContent('valid date range')
+  expect(await screen.findByText(/valid date range/, { selector: 'output' })).toBeVisible()
 })
 it('ignores a late report error from a previously selected company', async () => {
   api.companies.mockResolvedValue([{ id: 'c', name: 'Shop' }, { id: 'other', name: 'Other' }])

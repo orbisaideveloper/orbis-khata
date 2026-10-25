@@ -1,3 +1,43 @@
+# Deterministic accounting status assertion repair — 2026-10-25
+
+Main remains 2a7bddf; gateway complexity fix is installed but not pushed.
+The 16:25:34 phone certification passed; its subsequent fetch failed DNS.
+Owner reran the installer at 16:43:04: 335/336 tests passed; the invalid-amount
+Accounting test selected a global single status while both Loading expenses
+and the intended invalid-amount output were present. Coverage percentages
+were above threshold; the failing assertion, not the threshold, blocked release.
+
+Reproduced the exact multiple-status failure locally by delaying the expense
+report deliberately. Test now selects the intended visible output text, still
+asserts no financial post and confirms Cancel closes the form, then resolves
+the pending expense load. Similar ambiguous status assertions in both Accounting
+test files now select their intended message. Production financial code unchanged.
+Local red→green: reproduced original failure; all 32 Accounting tests, typecheck
+and zero-warning lint PASS. Verification runner now preserves the complete
+failed-stage log in the one final report instead of dropping errors above the
+last 45 lines. No thresholds/timeouts were changed and no tests were skipped.
+Next: guarded phone full certification and owner-run commit/push of gateway,
+test and report fixes; verify fresh remote Sonar. No assistant Git/deploy/DB writes.
+
+# Remaining gateway Sonar complexity — 2026-10-25
+
+Owner pushed main 2a7bddf774bcf41d31e604312c18684fb3839871 after full local
+certification. GitHub run 40184772142 passes tests/build/browser and standard
+Sonar gate; strict zero-issue check fails on exactly one remaining S3776 issue.
+Public Sonar API read confirms server-gateway.ts khataOperation complexity 18
+(limit 15), reduced from 20 but insufficient in the first repair.
+
+Refactor moves only operation validation into a boolean type-predicate
+function with direct switch returns; the public envelope validator checks the
+result once and returns the same operation/input object. This removes nested
+ternary returns rather than merely extracting one compound condition. All
+ownership, session, operation and financial payload rules remain unchanged.
+Local: 24 gateway/inventory gateway tests PASS; typecheck, zero-warning lint,
+KNIP and JSCPD PASS. No rule suppression or threshold reduction.
+Next: owner runs guarded repair → full certification → commit/push, followed
+by fresh remote zero-issue verification. No remote Git/deploy/database writes
+performed by the assistant. Expense/inventory activation remains pending.
+
 # Sonar issue repair — 2026-10-25
 
 Owner pushed main c88e05819173fad7eda1a52945958b82aa7b871e.

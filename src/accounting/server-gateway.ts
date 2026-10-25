@@ -40,20 +40,24 @@ function pagedReportInput(input: Record<string, unknown>) {
     date(input.from) && date(input.to) && String(input.from) <= String(input.to) &&
     Number.isSafeInteger(input.offset) && Number(input.offset) >= 0
 }
+function validOperation(operation: unknown, input: Record<string, unknown>): operation is Operation {
+  switch (operation) {
+    case 'inventory-post': return Boolean(inventoryCommand(input))
+    case 'inventory-report': return pagedReportInput(input)
+    case 'expense-post': return Boolean(expenseCommand(input))
+    case 'expense-report': return pagedReportInput(input)
+    case 'companies': return keys(input, [])
+    case 'create': return createInput(input)
+    case 'report': return reportInput(input)
+    case 'post': return postInput(input)
+    default: return false
+  }
+}
 export function khataOperation(value: unknown): KhataOperation | null {
   if (!object(value) || !keys(value, ['version', 'operation', 'input']) || value.version !== 'orbis.khata.data.v1' || !object(value.input)) return null
   const input = value.input
-  switch (value.operation) {
-    case 'inventory-post': return inventoryCommand(input) ? {operation:value.operation,input} : null
-    case 'inventory-report': return pagedReportInput(input) ? { operation: value.operation, input } : null
-    case 'expense-post': return expenseCommand(input) ? { operation: value.operation, input } : null
-    case 'expense-report': return pagedReportInput(input) ? { operation: value.operation, input } : null
-    case 'companies': return keys(input, []) ? { operation: value.operation, input } : null
-    case 'create': return createInput(input) ? { operation: value.operation, input } : null
-    case 'report': return reportInput(input) ? { operation: value.operation, input } : null
-    case 'post': return postInput(input) ? { operation: value.operation, input } : null
-    default: return null
-  }
+  if (!validOperation(value.operation, input)) return null
+  return { operation: value.operation, input }
 }
 export function createCentralVerifier(options: { baseUrl: string; fetchImpl?: typeof fetch; verificationKey?: string }) {
   const endpoint = new URL(options.baseUrl)

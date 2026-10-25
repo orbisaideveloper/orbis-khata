@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 import { Accounting } from './Accounting'
 import type { Command, Report } from './model'
@@ -109,15 +109,18 @@ it.each([
   expect(api.post).toHaveBeenCalledWith(expect.objectContaining({ company: 'c', party, kind, amount: '123456', reference: 'B-42', note: 'settlement', method: kind === 'payment' ? 'bank' : 'cash' }))
 })
 it('rejects invalid amounts and allows abandoning an unsaved form', async () => {
+  let finishExpenseLoad!: (value: unknown) => void
+  api.expenseReport.mockReturnValue(new Promise(resolve => { finishExpenseLoad = resolve }))
   render(<Accounting userId="u" language="en" />)
   fireEvent.click(await screen.findByRole('button', { name: 'Sale' }))
   const form = screen.getByLabelText('Amount (INR)').closest('form')!
   fireEvent.change(within(form).getByLabelText('Amount (INR)'), { target: { value: '1.001' } })
   fireEvent.submit(form)
-  expect(screen.getByRole('status')).toHaveTextContent('valid positive amount')
+  expect(screen.getByText(/valid positive amount/, { selector: 'output' })).toBeVisible()
   expect(api.post).not.toHaveBeenCalled()
   fireEvent.click(within(form).getByRole('button', { name: 'Cancel' }))
   expect(screen.queryByLabelText('Amount (INR)')).toBeNull()
+  await act(async () => finishExpenseLoad({balances:{},categories:[],bills:[],entries:[],count:0}))
 })
 it('keeps date, party and pagination filters within the selected company', async () => {
   api.report.mockResolvedValue({ ...base, count: 51 })
@@ -136,7 +139,7 @@ it('keeps date, party and pagination filters within the selected company', async
   await screen.findByText('Customer advances')
   const calls = api.report.mock.calls.length
   fireEvent.change(screen.getByLabelText('From'), { target: { value: '2026-02-01' } })
-  expect(await screen.findByRole('status')).toHaveTextContent('valid date range')
+  expect(await screen.findByText(/valid date range/, { selector: 'output' })).toBeVisible()
   expect(api.report).toHaveBeenCalledTimes(calls)
   fireEvent.change(screen.getByLabelText('From'), { target: { value: '2026-01-01' } })
   fireEvent.click(await screen.findByRole('button', { name: 'Refresh' }))
@@ -171,7 +174,7 @@ it('blocks posting when recovery storage fails and warns before leaving a pendin
   try {
     fireEvent.click(screen.getByRole('button', { name: 'Confirm & save' }))
     expect(storage).toHaveBeenCalledOnce()
-    expect(screen.getByRole('status')).toHaveTextContent('Browser storage is unavailable')
+    expect(screen.getByText(/Browser storage is unavailable/, { selector: 'output' })).toBeVisible()
     expect(api.post).not.toHaveBeenCalled()
   } finally { storage.mockRestore() }
 })
@@ -223,7 +226,7 @@ it.each(['Note / reversal reason', 'Bill / reference'])('refuses markup in %s be
   fireEvent.change(within(form).getByLabelText(label), { target: { value: '<img src=x onerror=alert(1)>' } })
   fireEvent.submit(form)
   fireEvent.click(screen.getByRole('button', { name: 'Confirm & save' }))
-  expect(screen.getByRole('status')).toHaveTextContent('Use plain text')
+  expect(screen.getByText(/Use plain text/, { selector: 'output' })).toBeVisible()
   expect(sessionStorage.getItem('khata-pending-v1:u')).toBeNull()
   expect(api.post).not.toHaveBeenCalled()
   expect(document.querySelector('img')).toBeNull()
