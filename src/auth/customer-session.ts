@@ -39,6 +39,7 @@ export function createCustomerSessionClient(options: {
   }
   const now = options.now ?? Date.now
   let current: CentralSession | null = null
+  let verified = false
   let revision = 0
   let restoring: Promise<CentralSession | null> | null = null
   const call = async (path: string, body?: unknown, token?: string) => {
@@ -52,13 +53,14 @@ export function createCustomerSessionClient(options: {
     if (text.length > 65536) throw new CustomerSessionError('CUSTOMER_RESPONSE_INVALID')
     return JSON.parse(text) as unknown
   }
-  const clear = () => { current = null; options.storage.removeItem(storageKey) }
+  const clear = () => { current = null; verified = false; options.storage.removeItem(storageKey) }
   const save = (next: CentralSession, expected: number) => {
     if (revision !== expected) throw new CustomerSessionError('CUSTOMER_OPERATION_CANCELLED')
     if (current && next.customer.orbisIdentityId !== current.customer.orbisIdentityId) throw new CustomerSessionError('CUSTOMER_IDENTITY_MISMATCH')
     // Only central session material is stored. Passwords and product profiles are never persisted here.
     options.storage.setItem(storageKey, JSON.stringify({ version: 1, ...next }))
     current = next
+    verified = true
     return next
   }
   const readStored = (raw: string): CentralSession => {
@@ -88,8 +90,10 @@ export function createCustomerSessionClient(options: {
       if (revision !== expected) throw new CustomerSessionError('CUSTOMER_OPERATION_CANCELLED')
       if (!result || typeof result !== 'object' || !('version' in result) || result.version !== 'orbis.customer.v1' || !('customer' in result) ||
           customer(result.customer).orbisIdentityId !== active.customer.orbisIdentityId) throw new CustomerSessionError('CUSTOMER_IDENTITY_MISMATCH')
+      verified = true
       return current
     } catch (error) {
+      if (revision === expected) verified = false
       // Preserve refresh material on network errors; reauthentication is not forced by an outage.
       if (error instanceof CustomerSessionError && error.code === 'CUSTOMER_LOGIN_REQUIRED' && revision === expected) clear()
       throw error
@@ -120,14 +124,21 @@ export function createCustomerSessionClient(options: {
       return save(next, expected)
     },
     async updatePassword(password: string) {
-      const token = await this.accessToken()
+      const token = (await this.restore())?.accessToken ?? null
       if (!token) throw new CustomerSessionError('CUSTOMER_LOGIN_REQUIRED')
       const result = await call('password', { password }, token)
       if (!result || typeof result !== 'object' || !('passwordUpdated' in result) || result.passwordUpdated !== true) {
         throw new CustomerSessionError('CUSTOMER_RESPONSE_INVALID')
       }
     },
-    async accessToken() { return (await this.restore())?.accessToken ?? null },
+    async accessToken() {
+      // Join a pending verification/refresh before using any in-memory token.
+      if (restoring) return (await restoring)?.accessToken ?? null
+      // Product gateways verify the live central session on every data request.
+      // Reuse only this runtime's session; cold starts still verify stored material.
+      if (verified && current && current.expiresAt > now() + 60000) return current.accessToken
+      return (await this.restore())?.accessToken ?? null
+    },
     async logout() {
       let token = current?.accessToken
       if (!token) {

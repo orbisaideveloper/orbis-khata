@@ -1,3 +1,121 @@
+# Current checkpoint — 2026-10-24 expense phone verification repair
+
+- Owner phone expense installation completed, but its 22:24:28–22:25:41 report
+  failed: 193/194 tests passed; storage-block test timed out after 5000 ms.
+  Typecheck passed. Lint had one set-state-in-effect warning, not zero warnings.
+- Test now spies on Object.getPrototypeOf(sessionStorage), the actual storage
+  implementation, rather than assuming the global Storage constructor matches
+  it on Android Node/jsdom. The synchronous blocking message is asserted directly.
+  No test timeout, test count, coverage threshold or safety assertion is relaxed.
+- Expense component derives invalid date-range/loading state during render and
+  does not set React state synchronously from the invalid-range effect branch.
+- Local focused accounting tests: 107/107 PASS; selected-source TypeScript PASS.
+  Phone's complete 194-test selection and lint with deny-warnings still required.
+- No financial rules, SQL, gateway authorization, deployed code, database rows,
+  Git commit/push or Render configuration changes in this repair.
+- Next: run the single repair installer, inspect the completed Downloads report,
+  then continue the previously documented owner-controlled cloud activation.
+
+# Current checkpoint — 2026-10-24 business expense source delivery
+
+- Owner requested complete ordinary expense accounting. This slice includes
+  named expense accounts, payee/reference/notes, direct cash/bank expenses,
+  unpaid bills, partial/full settlement, period/category reporting, as-of dues,
+  audited opposite-entry corrections and safe exact-ID retries.
+- Expenses post when incurred; settlement reduces cash/bank and expense dues
+  without posting another expense. No inventory valuation or net-profit figure
+  is invented. Complete inventory/P&L and other accounting expansion remain separate.
+- Added one immutable, owner-isolated expense event subledger and paired journal.
+  Existing cash/bank and journal checks include expense postings. Existing
+  company/party/voucher records and Central IDs are not rewritten.
+- RPC writes require the real gateway transaction marker, owned company,
+  enabled write control, exact amounts, valid dates and linked original entry.
+  Company locks serialize settlement/reversal; overpayment and backdating before
+  prior linked activity are blocked. Corrections preserve original records and
+  historical as-of figures; reverse linked payments before an unpaid expense.
+- Added Bengali/English/Hindi expense entry, review/confirm, custom account
+  names, reports, bill settlement and explicit correction confirmation.
+  Uncertain saves retain the exact command in scoped session storage for retry.
+- Local targeted validation: 107 Vitest tests / 9 files PASS; 37 private PGlite
+  checks PASS (including original accounting/owner isolation), 9 mocked Edge
+  adapter checks PASS; selected-source TypeScript and lint exit 0.
+  Fixture originals are preserved. These are not live financial acceptance tests.
+- Working base main 5351b05a940c58586817275d8744edf7847faf0e plus installed
+  owner bridge and speed fix. Owner phone speed report 21:34:58–21:35:49 IST:
+  typecheck/lint, 97 targeted tests and diff check PASS.
+- Expense migration docs/expenses-v1.review.sql is PREPARED, NOT APPLIED.
+  Gateway expense RPC routing is PREPARED, NOT DEPLOYED. No live expense data,
+  Git commit/push, Render deployment/plan or production database change here.
+- Next: owner runs one Termux expense installer (backups, hashes, typecheck,
+  lint, accounting/session tests, diff check, one Downloads report). Inspect
+  that result, then complete the owner-controlled release/activation described
+  in docs/EXPENSES_ACTIVATION.md. Real phone/hosted save/reload/retry acceptance,
+  full certification and new-source CI/Sonar remain pending.
+
+# Current checkpoint — 2026-10-24 session request performance candidate
+
+- Owner Termux trial setup 18:08:08–18:08:37 IST passed: typecheck, lint
+  (zero warnings/errors), 22 gateway tests and diff integrity. Owner confirms
+  both existing companies now open; reports more than 20 seconds of waiting.
+- Read-only runtime evidence near 18:22 IST: product POST execution 1168 ms and
+  642 ms; Central Admin free service restarted shortly before these requests.
+  These are backend timings, not measured end-to-end mobile timings.
+- Current working base: main 5351b05a940c58586817275d8744edf7847faf0e plus the
+  installed trial gateway/ownership checkpoint. No commit/push in this candidate.
+- Changed src/auth/customer-session.ts: reuse an in-memory remotely established
+  unexpired token for gateway calls; join pending restoration/refresh; retain
+  the 60-second refresh margin and cold-storage remote verification. Failed
+  verification invalidates runtime reuse. Password changes still force restore.
+- Server gateway still verifies the live Central session on EVERY operation;
+  no auth-result cache, financial-data cache or authorization bypass was added.
+- Added src/auth/session-performance.test.ts: repeated-read request counts,
+  cold restore, refresh coalescing, revocation, outage, logout, account switch,
+  unverified storage and real gateway denial before database execution.
+- Focused local protocol/recovery/API tests: 75 tests / 7 files PASS using
+  mocked network responses. Owner Termux typecheck/lint/tests remain required.
+- Phone/hosted performance improvement, mobile E2E, full certification and
+  latest-source CI/Sonar are NOT certified by these mocked tests. The initial
+  login endpoint itself and Render idle wake-up behavior are unchanged.
+- This candidate makes no external database, identity, financial, Admin,
+  Render plan, deployment or remote Git changes. Free-server idle wake-up is
+  a separate hosting decision; no paid upgrade is authorized or applied.
+- Next: run the speed installer in Termux; reload local preview and compare
+  company changes after login. Inspect the single Downloads report, then
+  complete owner-controlled certification/publication before hosted acceptance.
+- Pending feature order remains Party/Ledger Master, Item/Unit, itemized bills,
+  Inventory, Delete/Void, then Dashboard/Reports. No expansion is claimed here.
+
+# Current checkpoint — 2026-10-24 trial connection setup
+
+- Owner confirmed both existing companies, three parties and four vouchers are
+  their unreleased development trial data and approved mapping to ORB-U-365HD9A3.
+- Central UUID remains 01a1454a-2134-7365-8d9a-3ed6b49f0b12; Admin identity/profile unchanged.
+- Managed Khata migration 20261024042046 central_owner_bridge_preserve_trial_books applied.
+  Private mapping resolves to legacy ledger owner 7d88bc43-4768-4279-ae3d-7626830f3a8e.
+- All three full-row financial-table fingerprints unchanged after mapping.
+- Existing voucher actor IDs, amounts, posting/report functions and immutability retained.
+- Live transaction/RLS checks: mapped owner sees two companies and four vouchers;
+  direct legacy JWT is blocked; a synthetic new principal sees no legacy rows (rolled back).
+- orbis-khata-data Edge Function version 3 deployed with remote central-session
+  verification, preserved owner resolution and exact-origin CORS. Configured service key
+  selects the service endpoint; without one the existing public central-session endpoint
+  verifies the customer. Trial public-session mode shares Admin's 30/min/IP limit;
+  review service rate limits before customer release. Platform JWT verification is off
+  because the function verifies the user's live Admin session before all data operations.
+- Uses server-provided SUPABASE_DB_URL fallback; no DB credential is in source or browser.
+- Render Khata deploy dep-dbe36doae00c73bg4osg is live at 5351b05 with VITE_KHATA_DATA_URL
+  set. Built asset contains both correct central and product URLs. Auto Deploy remains off.
+- Local fixtures: 18 PostgreSQL/PGlite checks and 7 Edge adapter checks pass.
+  Public HTTP: preflight 204, missing token 401, denied origin 403. Malformed token
+  reaches Admin Auth but currently returns 503 through Admin's upstream-403 mapping;
+  it is denied without database access. No real-customer readiness certificate claimed.
+- Owner Termux delivery must preserve the deployed Edge source and two SQL review docs,
+  configure .env.local, then run targeted tests/lint/typecheck. No automatic commit/push.
+- Real signed-in browser book access, expiry/revocation acceptance, full certification,
+  mobile E2E and latest-source CI/Sonar remain pending. No customer account was created.
+
+Historical checkpoints below are not the current runtime/deployment state.
+
 # Project Status — Durable Resume Checkpoint
 
 ## Latest checkpoint — 2026-09-24 documentation reconciliation

@@ -1,7 +1,7 @@
 export type Company = { id: string; name: string }
 type Party = Company & { kind: 'customer' | 'supplier' | 'both'; receivable: string; payable: string }
 export type Kind = 'sale' | 'purchase' | 'receipt' | 'payment' | 'reversal'
-export type Account = 'cash' | 'bank' | 'receivable' | 'payable' | 'sales' | 'purchases'
+export type Account = 'cash' | 'bank' | 'receivable' | 'payable' | 'sales' | 'purchases' | 'expenses' | 'expense_payable'
 export type Voucher = {
   id: string; party_id: string; party_name: string; kind: Kind; effective_date: string
   amount_minor: string; debit_account: Account; credit_account: Account

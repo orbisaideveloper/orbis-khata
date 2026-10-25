@@ -150,3 +150,17 @@ central/provider runtime configuration, password recovery and full coverage/E2E.
 Admin managed migration 20261012160546 is applied; twelve existing identities remain,
 customer count is zero. No Khata product migration, gateway deployment, Git commit,
 push, release or real signup/login verification has occurred at this checkpoint.
+
+
+## D-025 — 2026-10-24 — Owner-requested complete business expense slice
+
+Owner brings expense accounting forward before the remaining general ledger/item
+master work. Support named expense accounts, cash/bank or unpaid expense posting,
+partial/full linked settlement, date/category reports, as-of unpaid bills, exact
+retry and audited corrections. Expense recognition and payment are distinct;
+settlement does not expense the same amount twice. Existing cash/bank and journal
+checks must include this subledger. Preserve prior companies, vouchers and IDs.
+Do not label collections less payments as profit. Stock valuation and complete
+P&L remain pending; expense source verification is not production acceptance.
+Delivery stays owner-Termux/main with no default commit/push/PR or deployment.
+See EXPENSES_ACTIVATION.md for the prepared cloud activation and acceptance steps.

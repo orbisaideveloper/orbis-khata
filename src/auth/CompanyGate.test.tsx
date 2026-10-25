@@ -1,10 +1,11 @@
 import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 import { CompanyGate } from './CompanyGate'
-const api = vi.hoisted(() => ({ companies: vi.fn(), report: vi.fn(), createRecord: vi.fn(), post: vi.fn() }))
+const api = vi.hoisted(() => ({ expenseReport: vi.fn(), companies: vi.fn(), report: vi.fn(), createRecord: vi.fn(), post: vi.fn() }))
 vi.mock('../accounting/api', () => api)
 beforeEach(() => {
   vi.resetAllMocks(); sessionStorage.clear()
+  api.expenseReport.mockResolvedValue({ balances: {}, categories: [], bills: [], entries: [], count: 0 })
   api.report.mockResolvedValue({ balances: {}, ledger_balances: {}, parties: [], entries: [], count: 0 })
 })
 afterEach(cleanup)

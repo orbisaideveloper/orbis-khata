@@ -6,6 +6,7 @@ import { accountingCopy } from './copy'
 import { balance, minor, money, today } from './model'
 import type { Account, Command, Company, Kind, Report, Voucher } from './model'
 import './accounting.css'
+import { Expenses } from './Expenses'
 
 type Props = { readonly userId: string; readonly language: Language }
 const actions = ['sale', 'purchase', 'receipt', 'payment'] as const
@@ -16,7 +17,7 @@ function aggregateParties(parties: Report['parties'], field: 'receivable' | 'pay
   }, 0n)
 }
 
-const accounts: Account[] = ['cash', 'bank', 'receivable', 'payable', 'sales', 'purchases']
+const accounts: Account[] = ['cash', 'bank', 'receivable', 'payable', 'sales', 'purchases', 'expenses', 'expense_payable']
 const pendingKey = (user: string) => `khata-pending-v1:${user}`
 
 function restore(user: string): Command | null {
@@ -146,8 +147,9 @@ function Books({ userId, language, company, onLock }: Readonly<Props & { company
   const [saveError, setSaveError] = useState('')
   const [draft, setDraft] = useState<Command | null>(null)
   const guard = useRef(false)
+  const [expenseLocked, setExpenseLocked] = useState(false)
 
-  useEffect(() => { onLock(Boolean(command) || busy); }, [command, busy, onLock])
+  useEffect(() => { onLock(Boolean(command) || busy || expenseLocked); }, [command, busy, expenseLocked, onLock])
   useEffect(() => {
     if (!command) return
     const warn = (e: BeforeUnloadEvent) => { e.preventDefault() }
@@ -186,7 +188,7 @@ function Books({ userId, language, company, onLock }: Readonly<Props & { company
   }
 
   function review(e: React.SyntheticEvent<HTMLFormElement>) {
-    e.preventDefault(); setSaveError(''); setMessage('')
+    e.preventDefault(); if (expenseLocked) return; setSaveError(''); setMessage('')
     const f = new FormData(e.currentTarget)
     try {
       const amountStr = (f.get('amount') as string || '')
@@ -246,6 +248,7 @@ function Books({ userId, language, company, onLock }: Readonly<Props & { company
     {error && <output aria-live="polite" className="books-warning">{from > to || !from || !to ? t.range : t.error}</output>}
 
     {data && <>
+      <Expenses {...{userId,language,from,to,version}} company={company.id} companyName={company.name} onLock={setExpenseLocked} onChanged={()=>setVersion(n=>n+1)} blocked={Boolean(command)||busy}/>
       <SectionTitle title={t.closing} subtitle={to} />
       <div className="books-stats">
         {(['cash', 'bank'] as const).map(a => <Metric key={a} label={t[a]} value={balance(data, a)} />)}
@@ -257,7 +260,7 @@ function Books({ userId, language, company, onLock }: Readonly<Props & { company
       <SectionTitle title={t.period} subtitle={`${from} → ${to}`} />
       <div className="books-stats two"><Metric label={t.sales} value={-balance(data, 'sales', 'movement')} /><Metric label={t.purchases} value={balance(data, 'purchases', 'movement')} /></div>
       <div className="books-actions">
-        {actions.map((action, i) => <button type="button" key={action} disabled={Boolean(command)} onClick={() => { setDraft(null); setKind(action); setReversal(null); setSaveError(''); setMessage('') }}><span aria-hidden="true">{['↗', '↙', '＋', '−'][i]}</span>{t[action]}</button>)}
+        {actions.map((action, i) => <button type="button" key={action} disabled={Boolean(command) || expenseLocked} onClick={() => { setDraft(null); setKind(action); setReversal(null); setSaveError(''); setMessage('') }}><span aria-hidden="true">{['↗', '↙', '＋', '−'][i]}</span>{t[action]}</button>)}
       </div>
       <p className="books-hint">{t.invoiceHint}</p>
 
@@ -279,7 +282,7 @@ function Books({ userId, language, company, onLock }: Readonly<Props & { company
       </form>}
 
       <section className="books-card">
-        <SectionTitle title={t.parties}><button type="button" disabled={Boolean(command)} onClick={() => setAddParty(true)}>＋ {t.newParty}</button></SectionTitle>
+        <SectionTitle title={t.parties}><button type="button" disabled={Boolean(command) || expenseLocked} onClick={() => setAddParty(true)}>＋ {t.newParty}</button></SectionTitle>
         {!data.parties.length && <p>{t.noParties}</p>}
         {addParty && <RecordForm language={language} owner={userId} company={company.id} onCancel={() => setAddParty(false)} onCreated={() => { setAddParty(false); setVersion(n => n + 1) }} />}
         <div className="books-party-list">{data.parties.map(p => <button type="button" key={p.id} className={party === p.id ? 'selected' : ''} onClick={() => { setParty(p.id); setOffset(0) }}>
@@ -298,7 +301,7 @@ function Books({ userId, language, company, onLock }: Readonly<Props & { company
           <h3>{v.party_name}</h3><p>{t.dr}: {t[v.debit_account]} · {t.cr}: {t[v.credit_account]}</p>
           {v.reference && <p>{t.reference}: {v.reference}</p>}{v.note && <p>{v.note}</p>}
           <details><summary>ID</summary><small>{v.id}</small></details>
-          {v.reversed ? <small>{t.reversed}</small> : v.kind !== 'reversal' && <button type="button" disabled={Boolean(command)} onClick={() => { setDraft(null); setKind('reversal'); setReversal(v); setSaveError('') }}>{t.reverse}</button>}
+          {v.reversed ? <small>{t.reversed}</small> : v.kind !== 'reversal' && <button type="button" disabled={Boolean(command) || expenseLocked} onClick={() => { setDraft(null); setKind('reversal'); setReversal(v); setSaveError('') }}>{t.reverse}</button>}
         </article>)}
         <div className="books-buttons">
           <button type="button" disabled={offset === 0} onClick={() => setOffset(n => Math.max(0, n - 50))}>{t.previous}</button><span>{Math.floor(offset / 50) + 1}</span>

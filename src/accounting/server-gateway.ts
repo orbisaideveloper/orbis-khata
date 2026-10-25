@@ -1,4 +1,5 @@
-type Operation = 'companies' | 'create' | 'report' | 'post'
+import { expenseCommand } from './expense-model.ts'
+type Operation = 'companies' | 'create' | 'report' | 'post' | 'expense-report' | 'expense-post'
 export type KhataPrincipal = { orbisIdentityId: string; displayId: string }
 export type KhataOperation = { operation: Operation; input: Record<string, unknown> }
 const identity = /^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/iu
@@ -37,6 +38,8 @@ export function khataOperation(value: unknown): KhataOperation | null {
   if (!object(value) || !keys(value, ['version', 'operation', 'input']) || value.version !== 'orbis.khata.data.v1' || !object(value.input)) return null
   const input = value.input
   switch (value.operation) {
+    case 'expense-post': return expenseCommand(input) ? { operation: value.operation, input } : null
+    case 'expense-report': return keys(input, ['company','from','to','offset']) && id(input.company) && date(input.from) && date(input.to) && String(input.from)<=String(input.to) && Number.isSafeInteger(input.offset) && Number(input.offset)>=0 ? { operation: value.operation, input } : null
     case 'companies': return keys(input, []) ? { operation: value.operation, input } : null
     case 'create': return createInput(input) ? { operation: value.operation, input } : null
     case 'report': return reportInput(input) ? { operation: value.operation, input } : null
@@ -82,6 +85,7 @@ export function createKhataGateway(options: {
     if (request.method !== 'POST') return reply(405, { code: 'KHATA_METHOD_DENIED' })
     const token = /^Bearer ([A-Za-z0-9._~-]{1,8192})$/u.exec(request.headers.get('authorization') ?? '')?.[1]
     if (!token) return reply(401, { code: 'KHATA_LOGIN_REQUIRED' })
+    let stage = 'input'
     try {
       const text = await request.text()
       if (text.length > 16384) return reply(413, { code: 'KHATA_INPUT_TOO_LARGE' })
@@ -89,11 +93,15 @@ export function createKhataGateway(options: {
       try { value = JSON.parse(text) } catch { return reply(400, { code: 'KHATA_INPUT_INVALID' }) }
       const operation = khataOperation(value)
       if (!operation) return reply(400, { code: 'KHATA_INPUT_INVALID' })
+      stage = 'central-session'
       const principal = await options.verify(token)
       if (!principal || !identity.test(principal.orbisIdentityId)) return reply(401, { code: 'KHATA_LOGIN_REQUIRED' })
+      stage = 'product-database'
       const data = await options.execute(principal, operation)
       return reply(200, { data })
     } catch (error) {
+      // No tokens, request payloads, credentials or database messages in diagnostics.
+      console.warn('KHATA_GATEWAY_FAILURE', { stage, errorName: error instanceof Error ? error.name : 'UnknownError' })
       if (object(error) && typeof error.code === 'string' && /^(?:22|23|28|42|P0)[A-Z0-9]{3}$/u.test(error.code)) return reply(422, { code: error.code })
       return reply(503, { code: 'KHATA_DATA_UNAVAILABLE' })
     }

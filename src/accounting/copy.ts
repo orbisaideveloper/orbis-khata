@@ -2,6 +2,7 @@ import type { Language } from '../i18n'
 const en = {
   company: 'Company', newCompany: 'New company', companyName: 'Company name', create: 'Create',
   title: 'Your business, in balance.', subtitle: 'Live books · INR · India time',
+  expenses: 'Expenses', expense_payable: 'Unpaid expenses',
   cash: 'Cash', bank: 'Bank / UPI', receivable: 'Customer dues', payable: 'Supplier dues', sales: 'Sales', purchases: 'Purchases',
   advanceCustomer: 'Customer advances', advanceSupplier: 'Supplier advances', closing: 'Closing balance', period: 'Selected period',
   sale: 'Sale', purchase: 'Purchase', receipt: 'Receive money', payment: 'Pay money', reversal: 'Reversal',
@@ -24,6 +25,7 @@ const en = {
 }
 type Copy = typeof en
 const bn: Copy = {
+  expenses: 'খরচ', expense_payable: 'বাকি খরচ',
   company: 'কোম্পানি', newCompany: 'নতুন কোম্পানি', companyName: 'কোম্পানির নাম', create: 'তৈরি করুন',
   title: 'আপনার ব্যবসা, পরিষ্কার হিসাব।', subtitle: 'বাস্তব হিসাব · INR · ভারতীয় সময়',
   cash: 'ক্যাশ', bank: 'ব্যাংক / UPI', receivable: 'কাস্টমারের কাছে পাওনা', payable: 'সাপ্লায়ারকে দেনা', sales: 'বিক্রি', purchases: 'কেনা',
@@ -48,6 +50,7 @@ const bn: Copy = {
 }
 const hi: Copy = {
   ...en,
+  expenses: 'खर्च', expense_payable: 'बकाया खर्च',
   company: 'कंपनी', newCompany: 'नई कंपनी', companyName: 'कंपनी का नाम', create: 'बनाएँ', title: 'आपका व्यवसाय, साफ़ हिसाब।', subtitle: 'वास्तविक हिसाब · INR · भारतीय समय',
   cash: 'नकद', bank: 'बैंक / UPI', receivable: 'ग्राहक से लेना', payable: 'सप्लायर को देना', sales: 'बिक्री', purchases: 'खरीद',
   advanceCustomer: 'ग्राहक का अग्रिम', advanceSupplier: 'सप्लायर को अग्रिम', closing: 'अंतिम शेष', period: 'चुनी हुई अवधि',

@@ -43,3 +43,6 @@ export function rejected(error: unknown): boolean {
   const code = (error as { code?: string })?.code ?? ''
   return /^(22|23|28|42|P0)/.test(code)
 }
+
+export async function expenseReport(company: string, from: string, to: string, offset: number): Promise<import('./expense-model').ExpenseReport> { return request('expense-report', {company,from,to,offset}) }
+export async function postExpense(command: import('./expense-model').ExpenseCommand): Promise<void> { await request('expense-post', command) }

@@ -2,7 +2,7 @@ import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-li
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 import { Accounting } from './Accounting'
 import type { Command, Report } from './model'
-const api = vi.hoisted(() => ({ companies: vi.fn(), report: vi.fn(), createRecord: vi.fn(), post: vi.fn(), rejected: vi.fn() }))
+const api = vi.hoisted(() => ({ expenseReport: vi.fn(), postExpense: vi.fn(), companies: vi.fn(), report: vi.fn(), createRecord: vi.fn(), post: vi.fn(), rejected: vi.fn() }))
 vi.mock('./api', () => api)
 const base: Report = {
   balances: { receivable: { opening: '0', closing: '-20000', movement: '-20000' }, sales: { opening: '0', closing: '-100000', movement: '-100000' }, cash: { opening: '0', closing: '120000', movement: '120000' } },
@@ -11,7 +11,8 @@ const base: Report = {
   entries: [], count: 0, as_of: '',
 }
 beforeEach(() => {
-  vi.resetAllMocks(); sessionStorage.clear()
+  api.expenseReport.mockResolvedValue({balances:{},categories:[],bills:[],entries:[],count:0});
+  vi.resetAllMocks(); api.expenseReport.mockResolvedValue({balances:{},categories:[],bills:[],entries:[],count:0}); sessionStorage.clear()
   api.companies.mockResolvedValue([{ id: 'c', name: 'Shop' }, { id: 'other', name: 'Other shop' }])
   api.report.mockResolvedValue(structuredClone(base)); api.post.mockResolvedValue(undefined)
 })
@@ -153,7 +154,7 @@ it('retries party creation with the same identity and refreshes only these books
   await waitFor(() => expect(screen.queryByLabelText('Party name')).toBeNull())
   expect(api.createRecord.mock.calls[0]).toEqual(api.createRecord.mock.calls[1])
   expect(api.createRecord).toHaveBeenCalledWith('khata_parties', expect.objectContaining({ company_id: 'c', name: 'Trader', kind: 'both' }))
-  expect(api.report).toHaveBeenCalledTimes(2)
+  await waitFor(() => expect(api.report).toHaveBeenCalledTimes(2))
   fireEvent.click(await screen.findByRole('button', { name: /Add party/ }))
   fireEvent.click(screen.getByRole('button', { name: 'Cancel' }))
   expect(screen.queryByLabelText('Party name')).toBeNull()
