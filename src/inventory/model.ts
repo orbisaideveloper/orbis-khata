@@ -18,7 +18,7 @@ function exact(v: Record<string, unknown>, names: string[]) {
   const allowed = new Set(names)
   return Object.keys(v).length === allowed.size && Object.keys(v).every(k => allowed.has(k))
 }
-function text(v: unknown, max: number): v is string { return typeof v === 'string' && v.length <= max && !/[<>]/u.test(v) && Array.from(v).every(char=>char.charCodeAt(0)>=32 && char.charCodeAt(0)!==127) }
+function text(v: unknown, max: number): v is string { return typeof v === 'string' && v.length <= max && !/[<>]/u.test(v) && Array.from(v).every(char=>(char.codePointAt(0)??0)>=32 && (char.codePointAt(0)??0)!==127) }
 function integer(v: unknown, positive: boolean): v is string {
   return typeof v === 'string' && /^(0|[1-9]\d{0,11})$/u.test(v) && (!positive || BigInt(v) > 0n)
 }
@@ -60,7 +60,7 @@ export function quantity(input: string): string {
 }
 export function displayQuantity(scaled: string) {
   const n = BigInt(scaled), absolute = n < 0n ? -n : n
-  const fraction = String(absolute%1000000n).padStart(6,'0').replace(/0+$/u,'')
+  const fraction = String(absolute%1000000n).padStart(6,'0').replace(/0{1,6}$/u,'')
   return `${n<0n?'-':''}${absolute/1000000n}${fraction?'.'+fraction:''}`
 }
 export function lineTotal(line: StockLine) { return (BigInt(line.quantity)*BigInt(line.rate)+500000n)/1000000n }

@@ -13,4 +13,4 @@ input.input:focus-visible{outline:3px solid #8ba9ff;outline-offset:2px}
 
 .workspace-header .brand{min-width:0;gap:8px;font-size:16px}.workspace-header .brand small{max-width:96px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:9px;letter-spacing:.03em}.bar:has(.workspace-menu) .lang{min-width:82px;max-width:100px;padding:9px 7px}.bar:has(.workspace-menu) .pill{min-width:0;max-width:105px;overflow:hidden;text-overflow:ellipsis;padding:9px 8px}.bar:has(.workspace-menu){gap:7px}
 
-.connection-notice{padding:12px 16px;border:1px solid #b8c9df;border-radius:12px;background:#eef4fc;color:#142b48;font-size:.9rem;line-height:1.5}
+.connection-notice{display:block;padding:12px 16px;border:1px solid #b8c9df;border-radius:12px;background:#eef4fc;color:#142b48;font-size:.9rem;line-height:1.5}

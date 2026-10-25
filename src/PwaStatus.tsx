@@ -43,5 +43,5 @@ export function PwaStatus({ language }: Readonly<{ language: Language }>) {
     }
   }, [])
   const t = copy[language]
-  return <>{offline && <p className="connection-notice" role="status">{t.offline}</p>}{status !== 'ready' && <p className="connection-notice" role="status">{t[status]}</p>}</>
+  return <>{offline && <output className="connection-notice">{t.offline}</output>}{status !== 'ready' && <output className="connection-notice">{t[status]}</output>}</>
 }

@@ -35,14 +35,19 @@ function postInput(input: Record<string, unknown>) {
     ['cash', 'bank'].includes(String(input.method)) && typeof input.reference === 'string' && input.reference.length <= 80 &&
     typeof input.note === 'string' && input.note.length <= 500 && (input.reverses === null || id(input.reverses))
 }
+function pagedReportInput(input: Record<string, unknown>) {
+  return keys(input, ['company', 'from', 'to', 'offset']) && id(input.company) &&
+    date(input.from) && date(input.to) && String(input.from) <= String(input.to) &&
+    Number.isSafeInteger(input.offset) && Number(input.offset) >= 0
+}
 export function khataOperation(value: unknown): KhataOperation | null {
   if (!object(value) || !keys(value, ['version', 'operation', 'input']) || value.version !== 'orbis.khata.data.v1' || !object(value.input)) return null
   const input = value.input
   switch (value.operation) {
     case 'inventory-post': return inventoryCommand(input) ? {operation:value.operation,input} : null
-    case 'inventory-report': return keys(input,['company','from','to','offset']) && id(input.company) && date(input.from) && date(input.to) && String(input.from)<=String(input.to) && Number.isSafeInteger(input.offset) && Number(input.offset)>=0 ? {operation:value.operation,input} : null
+    case 'inventory-report': return pagedReportInput(input) ? { operation: value.operation, input } : null
     case 'expense-post': return expenseCommand(input) ? { operation: value.operation, input } : null
-    case 'expense-report': return keys(input, ['company','from','to','offset']) && id(input.company) && date(input.from) && date(input.to) && String(input.from)<=String(input.to) && Number.isSafeInteger(input.offset) && Number(input.offset)>=0 ? { operation: value.operation, input } : null
+    case 'expense-report': return pagedReportInput(input) ? { operation: value.operation, input } : null
     case 'companies': return keys(input, []) ? { operation: value.operation, input } : null
     case 'create': return createInput(input) ? { operation: value.operation, input } : null
     case 'report': return reportInput(input) ? { operation: value.operation, input } : null

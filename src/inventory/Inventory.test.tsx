@@ -83,7 +83,7 @@ it('clears a definite rejection and allows a corrected draft without silently re
  api.postInventory.mockRejectedValueOnce({code:'P0001'})
  await purchase();fireEvent.click(screen.getByRole('button',{name:'Confirm & save'}))
  await screen.findByText(/The server rejected this entry/)
- expect(sessionStorage.length).toBe(0)
+ expect(sessionStorage).toHaveLength(0)
  expect(screen.queryByRole('button',{name:'Retry same entry'})).toBeNull()
  expect(screen.getByRole('button',{name:'Purchase bill'})).toBeEnabled()
  expect(api.postInventory).toHaveBeenCalledOnce()

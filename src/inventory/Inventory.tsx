@@ -25,9 +25,9 @@ export function Inventory({userId,company,companyName,language,from,to,version,p
  const [attempted,setAttempted]=useState(Boolean(pending)),[busy,setBusy]=useState(false),[message,setMessage]=useState('')
  const [bill,setBill]=useState<InventoryReport['documents'][number]|null>(null)
  const guard=useRef(false)
- useEffect(()=>{let alive=true;if(!valid)return;void inventoryReport(company,from,to,offset).then(value=>{if(alive)setResult({query,data:value})},()=>{if(alive)setResult({query,data:null})});return()=>{alive=false}},[company,from,to,offset,query,valid])
+ useEffect(()=>{let alive=true;if(!valid){return;}void inventoryReport(company,from,to,offset).then(value=>{if(alive)setResult({query,data:value})},()=>{if(alive)setResult({query,data:null})});return()=>{alive=false}},[company,from,to,offset,query,valid])
  useEffect(()=>{onLock(Boolean(pending)||busy)},[pending,busy,onLock])
- useEffect(()=>{if(!pending)return;const warn=(event:BeforeUnloadEvent)=>event.preventDefault();window.addEventListener('beforeunload',warn);return()=>window.removeEventListener('beforeunload',warn)},[pending])
+ useEffect(()=>{if(!pending){return;}const warn=(event:BeforeUnloadEvent)=>event.preventDefault();window.addEventListener('beforeunload',warn);return()=>window.removeEventListener('beforeunload',warn)},[pending])
  function begin(next:InventoryKind) {setKind(next);setLines([freshLine()]);setMessage('')}
  function change(key:string,field:keyof DraftLine,value:string) {setLines(old=>old.map(line=>line.key===key?{...line,[field]:value}:line))}
  function review(event:SyntheticEvent<HTMLFormElement>) {
@@ -35,7 +35,7 @@ export function Inventory({userId,company,companyName,language,from,to,version,p
   const form=new FormData(event.currentTarget),master=kind==='item'||kind==='warehouse',invoice=kind==='sale'||kind==='purchase'
   try {
    const command=inventoryCommand({id:crypto.randomUUID(),company,kind,date:read(form,'date'),code:master?read(form,'code'):'',name:master?read(form,'name'):'',unit:kind==='item'?read(form,'unit'):'',party:invoice?read(form,'party'):null,reference:read(form,'reference'),note:read(form,'note'),lines:master?[]:lines.map(line=>({item:line.item,warehouse:line.warehouse,to:kind==='transfer'?line.to:null,quantity:quantity(line.amount),rate:invoice?minor(line.rate):'0'}))})
-   if(!command||command.date>today()||(invoice&&billTotal(command.lines)<=0n))throw Error('invalid')
+   if(!command||command.date>today()||(invoice&&billTotal(command.lines)<=0n))throw new Error('invalid')
    setPending(command);setAttempted(false);setKind(null);setMessage('')
   }catch{setMessage(t.invalid)}
  }
@@ -49,7 +49,13 @@ export function Inventory({userId,company,companyName,language,from,to,version,p
  }
  function itemName(id:string) {const item=data?.items.find(row=>row.id===id);return item?`${item.code} · ${item.name} (${item.unit})`:id}
  function locationName(id:string|null) {return data?.warehouses.find(row=>row.id===id)?.name??id}
- function renderLines(command:InventoryCommand) {return <div className="inventory-lines">{command.lines.map((line,index)=><div key={index}><strong>{itemName(line.item)}</strong><span>{locationName(line.warehouse)}{line.to&&<> → {locationName(line.to)}</>}</span><span>{t.quantity}: {displayQuantity(line.quantity)}</span>{['purchase','sale'].includes(command.kind)&&<span>{t.rate}: {money(line.rate)} · {money(lineTotal(line))}</span>}</div>)}</div>}
+ function renderLines(command:InventoryCommand) {
+  const occurrences=new Map<string,number>()
+  return <div className="inventory-lines">{command.lines.map(line=>{
+   const signature=JSON.stringify([line.item,line.warehouse,line.to,line.quantity,line.rate])
+   const occurrence=occurrences.get(signature)??0
+   occurrences.set(signature,occurrence+1)
+   return <div key={`${signature}:${occurrence}`}><strong>{itemName(line.item)}</strong><span>{locationName(line.warehouse)}{line.to&&<> → {locationName(line.to)}</>}</span><span>{t.quantity}: {displayQuantity(line.quantity)}</span>{['purchase','sale'].includes(command.kind)&&<span>{t.rate}: {money(line.rate)} · {money(lineTotal(line))}</span>}</div>})}</div>}
  const master=kind==='item'||kind==='warehouse',invoice=kind==='purchase'||kind==='sale'
  const actions:InventoryKind[]=['item','warehouse','purchase','sale','opening','transfer']
  const matches=(id:string)=>{const row=data?.items.find(item=>item.id===id);return row&&`${row.code} ${row.name}`.toLocaleLowerCase().includes(search.toLocaleLowerCase())}

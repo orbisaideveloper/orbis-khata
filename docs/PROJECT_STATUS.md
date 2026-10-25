@@ -1,3 +1,21 @@
+# Sonar issue repair — 2026-10-25
+
+Owner pushed main c88e05819173fad7eda1a52945958b82aa7b871e.
+GitHub run 40182058425: all 336 unit tests, coverage, lint, typecheck, build,
+KNIP, JSCPD, browser tests and standard Sonar quality gate PASS. Strict overall
+checker failed because 11 open issues remained. Uploaded Sonar detail report
+20261025-153721 identifies all 11 across five source/test files.
+
+Fixes: native output status notices (block layout preserved); extract shared
+paged-report validation; assertion uses toHaveLength; explicit early-return
+braces; new Error; item-line keys use complete line identity and duplicate
+occurrence rather than array position; Unicode codePointAt; bounded six-digit
+trailing-zero regex. No financial command/schema/auth contract changes.
+Local: 50 targeted tests, typecheck, zero-warning lint, KNIP and JSCPD PASS.
+No lowered thresholds, excluded source or suppressed rules. Fresh phone final
+certification, owner-run correction commit/push and remote Sonar zero remain
+pending. No remote Git write/deploy/database write performed here.
+
 # Final release coverage repair — 2026-10-25
 
 Phone certification 14:25:55–14:33:19 IST: Ubuntu preflight, KNIP, JSCPD,
