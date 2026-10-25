@@ -85,6 +85,7 @@ test('same signup source on mobile/desktop; session reload and gateway ownership
 })
 test('login and logout clear private workspace and stored central session', async ({ page }) => {
   const state = await backend(page);await login(page);await fits(page)
+  await page.getByLabel('More options', { exact: true }).click()
   await page.getByRole('button', { name: 'Log out', exact: true }).click()
   await expect(page.getByText(customer.displayId, { exact: true })).toHaveCount(0)
   expect(await page.evaluate(() => localStorage.getItem('orbis.central.customer.v1'))).toBeNull()
@@ -130,12 +131,16 @@ test('recovery link is cleaned; verified password reset uses the same central AP
 
 test('shared profile save and reload preserve the central ID', async ({ page }) => {
   await backend(page); await login(page)
+  await page.getByLabel('More options', { exact: true }).click()
+  await page.getByRole('button', { name: 'Account & profile', exact: true }).click()
   const profile = page.getByRole('region', { name: 'Common account profile', exact: true })
   await profile.getByLabel('Name', { exact: true }).fill('Updated customer')
   await profile.getByLabel('Address', { exact: true }).fill('Test address')
   await profile.getByRole('button', { name: 'Save profile', exact: true }).click()
   await expect(profile.getByText('Profile saved to your central account.')).toBeVisible()
   await page.reload()
+  await page.getByLabel('More options', { exact: true }).click()
+  await page.getByRole('button', { name: 'Account & profile', exact: true }).click()
   await expect(profile.getByLabel('Name', { exact: true })).toHaveValue('Updated customer')
   await expect(profile.getByLabel('Address', { exact: true })).toHaveValue('Test address')
   await expect(page.getByText(customer.displayId, { exact: true })).toBeVisible()

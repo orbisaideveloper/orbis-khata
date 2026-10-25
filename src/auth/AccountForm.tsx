@@ -1,4 +1,5 @@
 import React, { useRef, useState } from 'react'
+import { useTutorial } from '../tutorial'
 import type { Language } from '../i18n'
 import { authClient } from './client'
 import { accountCopy, accountError } from './copy'
@@ -12,6 +13,7 @@ interface Props {
 }
 
 export function AccountForm({ language, recovery = false, onRecovered }: Readonly<Props>) {
+  const tutorial = useTutorial()
   const [mode, setMode] = useState<Mode>(recovery ? 'reset' : 'login')
   const [busy, setBusy] = useState(false)
   const inFlight = useRef(false)
@@ -90,5 +92,5 @@ export function AccountForm({ language, recovery = false, onRecovered }: Readonl
       <button type="button" disabled={busy} onClick={() => change(mode === 'login' ? 'signup' : 'login')}>{mode === 'login' ? t.signup : t.login}</button>
       {mode === 'login' && <button type="button" disabled={busy} onClick={() => change('recover')}>{t.forgot}</button>}
     </div>}
-    <p className="note">{t.persistent}</p>    </div>
+    {tutorial && <p className="note">{t.persistent}</p>}    </div>
 }

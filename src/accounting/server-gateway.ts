@@ -1,5 +1,6 @@
+import { inventoryCommand } from '../inventory/model.ts'
 import { expenseCommand } from './expense-model.ts'
-type Operation = 'companies' | 'create' | 'report' | 'post' | 'expense-report' | 'expense-post'
+type Operation = 'companies' | 'create' | 'report' | 'post' | 'expense-report' | 'expense-post' | 'inventory-post' | 'inventory-report'
 export type KhataPrincipal = { orbisIdentityId: string; displayId: string }
 export type KhataOperation = { operation: Operation; input: Record<string, unknown> }
 const identity = /^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/iu
@@ -38,6 +39,8 @@ export function khataOperation(value: unknown): KhataOperation | null {
   if (!object(value) || !keys(value, ['version', 'operation', 'input']) || value.version !== 'orbis.khata.data.v1' || !object(value.input)) return null
   const input = value.input
   switch (value.operation) {
+    case 'inventory-post': return inventoryCommand(input) ? {operation:value.operation,input} : null
+    case 'inventory-report': return keys(input,['company','from','to','offset']) && id(input.company) && date(input.from) && date(input.to) && String(input.from)<=String(input.to) && Number.isSafeInteger(input.offset) && Number(input.offset)>=0 ? {operation:value.operation,input} : null
     case 'expense-post': return expenseCommand(input) ? { operation: value.operation, input } : null
     case 'expense-report': return keys(input, ['company','from','to','offset']) && id(input.company) && date(input.from) && date(input.to) && String(input.from)<=String(input.to) && Number.isSafeInteger(input.offset) && Number(input.offset)>=0 ? { operation: value.operation, input } : null
     case 'companies': return keys(input, []) ? { operation: value.operation, input } : null

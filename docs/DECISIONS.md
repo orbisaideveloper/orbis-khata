@@ -164,3 +164,30 @@ Do not label collections less payments as profit. Stock valuation and complete
 P&L remain pending; expense source verification is not production acceptance.
 Delivery stays owner-Termux/main with no default commit/push/PR or deployment.
 See EXPENSES_ACTIVATION.md for the prepared cloud activation and acceptance steps.
+
+## D-026 — 2026-10-25 — Owner-requested item inventory and normal app presentation
+
+Owner explicitly advances item/unit masters, itemized purchase/sale, godown quantity
+stock and custom units together for the next review. This supersedes the deferred
+multiple-warehouse scope for simple godowns only. Preserve existing accounting,
+Central identity, company isolation and all old rows; never infer quantity from
+amount-only books. Exact quantities, atomic posting/retry, no negative godown stock,
+period reports and stock-aware bill reversals are part of this slice. Unit conversion,
+valuation, GST and delete/void remain separate. Opening/transfer entries are immutable;
+review their quantities before confirmation. See INVENTORY_ACTIVATION.md.
+
+Owner also replaces the old inline workspace account/settings form: use a three-dot
+menu and separate Account & profile page. Explanatory tutorial copy defaults OFF;
+the menu toggle enables it in the current language and remembers the non-sensitive
+preference. Safety messages and actual accounting facts are never hidden by the toggle.
+This UI instruction supersedes the inline settings portion of the former UI lock.
+Release remains source review → owner Termux checks → owner main push → green CI/Sonar
+→ separately approved migration/gateway/manual frontend deployment. No new live write
+or deployment is made during source implementation.
+
+## D027 — PWA shell caching (2026-10-25)
+
+Owner approved combining installable PWA and static cache with the item release.
+Cache only build-owned shell assets; preserve central online authentication and
+financial gateway checks. No financial API caching or offline mutation queue.
+Never force-update/reload while a bill may be pending. See PWA.md for scope.

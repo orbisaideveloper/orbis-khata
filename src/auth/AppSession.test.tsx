@@ -5,6 +5,7 @@ const state = vi.hoisted(() => ({ session: null as null | { user: { id: string }
 const auth = vi.hoisted(() => ({ signOut: vi.fn() }))
 vi.mock('./useAccount', () => ({ useAccount: () => state }))
 vi.mock('./client', () => ({ authClient: { auth } }))
+vi.mock('../profile/CommonAccountProfile',()=>({CommonAccountProfile:()=> <h2>Private profile editor</h2>}))
 vi.mock('./CompanyGate', () => ({ CompanyGate: ({ userId }: { userId: string }) => <p>Books for {userId}</p> }))
 vi.mock('./AccountForm', () => ({ AccountForm: ({ recovery, onRecovered }: { recovery?: boolean; onRecovered: () => void }) => <button onClick={onRecovered}>{recovery ? 'Finish recovery' : 'Account form'}</button> }))
 beforeEach(() => {
@@ -56,4 +57,17 @@ it('opens the configured account form from public navigation', () => {
   act(() => window.dispatchEvent(new PopStateEvent('popstate', { state: { khataView: 'login' } })))
   fireEvent.click(screen.getByRole('button', { name: 'Account form' }))
   expect(state.setRecovery).toHaveBeenCalledWith(false)
+})
+
+it('keeps the profile off the home screen and opens it only from the menu',()=>{
+ const view=render(<App/>);english()
+ expect(screen.queryByText('Private profile editor')).toBeNull()
+ fireEvent.click(screen.getByLabelText('More options'))
+ fireEvent.click(screen.getByRole('checkbox',{name:'Tutorial'}))
+ expect(localStorage.getItem('orbis-khata-tutorial-v1')).toBe('on')
+ fireEvent.click(screen.getByRole('button',{name:'Account & profile'}))
+ expect(screen.getByText('Private profile editor')).toBeInTheDocument()
+ state.session=null;view.rerender(<App/>)
+ expect(screen.queryByText('Private profile editor')).toBeNull()
+ act(()=>window.dispatchEvent(new PopStateEvent('popstate',{state:{khataView:'profile'}})))
 })

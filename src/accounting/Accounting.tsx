@@ -6,6 +6,10 @@ import { accountingCopy } from './copy'
 import { balance, minor, money, today } from './model'
 import type { Account, Command, Company, Kind, Report, Voucher } from './model'
 import './accounting.css'
+import { useTutorial } from '../tutorial'
+import { restoreInventory } from '../inventory/pending'
+import { Inventory } from '../inventory/Inventory'
+import { inventoryCopy } from '../inventory/copy'
 import { Expenses } from './Expenses'
 
 type Props = { readonly userId: string; readonly language: Language }
@@ -31,14 +35,14 @@ function restore(user: string): Command | null {
 export function Accounting({ userId, language }: Readonly<Props>) {
   const t = accountingCopy[language]
   const [list, setList] = useState<Company[]>([])
-  const [selected, setSelected] = useState(() => restore(userId)?.company ?? '')
+  const [selected, setSelected] = useState(() => restore(userId)?.company ?? restoreInventory(userId)?.company ?? '')
   const [refresh, setRefresh] = useState(0)
   const [outcome, setOutcome] = useState<{ user: string; refresh: number; error: boolean } | null>(null)
   const currentOutcome = outcome?.user === userId && outcome.refresh === refresh ? outcome : null
   const loading = currentOutcome === null
   const error = Boolean(currentOutcome?.error)
   const [create, setCreate] = useState(false)
-  const [locked, setLocked] = useState(Boolean(restore(userId)))
+  const [locked, setLocked] = useState(Boolean(restore(userId)||restoreInventory(userId)))
 
   useEffect(() => {
     let alive = true
@@ -148,8 +152,11 @@ function Books({ userId, language, company, onLock }: Readonly<Props & { company
   const [draft, setDraft] = useState<Command | null>(null)
   const guard = useRef(false)
   const [expenseLocked, setExpenseLocked] = useState(false)
+  const [inventoryLocked,setInventoryLocked] = useState(()=>restoreInventory(userId)?.company===company.id)
+  const [stockOpen,setStockOpen] = useState(()=>restoreInventory(userId)?.company===company.id)
+  const tutorial = useTutorial()
 
-  useEffect(() => { onLock(Boolean(command) || busy || expenseLocked); }, [command, busy, expenseLocked, onLock])
+  useEffect(() => { onLock(Boolean(command) || busy || expenseLocked || inventoryLocked); }, [command, busy, expenseLocked, inventoryLocked, onLock])
   useEffect(() => {
     if (!command) return
     const warn = (e: BeforeUnloadEvent) => { e.preventDefault() }
@@ -189,7 +196,7 @@ function Books({ userId, language, company, onLock }: Readonly<Props & { company
 
   function review(e: React.SyntheticEvent<HTMLFormElement>) {
     e.preventDefault()
-    if (expenseLocked) return
+    if (expenseLocked || inventoryLocked) return
     setSaveError(''); setMessage('')
     const f = new FormData(e.currentTarget)
     try {
@@ -215,7 +222,7 @@ function Books({ userId, language, company, onLock }: Readonly<Props & { company
   else if (attempted) saveButtonLabel = t.retry;
 
   return <>
-    <section className="books-hero"><span className="books-kicker">ORBIS / {company.name}</span><h2>{t.title}</h2><p>{t.subtitle}</p><small>{t.separate}</small></section>
+    <section className="books-hero"><span className="books-kicker">ORBIS / {company.name}</span><h2>{t.title}</h2>{tutorial && <><p>{t.subtitle}</p><small>{t.separate}</small></>}</section>
 
     <div className="books-filters">
       <label>{t.from}<input type="date" value={from} onChange={e => { setFrom(e.target.value); setOffset(0) }} /></label>
@@ -226,7 +233,7 @@ function Books({ userId, language, company, onLock }: Readonly<Props & { company
     {message && <output aria-live="polite" className="books-success">{message}</output>}
 
     {command && <section className="books-card books-confirm" aria-label={t.review}>
-      <h2>{attempted ? t.pending : t.review}</h2><p>{t.reviewHint}</p>
+      <h2>{attempted ? t.pending : t.review}</h2>{tutorial && <p>{t.reviewHint}</p>}
       <dl>
         <dt>{t.company}</dt><dd>{company.name}</dd>
         <dt>{t.party}</dt><dd>{data?.parties.find(p => p.id === command.party)?.name ?? command.party}</dd>
@@ -250,7 +257,9 @@ function Books({ userId, language, company, onLock }: Readonly<Props & { company
     {error && <output aria-live="polite" className="books-warning">{from > to || !from || !to ? t.range : t.error}</output>}
 
     {data && <>
-      <Expenses {...{userId,language,from,to,version}} company={company.id} companyName={company.name} onLock={setExpenseLocked} onChanged={()=>setVersion(n=>n+1)} blocked={Boolean(command)||busy}/>
+      <div className="books-buttons"><button type="button" className="books-primary" aria-expanded={stockOpen} disabled={Boolean(command)||busy||expenseLocked||inventoryLocked} onClick={()=>setStockOpen(open=>!open)}>{inventoryCopy[language].title}</button></div>
+      {stockOpen && <Inventory key={company.id} {...{userId,language,from,to,version}} company={company.id} companyName={company.name} parties={data.parties} onLock={setInventoryLocked} onChanged={()=>setVersion(n=>n+1)} blocked={Boolean(command)||busy||expenseLocked}/>}
+      <Expenses {...{userId,language,from,to,version}} company={company.id} companyName={company.name} onLock={setExpenseLocked} onChanged={()=>setVersion(n=>n+1)} blocked={Boolean(command)||busy||inventoryLocked}/>
       <SectionTitle title={t.closing} subtitle={to} />
       <div className="books-stats">
         {(['cash', 'bank'] as const).map(a => <Metric key={a} label={t[a]} value={balance(data, a)} />)}
@@ -262,9 +271,9 @@ function Books({ userId, language, company, onLock }: Readonly<Props & { company
       <SectionTitle title={t.period} subtitle={`${from} → ${to}`} />
       <div className="books-stats two"><Metric label={t.sales} value={-balance(data, 'sales', 'movement')} /><Metric label={t.purchases} value={balance(data, 'purchases', 'movement')} /></div>
       <div className="books-actions">
-        {actions.map((action, i) => <button type="button" key={action} disabled={Boolean(command) || expenseLocked} onClick={() => { setDraft(null); setKind(action); setReversal(null); setSaveError(''); setMessage('') }}><span aria-hidden="true">{['↗', '↙', '＋', '−'][i]}</span>{t[action]}</button>)}
+        {actions.map((action, i) => <button type="button" key={action} disabled={Boolean(command) || expenseLocked || inventoryLocked} onClick={() => { setDraft(null); setKind(action); setReversal(null); setSaveError(''); setMessage('') }}><span aria-hidden="true">{['↗', '↙', '＋', '−'][i]}</span>{t[action]}</button>)}
       </div>
-      <p className="books-hint">{t.invoiceHint}</p>
+      {tutorial && <p className="books-hint">{t.invoiceHint}</p>}
 
       {kind && !command && <form key={kind} className="books-card books-form" onSubmit={review}>
         <h2>{t[kind]}</h2>
@@ -284,7 +293,7 @@ function Books({ userId, language, company, onLock }: Readonly<Props & { company
       </form>}
 
       <section className="books-card">
-        <SectionTitle title={t.parties}><button type="button" disabled={Boolean(command) || expenseLocked} onClick={() => setAddParty(true)}>＋ {t.newParty}</button></SectionTitle>
+        <SectionTitle title={t.parties}><button type="button" disabled={Boolean(command) || expenseLocked || inventoryLocked} onClick={() => setAddParty(true)}>＋ {t.newParty}</button></SectionTitle>
         {!data.parties.length && <p>{t.noParties}</p>}
         {addParty && <RecordForm language={language} owner={userId} company={company.id} onCancel={() => setAddParty(false)} onCreated={() => { setAddParty(false); setVersion(n => n + 1) }} />}
         <div className="books-party-list">{data.parties.map(p => <button type="button" key={p.id} className={party === p.id ? 'selected' : ''} onClick={() => { setParty(p.id); setOffset(0) }}>
@@ -303,7 +312,7 @@ function Books({ userId, language, company, onLock }: Readonly<Props & { company
           <h3>{v.party_name}</h3><p>{t.dr}: {t[v.debit_account]} · {t.cr}: {t[v.credit_account]}</p>
           {v.reference && <p>{t.reference}: {v.reference}</p>}{v.note && <p>{v.note}</p>}
           <details><summary>ID</summary><small>{v.id}</small></details>
-          {v.reversed ? <small>{t.reversed}</small> : v.kind !== 'reversal' && <button type="button" disabled={Boolean(command) || expenseLocked} onClick={() => { setDraft(null); setKind('reversal'); setReversal(v); setSaveError('') }}>{t.reverse}</button>}
+          {v.reversed ? <small>{t.reversed}</small> : v.kind !== 'reversal' && <button type="button" disabled={Boolean(command) || expenseLocked || inventoryLocked} onClick={() => { setDraft(null); setKind('reversal'); setReversal(v); setSaveError('') }}>{t.reverse}</button>}
         </article>)}
         <div className="books-buttons">
           <button type="button" disabled={offset === 0} onClick={() => setOffset(n => Math.max(0, n - 50))}>{t.previous}</button><span>{Math.floor(offset / 50) + 1}</span>
@@ -311,7 +320,7 @@ function Books({ userId, language, company, onLock }: Readonly<Props & { company
         </div>
       </section>
 
-      <footer className="books-foot"><span>{accounts.reduce((sum, a) => sum + balance(data, a), 0n) === 0n ? `✓ ${t.trial}` : '⚠ Journal mismatch'}</span><p>{t.scope}</p></footer>
+      <footer className="books-foot"><span>{accounts.reduce((sum, a) => sum + balance(data, a), 0n) === 0n ? `✓ ${t.trial}` : '⚠ Journal mismatch'}</span>{tutorial && <p>{t.scope}</p>}</footer>
     </>}
   </>
 }

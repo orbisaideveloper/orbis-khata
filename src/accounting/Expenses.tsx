@@ -1,3 +1,4 @@
+import { useTutorial } from '../tutorial'
 import { useEffect, useRef, useState } from 'react'
 import type { Language } from '../i18n'
 import { expenseReport, postExpense, rejected } from './api'
@@ -23,6 +24,7 @@ function formText(form: FormData, name: string) {
 }
 export function Expenses({userId,company,companyName,language,from,to,version,onChanged,onLock,blocked}: Readonly<Props>) {
   const t = expenseCopy[language]
+  const tutorial = useTutorial()
   const [offset,setOffset] = useState(0), [reload,setReload] = useState(0)
   const query = JSON.stringify([company,from,to,offset,version,reload])
   const [result,setResult] = useState<{query: string; data: ExpenseReport | null} | null>(null)
@@ -91,7 +93,7 @@ export function Expenses({userId,company,companyName,language,from,to,version,on
   const paid = -movement('cash')-movement('bank')
   return <section className="books-card" aria-label={t.title}>
     <div className="books-section-title"><h2>{t.title}</h2><button type="button" disabled={Boolean(pending)||busy||blocked} onClick={()=>{setDraft({kind:'charge',parent:null,category:'',payee:'',amount:'',date:today()});setMessage('')}}>＋ {t.add}</button></div>
-    <p>{t.hint}</p>
+    {tutorial && <p>{t.hint}</p>}
     {loading && <output aria-live="polite">{t.loading}</output>}
     {!loading && !data && <output aria-live="polite"><p>{t.failed}</p><button type="button" onClick={()=>setReload(n=>n+1)}>{t.retry}</button></output>}
     {message && <output aria-live="polite">{message}</output>}
@@ -108,7 +110,7 @@ export function Expenses({userId,company,companyName,language,from,to,version,on
       <div className="books-buttons"><button type="submit" disabled={blocked}>{t.review}</button><button type="button" onClick={()=>setDraft(null)}>{t.cancel}</button></div>
     </form>}
     {pending && <div className="books-confirm" aria-label={t.review}>
-      <h3>{t.review}</h3><p>{t.confirmHint}</p><p>{companyName} · {pending.date}</p>
+      <h3>{t.review}</h3>{tutorial && <p>{t.confirmHint}</p>}<p>{companyName} · {pending.date}</p>
       <p>{pending.category} · {pending.payee} · {money(pending.amount)}</p>
       <p>{kindLabel[pending.kind]} · {methodLabel(pending)}</p>
       <p>{pending.reference} {pending.note}</p>

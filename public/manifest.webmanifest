@@ -1,0 +1,12 @@
+{
+  "id": "/",
+  "name": "ORBIS Khata Boi",
+  "short_name": "ORBIS Khata",
+  "lang": "bn",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#f4f7fc",
+  "theme_color": "#101b40",
+  "icons": [{"src":"/icon.svg","sizes":"any","type":"image/svg+xml","purpose":"any"}]
+}

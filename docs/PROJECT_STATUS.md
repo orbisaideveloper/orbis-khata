@@ -1,3 +1,75 @@
+# Final release coverage repair — 2026-10-25
+
+Phone certification 14:25:55–14:33:19 IST: Ubuntu preflight, KNIP, JSCPD,
+14 mobile/desktop browser tests including PWA offline reopen, npm dependency
+check, audit (0 vulnerabilities), lint, typecheck and build PASS. All 330 unit
+tests PASS; final gate blocked only on global function coverage 88.37% < 90%.
+Source/Git integrity PASS; baseline main eca4181. No Git/cloud/financial writes.
+
+Added inventory UI tests for transfer quantities/destination exclusion, line
+removal, item search, bill preview/print/close, pagination, failed-report retry,
+edit cancellation and definite rejection recovery. Added API tests for exact
+company/period/page scoping, reviewed command forwarding and uncertain errors.
+Production financial logic, PWA/auth/cache and coverage thresholds unchanged.
+Local: 25 inventory tests PASS; targeted inventory coverage S/B/F/L
+93.83/89.80/98.91/98.16; typecheck and zero-warning lint PASS. These are targeted
+figures, not global phone certification. Final full phone verification and
+remote CI/Sonar remain pending. Owner pushes only after reviewed certification.
+Expense/inventory migrations, gateway activation and live deploy remain pending.
+
+# PWA source checkpoint — 2026-10-25
+
+Baseline main eca4181; phone item installer report 12:21:52–12:23:26 IST
+confirmed typecheck/lint, all 127 selected tests, diff and source integrity PASS.
+PWA static cache, trilingual connection/update status, manifest/icon, production
+worker checks and offline browser test added to the same uncommitted release.
+Local PWA/related UI: 24 tests PASS; typecheck/lint/KNIP/JSCPD PASS; worker VM PASS.
+Browser and final coverage/CI/Sonar/phone installation remain unverified.
+No Git write, remote setting, deployment, migration or financial data change.
+Next: install the reviewed PWA source on phone, then the existing final verify
+runner (Ubuntu preflight → KNIP → JSCPD → Playwright → Termux → coverage last).
+Owner pushes once only after certification. Expense/inventory cloud activation
+still pending; this PWA does not make backend functions live or fix proven latency.
+
+# Current checkpoint — 2026-10-25 pending inventory lock repair
+
+Phone installer: typecheck/lint PASS, 126/127 tests PASS; recovery lock assertion
+observed an unlocked company selector. Initialize the Books inventory lock from
+the validated stored command immediately, before child effects/report loading.
+The test now holds the inventory report pending and checks the lock both before
+and after it resolves. Local 32 focused tests, typecheck and zero-warning lint PASS.
+No timeout, assertion, coverage gate, financial rule or database data is relaxed.
+Phone recheck and all previously documented cloud activation steps remain pending.
+
+# Current checkpoint — 2026-10-25 items, stock and workspace menu source
+
+- Baseline main eca4181b7349023457c7f5d96874ff766927b96b; GitHub quality success;
+  owner manual Render deploy dep-dbepe3bncjis73f0kmfg confirmed LIVE at that revision.
+- Prepared company item/code/custom fixed unit and godown masters; fractional
+  purchase/sale bills, per-godown stock/period balances, opening quantity, godown
+  transfer, bill history/view/print and existing-voucher stock-aware reversal.
+  Bill/stock/party-dues updates are atomic and exact retries are idempotent.
+- Prepared three-dot Account & profile/Tutorial/Log out menu, separate styled
+  shared-profile page and tutorial default OFF with trilingual persistent toggle.
+- New database objects have RLS, gateway+owner checks, immutable records, private
+  privileged write boundary, emergency switch and no direct authenticated writes.
+  No old book/owner/actor or Central identity is rewritten.
+- Focused React/model/gateway tests, app TypeScript, zero-warning lint, KNIP,
+  0.00% JSCPD and Vite build checked locally. Private PGlite 39 checks and mocked
+  Edge adapter 11 checks PASS. Evidence is development validation, not live use.
+- Updated central browser tests to open the new menu/profile route; those browser
+  tests are not run here. Full coverage, final certification and new CI/Sonar
+  remain required before release; thresholds/exclusions are unchanged.
+- Live read-only schema check found expense table/RPC absent despite frontend
+  deployment. Expense activation and new inventory migration/gateway/Frontend
+  activation remain pending; do not claim either is working live.
+- Prepared SQL: docs/inventory-v1.review.sql, NOT APPLIED. Gateway now requires
+  inventory/model.ts as its fourth bundled file. See INVENTORY_ACTIVATION.md for
+  limits, activation order, explicit approvals and practical owner acceptance.
+- No remote Git write, managed migration, deployment or live financial mutation.
+  Next: owner runs the source-only installer and uploads its one Downloads report;
+  inspect phone result before final certification or release/activation.
+
 # Current checkpoint — 2026-10-24 expense phone verification repair
 
 - Owner phone expense installation completed, but its 22:24:28–22:25:41 report
@@ -197,14 +269,14 @@ Historical checkpoints below are not the current runtime/deployment state.
   table/RLS and turn off Confirm email. Configure recovery redirects/SMTP before live release.
 - Earlier checkpoints below are historical and do not supersede this entry.
 
-**Last updated:** 2026-09-15 UTC  
-**Repository:** `orbisaideveloper/orbis-khata`  
-**Current baseline branch:** `main`  
-**Main baseline before this work:** `d6f5a00011642c5fc1b6b543b0319244c62fbb6c`  
-**Baseline content commit:** `154b4e8d1d43083bbd63f1386cd51f19399640db`  
-**Correction source branch:** `chore/project-baseline`  
-**PR #1:** GitHub automatically classified it as merged when `main` was fast-forwarded to the same verified commit; no PR merge action was used  
-**Phase:** Product and architecture baseline  
+**Last updated:** 2026-09-15 UTC
+**Repository:** `orbisaideveloper/orbis-khata`
+**Current baseline branch:** `main`
+**Main baseline before this work:** `d6f5a00011642c5fc1b6b543b0319244c62fbb6c`
+**Baseline content commit:** `154b4e8d1d43083bbd63f1386cd51f19399640db`
+**Correction source branch:** `chore/project-baseline`
+**PR #1:** GitHub automatically classified it as merged when `main` was fast-forwarded to the same verified commit; no PR merge action was used
+**Phase:** Product and architecture baseline
 **Production code:** Not started
 
 ## Completed in this checkpoint

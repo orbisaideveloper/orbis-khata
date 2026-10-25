@@ -50,6 +50,14 @@ const handler = createKhataGateway({ origins: (env('KHATA_ORIGINS') || 'https://
       if (!existing.length || Object.entries(expected).some(([key,value]) => existing[0][key] !== value)) throw new Error('KHATA_IDEMPOTENCY_CONFLICT')
       return { id: existing[0].id, name: existing[0].name }
     }
+    if (operation.operation === 'inventory-post') {
+      const result = await tx`select public.khata_inventory_post_v1(${JSON.stringify(input)}::jsonb) as data`
+      return result[0].data
+    }
+    if (operation.operation === 'inventory-report') {
+      const result = await tx`select public.khata_inventory_report_v1(${String(input.company)}::uuid,${String(input.from)}::date,${String(input.to)}::date,${Number(input.offset)}::integer) as data`
+      return result[0].data
+    }
     if (operation.operation === 'expense-post') {
       const result = await tx`select public.khata_expense_post_v1(${JSON.stringify(input)}::jsonb) as data`
       return result[0].data

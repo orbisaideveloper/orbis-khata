@@ -23,26 +23,26 @@ export function createKhataDataClient(options: { url: string; token: () => Promi
     return value.data
   }
 }
-async function request<T>(operation: string, input: unknown): Promise<T> {
+export async function requestKhata<T>(operation: string, input: unknown): Promise<T> {
   const url = import.meta.env.VITE_KHATA_DATA_URL as string | undefined
   const client = authClient
   if (!url || !client) throw new Error('KHATA_DATA_NOT_CONFIGURED')
   return createKhataDataClient({ url, token: () => client.central.accessToken() })<T>(operation, input)
 }
-export async function companies(_owner: string): Promise<Company[]> { return request<Company[]>('companies', {}) }
+export async function companies(_owner: string): Promise<Company[]> { return requestKhata<Company[]>('companies', {}) }
 export async function createRecord(table: 'khata_companies' | 'khata_parties', row: Record<string, string>): Promise<Company> {
   // The backend derives ownership from the verified central session.
   const { owner_id: _owner, ...safe } = row
-  return request<Company>('create', { table, row: safe })
+  return requestKhata<Company>('create', { table, row: safe })
 }
 export async function report(company: string, from: string, to: string, party: string, offset: number): Promise<Report> {
-  return request<Report>('report', { company, from, to, party: party || null, offset })
+  return requestKhata<Report>('report', { company, from, to, party: party || null, offset })
 }
-export async function post(command: Command): Promise<void> { await request<unknown>('post', command) }
+export async function post(command: Command): Promise<void> { await requestKhata<unknown>('post', command) }
 export function rejected(error: unknown): boolean {
   const code = (error as { code?: string })?.code ?? ''
   return /^(22|23|28|42|P0)/.test(code)
 }
 
-export async function expenseReport(company: string, from: string, to: string, offset: number): Promise<import('./expense-model').ExpenseReport> { return request('expense-report', {company,from,to,offset}) }
-export async function postExpense(command: import('./expense-model').ExpenseCommand): Promise<void> { await request('expense-post', command) }
+export async function expenseReport(company: string, from: string, to: string, offset: number): Promise<import('./expense-model').ExpenseReport> { return requestKhata('expense-report', {company,from,to,offset}) }
+export async function postExpense(command: import('./expense-model').ExpenseCommand): Promise<void> { await requestKhata('expense-post', command) }

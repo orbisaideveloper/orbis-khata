@@ -12,6 +12,7 @@ export function CommonAccountProfile({userId,language}:Readonly<{userId:string;l
 }
 function ProfileEditor({userId,language,onReload}:Readonly<{userId:string;language:'bn'|'en'|'hi';onReload:()=>void}>){
  const t=translations[language]
+ const [maxBirthDate]=useState(()=>new Date().toISOString().slice(0,10))
  const [result,setResult]=useState<ProfileResult|null>(null),[busy,setBusy]=useState(true),[message,setMessage]=useState('')
  const operation=useRef<AbortController|null>(null)
  useEffect(()=>{
@@ -42,7 +43,7 @@ function ProfileEditor({userId,language,onReload}:Readonly<{userId:string;langua
     <label>{t.name}<input name="name" autoComplete="name" required maxLength={120} defaultValue={result.profile.name}/></label>
     <label>{t.address}<input name="address" autoComplete="street-address" maxLength={1000} defaultValue={result.profile.address??''}/></label>
     <label>{t.phone}<input name="alternatePhone" type="tel" maxLength={40} defaultValue={result.profile.alternatePhone??''}/></label>
-    <label>{t.birth}<input name="dateOfBirth" type="date" min="1900-01-01" max={new Date().toISOString().slice(0,10)} defaultValue={result.profile.dateOfBirth??''}/></label>
+    <label>{t.birth}<input name="dateOfBirth" type="date" min="1900-01-01" max={maxBirthDate} defaultValue={result.profile.dateOfBirth??''}/></label>
     <label>{t.gender}<select name="gender" defaultValue={result.profile.gender??''}><option value="">{t.unset}</option><option value="male">{t.male}</option><option value="female">{t.female}</option><option value="other">{t.other}</option><option value="prefer-not-to-say">{t.private}</option></select></label>
     <button type="submit">{t.save}</button>
    </fieldset></form></>}

@@ -31,6 +31,9 @@ APPROVED_UNTRACKED.update({
     'src/accounting/model.test.ts', 'src/accounting/copy.ts', 'src/accounting/accounting.css',
     'docs/accounting-v1.sql', 'docs/ACCOUNTING_V1.md',
 })
+APPROVED_UNTRACKED.update({'src/inventory/copy.ts', 'src/inventory/api.ts', 'src/WorkspaceMenu.tsx', 'src/inventory/recovery.test.tsx', 'src/inventory/pending.ts', 'src/inventory/model.ts', 'src/WorkspaceMenu.test.tsx', 'docs/inventory-v1.review.sql', 'src/inventory/Inventory.test.tsx', 'src/tutorial.ts', 'docs/INVENTORY_ACTIVATION.md', 'src/inventory/Inventory.tsx', 'src/inventory/gateway.test.ts', 'src/inventory/model.test.ts'})
+APPROVED_UNTRACKED.update({'pwa/build.ts', 'pwa/worker-check.mjs', 'public/manifest.webmanifest', 'public/icon.svg', 'src/PwaStatus.tsx', 'src/PwaStatus.test.tsx', 'e2e-central/pwa.spec.ts', 'docs/PWA.md'})
+APPROVED_UNTRACKED.add('src/inventory/api.test.ts')
 STAGES = ['ubuntu-preflight', 'knip', 'jscpd', 'playwright', 'npm-ls', 'npm-audit',
           'lint', 'typecheck', 'build', 'coverage']
 
@@ -444,7 +447,7 @@ def main():
         doctor()
     elif action == 'test':
         baseline()
-        tests = sys.argv[2:] or ['src/App.test.tsx', 'src/auth', 'src/accounting']
+        tests = sys.argv[2:] or ['src/App.test.tsx', 'src/WorkspaceMenu.test.tsx', 'src/auth', 'src/accounting', 'src/inventory']
         if any(t.startswith('-') or '..' in Path(t).parts for t in tests):
             raise RuntimeError('Pass explicit test file paths only')
         sys.exit(subprocess.run(['npm', 'test', '--', *tests], cwd=ROOT).returncode)

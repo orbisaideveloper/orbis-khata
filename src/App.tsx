@@ -2,6 +2,9 @@ import { useEffect, useRef, useState } from 'react'
 import { languageOptions, readLanguage, saveLanguage, translations } from './i18n'
 import type { Language, TextKey } from './i18n'
 import './App.css'
+import { PwaStatus } from './PwaStatus'
+import { WorkspaceMenu } from './WorkspaceMenu'
+import { TutorialContext, readTutorial, saveTutorial } from './tutorial'
 import { authClient } from './auth/client'
 import { useAccount } from './auth/useAccount'
 import { AccountForm } from './auth/AccountForm'
@@ -34,6 +37,7 @@ function OrbitMark() {
 function App() {
   // No demo session, user, financial values, company or token is persisted.
   const account = useAccount()
+  const [tutorial,setTutorial] = useState(readTutorial)
   const [view, setView] = useState<View>(() => authClient && account.session ? 'workspace' : 'welcome')
   const [language, setLanguage] = useState<Language>(readLanguage)
   const sessionId = account.session?.user.id ?? null
@@ -47,8 +51,10 @@ function App() {
   const guestEntered = useRef(false)
   const t = (key: TextKey) => translations[language][key]
 
+  const menu = () => <WorkspaceMenu language={language} signedIn={signedIn} tutorial={tutorial} onTutorial={enabled=>{setTutorial(enabled);saveTutorial(enabled)}} onProfile={()=>navigate('profile')} onLogout={()=>{void logout()}}/>
+
   const renderBar = (backView: View, ariaKey: TextKey, pillKey: TextKey) => (
-    <header className="bar"><button type="button" className="back" onClick={() => navigate(backView)} aria-label={t(ariaKey)}>←</button><span className="pill">{t(pillKey)}</span>{languagePicker(true)}</header>
+    <header className="bar"><button type="button" className="back" onClick={() => navigate(backView)} aria-label={t(ariaKey)}>←</button><span className="pill">{t(pillKey)}</span>{languagePicker(true)}{signedIn && menu()}</header>
   )
   const renderBrand = (subKey: TextKey) => (
     <div className="brand"><span className="orb"><OrbitMark /></span><span>ORBIS<small>{t(subKey)}</small></span></div>
@@ -120,12 +126,13 @@ function App() {
     )
   }
 
-  if (account.loading) return <main className="phone"><output>{accountCopy[language].network}</output></main>
-  if (account.unavailable) return <main className="phone"><p role="alert">{accountCopy[language].error}</p><button type="button" onClick={() => window.location.reload()}>{accountCopy[language].retry}</button></main>
+  if (account.loading) return <main className="phone"><PwaStatus language={language}/><output>{accountCopy[language].network}</output></main>
+  if (account.unavailable) return <main className="phone"><PwaStatus language={language}/><p role="alert">{accountCopy[language].error}</p><button type="button" onClick={() => window.location.reload()}>{accountCopy[language].retry}</button></main>
   if (account.recovery) return <main className="phone"><AccountForm key="recovery" language={language} recovery onRecovered={() => account.setRecovery(false)} /></main>
 
   return (
-    <main className="phone">
+    <TutorialContext.Provider value={tutorial}><main className="phone"><PwaStatus language={language}/>
+      {logoutError && <p role="alert">{accountCopy[language].error}</p>}
       {view === 'welcome' && (
         <section className="scene welcome active" aria-label={t('h1a')}>
           <header className="top">
@@ -158,7 +165,7 @@ function App() {
       {view === 'login' && (
         <section className="scene light-scene active" aria-label={t('loginTag')}>
           {renderBar('welcome', 'exit', 'loginTag')}
-          <div className="login-title"><div className="login-mark">O</div><h1>{t('back')}</h1><p className="subtitle">{authClient ? accountCopy[language].persistent : t('authInfo')}</p></div>
+          <div className="login-title"><div className="login-mark">O</div><h1>{t('back')}</h1>{tutorial && <p className="subtitle">{authClient ? accountCopy[language].persistent : t('authInfo')}</p>}</div>
           {authClient ? <AccountForm language={language} onRecovered={() => account.setRecovery(false)} /> : (
           <div className="form">
             <label className="field"><span>{t('email')}</span><span className="input"><span aria-hidden="true">✉</span><input autoComplete="off" disabled placeholder={t('pending')} /></span></label>
@@ -167,7 +174,7 @@ function App() {
             <button type="button" className="disabled" disabled>{t('loginOff')}</button>
             <div className="divider">{t('or')}</div>
             {guestUiEnabled && <button type="button" className="gradient" onClick={() => navigate('workspace')}>{t('skip')}</button>}
-            <div className="note" role="note">{t('authGuard')}</div>
+            {tutorial && <div className="note" role="note">{t('authGuard')}</div>}
           </div>
           )}
           <div className="login-footer">{authClient ? '' : t('signup')}</div>
@@ -176,22 +183,27 @@ function App() {
 
       {view === 'workspace' && (signedIn || guestUiEnabled) && (
         <section className="scene light-scene active" aria-label={t('choose')}>
-          <header className="bar workspace-header">{renderBrand('workBrand')}{languagePicker(true)}</header>
+          <header className="bar workspace-header">{renderBrand('workBrand')}{languagePicker(true)}{signedIn && menu()}</header>
           <div className="workspace-title"><p className="orbis-account-id">{account.session?.user.user_metadata?.orbis_display_id}</p><span className="eyebrow l">{t('workBadge')}</span><h1>{t('hi')}</h1><p className="subtitle">{t('choose')}</p></div>
-          <div className="welcome-panel"><strong>{t('panel')}</strong><p>{t('panelDesc')}</p></div>
+          <div className="welcome-panel"><strong>{t('panel')}</strong>{tutorial && <p>{t('panelDesc')}</p>}</div>
           <div className="modules">
             <button type="button" className="module" onClick={() => navigate('khata')}><span className="ic" aria-hidden="true">📘</span><span className="copy"><strong>{t('khata')}</strong><small>{t('khataDesc')}</small></span><span className="status">{t('open')}</span></button>
             {renderPlanned('🌱', 'farm', 'farm', 'farmDesc', 'later')}
             {renderPlanned('🎟️', 'lot', 'lot', 'lotDesc', 'soon')}
           </div>
-          <div className="settings"><h2>{t('settings')}</h2><p>{t('settingsDesc')}</p><button type="button" className="exit" onClick={() => { void logout() }}>{signedIn ? accountCopy[language].logout : t('exit')}</button>
-          {signedIn && <CommonAccountProfile key={account.session!.user.id} userId={account.session!.user.id} language={language} />}
-          {signedIn && <p>{accountCopy[language].lock} — {accountCopy[language].lockInfo}</p>}
-          {logoutError && <p role="alert">{accountCopy[language].error}</p>}</div>
+          {!signedIn && <button type="button" className="exit" onClick={backToWelcome}>{t('exit')}</button>}
+
         </section>
       )}
 
-      {view === 'khata' && (signedIn || guestUiEnabled) && (
+      {view === 'profile' && signedIn && <section className="scene light-scene active profile-page" aria-label={t('settings')}>
+        {renderBar('workspace','choose','settings')}
+        <p className="orbis-account-id">{account.session?.user.user_metadata?.orbis_display_id}</p>
+        <CommonAccountProfile key={account.session!.user.id} userId={account.session!.user.id} language={language}/>
+        {tutorial && <p className="books-hint">{accountCopy[language].lock} — {accountCopy[language].lockInfo}</p>}
+      </section>}
+
+      {view === 'khata'  && (signedIn || guestUiEnabled) && (
         <section className="scene light-scene active" aria-label={t('khata')}>
           {renderBar('workspace', 'choose', 'khata')}
           {!signedIn && <div className="khata-title"><div className="bar"><span className="eyebrow l">{t('dashboard')}</span><span className="period">{t('month')}</span></div><h1>{t('khata')}</h1><p>{t('khataHead')}</p></div>}
@@ -201,11 +213,11 @@ function App() {
           </div>
           <div className="empty"><div className="big" aria-hidden="true">📒</div><h2>{t('emptyTitle')}</h2><p>{t('emptyDesc')}</p><span className="next">{t('next')}</span></div>
           <div className="actions-row">{(['sale','purchase','receipt','payment'] as const).map((key) => <button type="button" className="action-chip" disabled key={key}>{t(key)}</button>)}</div>
-          <p className="screen-foot">{t('noFake')}</p>
+          {tutorial && <p className="screen-foot">{t('noFake')}</p>}
           </CompanyGate>
         </section>
       )}
-    </main>
+    </main></TutorialContext.Provider>
   )
 }
 
