@@ -188,7 +188,9 @@ function Books({ userId, language, company, onLock }: Readonly<Props & { company
   }
 
   function review(e: React.SyntheticEvent<HTMLFormElement>) {
-    e.preventDefault(); if (expenseLocked) return; setSaveError(''); setMessage('')
+    e.preventDefault()
+    if (expenseLocked) return
+    setSaveError(''); setMessage('')
     const f = new FormData(e.currentTarget)
     try {
       const amountStr = (f.get('amount') as string || '')

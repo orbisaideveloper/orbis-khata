@@ -13,10 +13,14 @@ function recovered(user: string, company: string) {
   try {
     const raw = sessionStorage.getItem(key(user,company))
     const p = raw && raw.length <= 8192 ? expenseCommand(JSON.parse(raw)) : null
-    return p && p.company === company ? p : null
+    return p?.company === company ? p : null
   } catch { return null }
 }
 function decimal(value: string) { return `${BigInt(value)/100n}.${String(BigInt(value)%100n).padStart(2,'0')}` }
+function formText(form: FormData, name: string) {
+  const value = form.get(name)
+  return typeof value === 'string' ? value : ''
+}
 export function Expenses({userId,company,companyName,language,from,to,version,onChanged,onLock,blocked}: Readonly<Props>) {
   const t = expenseCopy[language]
   const [offset,setOffset] = useState(0), [reload,setReload] = useState(0)
@@ -53,9 +57,9 @@ export function Expenses({userId,company,companyName,language,from,to,version,on
     if(!draft || blocked) return
     const f = new FormData(e.currentTarget)
     try {
-      const p = expenseCommand({id:crypto.randomUUID(),company,date:String(f.get('date')),kind:draft.kind,amount:minor(String(f.get('amount'))),
-        category:String(f.get('category')).trim(),payee:String(f.get('payee')).trim(),method:draft.kind==='reversal' || f.get('method')==='due' ? null : String(f.get('method')),
-        parent:draft.parent,reference:String(f.get('reference')).trim(),note:String(f.get('note')).trim()})
+      const p = expenseCommand({id:crypto.randomUUID(),company,date:formText(f,'date'),kind:draft.kind,amount:minor(formText(f,'amount')),
+        category:formText(f,'category').trim(),payee:formText(f,'payee').trim(),method:draft.kind==='reversal' || f.get('method')==='due' ? null : formText(f,'method'),
+        parent:draft.parent,reference:formText(f,'reference').trim(),note:formText(f,'note').trim()})
       if(!p || p.date>today()) throw new Error('invalid')
       setPending(p);setAttempted(false);setDraft(null);setMessage('')
     } catch { setMessage(t.invalid) }
@@ -77,6 +81,12 @@ export function Expenses({userId,company,companyName,language,from,to,version,on
       } else setMessage(t.uncertain)
     } finally {guard.current=false;setBusy(false)}
   }
+  const kindLabel = {charge:t.charge,payment:t.payment,reversal:t.corrected}
+  const draftTitle = {charge:t.add,payment:t.payment,reversal:t.reversal}
+  function methodLabel(entry: ExpenseCommand | ExpenseEntry) {
+    if (entry.method) return t[entry.method]
+    return entry.kind==='charge' ? t.due : ''
+  }
   const movement = (account: string) => BigInt(data?.balances[account]?.movement ?? '0')
   const paid = -movement('cash')-movement('bank')
   return <section className="books-card" aria-label={t.title}>
@@ -86,7 +96,7 @@ export function Expenses({userId,company,companyName,language,from,to,version,on
     {!loading && !data && <output aria-live="polite"><p>{t.failed}</p><button type="button" onClick={()=>setReload(n=>n+1)}>{t.retry}</button></output>}
     {message && <output aria-live="polite">{message}</output>}
     {draft && !pending && <form className="books-form" onSubmit={review}>
-      <h3>{draft.kind==='charge'?t.add:draft.kind==='payment'?t.payment:t.reversal}</h3>
+      <h3>{draftTitle[draft.kind]}</h3>
       <label>{t.category}<input name="category" list={`expense-categories-${company}`} required maxLength={80} defaultValue={draft.category} readOnly={draft.kind!=='charge'}/></label>
       <datalist id={`expense-categories-${company}`}>{[...new Set([...t.suggestions,...(data?.categories.map(c=>c.name)??[])])].map(name=><option key={name} value={name}/>)}</datalist>
       <label>{t.payee}<input name="payee" maxLength={120} defaultValue={draft.payee} readOnly={draft.kind!=='charge'}/></label>
@@ -100,7 +110,7 @@ export function Expenses({userId,company,companyName,language,from,to,version,on
     {pending && <div className="books-confirm" aria-label={t.review}>
       <h3>{t.review}</h3><p>{t.confirmHint}</p><p>{companyName} · {pending.date}</p>
       <p>{pending.category} · {pending.payee} · {money(pending.amount)}</p>
-      <p>{pending.kind==='charge'?t.charge:pending.kind==='payment'?t.payment:t.corrected} · {pending.method?t[pending.method]:pending.kind==='charge'?t.due:''}</p>
+      <p>{kindLabel[pending.kind]} · {methodLabel(pending)}</p>
       <p>{pending.reference} {pending.note}</p>
       <div className="books-buttons"><button type="button" disabled={busy||blocked} onClick={()=>{void save()}}>{attempted?t.retry:t.confirm}</button>
       {!attempted&&<button type="button" onClick={()=>setPending(null)}>{t.cancel}</button>}</div>
@@ -114,7 +124,7 @@ export function Expenses({userId,company,companyName,language,from,to,version,on
         <button type="button" disabled={Boolean(pending)||busy||blocked} onClick={()=>pay(b)}>{t.payment}</button></div>)}
       <h3>{t.entries} ({data.count})</h3>{!data.entries.length&&<p>{t.empty}</p>}
       {data.entries.map(e=><article className="books-entry" key={e.id}><p>{e.effective_date} · {e.category} · {e.payee}</p>
-        <p>{e.kind==='charge'?t.charge:e.kind==='payment'?t.payment:t.corrected} · {money(e.amount)} · {e.method?t[e.method]:e.kind==='charge'?t.due:''}</p>
+        <p>{kindLabel[e.kind]} · {money(e.amount)} · {methodLabel(e)}</p>
         <p>{e.reference} {e.note}</p><details><summary>ID</summary>{e.id}</details>
         {e.reversed?<small>{t.reversed}</small>:e.kind!=='reversal'&&<button type="button" disabled={Boolean(pending)||busy||blocked} onClick={()=>reverse(e)}>{t.reversal}</button>}</article>)}
       <div className="books-buttons"><button type="button" disabled={!offset} onClick={()=>setOffset(n=>Math.max(0,n-50))}>{t.previous}</button>

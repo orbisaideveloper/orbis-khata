@@ -66,6 +66,10 @@ export function createCentralVerifier(options: { baseUrl: string; fetchImpl?: ty
     return { orbisIdentityId: value.customer.orbisIdentityId, displayId: value.customer.displayId }
   }
 }
+function databaseErrorCode(error: unknown) {
+  if (!object(error) || typeof error.code !== 'string') return null
+  return /^(?:22|23|28|42|P0)[A-Z0-9]{3}$/u.test(error.code) ? error.code : null
+}
 export function createKhataGateway(options: {
   origins: readonly string[]; verify: (token: string) => Promise<KhataPrincipal | null>;
   execute: (principal: KhataPrincipal, operation: KhataOperation) => Promise<unknown>
@@ -102,7 +106,8 @@ export function createKhataGateway(options: {
     } catch (error) {
       // No tokens, request payloads, credentials or database messages in diagnostics.
       console.warn('KHATA_GATEWAY_FAILURE', { stage, errorName: error instanceof Error ? error.name : 'UnknownError' })
-      if (object(error) && typeof error.code === 'string' && /^(?:22|23|28|42|P0)[A-Z0-9]{3}$/u.test(error.code)) return reply(422, { code: error.code })
+      const code = databaseErrorCode(error)
+      if (code) return reply(422, { code })
       return reply(503, { code: 'KHATA_DATA_UNAVAILABLE' })
     }
   }
