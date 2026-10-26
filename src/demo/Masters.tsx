@@ -1,7 +1,9 @@
+import { DesignIcon } from './DesignIcon';
+import { inLanguage } from '../localize';
 import { PartyPhone } from './PartyPhone';
 import { phoneHref } from '../phone';
 import { textValue } from '../text-value';
-import { useBookServices } from '../books-services';
+import { useBookServices, type BookServices } from '../books-services';
 import { confirmDelete } from '../confirm-delete';
 import { useRef, useState } from 'react';
 import type { Language } from '../i18n';
@@ -19,6 +21,19 @@ function errorCopy(error: unknown, t: typeof masterCopy.en) {
         return t.used;
     }
     return t.invalid;
+}
+function removeMaster(entity: 'item' | 'party', entry: { id: string; company: string; name: string }, language: Language, services: BookServices | null, done: () => void, fail: () => void) {
+    if (!confirmDelete(language, entry.name)) { return; }
+    try {
+        if (services) {
+            const removal = entity === 'item' ? services.deleteItem(entry.company, entry.id) : services.deleteParty(entry.company, entry.id);
+            void removal.then(done, fail);
+        } else if (import.meta.env.DEV) {
+            if (entity === 'item') { deleteDemoItem(entry.company, entry.id); }
+            else { deleteDemoParty(entry.company, entry.id); }
+            done();
+        }
+    } catch { fail(); }
 }
 export function ItemMaster({ language, company, items, onChanged }: Readonly<{
     language: Language;
@@ -54,24 +69,9 @@ export function ItemMaster({ language, company, items, onChanged }: Readonly<{
         }
     }
     return <section className="books-card master-page" aria-label={t.items}>{!editing && error && <output role="alert">{error}</output>}
-  {editing ? <form className="books-form" onSubmit={save}><h2>{items.some(i => i.id === editing.id) ? t.edit : t.addItem}</h2><label>{t.name}<input name="name" required maxLength={120} defaultValue={editing.name}/></label><label>{t.unit}<input name="unit" required maxLength={24} defaultValue={editing.unit} list="master-units"/></label><datalist id="master-units">{['kg', 'litre', 'piece', 'gram', 'metre', 'box'].map(unit => <option key={unit}>{unit}</option>)}</datalist><label>{t.code}<input name="code" maxLength={40} defaultValue={editing.code}/></label><label>{t.rate}<input name="rate" inputMode="decimal" defaultValue={decimal(editing.default_rate)}/></label><p className="books-hint">{t.optional}</p>{error && <output role="alert">{error}</output>}<div className="books-buttons"><button type="submit" className="books-primary">{t.save}</button><button type="button" onClick={() => setEditing(null)}>{t.cancel}</button></div></form> : <><div className="books-section-title"><h2>{t.items} ({items.length})</h2><button type="button" onClick={() => { setError(''); setEditing({ id: crypto.randomUUID(), company, name: '', unit: '', code: '', default_rate: null }); }}>＋ {t.addItem}</button></div><label>{t.search}<input type="search" value={search} onChange={e => setSearch(e.target.value)}/></label>{!items.length && <p>{t.empty}</p>}{items.filter(i => `${i.name} ${i.code}`.toLocaleLowerCase().includes(search.toLocaleLowerCase())).map(i => <article key={i.id} className="master-row"><div><strong>{itemLabel(i)}</strong><small>{i.unit}{i.default_rate !== null && <> · {money(i.default_rate)}</>}</small></div><button type="button" aria-label={`${t.edit}: ${i.name}`} onClick={() => { setError(''); setEditing(i); }}>{t.edit}</button><button type="button" aria-label={`${t.remove}: ${i.name}`} onClick={() => {
-                    if (!confirmDelete(language, i.name)) {
-                        return;
-                    }
-                    const done = () => onChanged(), fail = () => setError(t.deleteBlocked);
-                    try {
-                        if (services) {
-                            void services.deleteItem(company, i.id).then(done, fail);
-                        }
-                        else if (import.meta.env.DEV) {
-                            deleteDemoItem(company, i.id);
-                            done();
-                        }
-                    }
-                    catch {
-                        fail();
-                    }
-                }}>{t.remove}</button></article>)}</>}
+  {editing ? <form className="books-form" onSubmit={save}><h2>{items.some(i => i.id === editing.id) ? t.edit : t.addItem}</h2><label>{t.name}<input name="name" required maxLength={120} defaultValue={editing.name}/></label><label>{t.unit}<input name="unit" required maxLength={24} defaultValue={editing.unit} list="master-units"/></label><datalist id="master-units">{['kg', 'litre', 'piece', 'gram', 'metre', 'box'].map(unit => <option key={unit}>{unit}</option>)}</datalist><label>{t.code}<input name="code" maxLength={40} defaultValue={editing.code}/></label><label>{t.rate}<input name="rate" inputMode="decimal" defaultValue={decimal(editing.default_rate)}/></label><p className="books-hint">{t.optional}</p>{error && <output role="alert">{error}</output>}<div className="books-buttons"><button type="submit" className="books-primary">{t.save}</button><button type="button" onClick={() => setEditing(null)}>{t.cancel}</button></div></form> : <><div className="books-section-title"><h2>{t.items} ({items.length})</h2><button type="button" onClick={() => { setError(''); setEditing({ id: crypto.randomUUID(), company, name: '', unit: '', code: '', default_rate: null }); }}>＋ {t.addItem}</button></div><label>{t.search}<input type="search" value={search} onChange={e => setSearch(e.target.value)}/></label>{!items.length && <p>{t.empty}</p>}<div className="master-table-wrap"><table className="master-table master-items"><thead><tr><th>{inLanguage(language,'আইটেমের নাম','आइटम नाम','Item name')}</th><th>{t.unit}</th><th>{inLanguage(language,'দর','दर','Rate')}</th><th><span className="master-sr-only">{t.edit} / {t.remove}</span></th></tr></thead><tbody>{items.filter(i => `${i.name} ${i.code}`.toLocaleLowerCase().includes(search.toLocaleLowerCase())).map(i => <tr key={i.id}><td><strong>{itemLabel(i)}</strong></td><td>{i.unit}</td><td className="master-rate">{i.default_rate === null ? '—' : money(i.default_rate)}</td><td><div className="master-actions"><button type="button" aria-label={`${t.edit}: ${i.name}`} title={t.edit} onClick={() => { setError(''); setEditing(i); }}><DesignIcon name="edit"/></button><button type="button" title={t.remove} aria-label={`${t.remove}: ${i.name}`} onClick={() => {
+                    removeMaster('item', i, language, services, onChanged, () => setError(t.deleteBlocked));
+                }}><DesignIcon name="remove"/></button></div></td></tr>)}</tbody></table></div></>}
  </section>;
 }
 function partyOpeningLabels(customer: boolean, kind: DemoParty['kind'], t: typeof masterCopy.en) {
@@ -124,23 +124,8 @@ export function PartyMaster({ language, company, parties, onChanged, startKind, 
     const customer = kind === 'customer' || kind === 'both' && openingAccount === 'receivable';
     const { due: dueLabel, advance: advanceLabel } = partyOpeningLabels(customer, kind, t);
     return <section className="books-card master-page" aria-label={t.parties}>{!editing && error && <output role="alert">{error}</output>}
-  {editing ? <form className="books-form" onSubmit={save}><h2>{parties.some(p => p.id === editing.id) ? t.edit : t.addParty}</h2><label>{t.name}<input name="name" required maxLength={120} defaultValue={editing.name}/></label><label>{t.kind}<select disabled={Boolean(startKind)} value={kind} onChange={e => setKind(e.target.value as DemoParty['kind'])}>{(['customer', 'supplier', 'both', 'expense'] as const).map(k => <option key={k} value={k}>{t[k]}</option>)}</select></label><fieldset className="master-fields"><legend>{t.details}</legend><PartyPhone key={editing.id} language={language} label={t.phone} initial={editing.phone}/><label>{t.address}<textarea name="address" maxLength={400} defaultValue={editing.address}/></label><label>{t.email}<input name="email" type="email" maxLength={120} defaultValue={editing.email}/></label><label>{t.credit}<input name="credit" inputMode="decimal" defaultValue={decimal(editing.credit_limit)}/></label><label>{t.days}<input name="days" type="number" min="0" max="3650" defaultValue={editing.credit_days ?? ''}/></label></fieldset><fieldset className="master-fields"><legend>{t.opening}</legend>{kind === 'both' && <label>{t.relationship}<select value={openingAccount} onChange={e => setOpeningAccount(e.target.value as DemoParty['opening_account'])}><option value="receivable">{t.customer}</option><option value="payable">{t.supplier}</option></select></label>}<p className="books-hint">{t.openingHint}</p><label>{t.opening}<select value={side} onChange={e => setSide(e.target.value)}><option value="none">{t.none}</option><option value="due">{dueLabel}</option><option value="advance">{advanceLabel}</option></select></label>{side !== 'none' && <><label>{t.amount}<input name="opening" inputMode="decimal" required defaultValue={decimal(editing.opening_amount)}/></label><label>{t.date}<input name="date" type="date" required max={today()} defaultValue={editing.opening_date || today()}/></label></>}</fieldset>{error && <output role="alert">{error}</output>}<div className="books-buttons"><button type="submit" className="books-primary">{t.save}</button><button type="button" onClick={() => { setEditing(null); onCancelCreate?.(); }}>{t.cancel}</button></div></form> : <><div className="books-section-title"><h2>{t.parties} ({parties.length})</h2><button type="button" onClick={() => begin({ id: crypto.randomUUID(), company, name: '', kind: 'customer', receivable: '0', payable: '0', ...emptyPartyDetails })}>＋ {t.addParty}</button></div><label>{t.search}<input type="search" value={search} onChange={e => setSearch(e.target.value)}/></label>{!parties.length && <p>{t.empty}</p>}{parties.filter(p => `${p.name} ${p.phone}`.toLocaleLowerCase().includes(search.toLocaleLowerCase())).map(p => <article className="master-row" key={p.id}><div><strong>{p.name}</strong><small>{t[p.kind]}{p.phone && <> · <a href={phoneHref(p.phone)}>{p.phone}</a></>}</small>{p.address && <small>{p.address}</small>}{BigInt(p.opening_amount) > 0n && <small>{t.opening}: {p.opening_side === 'due' ? t.due : t.advance} · {money(p.opening_amount)}</small>}</div><button type="button" aria-label={`${t.edit}: ${p.name}`} onClick={() => begin(p)}>{t.edit}</button><button type="button" aria-label={`${t.remove}: ${p.name}`} onClick={() => {
-                    if (!confirmDelete(language, p.name)) {
-                        return;
-                    }
-                    const done = () => onChanged(), fail = () => setError(t.deleteBlocked);
-                    try {
-                        if (services) {
-                            void services.deleteParty(company, p.id).then(done, fail);
-                        }
-                        else if (import.meta.env.DEV) {
-                            deleteDemoParty(company, p.id);
-                            done();
-                        }
-                    }
-                    catch {
-                        fail();
-                    }
-                }}>{t.remove}</button></article>)}</>}
+  {editing ? <form className="books-form" onSubmit={save}><h2>{parties.some(p => p.id === editing.id) ? t.edit : t.addParty}</h2><label>{t.name}<input name="name" required maxLength={120} defaultValue={editing.name}/></label><label>{t.kind}<select disabled={Boolean(startKind)} value={kind} onChange={e => setKind(e.target.value as DemoParty['kind'])}>{(['customer', 'supplier', 'both', 'expense'] as const).map(k => <option key={k} value={k}>{t[k]}</option>)}</select></label><fieldset className="master-fields"><legend>{t.details}</legend><PartyPhone key={editing.id} language={language} label={t.phone} initial={editing.phone}/><label>{t.address}<textarea name="address" maxLength={400} defaultValue={editing.address}/></label><label>{t.email}<input name="email" type="email" maxLength={120} defaultValue={editing.email}/></label><label>{t.credit}<input name="credit" inputMode="decimal" defaultValue={decimal(editing.credit_limit)}/></label><label>{t.days}<input name="days" type="number" min="0" max="3650" defaultValue={editing.credit_days ?? ''}/></label></fieldset><fieldset className="master-fields"><legend>{t.opening}</legend>{kind === 'both' && <label>{t.relationship}<select value={openingAccount} onChange={e => setOpeningAccount(e.target.value as DemoParty['opening_account'])}><option value="receivable">{t.customer}</option><option value="payable">{t.supplier}</option></select></label>}<p className="books-hint">{t.openingHint}</p><label>{t.opening}<select value={side} onChange={e => setSide(e.target.value)}><option value="none">{t.none}</option><option value="due">{dueLabel}</option><option value="advance">{advanceLabel}</option></select></label>{side !== 'none' && <><label>{t.amount}<input name="opening" inputMode="decimal" required defaultValue={decimal(editing.opening_amount)}/></label><label>{t.date}<input name="date" type="date" required max={today()} defaultValue={editing.opening_date || today()}/></label></>}</fieldset>{error && <output role="alert">{error}</output>}<div className="books-buttons"><button type="submit" className="books-primary">{t.save}</button><button type="button" onClick={() => { setEditing(null); onCancelCreate?.(); }}>{t.cancel}</button></div></form> : <><div className="books-section-title"><h2>{t.parties} ({parties.length})</h2><button type="button" onClick={() => begin({ id: crypto.randomUUID(), company, name: '', kind: 'customer', receivable: '0', payable: '0', ...emptyPartyDetails })}>＋ {t.addParty}</button></div><label>{inLanguage(language,'নাম বা ফোন দিয়ে খুঁজুন','नाम या फोन से खोजें','Search by name or phone')}<input type="search" value={search} onChange={e => setSearch(e.target.value)}/></label>{!parties.length && <p>{t.empty}</p>}<div className="master-table-wrap"><table className="master-table master-parties"><thead><tr><th>{inLanguage(language,'পার্টির নাম','पार्टी नाम','Party name')}</th><th>{inLanguage(language,'ক্যাটাগরি','श्रेणी','Category')}</th><th><span className="master-sr-only">{t.edit} / {t.remove}</span></th></tr></thead><tbody>{parties.filter(p => `${p.name} ${p.phone}`.toLocaleLowerCase().includes(search.toLocaleLowerCase())).map(p => <tr key={p.id}><td><strong>{p.name}</strong>{p.phone && <a className="master-phone" href={phoneHref(p.phone)}>{p.phone}</a>}</td><td><span className={`master-category master-category-${p.kind}`}>{t[p.kind]}</span></td><td><div className="master-actions"><button type="button" aria-label={`${t.edit}: ${p.name}`} title={t.edit} onClick={() => begin(p)}><DesignIcon name="edit"/></button><button type="button" title={t.remove} aria-label={`${t.remove}: ${p.name}`} onClick={() => {
+                    removeMaster('party', p, language, services, onChanged, () => setError(t.deleteBlocked));
+                }}><DesignIcon name="remove"/></button></div></td></tr>)}</tbody></table></div></>}
  </section>;
 }

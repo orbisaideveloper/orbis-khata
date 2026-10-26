@@ -28,6 +28,8 @@ it('registers production caching, announces waiting updates and cleans listeners
   await waitFor(() => expect(register).toHaveBeenCalledWith('/sw.js', { scope: '/', updateViaCache: 'none' }))
   await act(async () => { worker.state = 'installed'; worker.dispatchEvent(new Event('statechange')) })
   expect(screen.getByRole('status')).toHaveTextContent('Update ready')
+  fireEvent.click(screen.getByRole('button', { name: 'Dismiss update notice' }))
+  expect(screen.queryByRole('status')).not.toBeInTheDocument()
   unmount()
   worker.dispatchEvent(new Event('statechange'))
   vi.unstubAllEnvs()

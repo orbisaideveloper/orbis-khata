@@ -1,3 +1,4 @@
+import { inLanguage } from './localize'
 import { useEffect, useState } from 'react'
 import type { Language } from './i18n'
 
@@ -8,6 +9,7 @@ const copy = {
 }
 
 export function PwaStatus({ language }: Readonly<{ language: Language }>) {
+  const [dismissed, setDismissed] = useState(false)
   const [offline, setOffline] = useState(() => !navigator.onLine)
   const [status, setStatus] = useState<'ready' | 'update' | 'failed'>('ready')
   useEffect(() => {
@@ -18,7 +20,7 @@ export function PwaStatus({ language }: Readonly<{ language: Language }>) {
     let registration: ServiceWorkerRegistration | undefined
     let worker: ServiceWorker | null = null
     const changed = () => {
-      if (alive && worker?.state === 'installed' && navigator.serviceWorker.controller) setStatus('update')
+      if (alive && worker?.state === 'installed' && navigator.serviceWorker.controller) { setStatus('update'); setDismissed(false) }
     }
     const found = () => {
       worker?.removeEventListener('statechange', changed)
@@ -43,5 +45,5 @@ export function PwaStatus({ language }: Readonly<{ language: Language }>) {
     }
   }, [])
   const t = copy[language]
-  return <>{offline && <output className="connection-notice">{t.offline}</output>}{status !== 'ready' && <output className="connection-notice">{t[status]}</output>}</>
+  return <>{offline && <output className="connection-notice">{t.offline}</output>}{status === 'failed' && <output className="connection-notice">{t.failed}</output>}{status === 'update' && !dismissed && <output className="pwa-update-notice"><details><summary>{inLanguage(language, 'নতুন আপডেট প্রস্তুত', 'नया अपडेट तैयार है', 'Update ready')}</summary><p>{t.update}</p></details><button type="button" aria-label={inLanguage(language, 'বার্তা বন্ধ করুন', 'सूचना बंद करें', 'Dismiss update notice')} onClick={() => setDismissed(true)}>×</button></output>}</>
 }

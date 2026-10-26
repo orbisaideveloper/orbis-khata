@@ -1,3 +1,5 @@
+import '@fontsource/noto-serif-bengali/400.css';
+import '@fontsource/noto-serif-bengali/700.css';
 import { useEffect, useRef, useState } from 'react';
 import '../billing/paper.css';
 import type { BillTemplate } from './BillDesign';

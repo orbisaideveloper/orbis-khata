@@ -1,3 +1,31 @@
+# 2026-10-26 — Compact masters, bill settings and local PDF sharing
+
+Owner requests aligned party/item columns, compact edit/delete symbols, optional
+bill design under settings, shareable invoices, and a smaller update notice.
+Implement semantic master tables (party name/category; item name/unit/rate), retain
+telephone dial links, keep labelled icon actions and both deletion confirmations.
+Design choices live in collapsed Bill settings and remember only the display
+preference. Update notices can be dismissed without forcing reload or discarding
+unfinished bills; offline/error guidance is retained.
+
+PDF preparation renders the chosen bill pages locally, including Bengali glyphs,
+with lazy-loaded html2canvas 1.4.1 / jsPDF 4.2.1. File sharing is invoked only by the
+user through the native chooser; unsupported devices can download and attach the
+PDF in WhatsApp. No automatic sending or external upload. Bundle Noto Bengali
+fonts and their OFL notices. Long-bill page export is sequential to limit memory.
+No account, tenant, migration, financial calculation or central-ID change.
+
+Verified local: 443 tests PASS; full mobile/desktop browser suite 18/18 PASS,
+including real PDF creation/download and no horizontal overflow. Visually reviewed
+compact lists and rendered A4 Bengali PDF; initial missing-glyph defect corrected
+with bundled Sans and Serif faces. Typecheck/lint/KNIP and JSCPD 0.00% PASS; npm
+audit 0 vulnerabilities. Final local coverage PASS: statements 91.83%, branches
+89.96%, functions 92.00%, lines 92.32%; thresholds unchanged. Remote CI remains
+pending for this candidate. Native WhatsApp app delivery is owner/device acceptance, not a claimed
+automated send. Source is prepared on Khata main only, no staging/PR or API/DB
+mutation. Render deployment remains separately authorized; prior automatic review
+rejected an ambiguous production deploy and was not bypassed.
+
 # 2026-10-26 — CI trace diagnosis and complete protocol fixture repair
 
 CI 40336662539 failed because the signup mock returned company rows for masters

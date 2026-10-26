@@ -1,3 +1,5 @@
+import { readBillTemplate, rememberBillTemplate } from '../billing/bill-preference';
+import { BillShare } from '../billing/BillShare';
 import { inLanguage } from '../localize';
 import { restoreBill, retainBill, clearBill } from '../billing/recovery';
 import { rejected } from '../accounting/api';
@@ -118,7 +120,7 @@ export function InvoicePage({ kind, language, company, companyName, items, parti
     const t = copy[language], m = masterCopy[language], d = designCopy[language], services = useBookServices();
     const [recovery, setRecovery] = useState(() => services ? restoreBill(userId) : null);
     const balanceGeneration = useRef(0), [balanceBusy, setBalanceBusy] = useState(false), [balanceFailed, setBalanceFailed] = useState(false);
-    const [template, setTemplate] = useState<BillTemplate>('sample'), [companyDetails, setCompanyDetails] = useState('');
+    const [template, setTemplate] = useState<BillTemplate>(readBillTemplate), [companyDetails, setCompanyDetails] = useState('');
     const [id] = useState(() => crypto.randomUUID()), [automaticNumber] = useState(() => automaticBillNumber(services, id, kind, company)), guard = useRef(false);
     const [lines, setLines] = useState<Line[]>([fresh()]), [partyId, setPartyId] = useState(''), [date, setDate] = useState(today), [reference, setReference] = useState(''), [note, setNote] = useState(''), [warehouse, setWarehouse] = useState(warehouses[0]?.id ?? ''), [category, setCategory] = useState(''), [method, setMethod] = useState('due'), [phase, setPhase] = useState<'edit' | 'review' | 'saved'>('edit'), [error, setError] = useState(''), [busy, setBusy] = useState(false), [previous, setPrevious] = useState('0');
     const [addingParty, setAddingParty] = useState(false), [addedParties, setAddedParties] = useState<DemoParty[]>([]);
@@ -285,8 +287,9 @@ export function InvoicePage({ kind, language, company, companyName, items, parti
     }
     if (phase !== 'edit') {
         return <section aria-label={t[kind]} className="bill-review">
-  <BillDesign language={language} value={template} onChange={setTemplate}/>
+  <details className="bill-settings"><summary>{inLanguage(language,'বিল সেটিংস','बिल सेटिंग्स','Bill settings')}</summary><BillDesign language={language} value={template} onChange={value => { setTemplate(value); rememberBillTemplate(value); }}/></details>
   <PaperPreview template={template} companyDetails={companyDetails} draft={phase !== 'saved' ? d.draft : ''} continuation={d.continue} companyName={companyName} title={t[kind]} memo={t.memo} numberLabel={t.number} number={billNumber} dateLabel={t.date} date={date.split('-').reverse().join('-')} partyName={party?.name ?? ''} partyDetails={[party ? m[party.kind] : '', party?.phone, party?.address, party?.email].filter(Boolean).join(' · ')} headings={[t.serial, kind === 'expense' ? t.description : t.item, t.quantity, t.rate, t.amount]} rows={lines.map((line, index) => [String(index + 1), kind === 'expense' ? line.description : items.find(i => i.id === line.item)?.name ?? '', displayQuantity(quantity(line.quantity)) + ' ' + (items.find(i => i.id === line.item)?.unit ?? ''), rateDisplay(line.rate), rowAmount(line)])} totals={[[t.totalQuantity, totalQuantities()], [t.subtotal, money(total())], [t.previous, money(previous)], [t.total, money(grandTotal)]]} note={note} thanks={t.thanks} signatures={[t.partySignature, t.authorizedSignature]}/>
+  <BillShare key={phase + template} language={language} name={companyName + '-' + billNumber}/>
   <button className="bill-print-button" type="button" onClick={() => window.print()}>{d.print}</button>
   {grandTotal < 0n && <p>{t.creditBalance}: {money(-grandTotal)}</p>}{error && <output role="alert">{error}</output>}
   <div className="books-buttons memo-controls">{phase === 'review' ? <><button type="button" className="books-primary" disabled={busy} onClick={() => { void save(); }}>{t.confirm}</button><button type="button" disabled={busy} onClick={() => setPhase('edit')}>{t.edit}</button></> : <output>{t.saved}</output>}<button type="button" disabled={busy} onClick={onBack}>{t.cancel}</button></div>
@@ -297,7 +300,7 @@ export function InvoicePage({ kind, language, company, companyName, items, parti
     }
     return <section className="invoice-page books-card memo-paper memo-edit" aria-label={t[kind]}>
   <div className="invoice-heading memo-heading"><h1>{companyName}</h1><span className="memo-badge">{t.memo}</span><p>{t[kind]}</p></div><button className="memo-back" type="button" disabled={busy} onClick={onBack}>{t.cancel}</button>
-  <BillDesign language={language} value={template} onChange={setTemplate}/>
+  <details className="bill-settings"><summary>{inLanguage(language,'বিল সেটিংস','बिल सेटिंग्स','Bill settings')}</summary><BillDesign language={language} value={template} onChange={value => { setTemplate(value); rememberBillTemplate(value); }}/></details>
   <form onSubmit={review}>
    <details className="bill-company-details"><summary>{d.businessDetails}</summary><label>{d.businessAddress}<textarea maxLength={250} value={companyDetails} onChange={e => setCompanyDetails(e.target.value)}/></label></details>
    <div className="invoice-party"><p className="bill-party-context">{companyName} · {m[partyKind]}</p>{<label>{t.party}<select required value={partyId} onChange={e => pickParty(e.target.value)}><option value="">{t.choose}</option>{allowed.map(p => <option key={p.id} value={p.id}>{p.name} · {m[p.kind]}</option>)}</select></label>}<button type="button" className="bill-add-party" onClick={() => setAddingParty(true)}>＋ {m.addParty}</button>{!allowed.length && <output>{t.noParty} ({m[partyKind]})</output>}{party && <address><strong>{party.name}</strong><span>{m[party.kind]}</span>{party.phone && <span>{m.phone}: {party.phone}</span>}{party.address && <span>{party.address}</span>}{party.email && <span>{party.email}</span>}</address>}</div>

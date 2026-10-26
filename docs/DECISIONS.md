@@ -222,3 +222,14 @@ Use typed Postgres.js JSON parameters, never pre-serialized strings for JSON RPC
 Contact access is optional, browser-supported and explicitly user-invoked; retain
 manual numbers and dial links. Do not initiate a call automatically. This task does
 not authorize unrelated releases or cross-product database changes.
+
+
+### 26 October 2026 — Compact registers and shareable bill PDFs
+
+Owner requests compact party/item columns and icon edit/delete controls with the
+existing two confirmations. Keep bill design selection inside collapsed settings
+and retain only the non-sensitive design preference. PDFs must preserve the chosen
+bill layout and Bengali names, be prepared locally, and use an explicit native
+file-share chooser or a download fallback. No automatic WhatsApp sending, external
+PDF service, financial mutation, or forced app reload. Update readiness is a
+compact dismissible notice; unfinished bill safety remains unchanged.
