@@ -191,3 +191,17 @@ Owner approved combining installable PWA and static cache with the item release.
 Cache only build-owned shell assets; preserve central online authentication and
 financial gateway checks. No financial API caching or offline mutation queue.
 Never force-update/reload while a bill may be pending. See PWA.md for scope.
+
+## 2026-10-26 — Owner-authorized live masters and release
+
+Owner approves the reviewed isolated UI for server trial and explicitly authorizes
+assistant commit/main push and Khata database migration in this session. This is a
+session-specific exception to the default owner-Termux push rule; no PR/staging or
+cross-product data access is authorized. Party contact/credit/opening fields and
+optional item code/rate must persist in the authenticated company. Every exposed
+delete action requires two confirmations; cancellation at either prompt performs
+no mutation. Used/opening-balance masters cannot be destroyed through master delete;
+financial records retain their immutable audit/reversal model. Unused master deletion
+is persisted and audited. Exact bill lines and same-ID recovery prevent duplicate
+accounting after uncertain network responses. Final checks and server acceptance
+remain necessary; a successful isolated demo is not production certification.

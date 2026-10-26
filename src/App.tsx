@@ -1,3 +1,7 @@
+import { BookServicesContext, liveBookServices } from './books-services'
+import { DemoWorkspace } from './demo/DemoWorkspace'
+import './demo/design.css'
+import { BooksNavigation, type BooksPage } from './books-navigation'
 import { useEffect, useRef, useState } from 'react'
 import { languageOptions, readLanguage, saveLanguage, translations } from './i18n'
 import type { Language, TextKey } from './i18n'
@@ -37,6 +41,7 @@ function OrbitMark() {
 function App() {
   // No demo session, user, financial values, company or token is persisted.
   const account = useAccount()
+  const [booksPage,setBooksPage] = useState<BooksPage>('home')
   const [tutorial,setTutorial] = useState(readTutorial)
   const [view, setView] = useState<View>(() => authClient && account.session ? 'workspace' : 'welcome')
   const [language, setLanguage] = useState<Language>(readLanguage)
@@ -51,7 +56,7 @@ function App() {
   const guestEntered = useRef(false)
   const t = (key: TextKey) => translations[language][key]
 
-  const menu = () => <WorkspaceMenu language={language} signedIn={signedIn} tutorial={tutorial} onTutorial={enabled=>{setTutorial(enabled);saveTutorial(enabled)}} onProfile={()=>navigate('profile')} onLogout={()=>{void logout()}}/>
+  const menu = () => <WorkspaceMenu enhanced language={language} signedIn={signedIn} onBooks={page=>{setBooksPage(page);if(view!=='khata')navigate('khata')}} tutorial={tutorial} onTutorial={enabled=>{setTutorial(enabled);saveTutorial(enabled)}} onProfile={()=>navigate('profile')} onLogout={()=>{void logout()}}/>
 
   const renderBar = (backView: View, ariaKey: TextKey, pillKey: TextKey) => (
     <header className="bar"><button type="button" className="back" onClick={() => navigate(backView)} aria-label={t(ariaKey)}>←</button><span className="pill">{t(pillKey)}</span>{languagePicker(true)}{signedIn && menu()}</header>
@@ -126,12 +131,12 @@ function App() {
     )
   }
 
-  if (account.loading) return <main className="phone"><PwaStatus language={language}/><output>{accountCopy[language].network}</output></main>
-  if (account.unavailable) return <main className="phone"><PwaStatus language={language}/><p role="alert">{accountCopy[language].error}</p><button type="button" onClick={() => window.location.reload()}>{accountCopy[language].retry}</button></main>
+  if (account.loading) return <main className={`phone ${view==='khata'&&signedIn?'kh-app':''}`}><PwaStatus language={language}/><output>{accountCopy[language].network}</output></main>
+  if (account.unavailable) return <main className={`phone ${view==='khata'&&signedIn?'kh-app':''}`}><PwaStatus language={language}/><p role="alert">{accountCopy[language].error}</p><button type="button" onClick={() => window.location.reload()}>{accountCopy[language].retry}</button></main>
   if (account.recovery) return <main className="phone"><AccountForm key="recovery" language={language} recovery onRecovered={() => account.setRecovery(false)} /></main>
 
   return (
-    <TutorialContext.Provider value={tutorial}><main className="phone"><PwaStatus language={language}/>
+    <BooksNavigation.Provider value={{page:booksPage,open:setBooksPage}}><TutorialContext.Provider value={tutorial}><main className={`phone ${view==='khata'&&signedIn?'kh-app':''}`}><PwaStatus language={language}/>
       {logoutError && <p role="alert">{accountCopy[language].error}</p>}
       {view === 'welcome' && (
         <section className="scene welcome active" aria-label={t('h1a')}>
@@ -205,9 +210,9 @@ function App() {
 
       {view === 'khata'  && (signedIn || guestUiEnabled) && (
         <section className="scene light-scene active" aria-label={t('khata')}>
-          {renderBar('workspace', 'choose', 'khata')}
+          {signedIn?<header className="kh-app-header"><button className="kh-brand" type="button" onClick={()=>setBooksPage('home')}><span className="kh-logo">O</span><span><small>ORBIS</small><strong>{t('khata')}</strong></span></button><div className="kh-header-actions">{languagePicker(true)}{menu()}<button type="button" className="kh-profile-button" onClick={()=>navigate('workspace')} aria-label={t('choose')}>←</button></div></header>:renderBar('workspace', 'choose', 'khata')}
           {!signedIn && <div className="khata-title"><div className="bar"><span className="eyebrow l">{t('dashboard')}</span><span className="period">{t('month')}</span></div><h1>{t('khata')}</h1><p>{t('khataHead')}</p></div>}
-          <CompanyGate key={account.session?.user.id ?? 'guest'} userId={account.session?.user.id} language={language}>
+          <CompanyGate key={account.session?.user.id ?? 'guest'} userId={account.session?.user.id} language={language} workspace={<div className="kh-workspace"><BookServicesContext.Provider value={liveBookServices}><DemoWorkspace userId={account.session?.user.id} language={language}/></BookServicesContext.Provider></div>}>
           <div className="metrics">
             {(['moneyIn', 'moneyOut', 'receive', 'pay'] as const).map((key) => <div className="metric" key={key}><span className="metric-label">{t(key)}</span><strong>—</strong><small>{t('emptyValue')}</small></div>)}
           </div>
@@ -217,7 +222,7 @@ function App() {
           </CompanyGate>
         </section>
       )}
-    </main></TutorialContext.Provider>
+    </main></TutorialContext.Provider></BooksNavigation.Provider>
   )
 }
 

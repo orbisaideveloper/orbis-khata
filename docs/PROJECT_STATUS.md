@@ -1,3 +1,328 @@
+# 2026-10-26 — Live masters/billing release candidate verified
+
+Owner explicitly authorizes assistant commit/main push and Khata migration for
+server trial. Target main; verified parent 768fec21a3bd31f0b087438c2a7a0a6d54810567.
+Reviewed UI is connected to authenticated cloud masters and precise bill commands.
+Party phone/email/address, credit terms and dated due/advance persist; item name/unit
+are required, code/rate optional. Master edits refresh the current company only.
+All exposed delete controls require two confirmations. Unused masters are deleted
+and audited; opening balances or transaction history block destructive deletion.
+Uncertain bills retain their exact ID/payload and can retry only in their company.
+Central identity and immutable financial history remain unchanged.
+
+Verification: Ubuntu 24.04, fresh npm-ci lockfile dependencies, Chromium 153 launch.
+427 tests / 50 files PASS; additional live expense/recovery cases PASS (3 tests).
+Coverage: statements 91.43%, branches 88.17%, functions 91.23%, lines 97.53%; all
+existing thresholds pass without exclusions or threshold changes. Typecheck/lint,
+KNIP, JSCPD (0 clones / 0.00%), build/PWA worker and npm audit (0 vulnerabilities)
+PASS. Two existing KNIP configuration hints remain. Mobile/desktop browser Auth,
+profile, session restoration/revocation, cloud master persistence and both delete
+cancel points pass; PWA offline-shell checks pass after scoping the status assertion
+to the offline notice. Browser protocol mocks prove wiring, not real account entry.
+Physical printer and owner real-account acceptance remain pending.
+
+Production changed with authorization: migration
+20261026081216_khata_live_masters_precise_bills_v2 applied to Khata only
+(gqyaxsczlmvppxuoqbox); gateway orbis-khata-data ACTIVE version 5. HTTP 401 without
+login. Full transaction/rollback acceptance passed before and after migration,
+including contacts/openings/payments, precise 3 x 33.33333333 = 100.00, idempotency,
+expense line persistence and safe deletion. No fixtures retained. Counts preserved:
+2 companies, 5 parties, 4 vouchers; 2 default godowns. See release-20261026/
+PRODUCTION_ACTIVATION.md and the versioned SQL under supabase/migrations/.
+
+This candidate is ready for the single authorized main commit/push. Remote Actions/
+Sonar and Render web deployment are separate pending verification steps; they are
+not claimed by local tests or the completed database/API activation. Next: push
+with the expected-parent lease, inspect CI/Sonar, then owner/server trial.
+Prior isolated-demo checkpoints below remain historical evidence.
+
+## 2026-10-26 — Owner-requested A–Z demo trial and repairs
+Completed 12 sequential actual React-control/DOM entry steps and 7 financial/exception
+scenarios with fetch forbidden. Found and repaired new-company default warehouse,
+rejected inventory atomicity, reversed expense-payment allocation, backdated negative
+stock, dated stock reversal, expense-period reversal reporting, expense party ledger,
+and selected-company restoration on Accounts remount. Financial expected values and
+remaining production contracts are in docs/A_TO_Z_TRIAL_20261026.md.
+Full native suite: 393 tests / 41 files PASS; 19 new trials rerun PASS after final changes.
+Typecheck/lint/KNIP/build/PWA checks PASS; JSCPD 0 clones and 0.00% (two existing KNIP
+ignore hints remain). Browser installation failed with corrupted/truncated downloads;
+real mobile rendering, PDF and printer output remain unverified. Formal owner khata
+verify and production integration are pending; no coverage/Sonar/deploy claimed.
+Base remains 768fec21a3bd31f0b087438c2a7a0a6d54810567 in local copy. No Git or real
+account/database/central identity writes. Next: run KHATA-TRIAL-UPDATE.py to review the
+corrected isolated phone demo before production integration and final certification.
+
+## 2026-10-26 — Party choice and aligned bill-entry table
+Phone's uploaded full setup report confirms typecheck/lint and 43 tests PASS; existing
+isolated localhost was updated. Owner reports empty party choices and rejects card-like
+item rows. Source evidence: the list is filtered by bill role and the demo starts with
+no parties (refresh resets data). Phone UI/root cause was not directly observed.
+Made party choice a prominent company/role-scoped panel above bill number/date. Added
+inline full PartyMaster creation with bill-appropriate category locked; newly saved
+party is selected automatically and bill lines survive save/cancel. No wrong-role or
+other-company party can be silently chosen. Existing full contact/credit/opening fields
+are reused. Restored an actual visible-header, border-aligned item-entry table instead
+of CSS card rows, preserving Add/Remove and bidirectional exact pricing. Also handles
+an asynchronously arriving default warehouse instead of permanently keeping it empty.
+47 relevant tests across nine files PASS; typecheck/lint PASS. UI/phone visual acceptance
+remains pending; no native browser screenshot is claimed. No Git, production, real
+account/database or immutable Central ID change. Base remains 768fec21a3bd31f0b087438c2a7a0a6d54810567.
+Next: owner runs KHATA-PARTY-TABLE-FIX.py, reviews party selection, new party creation,
+line table and preview. Downloads report mechanics preserved from successful repair.
+
+## 2026-10-26 — Downloads reporting repair
+Owner received exit1 receipt but no diagnostic attachment; uploaded installer again.
+KHATA-DEMO-REPORT-FIX.py preserves the 49-file full UI payload and base guard.
+Adds full exception tracebacks, explicit Downloads save errors, one report filename,
+and a verified HTTP200 startup checkpoint so the same report is available while
+foreground localhost remains running. Final stop/error updates that same file.
+Mocked missing-repo failure and server-readiness/report timing tests PASS; Python
+syntax compile PASS. Prior phone failure cause remains unknown until full report.
+No phone, Git, production or real account mutation. Next: run new repair installer
+and upload ORBIS-KHATA-DEMO-PREVIEW-LATEST-REPORT.txt from Downloads.
+
+## 2026-10-26 — Full app front and three bill designs (isolated demo)
+Owner clarified full-app visual scope. Read Foundation public lottery app shell/theme
+and sample 70393.png; designed six editable mobile screens and three paper templates
+in Figma, and implemented the coherent green/light demo shell, dashboard, masters/
+ledger/expense/stock styling, mobile item-entry cards, design swatches, company bill
+contact text, draft/saved printing and repeatable pagination. See APP_DESIGN_REVIEW.md
+for exact Figma IDs, evidence, remaining production contracts and limitations.
+43 targeted tests across nine files PASS; typecheck/lint PASS; KNIP and build/PWA
+worker checks PASS (two pre-existing KNIP configuration hints). Phone browser and
+physical/PDF print layout remain owner acceptance; Figma final combined six-screen
+check was blocked by its Starter plan limit after dashboard/three-bill visual checks.
+Base remains 768fec21a3bd31f0b087438c2a7a0a6d54810567; no Git write, deployment or real
+account/data/schema changes. Next: owner runs ORBIS-KHATA-FULL-UI-DEMO-20261026.py,
+reviews localhost once, then requests any final production integration/certification.
+
+## 2026-10-26 — Compact Figma paper bill (demo only)
+- Editable Figma: https://www.figma.com/design/a2NMZQeGrn0V15ZUUymKhK (720 × 960 paper, Noto Serif Bengali, clear blue table).
+- Preview uses scaled paper sheets on mobile, repeated company/party headers, continuous item serials and final totals only once. Long item names use extra row space.
+- Add row control directly below the edit table (existing 50-line document limit); removal preserves other rows and bidirectional pricing.
+- Entry form stays normal touch size. No production DB, account, deploy, commit or push.
+- Phone visual acceptance and printer pagination still require owner review.
+
+# Sample memo layout and bidirectional pricing — 2026-10-26
+
+Owner supplied 70393.png and requires its bill structure with the selected company's
+name, quantity+rate→amount and quantity+amount→rate. Implemented a blue double-frame
+memo, centered dynamic company heading, party/contact/date/bill header, five-column
+line table, quantity totals grouped by unit, subtotal/BF/grand-total box and signature
+lines. Review fits all five columns; editing keeps touch-friendly scrollable cells.
+No sample business name/address, image or return policy is hardcoded.
+
+Added exact integer billing math with six-decimal quantities and eight-decimal
+unit prices. 3 units at total100 derives33.33333333 and posts exactly100. Rate/Amount
+last-input authority is retained on quantity edits; zero/empty/invalid division
+fails closed. Demo bill lines retain precise unit_rate in inventory/expense history.
+Existing production command validation still rejects this new field; no live write
+path was widened. Prior balance is captured on party/date selection, shown with
+advance sign, and not reposted as part of the invoice. Dynamic newly-created company
+name is covered by a full demo navigation regression.
+
+Verification: 35 targeted tests across six files PASS (see final output for count);
+typecheck, zero-warning lint, KNIP and production build/PWA validation PASS. KNIP
+retains two pre-existing unused-ignore hints. No native browser/mobile visual
+acceptance is claimed in this executor. Existing company/party/item data and
+Central identity, main, staging and production were unchanged. No Git write,
+cloud migration, deployment or real financial entry was made.
+Next: owner updates the same isolated localhost preview with
+ORBIS-KHATA-BILL-SAMPLE-DEMO-20261026.py, reviews the sample-matched bill and both
+input directions; production adapters and the owner-controlled final release
+remain pending. See MASTERS_BILLS_REVIEW.md.
+
+# Optional item fields, party opening balances and invoice review — 2026-10-25
+
+Owner's screenshots show required item code, duplicated code/name presentation
+and the old amount-only purchase form. Owner explicitly requests a coherent local
+review: only item name/unit required; optional editable code/rate; party phone,
+contact/credit terms and prior balances/advances; a full invoice table and header.
+Base remains main 768fec21a3bd31f0b087438c2a7a0a6d54810567.
+
+Implemented isolated-demo ItemMaster, PartyMaster, InvoicePage and DemoWorkspace.
+Name is displayed once; matching code is not echoed. Optional default rate fills
+bill lines but remains editable there. Party metadata includes phone/address/email,
+credit limit/days, and dated opening due/advance. Opening postings balance against
+opening equity and do not create new income/purchases/expense. Customer/supplier
+signs and prior expense payable settlement are tested. Used opening values/units
+cannot be overwritten silently. A dual-role party chooses which relationship its
+one opening amount belongs to; simultaneous independent balances need more fields.
+
+Sale/Purchase from demo Accounts routes directly to a full bill page. Header shows
+bill number/date and party/category/contact/address; table shows serial, item or
+expense description, quantity, unit, editable rate, amount and grand total. Review
+then explicit confirmation; expense lines persist separately and do not affect
+stock. Suggested S/P/E numbers are company-scoped and read without render effects.
+Demo request routing remains offline/in-memory; no real account session is used.
+
+Local verification: 64 related tests across nine files passed before final
+presentation assertions. Final 19 focused checks across five files, typecheck,
+zero-warning lint, production build/PWA worker validation PASS. KNIP PASS with
+two pre-existing unused-ignore configuration hints. Native browser/mobile layout
+acceptance remains owner-verified; no Chromium executable is installed here.
+Production contracts are intentionally not activated. Existing production UI still
+uses the previous contracts; reviewed demo UI must be wired to the new production
+contracts after owner acceptance. See MASTERS_BILLS_REVIEW.md for exact semantics
+and remaining release integration. No assistant Git writes, staging, deployment,
+production financial/schema writes or Central identity changes were performed.
+Next: run ORBIS-KHATA-MASTERS-BILL-DEMO-20261025.py and review all three areas in
+one local preview; then finish production adapters and the one owner-controlled
+release workflow. Do not claim live/phone acceptance before evidence.
+
+# Phone demo preview timeout repair — 2026-10-25
+
+Owner uploaded ORBIS-KHATA-DEMO-PREVIEW-LATEST-REPORT.txt, run 23:33:31–
+23:34:14 IST. Typecheck/lint and both demo store tests passed. Two combined
+DemoApp UI tests reached their unchanged 5000ms per-test timeout on Termux;
+the installer stopped before activating or starting the new demo. Source main,
+production, financial rows and Central ID were not changed by that failed run.
+Command receipts are execution receipts, not certification evidence.
+
+Replaced the combined UI tour with six focused tests for contact creation,
+contact rename, simple item creation, item rename, ledger item search and
+beyond-first-page expense details. Ledger-only tests mount LedgerExplorer instead
+of the full accounting workspace. No timeout increase, test skip or threshold
+reduction. Installer now runs one jsdom worker instead of two. These are source
+and test efficiency changes; actual phone success remains unverified until rerun.
+
+Expense UI/report loads only when opened or when an expense needs recovery.
+Added expense-pending.ts and initializes the expense lock from its validated
+recovery record so the optimization cannot bypass pending confirmation/company
+locking. Added a recovery regression test. Updated the invalid-amount test to
+verify unrelated expense reports no longer run in the background. Item edit
+assertion waits for the exact item row, avoiding duplicate hidden stock text.
+
+Local verification: 53 targeted tests across six files, typecheck and lint PASS.
+Phone verification remains pending.
+
+Next: owner runs ORBIS-KHATA-DEMO-PREVIEW-FIX-20261025.py, then checks the Demo
+banner at localhost. No new Git commit/push/deployment/database write was made.
+The original main-only owner-controlled release workflow is unchanged.
+
+# Isolated editable demo and unified Ledger — 2026-10-25
+
+Owner clarified local review must allow creation/editing without any real account
+or database association, while keeping localhost available before one final push.
+Previous preview used live trial endpoints; it must be replaced with this demo.
+Base source remains main 768fec21a3bd31f0b087438c2a7a0a6d54810567.
+
+Implemented a development-only demo entry and in-memory data adapter. Demo starts
+without Auth, uses a visibly marked demo company, supports companies, Customer/
+Supplier/Expense contacts, simple item masters, name/code edits, guarded unit edits,
+itemized purchase/sale at editable bill rates, godowns/opening/transfer, vouchers,
+expenses and linked payments. Refresh/reset clears demo state; only demo recovery
+keys are cleared, never real session or pending records. The transport branches to
+the local adapter before token lookup or fetch. Production builds exclude the demo
+owner and simulator. It is a UI simulator, not production SQL certification.
+
+Added Ledger menu and unified search for parties, expense contacts/categories and
+item codes/names. Selected details show scoped party entries/balances, expense
+entries/due, or item stock/movements/bill rates. Pages are collected beyond the
+first 50 records, with loading/error state rather than a silently partial result.
+Item master screen has Name, Code and Unit only; no date/reference/note/barcode.
+A default rate is deliberately omitted; bill line rates remain editable. Billing
+and stock tools moved behind Ledger → Bills & godown stock. Demo party-name and
+item edits do not add production edit APIs or mutate posted production masters.
+
+Verification: simulator purchase10/sale2 gives8; changed sale rate85 gives170 for2;
+expense100/payment40 gives60 due; duplicate retry does not duplicate stock;
+oversell rejected; used unit edits blocked; reset clears data; fetch spy sees zero
+network requests. UI test creates/edits contacts and items and searches Ledger.
+82 targeted tests across ten files PASS, followed by both demo UI tests including
+ledger search beyond the first 50 entries. Typecheck, lint and KNIP PASS
+(KNIP reports two pre-existing unused-ignore hints). Production build/PWA worker
+validation PASS with the demo environment flag explicitly enabled; no demo owner
+or simulator sentinel in production JavaScript. Native browser executable is absent
+in this executor, so no actual Chromium/mobile layout acceptance is claimed.
+Phone owner review remains required. Full release certification/Sonar are pending.
+
+Changed main/EntryApp, local demo adapter/app/tests, API demo routing, navigation/
+menu, LedgerExplorer, Accounting/Inventory and CSS. Existing expense-party schema
+review stays unapplied; production schema/gateway activation remains a later
+release step. No assistant commit/push, staging, Render deployment, production DB
+write or Central identity change occurred. Installer updates only a verified local
+preview copy or starts a new isolated preview; original ~/orbis-khata is unchanged.
+Next: run new demo installer, confirm Demo banner at localhost, owner review, then
+combine final source changes and run the owner-controlled release workflow once.
+
+# Simple party/item navigation preview — 2026-10-25
+
+Owner requests a local review before one final source release. Base main is
+768fec21a3bd31f0b087438c2a7a0a6d54810567. Local source now provides Parties,
+Items, Expenses and Accounts in the workspace three-dot menu. Books shows one
+section at a time; inventory separates item list, godown stock and bill history.
+Party selection opens its ledger; Expense contacts open expense entry and appear
+in its payee suggestions. Expense is a distinct party kind, never a supplier alias.
+
+Read-only production evidence: the previously empty company has two new parties;
+khata_items has zero rows across companies. The reported missing item has not
+been durably saved. The two-stage item review/confirmation is covered by a new
+regression test, including zero-stock master visibility. No item was fabricated.
+
+Changed App/menu/navigation, Accounting/Expenses/Inventory UI, party model and
+gateway validation, translations, CSS and targeted tests. Prepared review-only
+expense-party.review.sql extends party kind and rejects trade vouchers for expense
+contacts. It has NOT been applied or SQL integration tested. Matching gateway and
+schema activation must precede live Expense-contact creation. Existing Customer/
+Supplier and item operations use their unchanged current backend contracts.
+
+PASS: 78 targeted tests across eight files, then all 24 Accounting tests including
+a new preview-write guard; typecheck; lint. The isolated preview explicitly blocks
+Expense-contact creation until its matching backend release. No full certification,
+Sonar analysis or real phone/browser acceptance is claimed for this preview.
+A foreground Vite server started in this executor on 127.0.0.1:5173. That address
+is local to this executor, not the owner's phone. The supplied phone preview script
+copies the owner checkout into a separate cache folder and applies this scoped UI
+there, leaving main and working source unchanged. It runs visible checks, starts
+foreground Vite and writes one final Downloads report after exit. It performs no
+Git writes, cloud deployment or automatic financial writes. Production, Admin,
+Central ID and staging remain unchanged during this UI work. Owner acceptance is
+next; final commit/push and expense-party schema/gateway activation remain pending.
+
+# Production expense and inventory activation — 2026-10-25
+
+Owner authorized completing remaining activation to begin acceptance testing.
+Authoritative main source: 768fec21a3bd31f0b087438c2a7a0a6d54810567;
+GitHub Actions run 40212796558 and strict Sonar gate passed. Owner's Render
+frontend deploy dep-dbf3740m7kps73fjo0kg is LIVE at that commit. No assistant
+Git write, frontend deployment, staging or Admin/Foundation change was made.
+
+Khata project gqyaxsczlmvppxuoqbox production changes completed:
+- Migration 20261025165602 activate_expense_subledger_v1.
+- Migration 20261025165618 activate_itemized_bills_inventory_v1.
+- orbis-khata-data Edge version 4 ACTIVE. All four deployed source files
+  exactly match the authoritative commit. Existing secrets were preserved.
+
+PASS: twelve real database integration checks in a transaction, rolled back:
+purchase total; exact same-ID retry; sale decrement; godown transfer quantity
+conservation; oversell rejection; reversal stock restoration; expense retry;
+partial payment and payable; balanced journal; direct write denial; other-owner
+isolation; unmarked JWT read denial. Purchase 10, sale 2 yielded 8; expense
+100 with bank settlement 40 yielded payable 60. No test financial rows remain.
+All six new public tables have forced RLS. Central-to-legacy owner mapping
+was separately verified preserved. Two existing companies, three parties and
+four vouchers retain identical before/after row fingerprints:
+companies 527259c9a8c6dab8cc1fe684eb778fc8;
+parties ad7f057510d1d46004f61c1ac7012019;
+vouchers 404cb63102065f734ad10cdbfb47a987.
+
+HTTP: manifest and worker 200; Edge preflight 204; no-session request 401
+KHATA_LOGIN_REQUIRED. Manifest JSON is valid but observed Content-Type is
+binary/octet-stream; native phone installation remains unverified. No actual
+owner-session end-to-end or login latency claim is made. Existing advisor
+notes remain: private deny-all RLS tables, guarded SECURITY DEFINER RPCs and
+project Auth password-protection setting. No guard was weakened to hide a lint.
+
+Remaining acceptance: close old app windows/reopen, owner login, item and
+warehouse creation, itemized purchase/sale, expense partial payment, menu and
+tutorial toggle; verify PWA installation on phone. Legacy amount-only vouchers
+do not imply stock quantities. GST, unit conversion, stock valuation/COGS,
+complete inventory P&L and offline financial sync remain separate scope.
+No new Termux installer, source commit or push is needed for this activation.
+Only this local checkpoint document was edited after activation; it has not
+been pushed to the owner's repository. Next action is owner app acceptance.
+
 # Inventory retry storage hardening — 2026-10-25
 
 Main 9f3900ad5bd298c92761deb0b8b2cf61551ebcc9 pushed successfully after

@@ -1,0 +1,4 @@
+import type { Language } from '../i18n'
+import { designCopy } from './design-copy'
+export type BillTemplate='sample'|'classic'|'modern'
+export function BillDesign({language,value,onChange}:Readonly<{language:Language;value:BillTemplate;onChange:(value:BillTemplate)=>void}>){const t=designCopy[language];return <fieldset className="bill-design-picker"><legend>{t.design}</legend><div>{(['sample','classic','modern'] as const).map(template=><label key={template} className={'bill-design-option '+template} data-selected={value===template}><input type="radio" name="bill-design" value={template} checked={value===template} onChange={()=>onChange(template)}/><span className="bill-mini-paper" aria-hidden="true"><i/><b/><em/><em/><em/><small/></span><span>{t[template]}</span></label>)}</div></fieldset>}

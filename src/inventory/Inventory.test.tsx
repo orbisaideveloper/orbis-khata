@@ -9,9 +9,9 @@ const company='11111111-1111-4111-8111-111111111111',item='22222222-2222-4222-82
 const report:InventoryReport={items:[{id:item,code:'M1',name:'Milk',unit:'litre'}],warehouses:[{id:warehouse,code:'G1',name:'Shop'}],stocks:[{item,warehouse,opening:'10000000',incoming:'0',outgoing:'1250000',closing:'8750000'}],documents:[],count:0}
 const lock=vi.fn(),changed=vi.fn()
 function mount(){return render(<Inventory userId="owner" company={company} companyName="My Shop" language="en" from="2026-10-01" to="2026-10-25" version={0} parties={[{id:party,name:'Party',kind:'both',receivable:'0',payable:'0'}]} onLock={lock} onChanged={changed} blocked={false}/>)}
-beforeEach(()=>{vi.resetAllMocks();sessionStorage.clear();api.inventoryReport.mockResolvedValue(report);api.postInventory.mockResolvedValue(undefined)})
+beforeEach(()=>{vi.resetAllMocks();vi.spyOn(window,'confirm').mockReturnValue(true);sessionStorage.clear();api.inventoryReport.mockResolvedValue(report);api.postInventory.mockResolvedValue(undefined)})
 afterEach(()=>{cleanup();vi.restoreAllMocks()})
-async function purchase(){mount();fireEvent.click(await screen.findByRole('button',{name:'Purchase bill'}));const form=screen.getByRole('heading',{name:'Purchase bill'}).closest('form')!;const f=within(form);fireEvent.change(f.getByLabelText('Party'),{target:{value:party}});fireEvent.change(f.getByLabelText('Item list'),{target:{value:item}});fireEvent.change(f.getByLabelText('Godown'),{target:{value:warehouse}});fireEvent.change(f.getByLabelText('Quantity'),{target:{value:'1.25'}});fireEvent.change(f.getByLabelText('Rate (INR / unit)'),{target:{value:'123.45'}});fireEvent.submit(form)}
+async function purchase(){mount();fireEvent.click(await screen.findByRole('button',{name:'Bills & stock history'}));fireEvent.click(await screen.findByRole('button',{name:'Purchase bill'}));const form=screen.getByRole('heading',{name:'Purchase bill'}).closest('form')!;const f=within(form);fireEvent.change(f.getByLabelText('Party'),{target:{value:party}});fireEvent.change(f.getByLabelText('Item list'),{target:{value:item}});fireEvent.change(f.getByLabelText('Godown'),{target:{value:warehouse}});fireEvent.change(f.getByLabelText('Quantity'),{target:{value:'1.25'}});fireEvent.change(f.getByLabelText('Rate (INR / unit)'),{target:{value:'123.45'}});fireEvent.submit(form)}
 it('shows real unit quantities and sends one exact itemized bill only after confirmation',async()=>{
  await purchase();expect(api.postInventory).not.toHaveBeenCalled();expect(screen.getByText('Total: ₹154.31')).toBeInTheDocument()
  fireEvent.click(screen.getByRole('button',{name:'Confirm & save'}));await screen.findByText('Saved successfully.')
@@ -42,7 +42,7 @@ it('creates a custom-unit master after review and cancellation sends nothing',as
 it('transfers reviewed quantities between godowns and lets the user remove extra lines',async()=>{
  const destination='55555555-5555-4555-8555-555555555555'
  api.inventoryReport.mockResolvedValue({...report,warehouses:[...report.warehouses,{id:destination,code:'G2',name:'Depot'}]})
- mount();fireEvent.click(await screen.findByRole('button',{name:'Godown transfer'}))
+ mount();fireEvent.click(await screen.findByRole('button',{name:'Stock'}));fireEvent.click(await screen.findByRole('button',{name:'Godown transfer'}))
  fireEvent.click(screen.getByRole('button',{name:'Add item line'}))
  expect(screen.getAllByRole('group')).toHaveLength(2)
  fireEvent.click(screen.getAllByRole('button',{name:'Remove'})[1])
@@ -62,11 +62,12 @@ it('filters actual stock, paginates history and previews and prints the selected
  const doc={id:'66666666-6666-4666-8666-666666666666',company,kind:'sale' as const,date:'2026-10-20',code:'',name:'',unit:'',party,reference:'SALE-001',note:'Paid',lines:[{item,warehouse,to:null,quantity:'1250000',rate:'12345'}],total:'15431',reversed:true,party_name:'Party'}
  api.inventoryReport.mockResolvedValue({...report,documents:[doc],count:51})
  const print=vi.spyOn(window,'print').mockImplementation(()=>{})
- mount();await screen.findByRole('button',{name:'View bill'})
+ mount();await screen.findByText('M1')
  fireEvent.change(screen.getByLabelText('Find item by code or name'),{target:{value:'missing'}})
  expect(screen.queryByText('M1')).toBeNull()
  fireEvent.change(screen.getByLabelText('Find item by code or name'),{target:{value:'milk'}})
  expect(screen.getByText('M1')).toBeInTheDocument()
+ fireEvent.click(screen.getByRole('button',{name:'Bills & stock history'}))
  fireEvent.click(screen.getByRole('button',{name:'View bill'}))
  const preview=screen.getByRole('region',{name:'Itemized bill'})
  expect(within(preview).getByText('Party')).toBeInTheDocument()
@@ -79,6 +80,7 @@ it('filters actual stock, paginates history and previews and prints the selected
 it('retries a failed report and cancels the edit form without posting',async()=>{
  api.inventoryReport.mockRejectedValueOnce(new Error('network')).mockResolvedValue(report)
  mount();fireEvent.click(await screen.findByRole('button',{name:'Retry same entry'}))
+ fireEvent.click(screen.getByRole('button',{name:'Stock'}))
  fireEvent.click(await screen.findByRole('button',{name:'New godown'}))
  fireEvent.click(screen.getByRole('button',{name:'Cancel'}))
  expect(screen.queryByLabelText('Code')).toBeNull();expect(api.postInventory).not.toHaveBeenCalled()
@@ -91,4 +93,17 @@ it('clears a definite rejection and allows a corrected draft without silently re
  expect(screen.queryByRole('button',{name:'Retry same entry'})).toBeNull()
  expect(screen.getByRole('button',{name:'Purchase bill'})).toBeEnabled()
  expect(api.postInventory).toHaveBeenCalledOnce()
+})
+it('keeps a zero-stock item visible and saves its master only after explicit confirmation',async()=>{
+ api.inventoryReport.mockResolvedValue({...report,stocks:[]})
+ mount();await screen.findByText('M1')
+ expect(screen.queryByRole('button',{name:'Purchase bill'})).toBeNull()
+ fireEvent.click(screen.getByRole('button',{name:'New item'}))
+ fireEvent.change(screen.getByLabelText('Code'),{target:{value:'OIL'}})
+ fireEvent.change(screen.getByLabelText('Name'),{target:{value:'Oil'}})
+ fireEvent.change(screen.getByLabelText('Unit'),{target:{value:'litre'}})
+ fireEvent.submit(screen.getByLabelText('Code').closest('form')!)
+ expect(api.postInventory).not.toHaveBeenCalled()
+ fireEvent.click(screen.getByRole('button',{name:'Confirm & save'}))
+ await waitFor(()=>expect(api.postInventory).toHaveBeenCalledWith(expect.objectContaining({kind:'item',code:'OIL',name:'Oil',unit:'litre'})))
 })

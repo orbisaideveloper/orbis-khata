@@ -1,0 +1,61 @@
+import { cleanup, fireEvent, render, screen, within } from '@testing-library/react'
+import { afterEach, beforeEach, expect, it, vi } from 'vitest'
+import DemoApp from './DemoApp'
+import { demoRequest, resetDemo } from './store'
+import { LedgerExplorer } from '../accounting/LedgerExplorer'
+const company='11111111-1111-4111-8111-111111111111'
+beforeEach(()=>{resetDemo();vi.stubEnv('DEV',true);vi.stubEnv('VITE_KHATA_DEMO','true');vi.stubEnv('VITE_KHATA_PREVIEW','true');vi.spyOn(globalThis,'fetch').mockRejectedValue(new Error('Network forbidden'));vi.spyOn(window,'scrollTo').mockImplementation(()=>{})})
+afterEach(()=>{cleanup();vi.unstubAllEnvs();vi.restoreAllMocks()})
+it('opens an invoice page directly from Purchase without an amount-only form or network',async()=>{
+ render(<DemoApp/>);fireEvent.change(screen.getByLabelText('ভাষা'),{target:{value:'en'}})
+ fireEvent.click(await screen.findByRole('button',{name:'Purchase'}))
+ expect(await screen.findByRole('region',{name:'Purchase invoice'})).toBeInTheDocument()
+ expect(screen.getByRole('table')).toBeInTheDocument();expect(screen.queryByLabelText('Amount (INR)')).toBeNull();expect(globalThis.fetch).not.toHaveBeenCalled()
+})
+it('opens the simplified item master from navigation without network',async()=>{
+ render(<DemoApp/>);fireEvent.change(screen.getByLabelText('ভাষা'),{target:{value:'en'}})
+ fireEvent.click(screen.getByRole('button',{name:'Accounts & payments'}))
+ await screen.findByRole('button',{name:'Receive money'})
+ fireEvent.click(within(screen.getByRole('navigation',{name:'Accounts'})).getByRole('button',{name:'Items'}))
+ fireEvent.click(await screen.findByRole('button',{name:/Add item/}))
+ expect(screen.getByLabelText('Name')).toBeRequired();expect(screen.getByLabelText('Unit')).toBeRequired();expect(screen.getByLabelText('Code (optional)')).not.toBeRequired();expect(screen.getByLabelText('Rate (optional)')).not.toBeRequired();expect(globalThis.fetch).not.toHaveBeenCalled()
+})
+it('finds expense ledger details beyond the first page',async()=>{
+ for(let index=0;index<51;index++)await demoRequest('expense-post',{id:crypto.randomUUID(),company,date:'2026-10-25',kind:'charge',amount:'10000',category:'Power '+index,payee:'Demo payee',method:null,parent:null,reference:'',note:index===50?'AFTER_FIRST_PAGE':''})
+ render(<LedgerExplorer company={company} language="en" from="2026-10-01" to="2026-10-25" version={0} parties={[]}/>)
+ fireEvent.change(await screen.findByLabelText('Search by name or item code'),{target:{value:'Power 50'}})
+ fireEvent.click(screen.getByRole('button',{name:'Power 50 Expense'}))
+ expect(screen.getByText('AFTER_FIRST_PAGE')).toBeInTheDocument();expect(globalThis.fetch).not.toHaveBeenCalled()
+})
+
+it('prints the company created by the user in the invoice heading',async()=>{
+ render(<DemoApp/>);fireEvent.change(screen.getByLabelText('ভাষা'),{target:{value:'en'}})
+ fireEvent.click(screen.getByRole('button',{name:'Accounts & payments'}))
+ fireEvent.click(await screen.findByRole('button',{name:/New company/}))
+ fireEvent.change(screen.getByLabelText('Company name'),{target:{value:'Ajay Trading'}})
+ fireEvent.click(screen.getByRole('button',{name:'Create'}))
+ await screen.findByText('ORBIS / Ajay Trading')
+ fireEvent.click(await screen.findByRole('button',{name:'Purchase'}))
+ expect(await screen.findByRole('heading',{level:1,name:'Ajay Trading'})).toBeInTheDocument()
+ expect(globalThis.fetch).not.toHaveBeenCalled()
+})
+it('opens the redesigned dashboard with real demo totals and working business shortcuts',async()=>{
+ render(<DemoApp/>);fireEvent.change(screen.getByLabelText('ভাষা'),{target:{value:'en'}})
+ expect(await screen.findByRole('heading',{name:'At a glance'})).toBeInTheDocument()
+ expect(screen.getByText('No entries yet')).toBeInTheDocument()
+ expect(screen.getAllByText('₹0.00')).toHaveLength(4)
+ fireEvent.click(within(screen.getByRole('navigation',{name:'Main navigation'})).getByRole('button',{name:'Parties'}))
+ expect(await screen.findByRole('button',{name:/Add party/})).toBeInTheDocument()
+ expect(globalThis.fetch).not.toHaveBeenCalled()
+})
+it('opens the demo profile, toggles help and requires both reset confirmations',async()=>{
+ const confirm=vi.spyOn(window,'confirm').mockReturnValue(true)
+ render(<DemoApp/>);fireEvent.change(screen.getByLabelText('ভাষা'),{target:{value:'en'}})
+ fireEvent.click(screen.getByLabelText('More options'));fireEvent.click(screen.getByRole('button',{name:'Account & profile'}));expect(screen.getByRole('heading',{name:'Account & profile'})).toBeInTheDocument()
+ const checks=screen.getAllByRole('checkbox');fireEvent.click(checks[0]);fireEvent.click(checks[checks.length-1])
+ fireEvent.click(screen.getByRole('button',{name:'Reset demo'}));expect(confirm).toHaveBeenCalledTimes(2);await screen.findByRole('heading',{name:'ডেমো দোকান'})
+})
+it('keeps the current draft when leaving bills is cancelled, then returns home when accepted',async()=>{
+ const confirm=vi.spyOn(window,'confirm').mockReturnValue(false)
+ render(<DemoApp/>);fireEvent.change(screen.getByLabelText('ভাষা'),{target:{value:'en'}});fireEvent.click(await screen.findByRole('button',{name:'Purchase'}));await screen.findByRole('region',{name:'Purchase invoice'});fireEvent.click(screen.getAllByRole('button',{name:'Home'})[0]);expect(screen.getByRole('region',{name:'Purchase invoice'})).toBeInTheDocument();confirm.mockReturnValue(true);fireEvent.click(screen.getAllByRole('button',{name:'Home'})[0]);await screen.findByRole('heading',{name:'ডেমো দোকান'});expect(confirm).toHaveBeenCalledTimes(2)
+})

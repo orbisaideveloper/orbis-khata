@@ -1,4 +1,4 @@
-import { act, cleanup, render, screen } from '@testing-library/react'
+import { act, cleanup, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, expect, it, vi } from 'vitest'
 import { Accounting } from '../accounting/Accounting'
 import { inventoryPendingKey } from './pending'
@@ -22,4 +22,15 @@ it('reopens the actual company and item panel for an uncertain bill after reload
  expect(screen.getByLabelText('Company')).toHaveValue(other)
  expect(screen.getByLabelText('Company')).toBeDisabled()
  expect(mocks.inventoryReport.mock.calls[0][0]).toBe(other)
+})
+it('keeps a pending expense visible and locks the company even when its page was not selected',async()=>{
+ const company='11111111-1111-4111-8111-111111111111'
+ mocks.companies.mockResolvedValue([{id:company,name:'Pending expense company'}])
+ mocks.report.mockResolvedValue({balances:{},ledger_balances:{},parties:[],entries:[],count:0})
+ mocks.expenseReport.mockResolvedValue({balances:{},categories:[],bills:[],entries:[],count:0})
+ sessionStorage.setItem(`khata-expense-pending-v1:owner:${company}`,JSON.stringify({id:crypto.randomUUID(),company,date:'2026-10-25',kind:'charge',amount:'10000',category:'Electricity',payee:'Power',method:null,parent:null,reference:'',note:''}))
+ render(<Accounting userId="owner" language="en"/>)
+ await screen.findByRole('button',{name:'Retry'})
+ expect(screen.getByLabelText('Company')).toBeDisabled()
+ await waitFor(()=>expect(mocks.expenseReport).toHaveBeenCalledOnce())
 })

@@ -3,6 +3,7 @@ export type ExpenseCommand = {
   category: string; payee: string; method: 'cash' | 'bank' | null; parent: string | null; reference: string; note: string
 }
 export type ExpenseEntry = Omit<ExpenseCommand, 'company' | 'parent' | 'date'> & {
+  bill_lines?: {description:string;quantity:string;unit:string;rate:string;unit_rate?:string}[];
   effective_date: string; parent_id: string | null; reverses_id: string | null; reversed: boolean
 }
 export type ExpenseBill = { id: string; effective_date: string; category: string; payee: string; amount: string; due: string }

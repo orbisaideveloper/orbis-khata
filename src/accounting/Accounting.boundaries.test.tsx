@@ -85,6 +85,7 @@ it('handles absent form fields without making up a record name or party kind', a
   await waitFor(() => expect(api.createRecord).toHaveBeenCalledOnce())
   expect(api.createRecord.mock.calls[0][1].name).toBe('')
   await screen.findByText('ORBIS / Created')
+  fireEvent.click(await screen.findByRole('button', { name: 'Parties' }))
   fireEvent.click(await screen.findByRole('button', { name: /Add party/ }))
   form = screen.getByLabelText('Party name').closest('form')!
   screen.getByLabelText('Party name').remove(); screen.getByLabelText('Type').remove(); fireEvent.submit(form)

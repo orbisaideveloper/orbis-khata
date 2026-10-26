@@ -2,11 +2,11 @@ import type { Language } from '../i18n'
 const en = {
   company: 'Company', newCompany: 'New company', companyName: 'Company name', create: 'Create',
   title: 'Your business, in balance.', subtitle: 'Live books · INR · India time',
-  expenses: 'Expenses', expense_payable: 'Unpaid expenses',
+  expenses: 'Expenses', opening_equity:'Opening balance equity', expense_payable: 'Unpaid expenses',
   cash: 'Cash', bank: 'Bank / UPI', receivable: 'Customer dues', payable: 'Supplier dues', sales: 'Sales', purchases: 'Purchases',
   advanceCustomer: 'Customer advances', advanceSupplier: 'Supplier advances', closing: 'Closing balance', period: 'Selected period',
   sale: 'Sale', purchase: 'Purchase', receipt: 'Receive money', payment: 'Pay money', reversal: 'Reversal',
-  parties: 'Customers & suppliers', newParty: 'Add party', partyName: 'Party name', customer: 'Customer', supplier: 'Supplier', both: 'Both',
+  parties: 'Customers & suppliers', newParty: 'Add party', partyName: 'Party name', customer: 'Customer', supplier: 'Supplier', both: 'Both', expense: 'Expense',
   kind: 'Type', party: 'Party', all: 'All parties', amount: 'Amount (INR)', date: 'Date', method: 'Paid into / from',
   reference: 'Bill / reference', note: 'Note / reversal reason', review: 'Review entry', confirm: 'Confirm & save', edit: 'Edit', cancel: 'Cancel',
   reviewHint: 'Check company, party and amount. Posted entries cannot be edited; mistakes are corrected with a reversal.',
@@ -25,13 +25,13 @@ const en = {
 }
 type Copy = typeof en
 const bn: Copy = {
-  expenses: 'খরচ', expense_payable: 'বাকি খরচ',
+  expenses: 'খরচ', opening_equity:'শুরুর ব্যালেন্সের বিপরীত খাতা', expense_payable: 'বাকি খরচ',
   company: 'কোম্পানি', newCompany: 'নতুন কোম্পানি', companyName: 'কোম্পানির নাম', create: 'তৈরি করুন',
   title: 'আপনার ব্যবসা, পরিষ্কার হিসাব।', subtitle: 'বাস্তব হিসাব · INR · ভারতীয় সময়',
   cash: 'ক্যাশ', bank: 'ব্যাংক / UPI', receivable: 'কাস্টমারের কাছে পাওনা', payable: 'সাপ্লায়ারকে দেনা', sales: 'বিক্রি', purchases: 'কেনা',
   advanceCustomer: 'কাস্টমারের অগ্রিম', advanceSupplier: 'সাপ্লায়ারকে অগ্রিম', closing: 'শেষ তারিখের ব্যালেন্স', period: 'নির্বাচিত সময়ের হিসাব',
   sale: 'বিক্রি', purchase: 'কেনা', receipt: 'টাকা গ্রহণ', payment: 'পেমেন্ট', reversal: 'উল্টো এন্ট্রি',
-  parties: 'কাস্টমার ও সাপ্লায়ার', newParty: 'নতুন পার্টি', partyName: 'পার্টির নাম', customer: 'কাস্টমার', supplier: 'সাপ্লায়ার', both: 'দুই ধরনের',
+  parties: 'কাস্টমার ও সাপ্লায়ার', newParty: 'নতুন পার্টি', partyName: 'পার্টির নাম', customer: 'কাস্টমার', supplier: 'সাপ্লায়ার', both: 'দুই ধরনের', expense: 'খরচ',
   kind: 'ধরন', party: 'পার্টি', all: 'সব পার্টি', amount: 'টাকার পরিমাণ (INR)', date: 'তারিখ', method: 'টাকা জমা / দেওয়ার মাধ্যম',
   reference: 'বিল / রেফারেন্স', note: 'নোট / উল্টো এন্ট্রির কারণ', review: 'এন্ট্রি যাচাই করুন', confirm: 'নিশ্চিত করে সেভ', edit: 'সংশোধন', cancel: 'বাতিল',
   reviewHint: 'কোম্পানি, পার্টি ও টাকা মিলিয়ে নিন। সেভ করা এন্ট্রি বদলানো যাবে না; ভুল হলে উল্টো এন্ট্রি করতে হবে।',
@@ -50,11 +50,11 @@ const bn: Copy = {
 }
 const hi: Copy = {
   ...en,
-  expenses: 'खर्च', expense_payable: 'बकाया खर्च',
+  expenses: 'खर्च', opening_equity:'शुरुआती बैलेंस का समायोजन', expense_payable: 'बकाया खर्च',
   company: 'कंपनी', newCompany: 'नई कंपनी', companyName: 'कंपनी का नाम', create: 'बनाएँ', title: 'आपका व्यवसाय, साफ़ हिसाब।', subtitle: 'वास्तविक हिसाब · INR · भारतीय समय',
   cash: 'नकद', bank: 'बैंक / UPI', receivable: 'ग्राहक से लेना', payable: 'सप्लायर को देना', sales: 'बिक्री', purchases: 'खरीद',
   advanceCustomer: 'ग्राहक का अग्रिम', advanceSupplier: 'सप्लायर को अग्रिम', closing: 'अंतिम शेष', period: 'चुनी हुई अवधि',
-  sale: 'बिक्री', purchase: 'खरीद', receipt: 'पैसे लें', payment: 'भुगतान', reversal: 'उल्टी प्रविष्टि', parties: 'ग्राहक व सप्लायर', newParty: 'पार्टी जोड़ें', partyName: 'पार्टी का नाम', customer: 'ग्राहक', supplier: 'सप्लायर', both: 'दोनों',
+  sale: 'बिक्री', purchase: 'खरीद', receipt: 'पैसे लें', payment: 'भुगतान', reversal: 'उल्टी प्रविष्टि', parties: 'ग्राहक व सप्लायर', newParty: 'पार्टी जोड़ें', partyName: 'पार्टी का नाम', customer: 'ग्राहक', supplier: 'सप्लायर', both: 'दोनों', expense: 'खर्च',
   kind: 'प्रकार', party: 'पार्टी', all: 'सभी पार्टियाँ', amount: 'राशि (INR)', date: 'तारीख', method: 'नकद या बैंक', reference: 'बिल / संदर्भ', note: 'नोट / उल्टी प्रविष्टि का कारण', review: 'जाँचें', confirm: 'पुष्टि और सेव', edit: 'बदलें', cancel: 'रद्द करें',
   reviewHint: 'कंपनी, पार्टी और राशि जाँचें। सेव की हुई प्रविष्टि बदली नहीं जाएगी; सुधार के लिए उल्टी प्रविष्टि करें।', invoiceHint: 'बिक्री और खरीद बिल हैं, नकद नहीं। हर भुगतान अलग दर्ज करें।',
   loading: 'हिसाब लोड हो रहा है…', error: 'हिसाब लोड नहीं हुआ। कनेक्शन जाँचकर फिर कोशिश करें।', retry: 'फिर कोशिश करें', saved: 'सेव हो गया।', pending: 'सेव की पुष्टि नहीं हुई। इसी प्रविष्टि को फिर भेजें; नई न बनाएँ। दोहरी पोस्टिंग नहीं होगी।',

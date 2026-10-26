@@ -1,10 +1,11 @@
+import { amountFromRate } from '../billing/amounts.ts'
 export type InventoryKind = 'item' | 'warehouse' | 'purchase' | 'sale' | 'opening' | 'transfer'
-export type StockLine = { item: string; warehouse: string; to: string | null; quantity: string; rate: string }
+export type StockLine = { item: string; warehouse: string; to: string | null; quantity: string; rate: string; unit_rate?: string }
 export type InventoryCommand = {
   id: string; company: string; kind: InventoryKind; date: string; code: string; name: string; unit: string;
   party: string | null; reference: string; note: string; lines: StockLine[]
 }
-type Item = { id: string; code: string; name: string; unit: string }
+type Item = { id: string; code: string; name: string; unit: string; default_rate?: string | null }
 type Warehouse = { id: string; code: string; name: string }
 export type InventoryReport = {
   items: Item[]; warehouses: Warehouse[];
@@ -23,9 +24,13 @@ function integer(v: unknown, positive: boolean): v is string {
   return typeof v === 'string' && /^(0|[1-9]\d{0,11})$/u.test(v) && (!positive || BigInt(v) > 0n)
 }
 function stockLine(v: unknown, kind: InventoryKind): v is StockLine {
-  if (!record(v) || !exact(v,['item','warehouse','to','quantity','rate']) || !uuid(v.item) || !uuid(v.warehouse) || !integer(v.quantity,true)) return false
+  if (!record(v) || !exact(v,['item','warehouse','to','quantity','rate',...(v.unit_rate===undefined?[]:['unit_rate'])]) || !uuid(v.item) || !uuid(v.warehouse) || !integer(v.quantity,true)) return false
   if (kind === 'transfer') return uuid(v.to) && v.to !== v.warehouse && v.rate === '0'
   if (v.to !== null) return false
+  if(v.unit_rate!==undefined){
+   if(kind!=='purchase'&&kind!=='sale'||typeof v.unit_rate!=='string'||!integer(v.rate,false))return false
+   try{return BigInt(amountFromRate(displayQuantity(v.quantity),v.unit_rate))>0n}catch{return false}
+  }
   return kind === 'opening' ? v.rate === '0' : integer(v.rate,true)
 }
 function details(p: Record<string, unknown>, kind: InventoryKind) {
@@ -63,5 +68,5 @@ export function displayQuantity(scaled: string) {
   const fraction = String(absolute%1000000n).padStart(6,'0').replace(/0{1,6}$/u,'')
   return `${n<0n?'-':''}${absolute/1000000n}${fraction?'.'+fraction:''}`
 }
-export function lineTotal(line: StockLine) { return (BigInt(line.quantity)*BigInt(line.rate)+500000n)/1000000n }
+export function lineTotal(line: StockLine) { return line.unit_rate===undefined?(BigInt(line.quantity)*BigInt(line.rate)+500000n)/1000000n:BigInt(amountFromRate(displayQuantity(line.quantity),line.unit_rate)) }
 export function billTotal(lines: StockLine[]) { return lines.reduce((total,line)=>total+lineTotal(line),0n) }

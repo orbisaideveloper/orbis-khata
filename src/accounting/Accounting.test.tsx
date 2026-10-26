@@ -1,4 +1,4 @@
-import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 import { Accounting } from './Accounting'
 import type { Command, Report } from './model'
@@ -109,8 +109,6 @@ it.each([
   expect(api.post).toHaveBeenCalledWith(expect.objectContaining({ company: 'c', party, kind, amount: '123456', reference: 'B-42', note: 'settlement', method: kind === 'payment' ? 'bank' : 'cash' }))
 })
 it('rejects invalid amounts and allows abandoning an unsaved form', async () => {
-  let finishExpenseLoad!: (value: unknown) => void
-  api.expenseReport.mockReturnValue(new Promise(resolve => { finishExpenseLoad = resolve }))
   render(<Accounting userId="u" language="en" />)
   fireEvent.click(await screen.findByRole('button', { name: 'Sale' }))
   const form = screen.getByLabelText('Amount (INR)').closest('form')!
@@ -120,7 +118,7 @@ it('rejects invalid amounts and allows abandoning an unsaved form', async () => 
   expect(api.post).not.toHaveBeenCalled()
   fireEvent.click(within(form).getByRole('button', { name: 'Cancel' }))
   expect(screen.queryByLabelText('Amount (INR)')).toBeNull()
-  await act(async () => finishExpenseLoad({balances:{},categories:[],bills:[],entries:[],count:0}))
+  expect(api.expenseReport).not.toHaveBeenCalled()
 })
 it('keeps date, party and pagination filters within the selected company', async () => {
   api.report.mockResolvedValue({ ...base, count: 51 })
@@ -132,6 +130,7 @@ it('keeps date, party and pagination filters within the selected company', async
   fireEvent.change(screen.getByLabelText('From'), { target: { value: '2026-01-01' } })
   await screen.findByText('Customer advances')
   fireEvent.change(screen.getByLabelText('To'), { target: { value: '2026-01-31' } })
+  fireEvent.click(screen.getByRole('button', { name: 'Parties' }))
   fireEvent.click(await screen.findByRole('button', { name: /Customer One/ }))
   await waitFor(() => expect(api.report).toHaveBeenLastCalledWith('c', '2026-01-01', '2026-01-31', 'p', 0))
   fireEvent.change(await screen.findByLabelText('Party'), { target: { value: 's' } })
@@ -149,6 +148,7 @@ it('keeps date, party and pagination filters within the selected company', async
 it('retries party creation with the same identity and refreshes only these books', async () => {
   api.createRecord.mockRejectedValueOnce(new Error('offline')).mockResolvedValueOnce({ id: 'new', name: 'Trader' })
   render(<Accounting userId="u" language="en" />)
+  fireEvent.click(await screen.findByRole('button', { name: 'Parties' }))
   fireEvent.click(await screen.findByRole('button', { name: /Add party/ }))
   fireEvent.change(screen.getByLabelText('Party name'), { target: { value: ' Trader ' } })
   fireEvent.change(screen.getByLabelText('Type'), { target: { value: 'both' } })
@@ -231,4 +231,28 @@ it.each(['Note / reversal reason', 'Bill / reference'])('refuses markup in %s be
   expect(api.post).not.toHaveBeenCalled()
   expect(document.querySelector('img')).toBeNull()
   expect(screen.getByRole('button', { name: 'Edit' })).toBeEnabled()
+})
+it('separates parties from the ledger and preserves Expense as its own party type',async()=>{
+ api.createRecord.mockResolvedValue({id:'expense',name:'Electricity'})
+ render(<Accounting userId="u" language="en"/>)
+ fireEvent.click(await screen.findByRole('button',{name:'Parties'}))
+ expect(screen.queryByRole('button',{name:'Receive money'})).toBeNull()
+ fireEvent.click(await screen.findByRole('button',{name:/Add party/}))
+ fireEvent.change(screen.getByLabelText('Party name'),{target:{value:'Electricity'}})
+ fireEvent.change(screen.getByLabelText('Type'),{target:{value:'expense'}})
+ fireEvent.click(screen.getByRole('button',{name:'Create'}))
+ await waitFor(()=>expect(api.createRecord).toHaveBeenCalledWith('khata_parties',expect.objectContaining({kind:'expense',name:'Electricity'})))
+})
+it('does not send unsupported expense-contact writes from the isolated preview',async()=>{
+ vi.stubEnv('VITE_KHATA_PREVIEW','true')
+ try{
+  render(<Accounting userId="u" language="en"/>)
+  fireEvent.click(await screen.findByRole('button',{name:'Parties'}))
+  fireEvent.click(await screen.findByRole('button',{name:/Add party/}))
+  fireEvent.change(screen.getByLabelText('Party name'),{target:{value:'Electricity'}})
+  fireEvent.change(screen.getByLabelText('Type'),{target:{value:'expense'}})
+  expect(screen.getByRole('button',{name:'Create'})).toBeDisabled()
+  fireEvent.submit(screen.getByLabelText('Party name').closest('form')!)
+  expect(api.createRecord).not.toHaveBeenCalled()
+ }finally{vi.unstubAllEnvs()}
 })

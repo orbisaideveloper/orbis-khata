@@ -24,6 +24,7 @@ export function createKhataDataClient(options: { url: string; token: () => Promi
   }
 }
 export async function requestKhata<T>(operation: string, input: unknown): Promise<T> {
+  if (import.meta.env.DEV && import.meta.env.VITE_KHATA_DEMO === 'true') return (await import('../demo/store')).demoRequest<T>(operation,input)
   const url = import.meta.env.VITE_KHATA_DATA_URL as string | undefined
   const client = authClient
   if (!url || !client) throw new Error('KHATA_DATA_NOT_CONFIGURED')

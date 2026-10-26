@@ -1,6 +1,8 @@
+import { itemInput,partyInput,masterIdentity } from '../master-input.ts'
+import { billTotal } from '../inventory/model.ts'
 import { inventoryCommand } from '../inventory/model.ts'
 import { expenseCommand } from './expense-model.ts'
-type Operation = 'companies' | 'create' | 'report' | 'post' | 'expense-report' | 'expense-post' | 'inventory-post' | 'inventory-report'
+type Operation = 'masters' | 'party-save' | 'item-save' | 'party-delete' | 'item-delete' | 'party-balance' | 'expense-bill' | 'companies' | 'create' | 'report' | 'post' | 'expense-report' | 'expense-post' | 'inventory-post' | 'inventory-report'
 export type KhataPrincipal = { orbisIdentityId: string; displayId: string }
 export type KhataOperation = { operation: Operation; input: Record<string, unknown> }
 const identity = /^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/iu
@@ -20,7 +22,7 @@ function createInput(input: Record<string, unknown>) {
   if (!id(row.id) || !name) return false
   if (input.table === 'khata_companies') return keys(row, ['id', 'name'])
   return input.table === 'khata_parties' && keys(row, ['id', 'name', 'company_id', 'kind']) && id(row.company_id) &&
-    ['customer', 'supplier', 'both'].includes(String(row.kind))
+    ['customer', 'supplier', 'both', 'expense'].includes(String(row.kind))
 }
 function reportInput(input: Record<string, unknown>) {
   return keys(input, ['company', 'from', 'to', 'party', 'offset']) && id(input.company) &&
@@ -42,6 +44,15 @@ function pagedReportInput(input: Record<string, unknown>) {
 }
 function validOperation(operation: unknown, input: Record<string, unknown>): operation is Operation {
   switch (operation) {
+    case 'masters':return keys(input,['company'])&&id(input.company)
+    case 'party-save':return partyInput(input)
+    case 'item-save':return itemInput(input)
+    case 'party-delete':case 'item-delete':return keys(input,['company','id'])&&masterIdentity(input)
+    case 'party-balance':return keys(input,['company','party','date','kind'])&&id(input.company)&&id(input.party)&&date(input.date)&&['sale','purchase','expense'].includes(String(input.kind))
+    case 'expense-bill':{
+      if(!keys(input,['command','lines'])||!object(input.command)||!expenseCommand(input.command)||!Array.isArray(input.lines)||input.lines.length<1||input.lines.length>50)return false
+      try{return input.lines.every(l=>object(l)&&keys(l,['description','quantity','unit','rate','unit_rate'])&&typeof l.description==='string'&&Boolean(l.description.trim())&&l.description.length<=120&&typeof l.quantity==='string'&&/^[1-9][0-9]{0,11}$/u.test(l.quantity)&&typeof l.rate==='string'&&/^(0|[1-9][0-9]{0,11})$/u.test(l.rate)&&typeof l.unit==='string'&&l.unit.length<=24&&(l.unit_rate===undefined||typeof l.unit_rate==='string'))&&String(billTotal(input.lines.map(l=>({...l,item:'',warehouse:'',to:null}))))===input.command.amount}catch{return false}
+    }
     case 'inventory-post': return Boolean(inventoryCommand(input))
     case 'inventory-report': return pagedReportInput(input)
     case 'expense-post': return Boolean(expenseCommand(input))

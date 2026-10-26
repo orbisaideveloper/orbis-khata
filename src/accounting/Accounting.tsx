@@ -1,3 +1,5 @@
+import { LedgerExplorer } from './LedgerExplorer'
+import { useBooksNavigation, booksLabels } from '../books-navigation'
 import { useEffect, useRef, useState } from 'react'
 import type { Language } from '../i18n'
 import * as api from './api'
@@ -9,10 +11,10 @@ import './accounting.css'
 import { useTutorial } from '../tutorial'
 import { restoreInventory } from '../inventory/pending'
 import { Inventory } from '../inventory/Inventory'
-import { inventoryCopy } from '../inventory/copy'
 import { Expenses } from './Expenses'
+import { restoreExpense } from './expense-pending'
 
-type Props = { readonly userId: string; readonly language: Language }
+type Props = { readonly userId: string; readonly language: Language; readonly initialCompany?:string; readonly onBill?:(kind:'sale'|'purchase'|'expense')=>void; readonly onCompanyChange?:(id:string)=>void }
 const actions = ['sale', 'purchase', 'receipt', 'payment'] as const
 function aggregateParties(parties: Report['parties'], field: 'receivable' | 'payable', advance = false) {
   return parties.reduce((sum, party) => {
@@ -21,7 +23,7 @@ function aggregateParties(parties: Report['parties'], field: 'receivable' | 'pay
   }, 0n)
 }
 
-const accounts: Account[] = ['cash', 'bank', 'receivable', 'payable', 'sales', 'purchases', 'expenses', 'expense_payable']
+const accounts: Account[] = ['cash', 'bank', 'receivable', 'payable', 'sales', 'purchases', 'expenses', 'expense_payable', 'opening_equity']
 const pendingKey = (user: string) => `khata-pending-v1:${user}`
 
 function restore(user: string): Command | null {
@@ -32,10 +34,11 @@ function restore(user: string): Command | null {
   } catch { return null }
 }
 
-export function Accounting({ userId, language }: Readonly<Props>) {
+export function Accounting({ userId, language, onBill, onCompanyChange, initialCompany }: Readonly<Props>) {
   const t = accountingCopy[language]
   const [list, setList] = useState<Company[]>([])
-  const [selected, setSelected] = useState(() => restore(userId)?.company ?? restoreInventory(userId)?.company ?? '')
+  const [selected, setSelected] = useState(() => restore(userId)?.company ?? restoreInventory(userId)?.company ?? initialCompany ?? '')
+  useEffect(()=>{if(selected)onCompanyChange?.(selected)},[selected,onCompanyChange])
   const [refresh, setRefresh] = useState(0)
   const [outcome, setOutcome] = useState<{ user: string; refresh: number; error: boolean } | null>(null)
   const currentOutcome = outcome?.user === userId && outcome.refresh === refresh ? outcome : null
@@ -76,7 +79,7 @@ export function Accounting({ userId, language }: Readonly<Props>) {
     {showRecordForm && <RecordForm language={language} owner={userId} onCancel={list.length ? () => setCreate(false) : undefined}
       onCreated={c => { setList(old => [...old.filter(x => x.id !== c.id), c]); setSelected(c.id); setCreate(false) }} />}
 
-    {company && <Books key={company.id} {...{ userId, language, company }} onLock={setLocked} />}
+    {company && <Books key={company.id} {...{ userId, language, company, onBill }} onLock={setLocked} />}
   </div>
 }
 
@@ -84,6 +87,8 @@ function RecordForm({ language, owner, company, onCreated, onCancel }: Readonly<
   language: Language; owner: string; company?: string; onCreated: (record: Company) => void; onCancel?: () => void
 }>) {
   const t = accountingCopy[language]
+  const [partyType,setPartyType] = useState('customer')
+  const expensePreview = Boolean(company) && partyType==='expense' && import.meta.env.VITE_KHATA_PREVIEW === 'true' && import.meta.env.VITE_KHATA_DEMO !== 'true'
   const [busy, setBusy] = useState(false)
   const [failed, setFailed] = useState(false)
   const guard = useRef(false)
@@ -91,7 +96,7 @@ function RecordForm({ language, owner, company, onCreated, onCancel }: Readonly<
 
   async function save(e: React.SyntheticEvent<HTMLFormElement>) {
     e.preventDefault()
-    if (guard.current) return
+    if (guard.current || expensePreview) return
     const form = new FormData(e.currentTarget)
     pending.current ??= company
       ? { id: crypto.randomUUID(), company_id: company, name: (form.get('name') as string || '').trim(), kind: (form.get('kind') as string || '') }
@@ -110,10 +115,11 @@ function RecordForm({ language, owner, company, onCreated, onCancel }: Readonly<
   return <form className="books-card books-form" onSubmit={save}>
     <h2>{company ? t.newParty : t.newCompany}</h2>
     <label>{company ? t.partyName : t.companyName}<input name="name" required maxLength={120} pattern=".*\S.*" disabled={busy || failed} /></label>
-    {company && <label>{t.kind}<select name="kind" disabled={busy || failed}><option value="customer">{t.customer}</option><option value="supplier">{t.supplier}</option><option value="both">{t.both}</option></select></label>}
+    {company && <label>{t.kind}<select name="kind" value={partyType} onChange={e=>setPartyType(e.target.value)} disabled={busy || failed}><option value="customer">{t.customer}</option><option value="supplier">{t.supplier}</option><option value="both">{t.both}</option><option value="expense">{t.expense}</option></select></label>}
+    {expensePreview && <output>{language==='bn'?'খরচের পার্টি এখন প্রিভিউতে আছে। আপডেট চালু হলে সংরক্ষণ করা যাবে।':language==='hi'?'खर्च पार्टी अभी प्रीव्यू में है। अपडेट के बाद सेव कर सकेंगे।':'Expense contacts are in preview. Saving becomes available after the update.'}</output>}
     {failed && <output aria-live="polite">{t.pending}</output>}
     <div className="books-buttons">
-      <button type="submit" className="books-primary" disabled={busy}>{recordBtnLabel}</button>
+      <button type="submit" className="books-primary" disabled={busy || expensePreview}>{recordBtnLabel}</button>
       {onCancel && !failed && <button type="button" onClick={onCancel} disabled={busy}>{t.cancel}</button>}
     </div>
   </form>
@@ -127,7 +133,7 @@ function Metric({ label, value }: Readonly<{ label: string; value: bigint }>) {
   return <div className="books-metric"><span>{label}</span><strong>{money(value)}</strong></div>
 }
 
-function Books({ userId, language, company, onLock }: Readonly<Props & { company: Company; onLock: (locked: boolean) => void }>) {
+function Books({ userId, language, company, onLock, onBill }: Readonly<Props & { company: Company; onLock: (locked: boolean) => void }>) {
   const t = accountingCopy[language]
   const [from, setFrom] = useState(() => `${today().slice(0, 7)}-01`)
   const [to, setTo] = useState(today)
@@ -142,6 +148,13 @@ function Books({ userId, language, company, onLock }: Readonly<Props & { company
   const loading = validRange && currentResult === null
   const error = !validRange || Boolean(currentResult?.error)
   const [addParty, setAddParty] = useState(false)
+  const [editingParty,setEditingParty]=useState<Report['parties'][number]|null>(null)
+  const demo=import.meta.env.DEV&&import.meta.env.VITE_KHATA_DEMO==='true'
+  async function editParty(event:React.SyntheticEvent<HTMLFormElement>){
+   event.preventDefault();if(!demo||!editingParty)return
+   const form=new FormData(event.currentTarget)
+   try{(await import('../demo/store')).editDemoParty(editingParty.id,String(form.get('name')??''));setEditingParty(null);setVersion(n=>n+1)}catch{setMessage(t.validation)}
+  }
   const [kind, setKind] = useState<Kind | null>(null)
   const [reversal, setReversal] = useState<Voucher | null>(null)
   const [command, setCommand] = useState<Command | null>(() => { const c = restore(userId); return c?.company === company.id ? c : null })
@@ -151,10 +164,14 @@ function Books({ userId, language, company, onLock }: Readonly<Props & { company
   const [saveError, setSaveError] = useState('')
   const [draft, setDraft] = useState<Command | null>(null)
   const guard = useRef(false)
-  const [expenseLocked, setExpenseLocked] = useState(false)
+  const [expenseLocked, setExpenseLocked] = useState(()=>Boolean(restoreExpense(userId,company.id)))
   const [inventoryLocked,setInventoryLocked] = useState(()=>restoreInventory(userId)?.company===company.id)
-  const [stockOpen,setStockOpen] = useState(()=>restoreInventory(userId)?.company===company.id)
+  const [stockOpen] = useState(()=>restoreInventory(userId)?.company===company.id)
   const tutorial = useTutorial()
+  const navigation = useBooksNavigation()
+  const labels = booksLabels[language]
+  const page = navigation.page
+  const navigationLocked = Boolean(command)||busy||expenseLocked||inventoryLocked
 
   useEffect(() => { onLock(Boolean(command) || busy || expenseLocked || inventoryLocked); }, [command, busy, expenseLocked, inventoryLocked, onLock])
   useEffect(() => {
@@ -214,7 +231,7 @@ function Books({ userId, language, company, onLock }: Readonly<Props & { company
     } catch { setSaveError(t.validation) }
   }
 
-  const allowedParties = data?.parties.filter(p => kind === 'sale' || kind === 'receipt' ? p.kind !== 'supplier' : p.kind !== 'customer') ?? []
+  const allowedParties = data?.parties.filter(p => p.kind !== 'expense').filter(p => kind === 'sale' || kind === 'receipt' ? p.kind !== 'supplier' : p.kind !== 'customer') ?? []
 
 
   let saveButtonLabel = t.confirm;
@@ -224,6 +241,7 @@ function Books({ userId, language, company, onLock }: Readonly<Props & { company
   return <>
     <section className="books-hero"><span className="books-kicker">ORBIS / {company.name}</span><h2>{t.title}</h2>{tutorial && <><p>{t.subtitle}</p><small>{t.separate}</small></>}</section>
 
+    <nav className="books-navigation" aria-label={labels.ledger}>{(['ledger','all-ledgers','parties','items','expenses'] as const).map(target=><button type="button" key={target} aria-current={page===target?'page':undefined} disabled={navigationLocked} onClick={()=>navigation.open(target)}>{labels[target]}</button>)}</nav>
     <div className="books-filters">
       <label>{t.from}<input type="date" value={from} onChange={e => { setFrom(e.target.value); setOffset(0) }} /></label>
       <label>{t.to}<input type="date" value={to} max={today()} onChange={e => { setTo(e.target.value); setOffset(0) }} /></label>
@@ -257,9 +275,13 @@ function Books({ userId, language, company, onLock }: Readonly<Props & { company
     {error && <output aria-live="polite" className="books-warning">{from > to || !from || !to ? t.range : t.error}</output>}
 
     {data && <>
-      <div className="books-buttons"><button type="button" className="books-primary" aria-expanded={stockOpen} disabled={Boolean(command)||busy||expenseLocked||inventoryLocked} onClick={()=>setStockOpen(open=>!open)}>{inventoryCopy[language].title}</button></div>
-      {stockOpen && <Inventory key={company.id} {...{userId,language,from,to,version}} company={company.id} companyName={company.name} parties={data.parties} onLock={setInventoryLocked} onChanged={()=>setVersion(n=>n+1)} blocked={Boolean(command)||busy||expenseLocked}/>}
-      <Expenses {...{userId,language,from,to,version}} company={company.id} companyName={company.name} onLock={setExpenseLocked} onChanged={()=>setVersion(n=>n+1)} blocked={Boolean(command)||busy||inventoryLocked}/>
+      <div hidden={page!=='items'&&page!=='stock'&&!inventoryLocked}>
+        {(page==='items'||page==='stock'||stockOpen||inventoryLocked) && <Inventory key={company.id} {...{userId,language,from,to,version}} simple={page==='items'} company={company.id} companyName={company.name} parties={data.parties} onLock={setInventoryLocked} onChanged={()=>setVersion(n=>n+1)} blocked={Boolean(command)||busy||expenseLocked}/>} 
+      </div>
+      {page==='all-ledgers'&&<><LedgerExplorer {...{language,from,to,version}} company={company.id} parties={data.parties}/><button type="button" disabled={navigationLocked} onClick={()=>navigation.open('stock')}>{labels.stock}</button></>}
+      {page==='stock'&&<button type="button" disabled={navigationLocked} onClick={()=>navigation.open('all-ledgers')}>{labels['all-ledgers']}</button>}
+      {(page==='expenses'||expenseLocked)&&<div><Expenses {...{userId,language,from,to,version}} company={company.id} companyName={company.name} payees={data.parties.filter(p=>p.kind==='expense').map(p=>p.name)} onLock={setExpenseLocked} onChanged={()=>setVersion(n=>n+1)} blocked={Boolean(command)||busy||inventoryLocked}/></div>}
+      <div hidden={page!=='ledger'}>
       <SectionTitle title={t.closing} subtitle={to} />
       <div className="books-stats">
         {(['cash', 'bank'] as const).map(a => <Metric key={a} label={t[a]} value={balance(data, a)} />)}
@@ -271,7 +293,7 @@ function Books({ userId, language, company, onLock }: Readonly<Props & { company
       <SectionTitle title={t.period} subtitle={`${from} → ${to}`} />
       <div className="books-stats two"><Metric label={t.sales} value={-balance(data, 'sales', 'movement')} /><Metric label={t.purchases} value={balance(data, 'purchases', 'movement')} /></div>
       <div className="books-actions">
-        {actions.map((action, i) => <button type="button" key={action} disabled={Boolean(command) || expenseLocked || inventoryLocked} onClick={() => { setDraft(null); setKind(action); setReversal(null); setSaveError(''); setMessage('') }}><span aria-hidden="true">{['↗', '↙', '＋', '−'][i]}</span>{t[action]}</button>)}
+        {actions.map((action, i) => <button type="button" key={action} disabled={Boolean(command) || expenseLocked || inventoryLocked} onClick={() => { if(onBill&&(action==='sale'||action==='purchase')){onBill(action);return}setDraft(null); setKind(action); setReversal(null); setSaveError(''); setMessage('') }}><span aria-hidden="true">{['↗', '↙', '＋', '−'][i]}</span>{t[action]}</button>)}
       </div>
       {tutorial && <p className="books-hint">{t.invoiceHint}</p>}
 
@@ -292,16 +314,18 @@ function Books({ userId, language, company, onLock }: Readonly<Props & { company
         </div>
       </form>}
 
-      <section className="books-card">
-        <SectionTitle title={t.parties}><button type="button" disabled={Boolean(command) || expenseLocked || inventoryLocked} onClick={() => setAddParty(true)}>＋ {t.newParty}</button></SectionTitle>
+      </div>
+      <section className="books-card" hidden={page!=='parties'}>
+        <SectionTitle title={labels.parties}><button type="button" disabled={Boolean(command) || expenseLocked || inventoryLocked} onClick={() => setAddParty(true)}>＋ {t.newParty}</button></SectionTitle>
         {!data.parties.length && <p>{t.noParties}</p>}
         {addParty && <RecordForm language={language} owner={userId} company={company.id} onCancel={() => setAddParty(false)} onCreated={() => { setAddParty(false); setVersion(n => n + 1) }} />}
-        <div className="books-party-list">{data.parties.map(p => <button type="button" key={p.id} className={party === p.id ? 'selected' : ''} onClick={() => { setParty(p.id); setOffset(0) }}>
+        <div className="books-party-list">{data.parties.map(p => <div key={p.id}><button type="button" key={p.id} className={party === p.id ? 'selected' : ''} onClick={() => { if(p.kind==='expense'){navigation.open('expenses');return}setParty(p.id); setOffset(0);navigation.open('ledger') }}>
           <span><strong>{p.name}</strong><small>{t[p.kind]}</small></span><span><small>{t.receivable}: {money(p.receivable)}</small><small>{t.payable}: {money(p.payable)}</small></span>
-        </button>)}</div>
+        </button>{demo&&<button type="button" disabled={navigationLocked} onClick={()=>setEditingParty(p)}>{t.edit}</button>}</div>)}</div>
+        {editingParty&&<form className="books-form" onSubmit={editParty}><h3>{t.edit}: {editingParty.name}</h3><label>{t.partyName}<input name="name" required maxLength={120} defaultValue={editingParty.name}/></label><button type="submit">{t.confirm}</button><button type="button" onClick={()=>setEditingParty(null)}>{t.cancel}</button></form>}
       </section>
 
-      <section className="books-card">
+      <section className="books-card" hidden={page!=='ledger'}>
         <SectionTitle title={t.ledger} subtitle={`${data.count} ${t.entries}`} />
         <label className="books-party-filter">{t.party}<select value={party} onChange={e => { setParty(e.target.value); setOffset(0) }}><option value="">{t.all}</option>{data.parties.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}</select></label>
         <div className="books-ledger-summary"><span>{t.opening} / {t.receivable}<strong>{money(data.ledger_balances.receivable?.opening ?? '0')}</strong></span><span>{t.opening} / {t.payable}<strong>{money(-BigInt(data.ledger_balances.payable?.opening ?? '0'))}</strong></span>

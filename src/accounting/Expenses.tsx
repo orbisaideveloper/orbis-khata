@@ -1,3 +1,4 @@
+import { expensePendingKey as key, restoreExpense as recovered } from './expense-pending'
 import { useTutorial } from '../tutorial'
 import { useEffect, useRef, useState } from 'react'
 import type { Language } from '../i18n'
@@ -7,22 +8,14 @@ import type { ExpenseBill, ExpenseCommand, ExpenseEntry, ExpenseReport } from '.
 import { expenseCopy } from './expense-copy'
 import { minor, money, today } from './model'
 
-type Props = { userId: string; company: string; companyName: string; language: Language; from: string; to: string; version: number; onChanged: () => void; onLock: (locked: boolean) => void; blocked: boolean }
+type Props = { userId: string; company: string; companyName: string; language: Language; from: string; to: string; version: number; onChanged: () => void; onLock: (locked: boolean) => void; blocked: boolean; payees?: string[] }
 type Draft = { kind: ExpenseCommand['kind']; parent: string | null; category: string; payee: string; amount: string; date: string }
-function key(user: string, company: string) { return `khata-expense-pending-v1:${user}:${company}` }
-function recovered(user: string, company: string) {
-  try {
-    const raw = sessionStorage.getItem(key(user,company))
-    const p = raw && raw.length <= 8192 ? expenseCommand(JSON.parse(raw)) : null
-    return p?.company === company ? p : null
-  } catch { return null }
-}
 function decimal(value: string) { return `${BigInt(value)/100n}.${String(BigInt(value)%100n).padStart(2,'0')}` }
 function formText(form: FormData, name: string) {
   const value = form.get(name)
   return typeof value === 'string' ? value : ''
 }
-export function Expenses({userId,company,companyName,language,from,to,version,onChanged,onLock,blocked}: Readonly<Props>) {
+export function Expenses({userId,company,companyName,language,from,to,version,onChanged,onLock,blocked,payees=[]}: Readonly<Props>) {
   const t = expenseCopy[language]
   const tutorial = useTutorial()
   const [offset,setOffset] = useState(0), [reload,setReload] = useState(0)
@@ -101,7 +94,8 @@ export function Expenses({userId,company,companyName,language,from,to,version,on
       <h3>{draftTitle[draft.kind]}</h3>
       <label>{t.category}<input name="category" list={`expense-categories-${company}`} required maxLength={80} defaultValue={draft.category} readOnly={draft.kind!=='charge'}/></label>
       <datalist id={`expense-categories-${company}`}>{[...new Set([...t.suggestions,...(data?.categories.map(c=>c.name)??[])])].map(name=><option key={name} value={name}/>)}</datalist>
-      <label>{t.payee}<input name="payee" maxLength={120} defaultValue={draft.payee} readOnly={draft.kind!=='charge'}/></label>
+      <label>{t.payee}<input name="payee" list={`expense-payees-${company}`} maxLength={120} defaultValue={draft.payee} readOnly={draft.kind!=='charge'}/></label>
+      <datalist id={`expense-payees-${company}`}>{payees.map(name=><option key={name} value={name}/>)}</datalist>
       <label>{t.amount}<input name="amount" inputMode="decimal" required defaultValue={draft.amount} readOnly={draft.kind==='reversal'}/></label>
       <label>{t.date}<input name="date" type="date" required defaultValue={draft.date} max={today()}/></label>
       {draft.kind!=='reversal' && <label>{t.method}<select name="method" defaultValue="cash"><option value="cash">{t.cash}</option><option value="bank">{t.bank}</option>{draft.kind==='charge'&&<option value="due">{t.due}</option>}</select></label>}

@@ -1,7 +1,7 @@
 export type Company = { id: string; name: string }
-type Party = Company & { kind: 'customer' | 'supplier' | 'both'; receivable: string; payable: string }
+type Party = Company & { kind: 'customer' | 'supplier' | 'both' | 'expense'; receivable: string; payable: string }
 export type Kind = 'sale' | 'purchase' | 'receipt' | 'payment' | 'reversal'
-export type Account = 'cash' | 'bank' | 'receivable' | 'payable' | 'sales' | 'purchases' | 'expenses' | 'expense_payable'
+export type Account = 'cash' | 'bank' | 'receivable' | 'payable' | 'sales' | 'purchases' | 'expenses' | 'expense_payable' | 'opening_equity'
 export type Voucher = {
   id: string; party_id: string; party_name: string; kind: Kind; effective_date: string
   amount_minor: string; debit_account: Account; credit_account: Account
@@ -9,6 +9,7 @@ export type Voucher = {
 }
 export type Report = {
   balances: Partial<Record<Account, { closing: string; opening: string; movement: string }>>
+  opening_entries?: {id:string;party_id:string;date:string;side:'due'|'advance';amount:string}[]
   ledger_balances: Partial<Record<Account, { closing: string; opening: string }>>
   parties: Party[]; entries: Voucher[]; count: number; as_of: string
 }
