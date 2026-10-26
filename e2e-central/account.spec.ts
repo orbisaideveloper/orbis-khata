@@ -33,7 +33,7 @@ async function backend(page: Page) {
     state.data.push(body)
     expect(body.version).toBe('orbis.khata.data.v1')
     const input = body.input as Record<string, unknown>
-    expect(['companies', 'create', 'masters', 'inventory-report', 'report']).toContain(body.operation)
+    expect(['companies', 'create', 'masters', 'inventory-report', 'expense-report', 'report']).toContain(body.operation)
     let data: unknown = state.companies
     if (body.operation === 'create') {
       expect(input.table).toBe('khata_companies')
@@ -41,6 +41,7 @@ async function backend(page: Page) {
       expect(row).not.toHaveProperty('owner_id')
       state.companies.push({ id: row.id, name: row.name });data = state.companies.at(-1)
     }
+    if (body.operation === 'expense-report') data = { balances: {}, categories: [], bills: [], entries: [], count: 0 }
     if (body.operation === 'masters') data = { items: [], parties: [] }
     if (body.operation === 'inventory-report') data = { items: [], warehouses: [], stocks: [], documents: [], count: 0 }
     if (body.operation === 'report') data = { balances: {}, ledger_balances: {}, parties: [], entries: [], count: 0, as_of: '2026-10-12T00:00:00Z' }

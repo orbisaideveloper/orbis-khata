@@ -120,7 +120,7 @@ function expenseReport(company: string, from: string, to: string, offset: number
     bills.push(...openingBills);
     const categories = [...new Set(categoryMovements.map(e => e.name))].map(name => ({ name, amount: String(categoryMovements.filter(e => e.name === name).reduce((sum, e) => sum + e.amount, 0n)) }));
     const ranged = all.filter(e => e.date >= from);
-    return { balances, categories, bills, entries: ranged.slice(offset, offset + 50).map(e => ({ bill_lines: expenseBillLines[e.id], id: e.id, kind: e.kind, amount: e.amount, category: e.category, payee: e.payee, method: e.method, reference: e.reference, note: e.note, effective_date: e.date, parent_id: e.parent, reverses_id: e.kind === 'reversal' ? e.parent : null, reversed: all.some(r => r.kind === 'reversal' && r.parent === e.id) })), count: ranged.length };
+    return { balances, categories, bills, entries: ranged.slice(offset, offset + 50).map(e => ({ bill_lines: expenseBillLines[e.id], id: e.id, kind: e.kind, amount: e.amount, category: e.category, payee: e.payee, method: (e.kind === 'reversal' ? all.find(original => original.id === e.parent)?.method : e.method) ?? null, reference: e.reference, note: e.note, effective_date: e.date, parent_id: e.parent, reverses_id: e.kind === 'reversal' ? e.parent : null, reversed: all.some(r => r.kind === 'reversal' && r.parent === e.id) })), count: ranged.length };
 }
 export async function saveDemoExpenseBill(command: ExpenseCommand, lines: {
     description: string;

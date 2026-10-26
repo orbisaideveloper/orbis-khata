@@ -1,3 +1,33 @@
+# 2026-10-26 — Summary card drill-down and simple ledger navigation
+
+Owner asks for tappable receivable/payable/expense cards leading to every matching
+party/account, then its ledger, while retaining the independent Ledger menu.
+Implement a distinct overview navigation page so Home/brand/back reliably return
+to the dashboard. Receivables list positive customer dues; payables include positive
+supplier dues plus grouped unpaid expense bills/opening dues. Card sums use those
+same complete rows: an unrelated party's advance does not reduce another's due.
+Advances and signed journal balances remain intact in the underlying ledgers.
+Due lists are as of the selected end date; expenses are for the selected period.
+
+Cash/bank details load every voucher and expense page, show money in/out and
+opening/closing balances, and link counterparties to their ledgers. Corrections
+retain their signs and IDs. The demo expense report now preserves a reversal's
+original payment method, matching production and preventing missing cash rows.
+Party-selected ledgers avoid unrelated inventory/expense requests; list/detail
+navigation and company/date/version guards prevent stale records. Ledger names
+and transaction columns are compact rows. Add a balance-refresh action and preserve
+all prior standalone accounting/stock/expense screens.
+
+Local verification: 452 tests and coverage PASS (S/B/F/L 91.92/89.65/91.98/92.32%).
+Full mobile/desktop suite 20/20 PASS; subsequent party-table/Home navigation polish
+passes targeted unit and both overview browser cases. Typecheck/lint/KNIP and
+JSCPD zero duplication pass. Review actual mobile list and ledger screenshots.
+Remote CI remains the final exact-commit verification. No database migration,
+API deployment, financial posting or central-ID change. Bill-inline payment is
+not part of this read/navigation slice. Production frontend deployment still
+requires the explicit owner approval requested after prior auto-review rejection;
+no deploy attempt or workaround is made here. Termux sync stays deferred.
+
 # 2026-10-26 — Compact masters, bill settings and local PDF sharing
 
 Owner requests aligned party/item columns, compact edit/delete symbols, optional

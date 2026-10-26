@@ -16,6 +16,7 @@ beforeEach(()=>{items=[{id:itemId,company,name:'Milk',unit:'litre',code:'',defau
  if(operation==='companies')return[{id:company,name:'Live shop'},{id:other,name:'Second shop'}]
  if(operation==='masters')return{items:input.company===company?items:[],parties:input.company===company?[supplier]:[]}
  if(operation==='report')return{balances:{cash:{opening:'0',movement:'100',closing:'100'}},ledger_balances:{},parties:[supplier],entries:[],count:0,as_of:'2026-10-25'}
+ if(operation==='expense-report')return{balances:{},categories:[],bills:[],entries:[],count:0}
  if(operation==='inventory-report')return{items,warehouses:[{id,name:'Main'}],stocks:[],documents:[],count:0}
  return null
  });vi.spyOn(window,'scrollTo').mockImplementation(()=>{})})

@@ -233,3 +233,14 @@ bill layout and Bengali names, be prepared locally, and use an explicit native
 file-share chooser or a download fallback. No automatic WhatsApp sending, external
 PDF service, financial mutation, or forced app reload. Update readiness is a
 compact dismissible notice; unfinished bill safety remains unchanged.
+
+
+### 26 October 2026 — Card-to-ledger hierarchy
+
+Owner requests summary card -> full due-party/account list -> selected ledger,
+plus the independent Ledger menu. Due-card totals equal the positive outstanding
+rows, including expense bills on To pay; do not net unrelated counterparties'
+advances. Preserve signed journals and advance entries in individual ledgers.
+Dues are as of the end date; expense movement uses the selected period. Load all
+transaction pages for cash/bank details and keep corrections visible. These are
+read-only display/navigation changes, not a new bill/payment posting contract.

@@ -11,6 +11,7 @@ test('cloud masters survive reload and require two delete confirmations',async({
   if(route.request().method()==='OPTIONS'){await route.fulfill({status:204,headers});return}
   const {operation,input}=route.request().postDataJSON();let data:unknown=null
   if(operation==='companies')data=[company]
+  if(operation==='expense-report')data={balances:{},categories:[],bills:[],entries:[],count:0}
   if(operation==='masters')data={parties,items}
   if(operation==='report')data={balances:{},ledger_balances:{},parties,entries:[],count:0,as_of:'2026-10-26'}
   if(operation==='inventory-report')data={items,warehouses:[],stocks:[],documents:[],count:0}

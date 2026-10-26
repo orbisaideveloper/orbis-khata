@@ -19,6 +19,7 @@ test('bill settings stay collapsed and export the selected Bengali invoice as a 
       companies: [company], masters: { parties: [party], items: [item] },
       report: { balances: {}, ledger_balances: {}, parties: [party], entries: [], count: 0 },
       'inventory-report': { items: [item], warehouses: [warehouse], stocks: [], documents: [], count: 0 },
+      'expense-report': { balances: {}, categories: [], bills: [], entries: [], count: 0 },
       'party-balance': '0', 'inventory-post': 'saved',
     }
     expect(Object.hasOwn(results, operation)).toBe(true)
