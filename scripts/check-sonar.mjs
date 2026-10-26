@@ -12,9 +12,13 @@ async function get(path, params) {
   return response.json()
 }
 const common = { componentKeys: project }
-const issues = await get('/api/issues/search', { ...common, resolved: 'false', ps: '1' })
+const issues = await get('/api/issues/search', { ...common, resolved: 'false', ps: '500' })
 if (!Number.isInteger(issues.total)) throw Error('Sonar issue count missing')
 console.log(`Open Sonar issues: ${issues.total}`)
+for (const issue of issues.issues || []) {
+  console.log('SONAR_ISSUE ' + JSON.stringify({ key: issue.key, rule: issue.rule,
+    file: issue.component, line: issue.line, severity: issue.severity, message: issue.message }))
+}
 if (issues.total !== 0) throw Error('Open issues must be zero')
 const hotspots = await get('/api/hotspots/search', { projectKey: project, status: 'TO_REVIEW', ps: '1' })
 if (!Number.isInteger(hotspots.paging?.total)) throw Error('Security hotspot count missing')
