@@ -1,3 +1,15 @@
+# 2026-10-26 — Production save correction CI follow-up
+
+Commit 31f854a is pushed and gateway version 7 ACTIVE; unauthenticated POST is
+401 KHATA_LOGIN_REQUIRED. Real postgres@3.4.7 wire-protocol probe confirms the old
+parameter is JSON text and tx.json preserves objects/optional fields. No customer
+fixture retained. CI 40328924291 passed native gates including coverage and 15/16
+browser checks; mobile signup still searched the obsolete ORBIS / Test shop text.
+Change that assertion to the exact company heading, preserving signup/reload/
+ownership checks. Targeted mobile and desktop signup both PASS locally. No product
+code, API deployment or gate threshold change in this follow-up. Next: green CI
+and strict Sonar, then owner manual Render deploy and real-account acceptance.
+
 # 2026-10-26 — Live save transport and phone contact correction
 
 Owner reported that the new green production UI opens but party/item saves fail.

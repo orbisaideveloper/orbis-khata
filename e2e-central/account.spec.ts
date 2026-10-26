@@ -78,7 +78,7 @@ test('same signup source on mobile/desktop; session reload and gateway ownership
   await page.getByRole('button', { name: /Khata Boi.*Open/ }).click()
   await page.getByLabel('Company name', { exact: true }).fill('Test shop')
   await page.getByRole('button', { name: 'Create', exact: true }).click()
-  await expect(page.getByText('ORBIS / Test shop', { exact: true })).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'Test shop', exact: true })).toBeVisible()
   await fits(page)
   expect(state.data.some(value => value.operation === 'create')).toBe(true)
   expect(await page.evaluate(() => Object.values(localStorage).join(''))).not.toContain('test-password')
