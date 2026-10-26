@@ -42,17 +42,17 @@ describe.sequential('A–Z through actual demo React controls (DOM, no live acco
  it('06 buys 10 litres at 60, previews all three designs and confirms once',async()=>{await bill('purchase',supplier,'10','60');expect(window.print).toHaveBeenCalledTimes(3)})
  it('07 sells 4 litres at 90',async()=>{await bill('sale',customer,'4','90')})
  it('08 receives 200 cash through Accounts while preserving the chosen company',async()=>{
-  render(<Accounting userId="demo-owner" language="en" initialCompany={company}/>);fireEvent.click(await screen.findByRole('button',{name:'Receive money'}));expect(screen.getByLabelText('Company')).toHaveValue(company)
-  change('Party',customer);change('Amount (INR)','200');fireEvent.click(screen.getByRole('button',{name:'Review entry'}));fireEvent.click(screen.getByRole('button',{name:'Confirm & save'}));await screen.findByText('Saved successfully.')
+  render(<Accounting userId="demo-owner" language="en" initialCompany={company}/>);const receive=await screen.findByRole('button',{name:'Receive money'});expect(receive).toBeInTheDocument();fireEvent.click(receive);expect(screen.getByLabelText('Company')).toHaveValue(company)
+  change('Party',customer);change('Amount (INR)','200');fireEvent.click(screen.getByRole('button',{name:'Review entry'}));fireEvent.click(screen.getByRole('button',{name:'Confirm & save'}));expect(await screen.findByText('Saved successfully.')).toBeInTheDocument()
  })
  it('09 pays supplier 500 through Bank',async()=>{
-  render(<Accounting userId="demo-owner" language="en" initialCompany={company}/>);fireEvent.click(await screen.findByRole('button',{name:'Pay money'}));change('Party',supplier);change('Amount (INR)','500');change('Paid into / from','bank');fireEvent.click(screen.getByRole('button',{name:'Review entry'}));fireEvent.click(screen.getByRole('button',{name:'Confirm & save'}));await screen.findByText('Saved successfully.')
+  render(<Accounting userId="demo-owner" language="en" initialCompany={company}/>);fireEvent.click(await screen.findByRole('button',{name:'Pay money'}));change('Party',supplier);change('Amount (INR)','500');change('Paid into / from','bank');fireEvent.click(screen.getByRole('button',{name:'Review entry'}));fireEvent.click(screen.getByRole('button',{name:'Confirm & save'}));expect(await screen.findByText('Saved successfully.')).toBeInTheDocument()
  })
  it('10 creates a due expense bill for 120 through the invoice',async()=>{await bill('expense',power,'1','120')})
  it('11 partially settles the 120 expense bill with a 70 bank payment',async()=>{
   render(<Expenses userId="demo-owner" language="en" company={company} companyName="Trial business" from="2026-09-01" to={today()} version={0} payees={['Trial power']} onLock={()=>{}} onChanged={()=>{}} blocked={false}/> )
   await screen.findAllByRole('button',{name:'Pay outstanding'})
-  const label=screen.getByText(/Trial power.*Unpaid: ₹120.00/);fireEvent.click(within(label.parentElement!).getByRole('button',{name:'Pay outstanding'}));change('Amount','70');change('Settlement','bank');fireEvent.click(screen.getByRole('button',{name:'Review'}));fireEvent.click(screen.getByRole('button',{name:'Confirm'}));await screen.findByText('Expense records saved.')
+  const label=screen.getByText(/Trial power.*Unpaid: ₹120.00/);fireEvent.click(within(label.parentElement!).getByRole('button',{name:'Pay outstanding'}));change('Amount','70');change('Settlement','bank');fireEvent.click(screen.getByRole('button',{name:'Review'}));fireEvent.click(screen.getByRole('button',{name:'Confirm'}));expect(await screen.findByText('Expense records saved.')).toBeInTheDocument()
  })
  it('12 verifies final ledgers, inventory and cross-company separation after all UI entries',async()=>{
   const r=await demoRequest<Report>('report',query()),inv=await demoRequest<InventoryReport>('inventory-report',query()),e=await demoRequest<ExpenseReport>('expense-report',query())

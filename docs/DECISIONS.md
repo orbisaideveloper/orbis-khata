@@ -205,3 +205,10 @@ financial records retain their immutable audit/reversal model. Unused master del
 is persisted and audited. Exact bill lines and same-ID recovery prevent duplicate
 accounting after uncertain network responses. Final checks and server acceptance
 remain necessary; a successful isolated demo is not production certification.
+
+### Owner clarification — 26 October 2026
+
+The owner reiterates that routine commits/pushes go through their Termux. They
+explicitly authorize finishing the current already-pushed release and necessary
+corrective pushes. This exception ends with this release; do not infer permanent
+permission for direct GitHub pushes. Preserve the existing manual Render step.

@@ -1,3 +1,28 @@
+# 2026-10-26 — Strict Sonar corrective candidate
+
+Main has feature commit 4463c94 and diagnostic commit e8a1f39. The first run passed
+all native/browser gates and Sonar standard quality gate, but strict zero-open-
+issues failed with 120 findings. Source corrections now address every listed rule:
+extract accounting/invoice validators and command builders, remove unreachable
+form-preview branches, stabilize Context values and ledger/paper row identities,
+use native status output, avoid unsafe object coercion and regex backtracking,
+and add explicit assertions to the three scenario tests. No rule suppression,
+issue dismissal, threshold reduction or accounting/data contract change.
+
+Local: 430 tests / 51 files PASS. Coverage S/B/F/L 91.67/89.90/91.81/92.07% PASS;
+PaperPreview padding-identity follow-up test PASS. Typecheck/lint/KNIP and JSCPD
+0.00% PASS. Local SonarJS checks for the reported complexity/nested-condition/
+regex/conditional-block rules: zero findings. Mobile eight browser scenarios PASS;
+desktop eight PASS on the isolated rerun after a dev-module loading timeout.
+Production migration 20261026081216 and gateway v5 remain active. No further DB
+migration or financial mutation in this repair. Next: push one coherent correction
+onto e8a1f39, verify actual strict Sonar and CI, then align the gateway source.
+Render web deployment stays on hold until strict CI is green.
+
+Owner reiterated Termux-first pushes. They authorize completion/corrective pushes
+for this already-pushed session only; future default remains owner Termux. No PR,
+new branch, staging, force push or frontend deployment has been authorized here.
+
 # 2026-10-26 — Live masters/billing release candidate verified
 
 Owner explicitly authorizes assistant commit/main push and Khata migration for
