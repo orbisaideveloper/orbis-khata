@@ -8,7 +8,7 @@ export default defineConfig({
     // Limit parallel jsdom instances on Android/Termux.
     maxWorkers: 2,
     setupFiles: ['./src/test/setup.ts'],
-    include: ['src/**/*.test.{ts,tsx}'],
+    include: ['src/**/*.test.{ts,tsx}', 'tests/**/*.test.ts'],
     coverage: {
       provider: 'v8',
       include: ['src/**/*.{ts,tsx}'],

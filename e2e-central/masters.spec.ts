@@ -24,7 +24,7 @@ test('cloud masters survive reload and require two delete confirmations',async({
  const nav=page.getByRole('navigation',{name:'Accounts',exact:true})
  await page.getByRole('button',{name:'Parties 0',exact:true}).click();await page.getByRole('button',{name:'＋ Add party',exact:true}).click()
  await page.getByLabel('Name',{exact:true}).fill('Cloud customer');await page.getByLabel('Phone number',{exact:true}).fill('+919876543210');await page.getByRole('button',{name:'Save',exact:true}).click();await expect(page.getByText('Cloud customer',{exact:true})).toBeVisible()
- await page.reload();await page.getByRole('button',{name:/Khata Boi.*Open/}).click();await page.getByRole('button',{name:'Parties 1',exact:true}).click();await expect(page.getByText(/919876543210/)).toBeVisible()
+ await page.reload();await page.getByRole('button',{name:/Khata Boi.*Open/}).click();await page.getByRole('button',{name:'Parties 1',exact:true}).click();await expect(page.getByRole('link',{name:'+919876543210',exact:true})).toHaveAttribute('href','tel:+919876543210')
  await nav.getByRole('button',{name:'Items',exact:true}).click();await page.getByRole('button',{name:'＋ Add item',exact:true}).click();await page.getByLabel('Name',{exact:true}).fill('Cloud milk');await page.getByLabel('Unit',{exact:true}).fill('litre');await page.getByRole('button',{name:'Save',exact:true}).click();await expect(page.getByText('Cloud milk',{exact:true})).toHaveCount(1);expect(items[0]).toMatchObject({code:'',default_rate:null})
  await nav.getByRole('button',{name:'Parties',exact:true}).click();const remove=page.getByRole('button',{name:'Delete: Cloud customer',exact:true})
  page.once('dialog',d=>d.dismiss());await remove.click();expect(deletes).toBe(0)

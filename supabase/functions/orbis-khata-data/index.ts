@@ -42,7 +42,7 @@ const handler = createKhataGateway({ origins: (env('KHATA_ORIGINS') || 'https://
       const created = companies
         ? await tx`insert into public.khata_companies(id,name,owner_id) values(${row.id}::uuid,${row.name},${ledgerOwnerId}::uuid) on conflict(id) do nothing returning id,name`
         : await tx`insert into public.khata_parties(id,name,company_id,kind) values(${row.id}::uuid,${row.name},${row.company_id}::uuid,${row.kind}) on conflict(id) do nothing returning id,name`
-      if (created.length) return created[0]
+      if (created.length) {if(companies)await tx`select public.khata_prepare_company_v2(${row.id}::uuid)`;return created[0]}
       const existing = companies
         ? await tx`select id,name,owner_id from public.khata_companies where id=${row.id}::uuid`
         : await tx`select id,name,company_id,kind from public.khata_parties where id=${row.id}::uuid`
@@ -50,8 +50,28 @@ const handler = createKhataGateway({ origins: (env('KHATA_ORIGINS') || 'https://
       if (!existing.length || Object.entries(expected).some(([key,value]) => existing[0][key] !== value)) throw new Error('KHATA_IDEMPOTENCY_CONFLICT')
       return { id: existing[0].id, name: existing[0].name }
     }
+    if (operation.operation === 'masters') {
+      const result=await tx`select public.khata_masters_v2(${String(input.company)}::uuid) as data`
+      return result[0].data
+    }
+    if (operation.operation === 'party-save' || operation.operation === 'item-save') {
+      const result=await tx`select public.khata_master_save_v2(${operation.operation==='party-save'?'party':'item'},${tx.json(input)}::jsonb) as data`
+      return result[0].data
+    }
+    if (operation.operation === 'party-delete' || operation.operation === 'item-delete') {
+      await tx`select public.khata_master_delete_v2(${operation.operation==='party-delete'?'party':'item'},${String(input.company)}::uuid,${String(input.id)}::uuid)`
+      return null
+    }
+    if (operation.operation === 'party-balance') {
+      const result=await tx`select public.khata_party_balance_v2(${String(input.company)}::uuid,${String(input.party)}::uuid,${String(input.date)}::date,${String(input.kind)}) as data`
+      return result[0].data
+    }
+    if (operation.operation === 'expense-bill') {
+      const result=await tx`select public.khata_expense_bill_v2(${tx.json(input.command)}::jsonb,${tx.json(input.lines)}::jsonb) as data`
+      return result[0].data
+    }
     if (operation.operation === 'inventory-post') {
-      const result = await tx`select public.khata_inventory_post_v1(${JSON.stringify(input)}::jsonb) as data`
+      const result = await tx`select public.khata_inventory_post_v1(${tx.json(input)}::jsonb) as data`
       return result[0].data
     }
     if (operation.operation === 'inventory-report') {
@@ -59,11 +79,11 @@ const handler = createKhataGateway({ origins: (env('KHATA_ORIGINS') || 'https://
       return result[0].data
     }
     if (operation.operation === 'expense-post') {
-      const result = await tx`select public.khata_expense_post_v1(${JSON.stringify(input)}::jsonb) as data`
+      const result = await tx`select public.khata_expense_post_v2(${tx.json(input)}::jsonb) as data`
       return result[0].data
     }
     if (operation.operation === 'expense-report') {
-      const result = await tx`select public.khata_expense_report_v1(${String(input.company)}::uuid,${String(input.from)}::date,${String(input.to)}::date,${Number(input.offset)}::integer) as data`
+      const result = await tx`select public.khata_expense_report_v2(${String(input.company)}::uuid,${String(input.from)}::date,${String(input.to)}::date,${Number(input.offset)}::integer) as data`
       return result[0].data
     }
     if (operation.operation === 'report') {

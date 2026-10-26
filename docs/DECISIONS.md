@@ -212,3 +212,13 @@ The owner reiterates that routine commits/pushes go through their Termux. They
 explicitly authorize finishing the current already-pushed release and necessary
 corrective pushes. This exception ends with this release; do not infer permanent
 permission for direct GitHub pushes. Preserve the existing manual Render step.
+
+
+### 26 October 2026 — Live save correction authorization
+
+Owner explicitly authorizes assistant commit/main push for the reported production
+master-save fault and phone contact actions. Synchronize the phone source afterward.
+Use typed Postgres.js JSON parameters, never pre-serialized strings for JSON RPCs.
+Contact access is optional, browser-supported and explicitly user-invoked; retain
+manual numbers and dial links. Do not initiate a call automatically. This task does
+not authorize unrelated releases or cross-product database changes.

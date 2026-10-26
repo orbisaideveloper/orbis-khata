@@ -1,3 +1,40 @@
+# 2026-10-26 — Live save transport and phone contact correction
+
+Owner reported that the new green production UI opens but party/item saves fail.
+Render is confirmed live at b26ecde; Edge logs at 12:48–12:52 UTC show POST 422
+and product-database PostgresError. Empty optional item fields and party contacts
+both succeed through the authenticated database role inside rollback transactions.
+Postgres.js 3.4.7 infers jsonb parameters and JSON-serializes them; pre-stringifying
+RPC inputs encodes an object as JSON text. Replace those four JSON RPC boundaries
+with tx.json(object/array), including expense and inventory commands. JWT claims
+remain text for set_config. No schema, grants, tenant boundary or financial history
+change is required. Old double-encoded payload rejection was reproduced in SQL.
+
+Add dial links in the party list and edit form. A supported browser may offer a
+user-invoked Contact Picker for telephone numbers only; unsupported browsers retain
+manual entry. Cancellation keeps the current number. No automatic calls or contact
+book upload. Add an actual Edge-entrypoint transport regression harness, contact
+permission/cancellation tests, and browser dial-link assertion.
+
+Current authorization: owner explicitly asks assistant to repair and commit/push
+this task as before, then provide Termux synchronization steps. This is within
+Khata main only; no cross-product changes, staging, PR or force push. Manual Render
+frontend deployment remains the owner step. Final CI/deployment evidence follows
+verification; this checkpoint does not claim unrun gates or real-device acceptance.
+
+# 2026-10-26 — Release completion evidence
+
+Main b26ecde8f70db246d6ab8819ee12ab9ccc082698 is pushed. GitHub Actions run
+40319841728 succeeds: 430 tests/51 files, 16 browser scenarios, native gates and
+strict Sonar pass. Open issues 0; unreviewed security hotspots 0; Sonar coverage
+91.1%, duplication 0%. All 120 original findings were corrected without policy
+reductions. Gateway source aligned as ACTIVE version 6; migration 20261026081216
+remains applied. Unauthenticated final API probe returns 401 KHATA_LOGIN_REQUIRED.
+Frontend Render remains manual and was not deployed; next exact owner step is
+Manual Deploy -> Deploy latest commit b26ecde. Future pushes remain Termux-first.
+The user-facing final report holds this post-CI evidence; no extra documentation-
+only remote commit was made after the verified green source commit.
+
 # 2026-10-26 — Strict Sonar corrective candidate
 
 Main has feature commit 4463c94 and diagnostic commit e8a1f39. The first run passed
