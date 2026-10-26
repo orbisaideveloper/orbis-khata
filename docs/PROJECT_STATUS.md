@@ -1,3 +1,16 @@
+# 2026-10-26 — CI trace diagnosis and complete protocol fixture repair
+
+CI 40336662539 failed because the signup mock returned company rows for masters
+and inventory-report. The artifact trace records DemoWorkspace reading an undefined
+parties.length; the heading timeout was a symptom. The prior assertion-only fix
+was incomplete. Local fixture handlers existed but were absent from the pushed
+file. Compare against current main and add the two correct response shapes there.
+Refuse unsupported mock operations and assert no browser page errors plus the
+loaded Parties 0 dashboard. Full local mobile/desktop browser suite: 16/16 PASS.
+No retry, timeout, coverage threshold, test exclusion or production code change.
+Native gates already passed for this product source. Next: push this exact fixture,
+verify all remote gates including strict Sonar, and finish the scoped release.
+
 # 2026-10-26 — Production save correction CI follow-up
 
 Commit 31f854a is pushed and gateway version 7 ACTIVE; unauthenticated POST is

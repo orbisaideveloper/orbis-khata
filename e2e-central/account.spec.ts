@@ -33,6 +33,7 @@ async function backend(page: Page) {
     state.data.push(body)
     expect(body.version).toBe('orbis.khata.data.v1')
     const input = body.input as Record<string, unknown>
+    expect(['companies', 'create', 'masters', 'inventory-report', 'report']).toContain(body.operation)
     let data: unknown = state.companies
     if (body.operation === 'create') {
       expect(input.table).toBe('khata_companies')
@@ -40,6 +41,8 @@ async function backend(page: Page) {
       expect(row).not.toHaveProperty('owner_id')
       state.companies.push({ id: row.id, name: row.name });data = state.companies.at(-1)
     }
+    if (body.operation === 'masters') data = { items: [], parties: [] }
+    if (body.operation === 'inventory-report') data = { items: [], warehouses: [], stocks: [], documents: [], count: 0 }
     if (body.operation === 'report') data = { balances: {}, ledger_balances: {}, parties: [], entries: [], count: 0, as_of: '2026-10-12T00:00:00Z' }
     await route.fulfill({ status: 200, headers, json: { data } })
   })
@@ -62,6 +65,8 @@ async function fits(page: Page) {
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1)).toBe(true)
 }
 test('same signup source on mobile/desktop; session reload and gateway ownership', async ({ page }) => {
+  const pageErrors: string[] = []
+  page.on('pageerror', error => pageErrors.push(error.message))
   const state = await backend(page);await openLogin(page)
   await page.getByRole('button', { name: 'Create account', exact: true }).click()
   await page.getByLabel('First name', { exact: true }).fill('Test')
@@ -80,6 +85,8 @@ test('same signup source on mobile/desktop; session reload and gateway ownership
   await page.getByRole('button', { name: 'Create', exact: true }).click()
   await expect(page.getByRole('heading', { name: 'Test shop', exact: true })).toBeVisible()
   await fits(page)
+  await expect(page.getByRole('button', { name: 'Parties 0', exact: true })).toBeVisible()
+  expect(pageErrors).toEqual([])
   expect(state.data.some(value => value.operation === 'create')).toBe(true)
   expect(await page.evaluate(() => Object.values(localStorage).join(''))).not.toContain('test-password')
 })
