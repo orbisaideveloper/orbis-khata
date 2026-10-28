@@ -38,22 +38,60 @@ type Line = {
     basis: 'rate' | 'amount';
 };
 const fresh = (): Line => ({ key: crypto.randomUUID(), item: '', description: '', quantity: '1', rate: '', amount: '', basis: 'rate' });
-function displayedRate(rate: string) { try { return money(rateMinor(rate)).replace('₹','').replaceAll(',',''); } catch { return rate; } }
-function needsStockWarning(kind: BillKind, lines: Line[], stocks: {item:string;warehouse:string;closing:string}[], warehouse: string) {
- if (kind !== 'sale') return false;
- return lines.some(line => { try { const available = BigInt(stocks.find(row => row.item === line.item && row.warehouse === warehouse)?.closing ?? '0'); const used = lines.filter(row => row.item === line.item).reduce((sum,row) => sum + BigInt(quantity(row.quantity)),0n); return Boolean(line.item) && used > available; } catch { return false; } });
+function displayedRate(rate: string) {
+    try {
+        return money(rateMinor(rate)).replace('₹', '').replaceAll(',', '');
+    }
+    catch {
+        return rate;
+    }
+}
+function needsStockWarning(kind: BillKind, lines: Line[], stocks: {
+    item: string;
+    warehouse: string;
+    closing: string;
+}[], warehouse: string) {
+    if (kind !== 'sale') {
+        return false;
+    }
+    return lines.some(line => {
+        try {
+            const available = BigInt(stocks.find(row => row.item === line.item && row.warehouse === warehouse)?.closing ?? '0');
+            const used = lines.filter(row => row.item === line.item).reduce((sum, row) => sum + BigInt(quantity(row.quantity)), 0n);
+            return Boolean(line.item) && used > available;
+        }
+        catch {
+            return false;
+        }
+    });
 }
 function settlementAmounts(total: bigint, paid: string, round: boolean, previous: string) {
- const adjustment = round ? ((total + 50n) / 100n) * 100n - total : 0n;
- let paidMinor = 0n;try { if (paid.trim()) paidMinor = BigInt(minor(paid)); } catch { /* Review validates input. */ }
- const payable=total+adjustment;return {adjustment,paidMinor,payable,grandTotal:payable+BigInt(previous)-paidMinor};
+    const adjustment = round ? ((total + 50n) / 100n) * 100n - total : 0n;
+    let paidMinor = 0n;
+    try {
+        if (paid.trim()) {
+            paidMinor = BigInt(minor(paid));
+        }
+    }
+    catch { /* Review validates input. */ }
+    const payable = total + adjustment;
+    return { adjustment, paidMinor, payable, grandTotal: payable + BigInt(previous) - paidMinor };
 }
-function BillBalanceWarning({negativeStock,negativeCash,language}:Readonly<{negativeStock:boolean;negativeCash:boolean;language:Language}>) {
- if (!negativeStock && !negativeCash) return null;
- const message = negativeStock ? inLanguage(language,'স্টক মাইনাস হবে। বিল সেভ করতে পারবেন।','स्टॉक ऋणात्मक होगा। बिल सहेज सकते हैं।','Stock will become negative. You can still save this bill.') : inLanguage(language,'অ্যাকাউন্টের টাকা মাইনাস হবে। পেমেন্ট সেভ করতে পারবেন।','खाते का बैलेंस ऋणात्मक होगा। भुगतान सहेज सकते हैं।','Account balance will become negative. You can still save this payment.');
- return <output className="balance-warning" role="status">{message}</output>;
+function BillBalanceWarning({ negativeStock, negativeCash, language }: Readonly<{
+    negativeStock: boolean;
+    negativeCash: boolean;
+    language: Language;
+}>) {
+    if (!negativeStock && !negativeCash) {
+        return null;
+    }
+    const message = negativeStock ? inLanguage(language, 'স্টক মাইনাস হবে। বিল সেভ করতে পারবেন।', 'स्टॉक ऋणात्मक होगा। बिल सहेज सकते हैं।', 'Stock will become negative. You can still save this bill.') : inLanguage(language, 'অ্যাকাউন্টের টাকা মাইনাস হবে। পেমেন্ট সেভ করতে পারবেন।', 'खाते का बैलेंस ऋणात्मक होगा। भुगतान सहेज सकते हैं।', 'Account balance will become negative. You can still save this payment.');
+    return <output className="balance-warning">{message}</output>;
 }
-function accountWillBeNegative(kind: BillKind, paid: bigint, accounts: {id:string;balance:string}[], id: string) { return kind === 'purchase' && paid > BigInt(accounts.find(row => row.id === id)?.balance ?? '0'); }
+function accountWillBeNegative(kind: BillKind, paid: bigint, accounts: {
+    id: string;
+    balance: string;
+}[], id: string) { return kind === 'purchase' && paid > BigInt(accounts.find(row => row.id === id)?.balance ?? '0'); }
 function chosenReference(reference: string, serial: string, fallback: string) { return reference.trim() || serial || fallback; }
 const billPrefixes = { sale: 'S', purchase: 'P', expense: 'E' };
 const partyKinds = { sale: 'customer', purchase: 'supplier', expense: 'expense' } as const;
@@ -80,20 +118,27 @@ type BillDraft = {
     amount: string;
     warehouse: string;
     lines: Line[];
-    paid: string; account: string; roundoff: string;
+    paid: string;
+    account: string;
+    roundoff: string;
 };
 function billStockLines(lines: Line[], warehouse: string): StockLine[] { return lines.map(line => ({ item: line.item, warehouse, to: null, quantity: quantity(line.quantity), rate: rateMinor(line.rate), unit_rate: line.rate })); }
 function billExpenseLines(lines: Line[]) { return lines.map(line => ({ description: line.description, quantity: quantity(line.quantity), unit: '', rate: rateMinor(line.rate), unit_rate: line.rate })); }
-function billPaymentMethod(method: string): 'cash' | 'bank' | null { if (method === 'cash' || method === 'bank') {
-    return method;
-} return null; }
+function billPaymentMethod(method: string): 'cash' | 'bank' | null {
+    if (method === 'cash' || method === 'bank') {
+        return method;
+    }
+    return null;
+}
 function billOperation(draft: BillDraft): KhataOperation {
     const { id, company, date, party, kind, reference, note } = draft;
     if (kind === 'expense') {
         return { operation: 'expense-bill', input: { command: { id, company, date, kind: 'charge', amount: draft.amount, category: draft.category.trim() || party.name, payee: party.name, method: billPaymentMethod(draft.method), parent: null, reference, note }, lines: billExpenseLines(draft.lines) } };
     }
     const operation: KhataOperation = { operation: 'inventory-post', input: { id, company, kind, date, code: '', name: '', unit: '', party: party.id, reference, note, lines: billStockLines(draft.lines, draft.warehouse) } };
-    if (draft.paid !== '0' || draft.roundoff !== '0') return { operation: 'workspace', input: { company, action: 'bill', bill: operation.input, paid: draft.paid, account: draft.account, roundoff: draft.roundoff } };
+    if (draft.paid !== '0' || draft.roundoff !== '0') {
+        return { operation: 'workspace', input: { company, action: 'bill', bill: operation.input, paid: draft.paid, account: draft.account, roundoff: draft.roundoff } };
+    }
     return operation;
 }
 async function persistBill(operation: KhataOperation, services: BookServices | null, userId: string) {
@@ -143,8 +188,15 @@ export function InvoicePage({ kind, language, company, companyName, items, parti
     const [recovery, setRecovery] = useState(() => services ? restoreBill(userId) : null);
     const { settings, request } = useWorkspaceSettings(company, Boolean(recovery));
     const [focusedRate, setFocusedRate] = useState('');
-    const [stockSnapshot, setStockSnapshot] = useState<{item:string;warehouse:string;closing:string}[]>([]);
-    const [accountBalances, setAccountBalances] = useState<{id:string;balance:string}[]>([]);
+    const [stockSnapshot, setStockSnapshot] = useState<{
+        item: string;
+        warehouse: string;
+        closing: string;
+    }[]>([]);
+    const [accountBalances, setAccountBalances] = useState<{
+        id: string;
+        balance: string;
+    }[]>([]);
     const [paid, setPaid] = useState(''), [account, setAccount] = useState('cash'), [round, setRound] = useState(false), [serial, setSerial] = useState('');
     const balanceGeneration = useRef(0), [balanceBusy, setBalanceBusy] = useState(false), [balanceFailed, setBalanceFailed] = useState(false);
     const [template, setTemplate] = useState<BillTemplate>(readBillTemplate), [companyDetails, setCompanyDetails] = useState('');
@@ -170,7 +222,7 @@ export function InvoicePage({ kind, language, company, companyName, items, parti
             return { ...line, [field]: value };
         }));
     }
-    function stockLines():StockLine[]{return billStockLines(lines,selectedWarehouse)}
+    function stockLines(): StockLine[] { return billStockLines(lines, selectedWarehouse); }
     function total() {
         return lines.reduce((sum, line) => {
             try {
@@ -228,12 +280,49 @@ export function InvoicePage({ kind, language, company, companyName, items, parti
         return [...groups].map(([unit, value]) => `${displayQuantity(String(value))}${unit ? ' ' + unit : ''}`).join(' · ') || '—';
     }
     useEffect(() => { onLock?.(busy); return () => { onLock?.(false); }; }, [busy, onLock]);
-    const {adjustment,payable,paidMinor,grandTotal}=settlementAmounts(total(),paid,round,previous);
+    const { adjustment, payable, paidMinor, grandTotal } = settlementAmounts(total(), paid, round, previous);
     const billNumber = chosenReference(reference, serial, automaticNumber);
-    useEffect(() => { if (recovery) return; let alive = true; void request<{stocks:{item:string;warehouse:string;closing:string}[]}>('inventory-report', { company, from: date, to: date, offset: 0 }).then(value => { if (alive) setStockSnapshot(value?.stocks ?? []); }, () => { if (alive) setStockSnapshot([]); }); void request<unknown>('workspace', { company, action: 'accounts' }).then(value => { if (alive && Array.isArray(value)) setAccountBalances(value); }, () => {}); return () => { alive = false; }; }, [company, date, request, recovery]);
+    useEffect(() => {
+        if (recovery) {
+            return;
+        }
+        let alive = true;
+        void request<{
+            stocks: {
+                item: string;
+                warehouse: string;
+                closing: string;
+            }[];
+        }>('inventory-report', { company, from: date, to: date, offset: 0 }).then(value => {
+            if (alive) {
+                setStockSnapshot(value?.stocks ?? []);
+            }
+        }, () => {
+            if (alive) {
+                setStockSnapshot([]);
+            }
+        });
+        void request<unknown>('workspace', { company, action: 'accounts' }).then(value => {
+            if (alive && Array.isArray(value)) {
+                setAccountBalances(value);
+            }
+        }, () => { });
+        return () => { alive = false; };
+    }, [company, date, request, recovery]);
     const negativeStock = needsStockWarning(kind, lines, stockSnapshot, selectedWarehouse);
     const negativeCash = accountWillBeNegative(kind, paidMinor, accountBalances, account);
-    useEffect(() => { if (recovery) return; let alive = true; void request('workspace', { company, action: 'number', id, kind }).then(value => { if (alive && typeof value === 'string') setSerial(value); }, () => { /* A manually entered reference remains available. */ }); return () => { alive = false; }; }, [company, id, kind, request, recovery]);
+    useEffect(() => {
+        if (recovery) {
+            return;
+        }
+        let alive = true;
+        void request('workspace', { company, action: 'number', id, kind }).then(value => {
+            if (alive && typeof value === 'string') {
+                setSerial(value);
+            }
+        }, () => { });
+        return () => { alive = false; };
+    }, [company, id, kind, request, recovery]);
     function review(event: React.SyntheticEvent<HTMLFormElement>) {
         event.preventDefault();
         setError('');
@@ -242,7 +331,9 @@ export function InvoicePage({ kind, language, company, companyName, items, parti
                 throw new Error('INVALID_BILL');
             }
             stockLines();
-            if (kind !== 'expense' && (paid.trim() && BigInt(minor(paid)) > payable || payable <= 0n)) throw new Error('INVALID_PAYMENT');
+            if (kind !== 'expense' && (paid.trim() && BigInt(minor(paid)) > payable || payable <= 0n)) {
+                throw new Error('INVALID_PAYMENT');
+            }
             if (kind === 'expense') {
                 if (lines.some(l => !l.description.trim())) {
                     throw new Error('INVALID_BILL');
@@ -319,7 +410,7 @@ export function InvoicePage({ kind, language, company, companyName, items, parti
     }
     if (phase !== 'edit') {
         return <section aria-label={t[kind]} className="bill-review">
-  <details className="bill-settings"><summary>{inLanguage(language,'বিল সেটিংস','बिल सेटिंग्स','Bill settings')}</summary><BillDesign language={language} value={template} onChange={value => { setTemplate(value); rememberBillTemplate(value); }}/></details>
+  <details className="bill-settings"><summary>{inLanguage(language, 'বিল সেটিংস', 'बिल सेटिंग्स', 'Bill settings')}</summary><BillDesign language={language} value={template} onChange={value => { setTemplate(value); rememberBillTemplate(value); }}/></details>
   <PaperPreview template={template} companyDetails={companyDetails} draft={phase !== 'saved' ? d.draft : ''} continuation={d.continue} companyName={companyName} title={t[kind]} memo={t.memo} numberLabel={t.number} number={billNumber} dateLabel={t.date} date={date.split('-').reverse().join('-')} partyName={party?.name ?? ''} partyDetails={[party ? m[party.kind] : '', party?.phone, party?.address, party?.email].filter(Boolean).join(' · ')} headings={[t.serial, kind === 'expense' ? t.description : t.item, t.quantity, t.rate, t.amount]} rows={lines.map((line, index) => [String(index + 1), kind === 'expense' ? line.description : items.find(i => i.id === line.item)?.name ?? '', displayQuantity(quantity(line.quantity)) + ' ' + (items.find(i => i.id === line.item)?.unit ?? ''), rateDisplay(line.rate), rowAmount(line)])} totals={[[t.totalQuantity, totalQuantities()], [t.subtotal, money(total())], [inLanguage(language, 'রাউন্ড অফ', 'राउंड ऑफ', 'Round off'), money(adjustment)], [t.previous, money(previous)], [inLanguage(language, 'জমা / পরিশোধ', 'जमा / भुगतान', 'Received / paid'), money(paidMinor)], [t.total, money(grandTotal)]]} note={note} thanks={t.thanks} signatures={[t.partySignature, t.authorizedSignature]}/>
   <BillShare key={phase + template} language={language} name={companyName + '-' + billNumber}/>
   <button className="bill-print-button" type="button" onClick={() => window.print()}>{d.print}</button>
@@ -332,7 +423,7 @@ export function InvoicePage({ kind, language, company, companyName, items, parti
     }
     return <section className="invoice-page books-card memo-paper memo-edit" aria-label={t[kind]}>
   <div className="invoice-heading memo-heading"><h1>{companyName}</h1><span className="memo-badge">{t.memo}</span><p>{t[kind]}</p></div><button className="memo-back" type="button" disabled={busy} onClick={onBack}>{t.cancel}</button>
-  <details className="bill-settings"><summary>{inLanguage(language,'বিল সেটিংস','बिल सेटिंग्स','Bill settings')}</summary><BillDesign language={language} value={template} onChange={value => { setTemplate(value); rememberBillTemplate(value); }}/></details>
+  <details className="bill-settings"><summary>{inLanguage(language, 'বিল সেটিংস', 'बिल सेटिंग्स', 'Bill settings')}</summary><BillDesign language={language} value={template} onChange={value => { setTemplate(value); rememberBillTemplate(value); }}/></details>
   <form onSubmit={review}>
    <details className="bill-company-details"><summary>{d.businessDetails}</summary><label>{d.businessAddress}<textarea maxLength={250} value={companyDetails} onChange={e => setCompanyDetails(e.target.value)}/></label></details>
    <div className="invoice-party"><p className="bill-party-context">{companyName} · {m[partyKind]}</p>{<label>{t.party}<select required value={partyId} onChange={e => pickParty(e.target.value)}><option value="">{t.choose}</option>{allowed.map(p => <option key={p.id} value={p.id}>{p.name} · {m[p.kind]}</option>)}</select></label>}<button type="button" className="bill-add-party" onClick={() => setAddingParty(true)}>＋ {m.addParty}</button>{!allowed.length && <output>{t.noParty} ({m[partyKind]})</output>}{party && <address><strong>{party.name}</strong><span>{m[party.kind]}</span>{party.phone && <span>{m.phone}: {party.phone}</span>}{party.address && <span>{party.address}</span>}{party.email && <span>{party.email}</span>}</address>}</div>

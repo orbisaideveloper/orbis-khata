@@ -160,3 +160,27 @@ and desktop bill PDF rerun2/2 PASS (/tmp/khata-bill-browser-fixed2.log). No forc
 clicks, no threshold/retry/exclusion changes. Typecheck passes including newtests.
 No GitHub push yet. Still need full completion/gates, latest SQL purge proof,
 backend migration/Edge coordination, exact commit push and green CI. Keep working.
+
+## Pushed candidate — 0824d29180842556923d6a8a11d3024266f79d90
+
+Main fast-forward push succeeded from80aa957. Tree b3a8a3d62fec1b769e3f2cccceba4fcd27150b9c,
+64 files. Exact local final489tests/70files pass, coverage S91.04/B87.70/F90.35/L92.43;
+20/20 mobile/desktop pass /tmp/khata-browser-final-all.log, audit0, lint/typecheck,
+KNIP, JSCPD0, build/PWA, local Sonar subset0. Latest full SQL rollback including
+purge PASSED on gqyaxsczlmvppxuoqbox. No live schema, Edge or frontend deployment.
+MUST wait for this exact commit's GitHub Actions and fix all red gates before
+claiming green. User explicitly authorized push+CI repair, owner deploys frontend.
+
+## CI correction in progress — run40745023109
+
+Pushed0824d29; GitHub local-equivalent gates and20browser and ordinary Sonar gate
+PASS. Strict overall failed on open code-quality issues (not functional gate).
+Logs job123016397945. Fixed S2681 with explicit blocks; stable record line UUIDs;
+native dialog elements; implicit output status; fieldset for group; valid type
+predicate and Array.isArray; fromCodePoint; explicit missing test assertions.
+TypeScript printer reformatted changed TS/TSX. Shared RecordDetailProps and test
+confirmAccountEntry remove newly exposed clones (JSCPD0). Sonar local S2681/
+complexity/nested checks0. Coverage running /tmp/khata-sonar-repair-coverage.log;
+targeted repair suite /tmp/khata-fix-targeted.log. Next: push corrected source as
+child of0824d29, base treeb3a8a3d62fec1b769e3f2cccceba4fcd27150b9c; watch exact CI
+until strict green. No migration/Edge/Render deployment. Do not claim final green.

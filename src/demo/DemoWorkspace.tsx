@@ -81,7 +81,10 @@ export function DemoWorkspace({ language, userId = 'demo-owner' }: Readonly<{
     } | null>(null), [errorKey, setErrorKey] = useState('');
     const requestKey = [company, from, to, version].join('/');
     const report = result?.key === requestKey ? result.report : null, warehouses = result?.key === requestKey ? result.warehouses : [], failed = errorKey === requestKey;
-    const [overview, setOverview] = useState<{ company: string; kind: OverviewKind } | null>(null);
+    const [overview, setOverview] = useState<{
+        company: string;
+        kind: OverviewKind;
+    } | null>(null);
     const showingOverview = navigation.page === 'overview' && overview !== null && overview.company === company;
     function closeOverview() { setOverview(null); navigation.open('home'); }
     const [locked, setLocked] = useState(false);
@@ -133,7 +136,9 @@ export function DemoWorkspace({ language, userId = 'demo-owner' }: Readonly<{
                     name: string;
                 }[];
             }>('inventory-report', { company, from, to, offset: 0 }), request<ExpenseReport>('expense-report', { company, from, to, offset: 0 })]).then(([r, i, e]) => {
-            if (!e || !Array.isArray(e.bills) || !Array.isArray(e.categories)) throw new Error('EXPENSE_REPORT_INVALID');
+            if (!e || !Array.isArray(e.bills) || !Array.isArray(e.categories)) {
+                throw new Error('EXPENSE_REPORT_INVALID');
+            }
             if (alive) {
                 setResult({ key: requestKey, report: r, expenses: e, warehouses: i.warehouses });
             }

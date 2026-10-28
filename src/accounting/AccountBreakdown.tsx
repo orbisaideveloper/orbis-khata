@@ -3,5 +3,35 @@ import type { Language } from '../i18n';
 import { inLanguage } from '../localize';
 import { money } from './model';
 import { useWorkspaceSettings } from './use-settings';
-export type AccountRow={id:string;name:string;kind:string;balance:string;entry_ids:string[]};
-export function AccountBreakdown({company,language,kind,from,to,onSelect}:Readonly<{company:string;language:Language;kind:'cash'|'bank';from:string;to:string;onSelect:(row:AccountRow|null)=>void}>){const{request}=useWorkspaceSettings(company),[rows,setRows]=useState<AccountRow[]>([]),[selected,setSelected]=useState(''),[failed,setFailed]=useState(false);useEffect(()=>{let alive=true;void request<unknown>('workspace',{company,action:'accounts',from,to}).then(value=>{if(alive&&Array.isArray(value)){setRows(value.filter(row=>row.kind===kind));setFailed(false);}},()=>{if(alive)setFailed(true);});return()=>{alive=false;};},[company,kind,from,to,request]);return <div className="account-breakdown">{failed&&<output>{inLanguage(language,'অ্যাকাউন্টের বিস্তারিত পড়া যায়নি।','खाते का विवरण नहीं पढ़ा गया।','Account details unavailable.')}</output>}<button type="button" aria-pressed={!selected} onClick={()=>{setSelected('');onSelect(null);}}>{inLanguage(language,'সব অ্যাকাউন্ট','सभी खाते','All accounts')}</button>{rows.map(row=><button type="button" aria-pressed={selected===row.id} key={row.id} onClick={()=>{setSelected(row.id);onSelect(row);}}>{row.name} <strong>{money(row.balance)}</strong></button>)}</div>;}
+export type AccountRow = {
+    id: string;
+    name: string;
+    kind: string;
+    balance: string;
+    entry_ids: string[];
+};
+export function AccountBreakdown({ company, language, kind, from, to, onSelect }: Readonly<{
+    company: string;
+    language: Language;
+    kind: 'cash' | 'bank';
+    from: string;
+    to: string;
+    onSelect: (row: AccountRow | null) => void;
+}>) {
+    const { request } = useWorkspaceSettings(company), [rows, setRows] = useState<AccountRow[]>([]), [selected, setSelected] = useState(''), [failed, setFailed] = useState(false);
+    useEffect(() => {
+        let alive = true;
+        void request<unknown>('workspace', { company, action: 'accounts', from, to }).then(value => {
+            if (alive && Array.isArray(value)) {
+                setRows(value.filter(row => row.kind === kind));
+                setFailed(false);
+            }
+        }, () => {
+            if (alive) {
+                setFailed(true);
+            }
+        });
+        return () => { alive = false; };
+    }, [company, kind, from, to, request]);
+    return <div className="account-breakdown">{failed && <output>{inLanguage(language, 'অ্যাকাউন্টের বিস্তারিত পড়া যায়নি।', 'खाते का विवरण नहीं पढ़ा गया।', 'Account details unavailable.')}</output>}<button type="button" aria-pressed={!selected} onClick={() => { setSelected(''); onSelect(null); }}>{inLanguage(language, 'সব অ্যাকাউন্ট', 'सभी खाते', 'All accounts')}</button>{rows.map(row => <button type="button" aria-pressed={selected === row.id} key={row.id} onClick={() => { setSelected(row.id); onSelect(row); }}>{row.name} <strong>{money(row.balance)}</strong></button>)}</div>;
+}

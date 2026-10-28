@@ -9,8 +9,14 @@ export function presetRange(preset: DatePreset, day: string) {
         shifted.setUTCDate(shifted.getUTCDate() + days);
         return shifted.toISOString().slice(0, 10);
     };
-    if (preset === 'yesterday') return { from: shift(-1), to: shift(-1) };
-    if (preset === 'seven') return { from: shift(-6), to: day };
-    if (preset === 'month') return { from: day.slice(0, 7) + '-01', to: day };
+    if (preset === 'yesterday') {
+        return { from: shift(-1), to: shift(-1) };
+    }
+    if (preset === 'seven') {
+        return { from: shift(-6), to: day };
+    }
+    if (preset === 'month') {
+        return { from: day.slice(0, 7) + '-01', to: day };
+    }
     return { from: day, to: day };
 }
