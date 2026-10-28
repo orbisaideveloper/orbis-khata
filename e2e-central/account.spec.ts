@@ -33,8 +33,10 @@ async function backend(page: Page) {
     state.data.push(body)
     expect(body.version).toBe('orbis.khata.data.v1')
     const input = body.input as Record<string, unknown>
-    expect(['companies', 'create', 'masters', 'inventory-report', 'expense-report', 'report']).toContain(body.operation)
+    expect(['companies', 'create', 'workspace', 'retired-companies', 'masters', 'inventory-report', 'expense-report', 'report']).toContain(body.operation)
     let data: unknown = state.companies
+    if (body.operation === 'workspace') data = null
+    if (body.operation === 'retired-companies') data = []
     if (body.operation === 'create') {
       expect(input.table).toBe('khata_companies')
       const row = input.row as { id: string; name: string }

@@ -2,11 +2,11 @@ import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testi
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 import { Accounting } from './Accounting'
 import type { Report } from './model'
-const api = vi.hoisted(() => ({ expenseReport: vi.fn(), postExpense: vi.fn(), companies: vi.fn(), report: vi.fn(), createRecord: vi.fn(), post: vi.fn(), rejected: vi.fn() }))
+const api = vi.hoisted(() => ({ requestKhata: vi.fn().mockResolvedValue(null), expenseReport: vi.fn(), postExpense: vi.fn(), companies: vi.fn(), report: vi.fn(), createRecord: vi.fn(), post: vi.fn(), rejected: vi.fn() }))
 vi.mock('./api', () => api)
 const empty: Report = { balances: { cash: { opening: '0', closing: '-100', movement: '-100' } }, ledger_balances: {}, parties: [], entries: [], count: 0, as_of: '' }
 function deferred<T>() { let resolve!: (v: T) => void; let reject!: (e: Error) => void; const promise = new Promise<T>((yes, no) => { resolve = yes; reject = no }); return { promise, resolve, reject } }
-beforeEach(() => { vi.resetAllMocks(); api.expenseReport.mockResolvedValue({balances:{},categories:[],bills:[],entries:[],count:0}); sessionStorage.clear(); api.companies.mockResolvedValue([{ id: 'c', name: 'Shop' }]); api.report.mockResolvedValue(empty); api.post.mockResolvedValue(undefined) })
+beforeEach(() => { vi.resetAllMocks(); api.requestKhata.mockResolvedValue(null); api.expenseReport.mockResolvedValue({balances:{},categories:[],bills:[],entries:[],count:0}); sessionStorage.clear(); api.companies.mockResolvedValue([{ id: 'c', name: 'Shop' }]); api.report.mockResolvedValue(empty); api.post.mockResolvedValue(undefined) })
 afterEach(() => { cleanup(); vi.restoreAllMocks() })
 async function prepareReceipt() {
  api.report.mockResolvedValue({ ...empty, parties: [{ id: 'p', name: 'Party', kind: 'customer', receivable: '0', payable: '0' }] })

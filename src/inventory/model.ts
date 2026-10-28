@@ -3,7 +3,7 @@ export type InventoryKind = 'item' | 'warehouse' | 'purchase' | 'sale' | 'openin
 export type StockLine = { item: string; warehouse: string; to: string | null; quantity: string; rate: string; unit_rate?: string }
 export type InventoryCommand = {
   id: string; company: string; kind: InventoryKind; date: string; code: string; name: string; unit: string;
-  party: string | null; reference: string; note: string; lines: StockLine[]
+  party: string | null; reference: string; note: string; lines: StockLine[]; roundoff?: string
 }
 type Item = { id: string; code: string; name: string; unit: string; default_rate?: string | null }
 type Warehouse = { id: string; code: string; name: string }
@@ -42,7 +42,7 @@ function details(p: Record<string, unknown>, kind: InventoryKind) {
   return p.party === null && typeof p.note === 'string' && Boolean(p.note.trim())
 }
 export function inventoryCommand(value: unknown): InventoryCommand | null {
-  if (!record(value) || !exact(value,['id','company','kind','date','code','name','unit','party','reference','note','lines'])) return null
+  if (!record(value) || !exact(value,['id','company','kind','date','code','name','unit','party','reference','note','lines',...(value.roundoff===undefined?[]:['roundoff'])])) return null
   const p = value
   if (!uuid(p.id) || !uuid(p.company) || typeof p.kind !== 'string' || !['item','warehouse','purchase','sale','opening','transfer'].includes(p.kind)) return null
   if (typeof p.date !== 'string' || !/^\d{4}-\d{2}-\d{2}$/u.test(p.date)) return null
@@ -51,6 +51,7 @@ export function inventoryCommand(value: unknown): InventoryCommand | null {
   if (!text(p.code,40) || !text(p.name,120) || !text(p.unit,24) || !text(p.reference,80) || !text(p.note,500)) return null
   if (p.code !== p.code.trim() || p.name !== p.name.trim() || p.unit !== p.unit.trim()) return null
   if (!details(p,p.kind as InventoryKind)) return null
+  if (p.roundoff !== undefined && (typeof p.roundoff !== 'string' || !/^-?\d{1,4}$/u.test(p.roundoff) || !['sale','purchase'].includes(p.kind))) return null
   const result = p as unknown as InventoryCommand
   if (billTotal(result.lines) > 999999999999n) return null
   if (['purchase','sale'].includes(result.kind) && result.lines.some(line=>lineTotal(line)<=0n)) return null

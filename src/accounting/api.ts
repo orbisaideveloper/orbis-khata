@@ -14,10 +14,11 @@ export function createKhataDataClient(options: { url: string; token: () => Promi
     })
     const text = await response.text()
     if (text.length > 2_000_000) throw new Error('KHATA_DATA_RESPONSE_INVALID')
-    const value = JSON.parse(text) as { data: T; code?: string }
+    const value = JSON.parse(text) as { data: T; code?: string; reason?: string }
     if (!response.ok) {
-      const error = new Error('KHATA_DATA_REQUEST_FAILED') as Error & { code?: string }
+      const error = new Error('KHATA_DATA_REQUEST_FAILED') as Error & { code?: string; reason?: string }
       error.code = typeof value.code === 'string' ? value.code : undefined
+      error.reason = typeof value.reason === 'string' ? value.reason : undefined
       throw error
     }
     return value.data
@@ -41,7 +42,7 @@ export async function report(company: string, from: string, to: string, party: s
 }
 export async function post(command: Command): Promise<void> { await requestKhata<unknown>('post', command) }
 export function rejected(error: unknown): boolean {
-  const code = (error as { code?: string })?.code ?? ''
+  const code = (error as { code?: string; reason?: string })?.code ?? ''
   return /^(22|23|28|42|P0)/.test(code)
 }
 

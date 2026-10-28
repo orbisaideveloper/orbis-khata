@@ -30,6 +30,8 @@ test('summary cards open due lists and scoped ledgers while the independent Ledg
       if (input.party) requestedParties.push(input.party)
       data = { balances: { cash: { opening: '500', movement: '700', closing: '1200' }, expenses: { opening: '0', movement: '700', closing: '700' } }, ledger_balances: { receivable: { opening: '0', closing: '2000' } }, parties, entries: input.party ? [{ ...receipt, id: 'selected', party_id: input.party, reference: 'Party-specific entry' }] : [receipt], count: 1, opening_entries: [] }
     }
+    if (operation === 'workspace') data = null
+    if (operation === 'retired-companies') data = []
     expect(data).toBeDefined()
     await route.fulfill({ headers, json: { data } })
   })

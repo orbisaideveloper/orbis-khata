@@ -20,7 +20,7 @@ test('bill settings stay collapsed and export the selected Bengali invoice as a 
       report: { balances: {}, ledger_balances: {}, parties: [party], entries: [], count: 0 },
       'inventory-report': { items: [item], warehouses: [warehouse], stocks: [], documents: [], count: 0 },
       'expense-report': { balances: {}, categories: [], bills: [], entries: [], count: 0 },
-      'party-balance': '0', 'inventory-post': 'saved',
+      workspace: null, 'retired-companies': [], 'party-balance': '0', 'inventory-post': 'saved',
     }
     expect(Object.hasOwn(results, operation)).toBe(true)
     await route.fulfill({ headers, json: { data: results[operation] } })

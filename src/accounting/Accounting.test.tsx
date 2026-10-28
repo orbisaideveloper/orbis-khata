@@ -2,7 +2,7 @@ import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-li
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 import { Accounting } from './Accounting'
 import type { Command, Report } from './model'
-const api = vi.hoisted(() => ({ expenseReport: vi.fn(), postExpense: vi.fn(), companies: vi.fn(), report: vi.fn(), createRecord: vi.fn(), post: vi.fn(), rejected: vi.fn() }))
+const api = vi.hoisted(() => ({ requestKhata: vi.fn().mockResolvedValue(null), expenseReport: vi.fn(), postExpense: vi.fn(), companies: vi.fn(), report: vi.fn(), createRecord: vi.fn(), post: vi.fn(), rejected: vi.fn() }))
 vi.mock('./api', () => api)
 const base: Report = {
   balances: { receivable: { opening: '0', closing: '-20000', movement: '-20000' }, sales: { opening: '0', closing: '-100000', movement: '-100000' }, cash: { opening: '0', closing: '120000', movement: '120000' } },
@@ -12,7 +12,7 @@ const base: Report = {
 }
 beforeEach(() => {
   api.expenseReport.mockResolvedValue({balances:{},categories:[],bills:[],entries:[],count:0});
-  vi.resetAllMocks(); api.expenseReport.mockResolvedValue({balances:{},categories:[],bills:[],entries:[],count:0}); sessionStorage.clear()
+  vi.resetAllMocks(); api.requestKhata.mockResolvedValue(null); api.expenseReport.mockResolvedValue({balances:{},categories:[],bills:[],entries:[],count:0}); sessionStorage.clear()
   api.companies.mockResolvedValue([{ id: 'c', name: 'Shop' }, { id: 'other', name: 'Other shop' }])
   api.report.mockResolvedValue(structuredClone(base)); api.post.mockResolvedValue(undefined)
 })

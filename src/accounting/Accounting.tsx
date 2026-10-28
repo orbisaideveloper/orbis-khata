@@ -1,3 +1,5 @@
+import { RetiredCompanies, WorkspaceSettings } from './WorkspaceSettings';
+import { DateRange } from './DateRange';
 import { textValue } from '../text-value';
 import { inLanguage } from '../localize';
 import { LedgerExplorer } from './LedgerExplorer';
@@ -92,7 +94,7 @@ export function Accounting({ userId, language, onBill, onCompanyChange, initialC
     }
     const company = list.find(c => c.id === selected);
     const showRecordForm = create || !list.length;
-    return <div className="books">
+    return <div className="books"><RetiredCompanies language={language} onChanged={() => setRefresh(n => n + 1)}/> 
     <div className="books-company">
       <label>{t.company}<select aria-label={t.company} value={selected} disabled={locked || !list.length} onChange={e => setSelected(e.target.value)}>
         {list.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
@@ -338,13 +340,13 @@ function Books({ userId, language, company, onLock, onBill }: Readonly<Props & {
     return <>
     <section className="books-hero"><span className="books-kicker">ORBIS / {company.name}</span><h2>{t.title}</h2>{tutorial && <><p>{t.subtitle}</p><small>{t.separate}</small></>}</section>
 
-    <nav className="books-navigation" aria-label={labels.ledger}>{(['ledger', 'all-ledgers', 'parties', 'items', 'expenses'] as const).map(target => <button type="button" key={target} aria-current={page === target ? 'page' : undefined} disabled={navigationLocked} onClick={() => navigation.open(target)}>{labels[target]}</button>)}</nav>
+    <nav className="books-navigation" aria-label={labels.ledger}>{(['ledger', 'all-ledgers', 'parties', 'items', 'expenses', 'settings'] as const).map(target => <button type="button" key={target} aria-current={page === target ? 'page' : undefined} disabled={navigationLocked} onClick={() => navigation.open(target)}>{labels[target]}</button>)}</nav>
     <div className="books-filters">
-      <label>{t.from}<input type="date" value={from} onChange={e => { setFrom(e.target.value); setOffset(0); }}/></label>
-      <label>{t.to}<input type="date" value={to} max={today()} onChange={e => { setTo(e.target.value); setOffset(0); }}/></label>
+      <DateRange language={language} from={from} to={to} onChange={(start, end) => { setFrom(start); setTo(end); setOffset(0); }}/>
       <button type="button" onClick={() => setVersion(n => n + 1)} disabled={loading}>{t.refresh}</button>
     </div>
 
+    {page === 'settings' && <WorkspaceSettings company={company.id} name={company.name} language={language} onChanged={() => { window.location.reload(); }}/>}
     {message && <output aria-live="polite" className="books-success">{message}</output>}
 
     {command && <section className="books-card books-confirm" aria-label={t.review}>

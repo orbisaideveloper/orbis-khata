@@ -48,12 +48,12 @@ it('allows a bill payment again after reversing the earlier partial payment',asy
  await demoRequest('expense-post',expense({kind:'payment',amount:'12000',method:'bank',parent:bill.id}))
  const r=await demoRequest<ExpenseReport>('expense-report',range);expect(r.bills).toHaveLength(0)
 })
-it('rejects a backdated sale that would make a later stock balance negative',async()=>{
+it('permits a backdated sale and reports the resulting negative stock',async()=>{
  const p=party('Trader','both'),item=crypto.randomUUID();saveDemoItem({id:item,company,name:'Milk',unit:'litre',code:'',default_rate:null})
  await demoRequest('inventory-post',trade('purchase',p.id,item,'10000000','6000'))
  await demoRequest('inventory-post',{...trade('sale',p.id,item,'10000000','9000'),date:'2026-10-21'})
- await expect(demoRequest('inventory-post',trade('sale',p.id,item,'1000000','9000'))).rejects.toThrow('INSUFFICIENT_STOCK')
- expect((await demoRequest<InventoryReport>('inventory-report',range)).stocks[0].closing).toBe('0')
+ await expect(demoRequest('inventory-post',trade('sale',p.id,item,'1000000','9000'))).resolves.toBeNull()
+ expect((await demoRequest<InventoryReport>('inventory-report',range)).stocks[0].closing).toBe('-1000000')
 })
 it('preserves historical stock before the date of a sale reversal',async()=>{
  const p=party('Trader','both'),item=crypto.randomUUID();saveDemoItem({id:item,company,name:'Milk',unit:'litre',code:'',default_rate:null})

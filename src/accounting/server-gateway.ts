@@ -1,7 +1,9 @@
+import { workspaceInput } from './workspace-contract.ts';
+import { safeBusinessReason } from './business-error.ts';
 import { itemInput, partyInput, masterIdentity } from '../master-input.ts';
 import { billTotal, inventoryCommand } from '../inventory/model.ts';
 import { expenseCommand } from './expense-model.ts';
-type Operation = 'masters' | 'party-save' | 'item-save' | 'party-delete' | 'item-delete' | 'party-balance' | 'expense-bill' | 'companies' | 'create' | 'report' | 'post' | 'expense-report' | 'expense-post' | 'inventory-post' | 'inventory-report';
+type Operation = 'workspace' | 'retired-companies' | 'masters' | 'party-save' | 'item-save' | 'party-delete' | 'item-delete' | 'party-balance' | 'expense-bill' | 'companies' | 'create' | 'report' | 'post' | 'expense-report' | 'expense-post' | 'inventory-post' | 'inventory-report';
 export type KhataPrincipal = {
     orbisIdentityId: string;
     displayId: string;
@@ -57,6 +59,8 @@ function pagedReportInput(input: Record<string, unknown>) {
 }
 function validOperation(operation: unknown, input: Record<string, unknown>): operation is Operation {
     switch (operation) {
+        case 'workspace': return workspaceInput(input);
+        case 'retired-companies': return keys(input, []);
         case 'masters': return keys(input, ['company']) && id(input.company);
         case 'party-save': return partyInput(input);
         case 'item-save': return itemInput(input);
@@ -193,7 +197,7 @@ export function createKhataGateway(options: {
             console.warn('KHATA_GATEWAY_FAILURE', { stage, errorName: error instanceof Error ? error.name : 'UnknownError' });
             const code = databaseErrorCode(error);
             if (code) {
-                return reply(422, { code });
+                return reply(422, { code, reason: safeBusinessReason(error) });
             }
             return reply(503, { code: 'KHATA_DATA_UNAVAILABLE' });
         }

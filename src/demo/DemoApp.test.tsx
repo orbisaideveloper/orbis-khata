@@ -15,7 +15,7 @@ it('opens an invoice page directly from Purchase without an amount-only form or 
 it('opens the simplified item master from navigation without network',async()=>{
  render(<DemoApp/>);fireEvent.change(screen.getByLabelText('ভাষা'),{target:{value:'en'}})
  fireEvent.click(screen.getByRole('button',{name:'Accounts & payments'}))
- await screen.findByRole('button',{name:'Receive money'})
+ await screen.findByRole('heading',{name:'Receive / pay'})
  fireEvent.click(within(screen.getByRole('navigation',{name:'Accounts'})).getByRole('button',{name:'Items'}))
  fireEvent.click(await screen.findByRole('button',{name:/Add item/}))
  expect(screen.getByLabelText('Name')).toBeRequired();expect(screen.getByLabelText('Unit')).toBeRequired();expect(screen.getByLabelText('Code (optional)')).not.toBeRequired();expect(screen.getByLabelText('Rate (optional)')).not.toBeRequired();expect(globalThis.fetch).not.toHaveBeenCalled()
@@ -30,11 +30,12 @@ it('finds expense ledger details beyond the first page',async()=>{
 
 it('prints the company created by the user in the invoice heading',async()=>{
  render(<DemoApp/>);fireEvent.change(screen.getByLabelText('ভাষা'),{target:{value:'en'}})
- fireEvent.click(screen.getByRole('button',{name:'Accounts & payments'}))
+ fireEvent.click(screen.getByRole('button',{name:/Create \/ switch company/}))
  fireEvent.click(await screen.findByRole('button',{name:/New company/}))
  fireEvent.change(screen.getByLabelText('Company name'),{target:{value:'Ajay Trading'}})
  fireEvent.click(screen.getByRole('button',{name:'Create'}))
  await screen.findByText('ORBIS / Ajay Trading')
+ fireEvent.click(within(screen.getByRole('navigation',{name:'Main navigation'})).getByRole('button',{name:'Home'}))
  fireEvent.click(await screen.findByRole('button',{name:'Purchase'}))
  expect(await screen.findByRole('heading',{level:1,name:'Ajay Trading'})).toBeInTheDocument()
  expect(globalThis.fetch).not.toHaveBeenCalled()

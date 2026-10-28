@@ -1,3 +1,43 @@
+# 2026-10-28 — Accounting v3 release candidate
+
+Local verification: 489 tests /70 files PASS; coverage statements91.04,
+branches87.70, functions90.35, lines92.43 with original thresholds. Typecheck,
+lint, KNIP, JSCPD0, build/PWA pass. Local Sonar complexity/nested-regex checks0.
+Earlier browser run19/20 plus fixed bill PDF mobile/desktop2/2 PASS; final full
+browser run in progress. SQL migration and authenticated rollback fixture PASS,
+including negative historical stock, partial settlement, exact retry, audited
+correction, tenant rejection, retire/restore and expired-company purge. All SQL
+experiments rolled back; no live migration, Edge or frontend deployment yet.
+
+Scope: date presets; configurable account and invoice number settings; atomic
+sale/purchase settlement and roundoff; signed stock and historical dates; safe
+business error reasons; compact party/expense ledger, PDF/XLSX exports, detail
+and audited edit/delete; company retirement with30-day restore and private daily
+purge. Figma read worked, later plan cap prevented new Figma design. Existing app
+style retained and browser tested. Source baseline main80aa957; owner explicitly
+authorizes main push and repair until CI green. Render deploy stays owner-owned.
+Do not deploy frontend until database migration and matching Edge are installed.
+
+# 2026-10-28 — Accounting completion started, local checkpoint
+
+Owner expands ledger, dates, configurable numbering, negative stock/historical
+entries, atomic invoice settlement, correction/delete, account settings and
+company retirement. See ACCOUNTING_COMPLETION_CHECKPOINT.md for exact pending
+scope and resume instructions. First local slice adds reusable report date presets
+and wires them to Home/Accounts/ledger/stock/expenses. Targeted 29 tests pass.
+No push, database change or deployment; baseline main remains 80aa957. Entire
+accounting completion is NOT finished. Preserve current source on resume.
+
+# 2026-10-26 — Card/ledger release verified green
+
+Main commit 80aa957c9e54d6f6bc54802920b22968a50706d0 is pushed. Actions run
+40371513800 is SUCCESS, including 452 tests, 20 mobile/desktop browser cases,
+coverage and strict Sonar. Summary -> complete due list -> scoped ledger is
+verified; Home, back, refresh and independent Ledger paths remain available.
+No API/DB migration, financial write or frontend deployment occurred. Render
+production deployment remains pending explicit authorization. This is a local
+post-CI checkpoint; no extra documentation-only commit is made.
+
 # 2026-10-26 — Summary card drill-down and simple ledger navigation
 
 Owner asks for tappable receivable/payable/expense cards leading to every matching

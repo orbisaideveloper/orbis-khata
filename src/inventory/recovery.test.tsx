@@ -3,7 +3,7 @@ import { afterEach, expect, it, vi } from 'vitest'
 import { Accounting } from '../accounting/Accounting'
 import { inventoryPendingKey } from './pending'
 const mocks=vi.hoisted(()=>({companies:vi.fn(),report:vi.fn(),expenseReport:vi.fn(),inventoryReport:vi.fn()}))
-vi.mock('../accounting/api',()=>mocks)
+vi.mock('../accounting/api',()=>({...mocks,requestKhata:vi.fn().mockResolvedValue(null)}))
 vi.mock('./api',()=>({inventoryReport:mocks.inventoryReport,postInventory:vi.fn()}))
 afterEach(()=>{cleanup();sessionStorage.clear();vi.resetAllMocks()})
 it('reopens the actual company and item panel for an uncertain bill after reload',async()=>{

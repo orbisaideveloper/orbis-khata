@@ -1,3 +1,5 @@
+import { useWorkspaceSettings } from '../accounting/use-settings';
+import { billError } from '../accounting/business-error';
 import { readBillTemplate, rememberBillTemplate } from '../billing/bill-preference';
 import { BillShare } from '../billing/BillShare';
 import { inLanguage } from '../localize';
@@ -15,7 +17,7 @@ import { useBookServices, type BookServices } from '../books-services';
 import { PartyMaster } from './Masters';
 import { designCopy } from './design-copy';
 import type { Language } from '../i18n';
-import { money, today } from '../accounting/model';
+import { minor, money, today } from '../accounting/model';
 import { billTotal, displayQuantity, quantity, type InventoryCommand, type StockLine } from '../inventory/model';
 import { decimal, itemLabel, type DemoItem, type DemoParty } from './master-model';
 import { masterCopy } from './master-copy';
@@ -36,6 +38,23 @@ type Line = {
     basis: 'rate' | 'amount';
 };
 const fresh = (): Line => ({ key: crypto.randomUUID(), item: '', description: '', quantity: '1', rate: '', amount: '', basis: 'rate' });
+function displayedRate(rate: string) { try { return money(rateMinor(rate)).replace('₹','').replaceAll(',',''); } catch { return rate; } }
+function needsStockWarning(kind: BillKind, lines: Line[], stocks: {item:string;warehouse:string;closing:string}[], warehouse: string) {
+ if (kind !== 'sale') return false;
+ return lines.some(line => { try { const available = BigInt(stocks.find(row => row.item === line.item && row.warehouse === warehouse)?.closing ?? '0'); const used = lines.filter(row => row.item === line.item).reduce((sum,row) => sum + BigInt(quantity(row.quantity)),0n); return Boolean(line.item) && used > available; } catch { return false; } });
+}
+function settlementAmounts(total: bigint, paid: string, round: boolean, previous: string) {
+ const adjustment = round ? ((total + 50n) / 100n) * 100n - total : 0n;
+ let paidMinor = 0n;try { if (paid.trim()) paidMinor = BigInt(minor(paid)); } catch { /* Review validates input. */ }
+ const payable=total+adjustment;return {adjustment,paidMinor,payable,grandTotal:payable+BigInt(previous)-paidMinor};
+}
+function BillBalanceWarning({negativeStock,negativeCash,language}:Readonly<{negativeStock:boolean;negativeCash:boolean;language:Language}>) {
+ if (!negativeStock && !negativeCash) return null;
+ const message = negativeStock ? inLanguage(language,'স্টক মাইনাস হবে। বিল সেভ করতে পারবেন।','स्टॉक ऋणात्मक होगा। बिल सहेज सकते हैं।','Stock will become negative. You can still save this bill.') : inLanguage(language,'অ্যাকাউন্টের টাকা মাইনাস হবে। পেমেন্ট সেভ করতে পারবেন।','खाते का बैलेंस ऋणात्मक होगा। भुगतान सहेज सकते हैं।','Account balance will become negative. You can still save this payment.');
+ return <output className="balance-warning" role="status">{message}</output>;
+}
+function accountWillBeNegative(kind: BillKind, paid: bigint, accounts: {id:string;balance:string}[], id: string) { return kind === 'purchase' && paid > BigInt(accounts.find(row => row.id === id)?.balance ?? '0'); }
+function chosenReference(reference: string, serial: string, fallback: string) { return reference.trim() || serial || fallback; }
 const billPrefixes = { sale: 'S', purchase: 'P', expense: 'E' };
 const partyKinds = { sale: 'customer', purchase: 'supplier', expense: 'expense' } as const;
 const allowedKinds: Record<BillKind, readonly DemoParty['kind'][]> = { sale: ['customer', 'both'], purchase: ['supplier', 'both'], expense: ['expense'] };
@@ -61,6 +80,7 @@ type BillDraft = {
     amount: string;
     warehouse: string;
     lines: Line[];
+    paid: string; account: string; roundoff: string;
 };
 function billStockLines(lines: Line[], warehouse: string): StockLine[] { return lines.map(line => ({ item: line.item, warehouse, to: null, quantity: quantity(line.quantity), rate: rateMinor(line.rate), unit_rate: line.rate })); }
 function billExpenseLines(lines: Line[]) { return lines.map(line => ({ description: line.description, quantity: quantity(line.quantity), unit: '', rate: rateMinor(line.rate), unit_rate: line.rate })); }
@@ -72,7 +92,9 @@ function billOperation(draft: BillDraft): KhataOperation {
     if (kind === 'expense') {
         return { operation: 'expense-bill', input: { command: { id, company, date, kind: 'charge', amount: draft.amount, category: draft.category.trim() || party.name, payee: party.name, method: billPaymentMethod(draft.method), parent: null, reference, note }, lines: billExpenseLines(draft.lines) } };
     }
-    return { operation: 'inventory-post', input: { id, company, kind, date, code: '', name: '', unit: '', party: party.id, reference, note, lines: billStockLines(draft.lines, draft.warehouse) } };
+    const operation: KhataOperation = { operation: 'inventory-post', input: { id, company, kind, date, code: '', name: '', unit: '', party: party.id, reference, note, lines: billStockLines(draft.lines, draft.warehouse) } };
+    if (draft.paid !== '0' || draft.roundoff !== '0') return { operation: 'workspace', input: { company, action: 'bill', bill: operation.input, paid: draft.paid, account: draft.account, roundoff: draft.roundoff } };
+    return operation;
 }
 async function persistBill(operation: KhataOperation, services: BookServices | null, userId: string) {
     if (services) {
@@ -98,7 +120,7 @@ function recoveredBill(recovery: KhataOperation | null, parties: DemoParty[]) {
         const command = recovery.input.command as ExpenseCommand;
         return { company: command.company, date: command.date, reference: command.reference, partyName: command.payee, amount: command.amount };
     }
-    const command = recovery.input as InventoryCommand;
+    const command = (recovery.operation === 'workspace' ? recovery.input.bill : recovery.input) as InventoryCommand;
     return { company: command.company, date: command.date, reference: command.reference, partyName: parties.find(p => p.id === command.party)?.name ?? '', amount: String(billTotal(command.lines)) };
 }
 export function InvoicePage({ kind, language, company, companyName, items, parties, warehouses, onSaved, onBack, onLock, userId = 'demo-owner' }: Readonly<{
@@ -119,6 +141,11 @@ export function InvoicePage({ kind, language, company, companyName, items, parti
 }>) {
     const t = copy[language], m = masterCopy[language], d = designCopy[language], services = useBookServices();
     const [recovery, setRecovery] = useState(() => services ? restoreBill(userId) : null);
+    const { settings, request } = useWorkspaceSettings(company, Boolean(recovery));
+    const [focusedRate, setFocusedRate] = useState('');
+    const [stockSnapshot, setStockSnapshot] = useState<{item:string;warehouse:string;closing:string}[]>([]);
+    const [accountBalances, setAccountBalances] = useState<{id:string;balance:string}[]>([]);
+    const [paid, setPaid] = useState(''), [account, setAccount] = useState('cash'), [round, setRound] = useState(false), [serial, setSerial] = useState('');
     const balanceGeneration = useRef(0), [balanceBusy, setBalanceBusy] = useState(false), [balanceFailed, setBalanceFailed] = useState(false);
     const [template, setTemplate] = useState<BillTemplate>(readBillTemplate), [companyDetails, setCompanyDetails] = useState('');
     const [id] = useState(() => crypto.randomUUID()), [automaticNumber] = useState(() => automaticBillNumber(services, id, kind, company)), guard = useRef(false);
@@ -201,8 +228,12 @@ export function InvoicePage({ kind, language, company, companyName, items, parti
         return [...groups].map(([unit, value]) => `${displayQuantity(String(value))}${unit ? ' ' + unit : ''}`).join(' · ') || '—';
     }
     useEffect(() => { onLock?.(busy); return () => { onLock?.(false); }; }, [busy, onLock]);
-    const grandTotal = total() + BigInt(previous);
-    const billNumber = reference.trim() || automaticNumber;
+    const {adjustment,payable,paidMinor,grandTotal}=settlementAmounts(total(),paid,round,previous);
+    const billNumber = chosenReference(reference, serial, automaticNumber);
+    useEffect(() => { if (recovery) return; let alive = true; void request<{stocks:{item:string;warehouse:string;closing:string}[]}>('inventory-report', { company, from: date, to: date, offset: 0 }).then(value => { if (alive) setStockSnapshot(value?.stocks ?? []); }, () => { if (alive) setStockSnapshot([]); }); void request<unknown>('workspace', { company, action: 'accounts' }).then(value => { if (alive && Array.isArray(value)) setAccountBalances(value); }, () => {}); return () => { alive = false; }; }, [company, date, request, recovery]);
+    const negativeStock = needsStockWarning(kind, lines, stockSnapshot, selectedWarehouse);
+    const negativeCash = accountWillBeNegative(kind, paidMinor, accountBalances, account);
+    useEffect(() => { if (recovery) return; let alive = true; void request('workspace', { company, action: 'number', id, kind }).then(value => { if (alive && typeof value === 'string') setSerial(value); }, () => { /* A manually entered reference remains available. */ }); return () => { alive = false; }; }, [company, id, kind, request, recovery]);
     function review(event: React.SyntheticEvent<HTMLFormElement>) {
         event.preventDefault();
         setError('');
@@ -211,6 +242,7 @@ export function InvoicePage({ kind, language, company, companyName, items, parti
                 throw new Error('INVALID_BILL');
             }
             stockLines();
+            if (kind !== 'expense' && (paid.trim() && BigInt(minor(paid)) > payable || payable <= 0n)) throw new Error('INVALID_PAYMENT');
             if (kind === 'expense') {
                 if (lines.some(l => !l.description.trim())) {
                     throw new Error('INVALID_BILL');
@@ -234,7 +266,7 @@ export function InvoicePage({ kind, language, company, companyName, items, parti
         setBusy(true);
         setError('');
         try {
-            await persistBill(billOperation({ id, company, kind, date, party, category, method, reference: billNumber, note, amount: String(total()), warehouse: selectedWarehouse, lines }), services, userId);
+            await persistBill(billOperation({ id, company, kind, date, party, category, method, reference: billNumber, note, amount: String(total()), warehouse: selectedWarehouse, lines, paid: String(paidMinor), account, roundoff: String(adjustment) }), services, userId);
             setPhase('saved');
             onSaved();
         }
@@ -247,7 +279,7 @@ export function InvoicePage({ kind, language, company, companyName, items, parti
                     setRecovery(restoreBill(userId));
                 }
             }
-            setError((e as Error).message === 'INSUFFICIENT_STOCK' ? t.stock : t.invalid);
+            setError(billError(e, language, t.invalid));
         }
         finally {
             guard.current = false;
@@ -288,7 +320,7 @@ export function InvoicePage({ kind, language, company, companyName, items, parti
     if (phase !== 'edit') {
         return <section aria-label={t[kind]} className="bill-review">
   <details className="bill-settings"><summary>{inLanguage(language,'বিল সেটিংস','बिल सेटिंग्स','Bill settings')}</summary><BillDesign language={language} value={template} onChange={value => { setTemplate(value); rememberBillTemplate(value); }}/></details>
-  <PaperPreview template={template} companyDetails={companyDetails} draft={phase !== 'saved' ? d.draft : ''} continuation={d.continue} companyName={companyName} title={t[kind]} memo={t.memo} numberLabel={t.number} number={billNumber} dateLabel={t.date} date={date.split('-').reverse().join('-')} partyName={party?.name ?? ''} partyDetails={[party ? m[party.kind] : '', party?.phone, party?.address, party?.email].filter(Boolean).join(' · ')} headings={[t.serial, kind === 'expense' ? t.description : t.item, t.quantity, t.rate, t.amount]} rows={lines.map((line, index) => [String(index + 1), kind === 'expense' ? line.description : items.find(i => i.id === line.item)?.name ?? '', displayQuantity(quantity(line.quantity)) + ' ' + (items.find(i => i.id === line.item)?.unit ?? ''), rateDisplay(line.rate), rowAmount(line)])} totals={[[t.totalQuantity, totalQuantities()], [t.subtotal, money(total())], [t.previous, money(previous)], [t.total, money(grandTotal)]]} note={note} thanks={t.thanks} signatures={[t.partySignature, t.authorizedSignature]}/>
+  <PaperPreview template={template} companyDetails={companyDetails} draft={phase !== 'saved' ? d.draft : ''} continuation={d.continue} companyName={companyName} title={t[kind]} memo={t.memo} numberLabel={t.number} number={billNumber} dateLabel={t.date} date={date.split('-').reverse().join('-')} partyName={party?.name ?? ''} partyDetails={[party ? m[party.kind] : '', party?.phone, party?.address, party?.email].filter(Boolean).join(' · ')} headings={[t.serial, kind === 'expense' ? t.description : t.item, t.quantity, t.rate, t.amount]} rows={lines.map((line, index) => [String(index + 1), kind === 'expense' ? line.description : items.find(i => i.id === line.item)?.name ?? '', displayQuantity(quantity(line.quantity)) + ' ' + (items.find(i => i.id === line.item)?.unit ?? ''), rateDisplay(line.rate), rowAmount(line)])} totals={[[t.totalQuantity, totalQuantities()], [t.subtotal, money(total())], [inLanguage(language, 'রাউন্ড অফ', 'राउंड ऑफ', 'Round off'), money(adjustment)], [t.previous, money(previous)], [inLanguage(language, 'জমা / পরিশোধ', 'जमा / भुगतान', 'Received / paid'), money(paidMinor)], [t.total, money(grandTotal)]]} note={note} thanks={t.thanks} signatures={[t.partySignature, t.authorizedSignature]}/>
   <BillShare key={phase + template} language={language} name={companyName + '-' + billNumber}/>
   <button className="bill-print-button" type="button" onClick={() => window.print()}>{d.print}</button>
   {grandTotal < 0n && <p>{t.creditBalance}: {money(-grandTotal)}</p>}{error && <output role="alert">{error}</output>}
@@ -307,16 +339,18 @@ export function InvoicePage({ kind, language, company, companyName, items, parti
    <div className="invoice-meta">{<><label>{t.number}<input value={reference} placeholder={billNumber} maxLength={80} onChange={e => setReference(e.target.value)}/></label><label>{t.date}<input type="date" required max={today()} value={date} onChange={e => pickDate(e.target.value)}/></label></>}</div>
    {kind !== 'expense' && warehouses.length > 1 && <label>{t.warehouse}<select value={selectedWarehouse} onChange={e => setWarehouse(e.target.value)}>{warehouses.map(w => <option key={w.id} value={w.id}>{w.name}</option>)}</select></label>}
    {kind === 'expense' && <div className="invoice-meta"><label>{t.category}<input maxLength={80} value={category} onChange={e => setCategory(e.target.value)}/></label><label>{t.method}<select value={method} onChange={e => setMethod(e.target.value)}>{(['due', 'cash', 'bank'] as const).map(value => <option key={value} value={value}>{value === 'due' ? t.unpaid : t[value]}</option>)}</select></label></div>}
-   <div className="invoice-scroll"><table className="invoice-table"><thead><tr><th>{t.serial}</th><th>{kind === 'expense' ? t.description : t.item}</th><th>{t.quantity}</th><th>{t.rate}</th><th>{t.amount}</th>{<th />}</tr></thead><tbody>{lines.map((line, index) => <tr key={line.key}><td>{index + 1}</td><td>{(kind === 'expense' ? <input aria-label={`${t.description} ${index + 1}`} required maxLength={120} value={line.description} onChange={e => change(line.key, 'description', e.target.value)}/> : <select aria-label={`${t.item} ${index + 1}`} required value={line.item} onChange={e => change(line.key, 'item', e.target.value)}><option value="">{t.choose}</option>{items.map(item => <option key={item.id} value={item.id}>{itemLabel(item)}</option>)}</select>)}</td><td data-label={t.quantity}>{<input aria-label={`${t.quantity} ${index + 1}`} inputMode="decimal" required value={line.quantity} onChange={e => change(line.key, 'quantity', e.target.value)}/>}<small className="memo-unit">{items.find(i => i.id === line.item)?.unit ?? ''}</small></td><td data-label={t.rate}>{<input aria-label={`${t.rate} ${index + 1}`} inputMode="decimal" required value={line.rate} onChange={e => change(line.key, 'rate', e.target.value)}/>}</td><td data-label={t.amount}>{<input aria-label={`${t.amount} ${index + 1}`} inputMode="decimal" required value={line.amount} onChange={e => change(line.key, 'amount', e.target.value)}/>}</td>{<td><button type="button" aria-label={`${t.remove} ${index + 1}`} disabled={lines.length === 1} onClick={() => {
+   <div className="invoice-scroll"><table className="invoice-table"><thead><tr><th>{t.serial}</th><th>{kind === 'expense' ? t.description : t.item}</th><th>{t.quantity}</th><th>{t.rate}</th><th>{t.amount}</th>{<th />}</tr></thead><tbody>{lines.map((line, index) => <tr key={line.key}><td>{index + 1}</td><td>{(kind === 'expense' ? <input aria-label={`${t.description} ${index + 1}`} required maxLength={120} value={line.description} onChange={e => change(line.key, 'description', e.target.value)}/> : <select aria-label={`${t.item} ${index + 1}`} required value={line.item} onChange={e => change(line.key, 'item', e.target.value)}><option value="">{t.choose}</option>{items.map(item => <option key={item.id} value={item.id}>{itemLabel(item)}</option>)}</select>)}</td><td data-label={t.quantity}>{<input aria-label={`${t.quantity} ${index + 1}`} inputMode="decimal" required value={line.quantity} onChange={e => change(line.key, 'quantity', e.target.value)}/>}<small className="memo-unit">{items.find(i => i.id === line.item)?.unit ?? ''}</small></td><td data-label={t.rate}>{<input aria-label={`${t.rate} ${index + 1}`} inputMode="decimal" required value={focusedRate === line.key ? line.rate : displayedRate(line.rate)} onFocus={() => setFocusedRate(line.key)} onBlur={() => setFocusedRate('')} onChange={e => change(line.key, 'rate', e.target.value)}/>}</td><td data-label={t.amount}>{<input aria-label={`${t.amount} ${index + 1}`} inputMode="decimal" required value={line.amount} onChange={e => change(line.key, 'amount', e.target.value)}/>}</td>{<td><button type="button" aria-label={`${t.remove} ${index + 1}`} disabled={lines.length === 1} onClick={() => {
                     if (confirmDelete(language, String(lines.indexOf(line) + 1))) {
                         setLines(old => old.filter(row => row.key !== line.key));
                     }
                 }}>×</button></td>}</tr>)}</tbody><tfoot><tr><th colSpan={2}>{t.totalQuantity}</th><td>{totalQuantities()}</td><th>{t.subtotal}</th><td><strong>{money(total())}</strong></td>{<td />}</tr></tfoot></table></div>
    {<button className="memo-add-row" type="button" disabled={lines.length >= 50} onClick={() => setLines(old => [...old, fresh()])}>＋ {t.add}</button>}
+   <BillBalanceWarning negativeStock={negativeStock} negativeCash={negativeCash} language={language}/>
+   {kind !== 'expense' && <fieldset className="bill-payment"><legend>{inLanguage(language, 'এই বিলের পেমেন্ট', 'इस बिल का भुगतान', 'Payment with this bill')}</legend><label>{kind === 'sale' ? inLanguage(language, 'এখন জমা', 'अभी प्राप्त', 'Received now') : inLanguage(language, 'এখন পরিশোধ', 'अभी भुगतान', 'Paid now')}<input inputMode="decimal" value={paid} placeholder="0.00" onChange={event => setPaid(event.target.value)}/></label><label>{inLanguage(language, 'অ্যাকাউন্ট', 'खाता', 'Account')}<select value={account} onChange={event => setAccount(event.target.value)}>{settings.accounts.filter(row => row.active).map(row => <option key={row.id} value={row.id}>{row.name}{row.channel ? ' · ' + row.channel : ''}</option>)}</select></label><label><input type="checkbox" checked={round} onChange={event => setRound(event.target.checked)}/>{inLanguage(language, 'নিকটতম টাকায় রাউন্ড অফ', 'निकटतम रुपये में राउंड ऑफ', 'Round to nearest rupee')}</label><p>{inLanguage(language, 'এই বিলের বাকি', 'इस बिल का बकाया', 'Due on this bill')}: {money(payable - paidMinor)}</p></fieldset>}
    <dl className="memo-totals"><div><dt>{t.subtotal}</dt><dd>{money(total())}</dd></div><div><dt>{t.previous}</dt><dd>{money(previous)}</dd></div><div className="memo-grand"><dt>{t.total}</dt><dd>{money(grandTotal)}</dd></div></dl>{grandTotal < 0n && <p>{t.creditBalance}: {money(-grandTotal)}</p>}
 
    {<details className="invoice-notes"><summary>{t.notes}</summary><textarea aria-label={t.notes} maxLength={500} value={note} onChange={e => setNote(e.target.value)}/></details>}
-   {kind !== 'expense' && <p className="books-hint">{t.due}</p>}{error && <output role="alert">{error}</output>}
+   {kind !== 'expense' && !paid && <p className="books-hint">{t.due}</p>}{error && <output role="alert">{error}</output>}
    <p className="memo-thanks">{t.thanks}</p><div className="memo-signatures"><span>{t.partySignature}</span><span>{t.authorizedSignature}</span></div>
    <div className="books-buttons memo-controls"><button type="submit" className="books-primary" disabled={!allowed.length || balanceBusy || balanceFailed}>{t.review}</button></div>
   </form>

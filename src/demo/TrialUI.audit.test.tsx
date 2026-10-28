@@ -29,7 +29,7 @@ describe.sequential('A–Z through actual demo React controls (DOM, no live acco
  beforeAll(()=>{resetDemo();vi.stubEnv('DEV',true);vi.stubEnv('VITE_KHATA_DEMO','true');vi.stubEnv('VITE_KHATA_PREVIEW','true');vi.spyOn(globalThis,'fetch').mockRejectedValue(new Error('Network forbidden'));vi.spyOn(window,'scrollTo').mockImplementation(()=>{});vi.spyOn(window,'print').mockImplementation(()=>{})})
  afterEach(cleanup);afterAll(()=>{expect(globalThis.fetch).not.toHaveBeenCalled();vi.unstubAllEnvs();vi.restoreAllMocks()})
  it('01 creates a business from the app and gets its default warehouse',async()=>{
-  render(<DemoApp/>);change('ভাষা','en');fireEvent.click(screen.getByRole('button',{name:'Accounts & payments'}));fireEvent.click(await screen.findByRole('button',{name:/New company/}));change('Company name','Trial business');fireEvent.click(screen.getByRole('button',{name:'Create'}));await screen.findByText('ORBIS / Trial business')
+  render(<DemoApp/>);change('ভাষা','en');fireEvent.click(screen.getByRole('button',{name:/Create \/ switch company/}));fireEvent.click(await screen.findByRole('button',{name:/New company/}));change('Company name','Trial business');fireEvent.click(screen.getByRole('button',{name:'Create'}));await screen.findByText('ORBIS / Trial business')
   company=(await demoRequest<{id:string;name:string}[]>('companies',{})).find(c=>c.name==='Trial business')!.id
   warehouse=(await demoRequest<InventoryReport>('inventory-report',query())).warehouses[0].id;expect(warehouse).toBeTruthy()
  })

@@ -31,8 +31,15 @@ const handler = createKhataGateway({ origins: (env('KHATA_ORIGINS') || 'https://
     await tx`set local role authenticated`
     await tx`select set_config('request.jwt.claims',${JSON.stringify({ sub: ledgerOwnerId, role: 'authenticated' })},true)`
     const input = operation.input
+    if (operation.operation === 'workspace') {
+      const result = await tx`select public.khata_workspace_v3(${tx.json(input)}::jsonb) as data`
+      return result[0].data
+    }
+    if (operation.operation === 'retired-companies') {
+      return await tx`select id,name,deleted_at,purge_after from public.khata_companies where owner_id=${ledgerOwnerId}::uuid and deleted_at is not null order by deleted_at desc`
+    }
     if (operation.operation === 'companies') {
-      const rows = await tx`select id,name from public.khata_companies where owner_id=${ledgerOwnerId}::uuid order by created_at,id limit 10001`
+      const rows = await tx`select id,name from public.khata_companies where owner_id=${ledgerOwnerId}::uuid and deleted_at is null order by created_at,id limit 10001`
       if (rows.length > 10000) throw new Error('KHATA_COMPANY_LIMIT')
       return rows
     }
@@ -49,6 +56,10 @@ const handler = createKhataGateway({ origins: (env('KHATA_ORIGINS') || 'https://
       const expected = companies ? { ...row, owner_id: ledgerOwnerId } : row
       if (!existing.length || Object.entries(expected).some(([key,value]) => existing[0][key] !== value)) throw new Error('KHATA_IDEMPOTENCY_CONFLICT')
       return { id: existing[0].id, name: existing[0].name }
+    }
+    if (typeof input.company === 'string') {
+      const active = await tx`select id from public.khata_companies where id=${input.company}::uuid and owner_id=${ledgerOwnerId}::uuid and deleted_at is null`
+      if (!active.length) throw Object.assign(new Error('COMPANY_NOT_ACCESSIBLE'), { code: 'P0001' })
     }
     if (operation.operation === 'masters') {
       const result=await tx`select public.khata_masters_v2(${String(input.company)}::uuid) as data`

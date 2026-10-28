@@ -1,3 +1,4 @@
+import { defaultSettings, type WorkspaceSettings } from '../accounting/workspace-contract';
 import { textValue } from '../text-value';
 import { emptyPartyDetails, type DemoItem, type DemoParty } from './master-model';
 import { pendingCommand } from '../accounting/pending-command';
@@ -7,6 +8,10 @@ import type { InventoryCommand, InventoryReport } from '../inventory/model';
 import { billTotal, inventoryCommand, lineTotal } from '../inventory/model';
 const companyId = '11111111-1111-4111-8111-111111111111';
 const warehouseId = '22222222-2222-4222-8222-222222222222';
+let workspaceSettings: Record<string, WorkspaceSettings> = {};
+let workspaceEvents: Record<string, { payload: string; result: unknown }> = {};
+let paymentLinks: Record<string, { bill: string | null; account: string }> = {};
+let retired: Record<string, string> = {};
 let companies: Company[] = [];
 let parties: DemoParty[] = [];
 let entries: (Voucher & {
@@ -27,6 +32,7 @@ let warehouses: (InventoryReport['warehouses'][number] & {
     company: string;
 })[] = [];
 export function resetDemo() {
+    workspaceSettings = {}; workspaceEvents = {}; paymentLinks = {}; retired = {};
     inventoryReversals.clear();
     expenseBillLines = {};
     companies = [{ id: companyId, name: 'ডেমো দোকান' }];
@@ -51,13 +57,6 @@ function stockMoves(company: string) {
         const reversedAt = inventoryReversals.get(d.id);
         return reversedAt ? [...base, ...base.map(m => ({ ...m, date: reversedAt, amount: -m.amount }))] : base;
     });
-}
-function stock(company: string, item: string, warehouse: string, to = '9999-12-31') {
-    return stockMoves(company).filter(m => m.item === item && m.warehouse === warehouse && m.date <= to).reduce((sum, m) => sum + m.amount, 0n);
-}
-function availableAfter(company: string, item: string, warehouse: string, date: string, amount: bigint) {
-    const dates = [date, ...stockMoves(company).filter(m => m.item === item && m.warehouse === warehouse && m.date >= date).map(m => m.date)];
-    return dates.every(day => stock(company, item, warehouse, day) >= amount);
 }
 function inventory(company: string, from: string, to: string, offset: number): InventoryReport {
     const selected = documents.filter(d => d.company === company && d.date >= from && d.date <= to), moves = stockMoves(company);
@@ -343,19 +342,6 @@ function createInventoryMaster(command: InventoryCommand, company: string) {
     }
     return false;
 }
-function assertStockAvailable(company: string, date: string, lines: InventoryCommand['lines']) {
-    const totals = new Map<string, bigint>();
-    for (const line of lines) {
-        const key = line.item + ':' + line.warehouse;
-        totals.set(key, (totals.get(key) ?? 0n) + BigInt(line.quantity));
-    }
-    for (const [key, amount] of totals) {
-        const [item, warehouse] = key.split(':');
-        if (!availableAfter(company, item, warehouse, date, amount)) {
-            fail('INSUFFICIENT_STOCK');
-        }
-    }
-}
 function validateInventoryTrade(command: InventoryCommand, company: string) {
     if (command.kind !== 'purchase' && command.kind !== 'sale') {
         return;
@@ -387,20 +373,19 @@ function postDemoInventory(command: InventoryCommand, company: string) {
     }
     validateInventoryLines(command, company);
     validateInventoryTrade(command, company);
-    if (command.kind === 'sale' || command.kind === 'transfer') {
-        assertStockAvailable(company, command.date, command.lines);
-    }
     if (command.kind === 'purchase' || command.kind === 'sale') {
-        postTrade({ id: command.id, company, party: command.party!, kind: command.kind, date: command.date, amount: String(billTotal(command.lines)), method: 'cash', reference: command.reference, note: command.note, reverses: null });
+        postTrade({ id: command.id, company, party: command.party!, kind: command.kind, date: command.date, amount: String(billTotal(command.lines) + BigInt(command.roundoff ?? '0')), method: 'cash', reference: command.reference, note: command.note, reverses: null });
     }
-    documents.push({ ...structuredClone(command), total: String(billTotal(command.lines)), reversed: false, party_name: parties.find(p => p.id === command.party)?.name ?? null });
+    documents.push({ ...structuredClone(command), total: String(billTotal(command.lines) + BigInt(command.roundoff ?? '0')), reversed: false, party_name: parties.find(p => p.id === command.party)?.name ?? null });
 }
 function dispatchDemoRequest<T>(operation: string, value: unknown): T {
     const p = value as Record<string, unknown>, company = textValue(p.company), from = textValue(p.from), to = textValue(p.to), offset = Number(p.offset ?? 0);
     let result: unknown = null;
     switch (operation) {
+        case 'workspace': result = demoWorkspace(p); break;
+        case 'retired-companies': result = companies.filter(c => retired[c.id]).map(c => ({ ...c, deleted_at: retired[c.id], purge_after: new Date(new Date(retired[c.id]).getTime() + 30 * 86400000).toISOString() })); break;
         case 'companies':
-            result = companies;
+            result = companies.filter(c => !retired[c.id]);
             break;
         case 'create': {
             const row = p.row as Record<string, string>;
@@ -460,9 +445,6 @@ function postTrade(command: Command) {
             fail('INVALID_REVERSAL');
         }
         const doc = documents.find(d => d.id === old.id);
-        if (doc?.kind === 'purchase') {
-            assertStockAvailable(command.company, command.date, doc.lines);
-        }
         old.reversed = true;
         pair = [old.credit_account, old.debit_account];
         if (doc) {
@@ -493,4 +475,70 @@ export function deleteDemoItem(company: string, id: string) {
         fail('ITEM_IN_USE');
     }
     items = items.filter(i => !(i.id === id && i.company === company));
+}
+
+function demoAccountBalances(company: string, settings: WorkspaceSettings) {
+ return settings.accounts.map(account => ({ ...account, entry_ids: entries.filter(e => e.company === company && (e.debit_account === account.kind || e.credit_account === account.kind) && (paymentLinks[e.id]?.account ?? account.kind) === account.id).map(e => e.id), balance: String(entries.filter(e => e.company === company && (e.debit_account === account.kind || e.credit_account === account.kind) && (paymentLinks[e.id]?.account ?? account.kind) === account.id).reduce((sum, e) => sum + BigInt(e.amount_minor) * (e.debit_account === account.kind ? 1n : -1n), 0n)) }));
+}
+function demoRecordDetail(company: string, id: unknown) {
+ return { voucher: entries.find(e => e.id === id && e.company === company), bill: documents.find(d => d.id === id && d.company === company), expense: expenses.find(e => e.id === id && e.company === company), payments: entries.filter(e => paymentLinks[e.id]?.bill === id && !e.reversed), lines: expenseBillLines[String(id)], company_name: companies.find(c => c.id === company)?.name, item_names: Object.fromEntries(items.filter(i => i.company === company).map(i => [i.id, i.name])), account: paymentLinks[String(id)]?.account };
+}
+function demoBill(p: Record<string, unknown>, company: string, account: WorkspaceSettings['accounts'][number]) {
+ const bill = { ...(p.bill as InventoryCommand), roundoff: String(p.roundoff) };
+ const total = billTotal(bill.lines) + BigInt(bill.roundoff), paid = BigInt(String(p.paid));
+ if (paid > total || paid < 0n) fail('SETTLEMENT_EXCEEDS_BILL');
+ postDemoInventory(bill, company);
+ if (paid > 0n) { const pid = crypto.randomUUID(); postTrade({ id: pid, company, party: bill.party!, kind: bill.kind === 'sale' ? 'receipt' : 'payment', date: bill.date, amount: String(paid), method: account.kind, reference: bill.reference, note: 'Payment with bill', reverses: null }); paymentLinks[pid] = { bill: bill.id, account: account.id }; }
+ return { id: bill.id, total: String(total), paid: String(paid), due: String(total - paid) };
+}
+function demoSettlement(p: Record<string, unknown>, company: string, settings: WorkspaceSettings, id: string) {
+ const account = settings.accounts.find(row => row.id === p.account && row.active);
+ if (!account) fail('PAYMENT_ACCOUNT_REQUIRED');
+ if (p.action === 'bill') return demoBill(p, company, account);
+ postTrade({ id, company, party: String(p.party), kind: p.kind as 'payment' | 'receipt', date: String(p.date), amount: String(p.amount), method: account.kind, reference: String(p.reference), note: String(p.note), reverses: null }); paymentLinks[id] = { bill: null, account: account.id };
+ return { id };
+}
+function demoExpenseCorrection(p: Record<string, unknown>, company: string) {
+ const original=expenses.find(e=>e.id===p.target&&e.company===company);
+ if(!original||original.kind==='reversal'||expenses.some(e=>e.kind==='reversal'&&e.parent===original.id))fail('RECORD_ALREADY_CORRECTED');
+ for(const payment of expenses.filter(e=>e.company===company&&e.parent===original.id&&e.kind==='payment'&&!expenses.some(r=>r.kind==='reversal'&&r.parent===e.id))){postDemoExpense({...payment,id:crypto.randomUUID(),kind:'reversal',method:null,parent:payment.id,note:String(p.reason)});}
+ postDemoExpense({...original,id:crypto.randomUUID(),kind:'reversal',method:null,parent:original.id,note:String(p.reason)});
+ if(p.replacement)demoWorkspace(p.replacement as Record<string,unknown>);return{ok:true};
+}
+function demoCorrection(p: Record<string, unknown>, company: string) {
+ if(p.type==='expense')return demoExpenseCorrection(p,company);
+ const target = entries.find(e => e.id === p.target && e.company === company);
+ if (!target || target.reversed || target.kind === 'reversal') fail('RECORD_ALREADY_CORRECTED');
+ const originals = [...entries.filter(e => paymentLinks[e.id]?.bill === target.id && !e.reversed), target];
+ for (const row of originals) { const rid = crypto.randomUUID(); postTrade({ id: rid, company, party: row.party_id, kind: 'reversal', date: row.effective_date, amount: row.amount_minor, method: 'cash', reference: '', note: String(p.reason), reverses: row.id }); if (paymentLinks[row.id]) paymentLinks[rid] = { ...paymentLinks[row.id] }; }
+ if (p.replacement) demoWorkspace(p.replacement as Record<string, unknown>);
+ return { ok: true };
+}
+function demoWorkspaceMutation(p: Record<string, unknown>, company: string, settings: WorkspaceSettings, id: string) {
+ if (p.action === 'number') { const kind = p.kind as keyof WorkspaceSettings['next']; const result = settings.numbering[kind] + settings.next[kind]; settings.next[kind] = String(BigInt(settings.next[kind]) + 1n); return result; }
+ if (p.action === 'bill' || p.action === 'payment') return demoSettlement(p, company, settings, id);
+ if (p.action === 'expense') { const command=p.command as ExpenseCommand;const lines=p.lines as NonNullable<import('./../accounting/expense-model').ExpenseEntry['bill_lines']>;if(lines.length&&String(billTotal(lines.map(l=>({...l,item:'',warehouse:'',to:null}))))!==command.amount)fail('INVALID_EXPENSE_TOTAL');postDemoExpense(command);if(lines.length)expenseBillLines[command.id]=structuredClone(lines);return{id:command.id}; }
+ if (p.action === 'correct') return demoCorrection(p, company);
+ fail('DEMO_OPERATION_UNSUPPORTED');
+}
+function demoWorkspace(p: Record<string, unknown>): unknown {
+ const company = String(p.company), action = p.action;
+ if (!companies.some(c => c.id === company)) fail('COMPANY_NOT_ACCESSIBLE');
+ const settings = workspaceSettings[company] ??= defaultSettings();
+ if (action === 'settings') return settings;
+ if (action === 'settings-save') { workspaceSettings[company] = structuredClone(p.settings as WorkspaceSettings); return p.settings; }
+ if (action === 'retire' || action === 'restore') {
+  if (!companies.some(c => c.id === company && c.name === p.name)) fail('COMPANY_NOT_ACCESSIBLE');
+  if (action === 'retire') retired[company] ??= new Date().toISOString(); else delete retired[company]; return { ok: true };
+ }
+ if (action === 'accounts') return demoAccountBalances(company, settings);
+ if (action === 'detail') return demoRecordDetail(company, p.id);
+ return demoWorkspaceTransaction(p, company, settings);
+}
+function demoWorkspaceTransaction(p: Record<string, unknown>, company: string, settings: WorkspaceSettings) {
+ const id = String(p.action === 'bill' ? (p.bill as InventoryCommand).id : p.id), key = p.action === 'number' ? 'number:' + id : id, payload = JSON.stringify(p), existing = workspaceEvents[key];
+ if (existing) { if (existing.payload !== payload) fail('IDEMPOTENCY_CONFLICT'); return existing.result; }
+ const before = structuredClone({ entries, documents, expenses, paymentLinks, workspaceEvents, reversals: [...inventoryReversals] });
+ try { const result = demoWorkspaceMutation(p, company, settings, id); workspaceEvents[key] = { payload, result }; return result; }
+ catch (error) { entries = before.entries; documents = before.documents; expenses = before.expenses; paymentLinks = before.paymentLinks; workspaceEvents = before.workspaceEvents; inventoryReversals.clear(); for (const [key, value] of before.reversals) inventoryReversals.set(key, value); throw error; }
 }

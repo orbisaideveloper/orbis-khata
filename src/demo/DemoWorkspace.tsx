@@ -1,3 +1,6 @@
+import { PaymentEntry } from '../accounting/PaymentEntry';
+import { WorkspaceSettings } from '../accounting/WorkspaceSettings';
+import { DateRange } from '../accounting/DateRange';
 import { OverviewDetails } from '../accounting/OverviewDetails';
 import type { OverviewKind } from '../accounting/overview-model';
 import type { ExpenseReport } from '../accounting/expense-model';
@@ -143,18 +146,20 @@ export function DemoWorkspace({ language, userId = 'demo-owner' }: Readonly<{
     }, [company, from, to, version, requestKey, request]);
     const masters = workspaceMasters(services, liveMasters, company), companyName = workspaceName(services, companies, company);
     function openBill(kind: BillKind) { setOverview(null); setBill(kind); setBillKey(n => n + 1); navigation.open('bills'); }
-    if (navigation.page === 'ledger' || services && !companies.length) {
+    if (navigation.page === 'company' || services && !companies.length) {
         return <Accounting userId={userId} initialCompany={company} language={language} onBill={openBill} onCompanyChange={setCompany}/>;
     }
     return <div className="books">
-  <nav className="books-navigation" aria-label={labels.ledger}>{(['home', 'ledger', 'all-ledgers', 'parties', 'items', 'bills', 'expenses'] as const).map(page => <button type="button" key={page} disabled={locked} aria-current={navigation.page === page ? 'page' : undefined} onClick={() => { setOverview(null); setBill(null); navigation.open(page); }}>{labels[page]}</button>)}</nav>
+  <nav className="books-navigation" aria-label={labels.ledger}>{(['home', 'ledger', 'all-ledgers', 'parties', 'items', 'bills', 'expenses', 'settings'] as const).map(page => <button type="button" key={page} disabled={locked} aria-current={navigation.page === page ? 'page' : undefined} onClick={() => { setOverview(null); setBill(null); navigation.open(page); }}>{labels[page]}</button>)}</nav>
   <label>{inLanguage(language, 'কোম্পানি', 'कंपनी', 'Company')}<select value={company} disabled={locked} onChange={e => { setOverview(null); setCompany(e.target.value); setBill(null); }}>{companies.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}</select></label>
-  {(navigation.page === 'all-ledgers' || navigation.page === 'expenses' || navigation.page === 'stock' || showingOverview) && <div className="books-filters"><label>{language === 'bn' ? 'শুরুর তারিখ' : 'From'}<input type="date" value={from} max={to} onChange={e => setFrom(e.target.value)}/></label><label>{language === 'bn' ? 'শেষ তারিখ' : 'To'}<input type="date" value={to} min={from} max={today()} onChange={e => setTo(e.target.value)}/></label></div>}
+  {(navigation.page === 'home' || navigation.page === 'all-ledgers' || navigation.page === 'expenses' || navigation.page === 'stock' || showingOverview) && <DateRange language={language} from={from} to={to} onChange={(start, end) => { setFrom(start); setTo(end); }}/>}
   {(navigation.page === 'home' || navigation.page === 'overview' && !showingOverview) && <Dashboard language={language} companyName={companyName} report={report} failed={failed} onRetry={changed} onOpen={navigation.open} onBill={openBill} periodLabel={from + ' — ' + to} partyCount={masters.parties.length} itemCount={masters.items.length} expenses={result?.key === requestKey ? result.expenses : { balances: {}, categories: [], bills: [], entries: [], count: 0 }} onOverview={kind => { setOverview({ company, kind }); navigation.open('overview'); }}/>}
   {showingOverview && report && result?.key === requestKey && <OverviewDetails key={[company, overview.kind, from, to].join('/')} {...{ company, language, from, to, version, report }} expenses={result.expenses} kind={overview.kind} title={designCopy[language][overviewLabels[overview.kind]]} onBack={closeOverview}/>}
   {showingOverview && !report && !failed && <output>{designCopy[language].loading}</output>}
   {showingOverview && failed && <output role="alert">{designCopy[language].error}<button type="button" onClick={changed}>{designCopy[language].retry}</button><button type="button" onClick={closeOverview}>{designCopy[language].home}</button></output>}
-  {navigation.page === 'home' && <button className="kh-company-manage" type="button" onClick={() => navigation.open('ledger')}>{designCopy[language].newCompany} →</button>}
+  {navigation.page === 'home' && <button className="kh-company-manage" type="button" onClick={() => navigation.open('company')}>{designCopy[language].newCompany} →</button>}
+  {navigation.page === 'ledger' && <PaymentEntry key={company} userId={userId} company={company} language={language} report={report} onChanged={changed}/>}
+  {navigation.page === 'settings' && <WorkspaceSettings company={company} name={companyName} language={language} onChanged={changed}/>}
   {navigation.page === 'items' && <ItemMaster language={language} company={company} items={masters.items} onChanged={changed}/>}
   {navigation.page === 'parties' && <PartyMaster language={language} company={company} parties={masters.parties} onChanged={changed}/>}
   {navigation.page === 'all-ledgers' && report && <><LedgerExplorer {...{ company, language, from, to, version }} parties={report.parties}/><button type="button" onClick={() => navigation.open('stock')}>{t.stock}</button></>}

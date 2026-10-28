@@ -42,9 +42,10 @@ it('loads all cash pages and opens the party behind a receipt', async () => {
   expect(request).toHaveBeenCalledWith('report', { company: 'company', from: '2026-10-01', to: '2026-10-26', party: null, offset: 50 })
 })
 it('fails closed when a later page fails, then retries instead of showing an incomplete cash ledger', async () => {
-  const request = vi.fn().mockRejectedValueOnce(new Error('offline')).mockResolvedValue({ ...report, entries: [], count: 51 })
+  let failed = false
+  const request = vi.fn(async (operation) => { if (operation !== 'report') return null; if (!failed) { failed = true; throw new Error('offline'); } return { ...report, entries: [], count: 51 }; })
   mount('cash', request, { ...report, count: 51 })
   fireEvent.click(await screen.findByRole('button', { name: 'Retry' }))
   expect(await screen.findByText(/No entries for this period/)).toBeInTheDocument()
-  expect(request).toHaveBeenCalledTimes(2)
+  expect(request.mock.calls.filter(([operation])=>operation==='report')).toHaveLength(2)
 })

@@ -47,7 +47,7 @@ export function rateFromAmount(qty: string, amount: string) {
 }
 function amountInput(minor: string) { return decimal(BigInt(minor), 2); }
 export function rateMinor(rate: string) { return String(rounded(positive(rate, 8, 10) * 100n, rateScale)); }
-export function rateDisplay(rate: string) { return `₹${decimal(positive(rate, 8, 10), 8)}`; }
+export function rateDisplay(rate: string) { return `₹${decimal(BigInt(rateMinor(rate)), 2)}`; }
 export type PricingLine = {
     quantity: string;
     rate: string;

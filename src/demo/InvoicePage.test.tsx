@@ -56,7 +56,7 @@ it('uses the selected company name and posts the exact amount entered even when 
  expect(screen.queryByText('Maa Textile')).toBeNull()
  fireEvent.change(screen.getByLabelText('Quantity 1'),{target:{value:'3'}})
  fireEvent.change(screen.getByLabelText('Amount 1'),{target:{value:'100'}})
- expect(screen.getByLabelText('Rate 1')).toHaveValue('33.33333333')
+ expect(screen.getByLabelText('Rate 1')).toHaveValue('33.33')
  fireEvent.click(screen.getByRole('button',{name:'Review bill'}));fireEvent.click(screen.getByRole('button',{name:'Confirm & save'}));await screen.findByText('Bill saved.')
  const inventory=await demoRequest<InventoryReport>('inventory-report',{company,from:'2026-01-01',to:'2099-12-31',offset:0})
  expect(inventory.documents[0].total).toBe('10000');expect(inventory.documents[0].lines[0].unit_rate).toBe('33.33333333')

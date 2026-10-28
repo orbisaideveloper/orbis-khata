@@ -7,14 +7,14 @@ export function restoreBill(user: string): KhataOperation | null {
             return null;
         }
         const value = khataOperation(JSON.parse(decodeURIComponent(raw)));
-        return value && ['inventory-post', 'expense-bill'].includes(value.operation) ? value : null;
+        return value && ['inventory-post', 'expense-bill', 'workspace'].includes(value.operation) && (value.operation !== 'workspace' || value.input.action === 'bill') ? value : null;
     }
     catch {
         return null;
     }
 }
 export function retainBill(user: string, value: KhataOperation) {
-    if (!['inventory-post', 'expense-bill'].includes(value.operation) || !khataOperation({ version: 'orbis.khata.data.v1', ...value })) {
+    if (!['inventory-post', 'expense-bill', 'workspace'].includes(value.operation) || !khataOperation({ version: 'orbis.khata.data.v1', ...value })) {
         throw new Error('INVALID_BILL');
     }
     sessionStorage.setItem(key(user), encodeURIComponent(JSON.stringify({ version: 'orbis.khata.data.v1', ...value })));
