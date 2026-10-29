@@ -55,6 +55,10 @@ test('summary cards open due lists and scoped ledgers while the independent Ledg
     await page.goto('/');
     await page.getByRole('button', { name: /Khata Boi.*Open/ }).click();
     await expect(page.getByRole('button', { name: 'To receive', exact: true })).toBeVisible();
+    await page.locator('.kh-top-parties>span').first().evaluate(el=>{el.querySelector('span')!.textContent='Shiva Bikaner Sweets Extremely Long Customer Name';el.querySelector('b')!.textContent='₹37,300.00';});
+    const longRow=page.locator('.kh-top-parties>span').first();
+    expect(await longRow.evaluate(el=>{const name=el.querySelector('span')!,amount=el.querySelector('b')!,card=el.closest('.kh-metric')!;const n=name.getBoundingClientRect(),a=amount.getBoundingClientRect(),c=card.getBoundingClientRect();return name.scrollWidth>name.clientWidth&&n.right<=a.left&&a.right<=c.right&&getComputedStyle(name).textOverflow==='ellipsis'&&Math.abs(n.top-a.top)<3;})).toBe(true);
+    await page.screenshot({path:test.info().outputPath('long-party-name.png'),fullPage:true});
     await page.screenshot({ path: test.info().outputPath('overview-home.png'), fullPage: true });
     await page.getByRole('button', { name: 'To receive', exact: true }).click();
     await expect(page.locator('.overview-ledger-row')).toHaveCount(2);
