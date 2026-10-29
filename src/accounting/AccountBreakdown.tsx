@@ -13,7 +13,7 @@ export type AccountRow = {
 export function AccountBreakdown({ company, language, kind, from, to, onSelect }: Readonly<{
     company: string;
     language: Language;
-    kind: 'cash' | 'bank';
+    kind: 'cash' | 'bank' | 'liquidity';
     from: string;
     to: string;
     onSelect: (row: AccountRow | null) => void;
@@ -23,7 +23,7 @@ export function AccountBreakdown({ company, language, kind, from, to, onSelect }
         let alive = true;
         void request<unknown>('workspace', { company, action: 'accounts', from, to }).then(value => {
             if (alive && Array.isArray(value)) {
-                setRows(value.filter(row => row.kind === kind));
+                setRows(value.filter(row => kind==='liquidity'||row.kind === kind));
                 setFailed(false);
             }
         }, () => {

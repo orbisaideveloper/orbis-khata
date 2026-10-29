@@ -1,3 +1,4 @@
+import {readLocation,saveLocation,clearLocation} from './workspace-location';
 import { BooksBottomNav } from './BooksBottomNav';
 import { BookServicesContext, liveBookServices } from './books-services';
 import { DemoWorkspace } from './demo/DemoWorkspace';
@@ -48,17 +49,17 @@ function accountStateScreen(account: ReturnType<typeof useAccount>, language: La
     return null;
 }
 function App() {
-    // No demo session, user, financial values, company or token is persisted.
+    // Remember only owner-scoped UI location; financial data stays service-owned.
     const account = useAccount();
-    const {page:booksPage,open:openBooks,back:backBooks,home:homeBooks}=useBooksTrail();
+    const {page:booksPage,open:openBooks,back:_backBooks,home:homeBooks}=useBooksTrail();
     const [tutorial, setTutorial] = useState(readTutorial);
-    const [view, setView] = useState<View>(() => authClient && account.session ? 'workspace' : 'welcome');
+    const [view, setView] = useState<View>(() => authClient && account.session ? readLocation(account.session.user.id).view : 'welcome');
     const [language, setLanguage] = useState<Language>(readLanguage);
     const sessionId = account.session?.user.id ?? null;
     const [knownSession, setKnownSession] = useState(sessionId);
     if (authClient && !account.loading && sessionId !== knownSession) {
         setKnownSession(sessionId);
-        setView(sessionId ? 'workspace' : 'welcome');
+        setView(sessionId ? readLocation(sessionId).view : 'welcome');
     }
     const signedIn = Boolean(account.session);
     const [logoutError, setLogoutError] = useState(false);
@@ -83,25 +84,21 @@ function App() {
             const target = (event.state as {
                 khataView?: View;
             } | null)?.khataView;
-            if(view==='khata' && signedIn){backBooks();window.history.pushState({khataView:'khata'},'');return;}
+            if(view==='khata' && signedIn){homeBooks();window.history.pushState({khataView:'khata'},'');return;}
             // Browser history uses the same access policy as button navigation.
             setView(resolveKhataView(target, signedIn, guestUiEnabled, guestEntered.current));
         }
         window.addEventListener('popstate', onBack);
         return () => window.removeEventListener('popstate', onBack);
-    }, [signedIn, view, booksPage, backBooks]);
-    useEffect(() => {
-        if (!authClient || account.loading) {
-            return;
-        }
-        window.history.replaceState({ khataView: signedIn ? 'workspace' : 'welcome' }, '');
-    }, [signedIn, account.loading]);
+    }, [signedIn, view, booksPage, homeBooks]);
+    useEffect(()=>{if(signedIn&&!account.loading&&(view==='khata'||view==='workspace'))saveLocation(sessionId??undefined,{view});},[signedIn,account.loading,view,sessionId]);
     async function logout() {
         if (!authClient) {
             backToWelcome();
             return;
         }
         try {
+            clearLocation(sessionId);
             const { error } = await authClient.auth.signOut({ scope: 'local' });
             setLogoutError(Boolean(error));
         }
@@ -206,7 +203,7 @@ function App() {
       </section>}
 
       {view === 'khata' && (signedIn || guestUiEnabled) && (<section className="scene light-scene active" aria-label={t('khata')}>
-          {signedIn ? <header className="kh-app-header"><button className="kh-brand" type="button" aria-label={language==='bn'?'হোম':'Home'} onClick={homeBooks}><span className="kh-logo">O</span><span><small>ORBIS</small><strong>{t('khata')}</strong></span></button><div className="kh-header-actions">{languagePicker(true)}{menu()}<button type="button" className="kh-profile-button" onClick={backBooks} aria-label={{bn:'ফিরুন',hi:'वापस',en:'Back'}[language]}>←</button></div></header> : renderBar('workspace', 'choose', 'khata')}
+          {signedIn ? <header className="kh-app-header"><button className="kh-brand" type="button" aria-label={language==='bn'?'হোম':'Home'} onClick={homeBooks}><span className="kh-logo">O</span><span><small>ORBIS</small><strong>{t('khata')}</strong></span></button><div className="kh-header-actions">{languagePicker(true)}{menu()}<button type="button" className="kh-profile-button" onClick={homeBooks} aria-label={{bn:'ফিরুন',hi:'वापस',en:'Back'}[language]}>←</button></div></header> : renderBar('workspace', 'choose', 'khata')}
           {!signedIn && <div className="khata-title"><div className="bar"><span className="eyebrow l">{t('dashboard')}</span><span className="period">{t('month')}</span></div><h1>{t('khata')}</h1><p>{t('khataHead')}</p></div>}
           <CompanyGate key={account.session?.user.id ?? 'guest'} userId={account.session?.user.id} language={language} workspace={<div className="kh-workspace"><BookServicesContext.Provider value={liveBookServices}><DemoWorkspace userId={account.session?.user.id} language={language}/></BookServicesContext.Provider></div>}>
           <div className="metrics">

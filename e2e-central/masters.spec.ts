@@ -10,7 +10,7 @@ test('cloud masters survive reload and require two delete confirmations',async({
  await page.route('https://data.example.test/**',async route=>{
   if(route.request().method()==='OPTIONS'){await route.fulfill({status:204,headers});return}
   const {operation,input}=route.request().postDataJSON();let data:unknown=null
-  if(operation==='companies')data=[company]
+  if(operation==='companies')data=[company,{id:'77777777-7777-4777-8777-777777777777',name:'Second company'}]
   if(operation==='expense-report')data={balances:{},categories:[],bills:[],entries:[],count:0}
   if(operation==='masters')data={parties,items}
   if(operation==='report')data={balances:{},ledger_balances:{},parties,entries:[],count:0,as_of:'2026-10-26'}
@@ -22,10 +22,11 @@ test('cloud masters survive reload and require two delete confirmations',async({
  })
  await page.goto('/');await page.getByRole('button',{name:/Khata Boi.*Open/}).click()
  await expect(page.getByRole('combobox',{name:'Company',exact:true})).toContainText('Cloud trial')
+ await page.getByRole('combobox',{name:'Company',exact:true}).selectOption('77777777-7777-4777-8777-777777777777');await page.reload();await expect(page.getByRole('heading',{name:'At a glance'})).toBeVisible();await expect(page.getByRole('combobox',{name:'Company',exact:true})).toHaveValue('77777777-7777-4777-8777-777777777777');
  const nav=page.locator('.workspace-menu-panel')
  await page.getByRole('button',{name:'Parties 0',exact:true}).click();await page.getByRole('button',{name:'＋ Add party',exact:true}).click()
  await page.getByLabel('Name',{exact:true}).fill('Cloud customer');await page.getByLabel('Phone number',{exact:true}).fill('+919876543210');await page.getByRole('button',{name:'Save',exact:true}).click();await expect(page.getByText('Cloud customer',{exact:true})).toBeVisible()
- await page.reload();await page.getByRole('button',{name:/Khata Boi.*Open/}).click();await page.getByRole('button',{name:'Parties 1',exact:true}).click();await expect(page.getByRole('link',{name:'+919876543210',exact:true})).toHaveAttribute('href','tel:+919876543210'); await expect(page.getByRole('columnheader',{name:'Party name',exact:true})).toBeVisible(); await expect(page.getByRole('columnheader',{name:'Category',exact:true})).toBeVisible(); await page.screenshot({path:test.info().outputPath('parties.png'),fullPage:true})
+ await page.reload();await expect(page.getByRole('heading',{name:'At a glance'})).toBeVisible();await page.getByRole('button',{name:'Parties 1',exact:true}).click();await expect(page.getByRole('link',{name:'+919876543210',exact:true})).toHaveAttribute('href','tel:+919876543210'); await expect(page.getByRole('columnheader',{name:'Party name',exact:true})).toBeVisible(); await expect(page.getByRole('columnheader',{name:'Category',exact:true})).toBeVisible(); await page.screenshot({path:test.info().outputPath('parties.png'),fullPage:true})
  await page.getByRole('button',{name:'More',exact:true}).click();await nav.getByRole('button',{name:'Items',exact:true}).click();await page.getByRole('button',{name:'＋ Add item',exact:true}).click();await page.getByLabel('Name',{exact:true}).fill('Cloud milk');await page.getByLabel('Unit',{exact:true}).fill('litre');await page.getByRole('button',{name:'Save',exact:true}).click();await expect(page.getByText('Cloud milk',{exact:true})).toHaveCount(1);expect(items[0]).toMatchObject({code:'',default_rate:null}); await expect(page.getByRole('columnheader',{name:'Unit',exact:true})).toBeVisible(); await expect(page.getByRole('button',{name:'Edit: Cloud milk',exact:true})).toHaveText(''); await page.screenshot({path:test.info().outputPath('items.png'),fullPage:true})
  await page.getByRole('button',{name:'More',exact:true}).click();await nav.getByRole('button',{name:'Parties',exact:true}).click();const remove=page.getByRole('button',{name:'Delete: Cloud customer',exact:true})
  page.once('dialog',d=>d.dismiss());await remove.click();expect(deletes).toBe(0)

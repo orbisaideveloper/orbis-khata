@@ -1,4 +1,6 @@
-import { overviewAmount, type OverviewKind } from '../accounting/overview-model';
+import {DashboardMetrics} from './DashboardMetrics';
+import {currentEntries} from '../accounting/current-entries';
+import { type OverviewKind } from '../accounting/overview-model';
 import type { ExpenseReport } from '../accounting/expense-model';
 import { inLanguage } from '../localize';
 import type { Language } from '../i18n';
@@ -24,14 +26,14 @@ export function Dashboard({ language, companyName: _companyName, report, failed,
     periodLabel?: string;
 }>) {
     const t = designCopy[language];
-    const metrics = [['receivable', t.receive], ['payable', t.pay], ['cash', t.cash], ['bank', t.bank], ['expenses', t.expense]] as const;
     return <div className="kh-dashboard">
  <div className="kh-section-heading"><h2>{t.overview}</h2><span>{periodLabel ?? t.period}</span><button className="overview-refresh" type="button" onClick={onRetry}>{inLanguage(language,'হালনাগাদ','ताज़ा करें','Refresh balances')}</button></div>
  {failed && <output role="alert">{t.error} <button type="button" onClick={onRetry}>{t.retry}</button></output>}
  {!failed && !report && <output>{t.loading}</output>}
- {!failed && report && <div className="kh-metrics">{metrics.map(([account, label]) => <button type="button" aria-label={account === 'expenses' ? inLanguage(language, 'খরচের বিস্তারিত', 'खर्च का विवरण', 'Expense details') : label} onClick={() => onOverview(account)} key={account} className={'kh-metric kh-metric-' + account}><span>{label}</span><strong>{money(overviewAmount(report, expenses, account))}</strong><span className="overview-card-arrow" aria-hidden="true">›</span></button>)}</div>}
+ {!failed && report && <DashboardMetrics report={report} expenses={expenses} language={language} onOverview={onOverview}/>}
+
  <div className="kh-section-heading"><h2>{t.actions}</h2></div><div className="kh-quick-actions">{(['sale', 'purchase', 'expense'] as const).map(kind => <button type="button" key={kind} onClick={() => onBill(kind)}><span><DesignIcon name={kind}/></span>{t[kind]}</button>)}</div>
  <div className="kh-section-heading"><h2>{t.manage}</h2></div><div className="kh-module-grid">{(['parties', 'items', 'ledger', 'stock', 'accounts', 'bills'] as const).map(key => <button type="button" key={key} onClick={() => onOpen(pageForModule[key] ?? key as BooksPage)}><span className={'kh-module-icon kh-module-' + key}><DesignIcon name={key}/></span><span>{t[key]}{key === 'parties' && <small>{partyCount}</small>}{key === 'items' && <small>{itemCount}</small>}</span><span aria-hidden="true">›</span></button>)}</div>
- <div className="kh-section-heading"><h2>{t.recent}</h2></div><section className="kh-recent">{!report?.entries.length ? <div className="kh-empty"><DesignIcon name="bills"/><strong>{t.empty}</strong><p>{t.start}</p></div> : report.entries.slice(0, 4).map(entry => <article key={entry.id}><span className="kh-list-icon"><DesignIcon name={iconForEntry[entry.kind] ?? 'accounts'}/></span><div><strong>{entry.party_name}</strong><small>{entry.effective_date} · {entry.reference}</small></div><strong>{money(entry.amount_minor)}</strong></article>)}</section>
+ <div className="kh-section-heading"><h2>{t.recent}</h2></div><section className="kh-recent">{!report || !currentEntries(report.entries).length ? <div className="kh-empty"><DesignIcon name="bills"/><strong>{t.empty}</strong><p>{t.start}</p></div> : currentEntries(report.entries).slice(0, 4).map(entry => <article key={entry.id}><span className="kh-list-icon"><DesignIcon name={iconForEntry[entry.kind] ?? 'accounts'}/></span><div><strong>{entry.party_name}</strong><small>{entry.effective_date} · {entry.reference}</small></div><strong>{money(entry.amount_minor)}</strong></article>)}</section>
  </div>;
 }

@@ -28,6 +28,6 @@ export function useBooksTrail() {
  const [page,setPage]=useState<BooksPage>('home');const trail=useRef<BooksPage[]>([]);
  const open=useCallback((next:BooksPage)=>{if(next!==page){trail.current.push(page);setPage(next);}},[page]);
  const back=useCallback(()=>{if(!requestBooksBack()){setPage(trail.current.pop()??'home');}},[]);
- const home=useCallback(()=>{trail.current=[];setPage('home');},[]);
+ const home=useCallback(()=>{window.dispatchEvent(new Event('khata-home'));trail.current=[];setPage('home');},[]);
  return {page,open,back,home};
 }

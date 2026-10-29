@@ -1,3 +1,4 @@
+import {readLocation,saveLocation} from '../workspace-location';
 import { PaymentEntry } from '../accounting/PaymentEntry';
 import { WorkspaceSettings } from '../accounting/WorkspaceSettings';
 import { DateRange } from '../accounting/DateRange';
@@ -22,7 +23,7 @@ import { Inventory } from '../inventory/Inventory';
 import { demoMasters, demoRequest, demoCompanyName } from './store';
 import { ItemMaster, PartyMaster } from './Masters';
 import { InvoicePage, type BillKind } from './InvoicePage';
-const overviewLabels = { receivable: 'receive', payable: 'pay', cash: 'cash', bank: 'bank', expenses: 'expense' } as const;
+const overviewLabels = { receivable: 'receive', payable: 'pay', cash: 'cash', bank: 'bank', liquidity:'cash', expenses: 'expense' } as const;
 const types = { bn: { sale: 'বিক্রয় বিল', purchase: 'ক্রয় বিল', expense: 'খরচের বিল', bills: 'বিল', stock: 'গোডাউন ও স্টক' }, en: { sale: 'Sales invoice', purchase: 'Purchase invoice', expense: 'Expense bill', bills: 'Bills', stock: 'Godown & stock' }, hi: { sale: 'बिक्री बिल', purchase: 'खरीद बिल', expense: 'खर्च बिल', bills: 'बिल', stock: 'गोदाम और स्टॉक' } };
 type MasterSnapshot = {
     company: string;
@@ -65,7 +66,7 @@ export function DemoWorkspace({ language, userId = 'demo-owner' }: Readonly<{
         parties: DemoParty[];
     }>({ company: '', items: [], parties: [] });
     const navigation = useBooksNavigation(), t = types[language], labels = booksLabels[language];
-    const [company, setCompany] = useState(services ? '' : '11111111-1111-4111-8111-111111111111'), [companies, setCompanies] = useState<{
+    const [company, setCompany] = useState(services ? readLocation(userId).company : '11111111-1111-4111-8111-111111111111'), [companies, setCompanies] = useState<{
         id: string;
         name: string;
     }[]>([]), [version, setVersion] = useState(0);
@@ -79,12 +80,14 @@ export function DemoWorkspace({ language, userId = 'demo-owner' }: Readonly<{
             name: string;
         }[];
     } | null>(null), [errorKey, setErrorKey] = useState('');
+    useEffect(()=>{if(services&&company)saveLocation(userId,{company});},[services,company,userId]);
     const requestKey = [company, from, to, version].join('/');
     const report = result?.key === requestKey ? result.report : null, warehouses = result?.key === requestKey ? result.warehouses : [], failed = errorKey === requestKey;
     const [overview, setOverview] = useState<{
         company: string;
         kind: OverviewKind;
     } | null>(null);
+    useEffect(()=>{const home=()=>{setOverview(null);setBill(null);};window.addEventListener('khata-home',home);return()=>window.removeEventListener('khata-home',home);},[]);
     const showingOverview = navigation.page === 'overview' && overview !== null && overview.company === company;
     function closeOverview() { setOverview(null); navigation.open('home'); }
     const [locked, setLocked] = useState(false);
@@ -159,7 +162,7 @@ export function DemoWorkspace({ language, userId = 'demo-owner' }: Readonly<{
   <label>{inLanguage(language, 'কোম্পানি', 'कंपनी', 'Company')}<select value={company} disabled={locked} onChange={e => { setOverview(null); setCompany(e.target.value); setBill(null); }}>{companies.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}</select></label>
   {(navigation.page === 'home' || navigation.page === 'all-ledgers' || navigation.page === 'expenses' || navigation.page === 'stock' || showingOverview) && <DateRange language={language} from={from} to={to} onChange={(start, end) => { setFrom(start); setTo(end); }}/>}
   {(navigation.page === 'home' || navigation.page === 'overview' && !showingOverview) && <Dashboard language={language} companyName={companyName} report={report} failed={failed} onRetry={changed} onOpen={navigation.open} onBill={openBill} periodLabel={from + ' — ' + to} partyCount={masters.parties.length} itemCount={masters.items.length} expenses={result?.key === requestKey ? result.expenses : { balances: {}, categories: [], bills: [], entries: [], count: 0 }} onOverview={kind => { setOverview({ company, kind }); navigation.open('overview'); }}/>}
-  {showingOverview && report && result?.key === requestKey && <OverviewDetails key={[company, overview.kind, from, to].join('/')} {...{ company, language, from, to, version, report }} expenses={result.expenses} kind={overview.kind} title={designCopy[language][overviewLabels[overview.kind]]} onBack={closeOverview}/>}
+  {showingOverview && report && result?.key === requestKey && <OverviewDetails key={[company, overview.kind, from, to].join('/')} {...{ company, language, from, to, version, report }} expenses={result.expenses} kind={overview.kind} title={overview.kind==='liquidity'?designCopy[language].cash+' / '+designCopy[language].bank:designCopy[language][overviewLabels[overview.kind]]} onBack={closeOverview}/>}
   {showingOverview && !report && !failed && <output>{designCopy[language].loading}</output>}
   {showingOverview && failed && <output role="alert">{designCopy[language].error}<button type="button" onClick={changed}>{designCopy[language].retry}</button><button type="button" onClick={closeOverview}>{designCopy[language].home}</button></output>}
   {navigation.page === 'home' && <button className="kh-company-manage" type="button" onClick={() => navigation.open('company')}>{designCopy[language].newCompany} →</button>}

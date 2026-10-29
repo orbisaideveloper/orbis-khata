@@ -2,7 +2,7 @@ import {currentEntries} from './current-entries'
 import { balance, type Report } from './model'
 import type { ExpenseReport } from './expense-model'
 import type { LedgerEntity } from './LedgerExplorer'
-export type OverviewKind = 'receivable' | 'payable' | 'cash' | 'bank' | 'expenses'
+export type OverviewKind = 'receivable' | 'payable' | 'cash' | 'bank' | 'liquidity' | 'expenses'
 export type OverviewRow = LedgerEntity & { amount: string }
 export function dueRows(report: Report, expenses: ExpenseReport, kind: 'receivable' | 'payable'): OverviewRow[] {
   const rows: OverviewRow[] = report.parties.filter(p => p.kind !== 'expense' && BigInt(p[kind]) > 0n).map(p => ({ id: p.id, name: p.name, type: 'party', amount: p[kind] }))
@@ -22,6 +22,7 @@ export function dueRows(report: Report, expenses: ExpenseReport, kind: 'receivab
   return [...rows, ...payees.values()].sort((a, b) => a.name.localeCompare(b.name))
 }
 export function overviewAmount(report: Report, expenses: ExpenseReport, kind: OverviewKind): bigint {
+  if(kind==='liquidity')return balance(report,'cash')+balance(report,'bank')
   if (kind === 'receivable' || kind === 'payable') return dueRows(report, expenses, kind).reduce((sum, row) => sum + BigInt(row.amount), 0n)
   return balance(report, kind, kind === 'expenses' ? 'movement' : 'closing')
 }

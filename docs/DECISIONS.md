@@ -257,3 +257,15 @@ bill-time payments only through explicit bill links or the system-generated
 Payment with bill marker with one unique party/date/reference/type match; never
 join independent or ambiguous payments merely because references coincide.
 All statement exports use the same projection as the screen.
+
+### 29 October 2026 — Compact home and owner-scoped location
+
+Home shows four cards in two columns: receivable/payable with top three positive
+counterparty balances; combined cash/bank with separately selectable components;
+and expense. Combined negative liquidity uses a light red card, otherwise green;
+each negative component remains red independently. Card details retain full lists.
+Remember only module/company navigation metadata keyed by authenticated owner;
+validate company selection against the server-authorized list. Refresh restores
+Khata home and selected company, not the public/module picker. Header/browser Back
+returns to module home. Explicit logout clears saved module/company location.
+Future modules must use supported routes; planned Farming is not activated here.

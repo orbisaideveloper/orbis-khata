@@ -71,3 +71,7 @@ it('keeps the profile off the home screen and opens it only from the menu',()=>{
  expect(screen.queryByText('Private profile editor')).toBeNull()
  act(()=>window.dispatchEvent(new PopStateEvent('popstate',{state:{khataView:'profile'}})))
 })
+it('restores the saved module for the same signed-in owner without opening the module picker',()=>{
+ localStorage.setItem('orbis.khata.location.v1:owner-a',JSON.stringify({view:'khata',company:'c'}));
+ const first=render(<App/>);expect(screen.getByText('Books for owner-a')).toBeInTheDocument();first.unmount();render(<App/>);expect(screen.getByText('Books for owner-a')).toBeInTheDocument();expect(screen.queryByRole('button',{name:/Khata Boi.*Open/})).toBeNull();
+});

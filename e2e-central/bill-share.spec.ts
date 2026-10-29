@@ -78,7 +78,7 @@ test('bill settings stay collapsed and export the selected Bengali invoice as a 
   await expect(dialog).not.toBeVisible()
   expect(await page.evaluate(()=>document.body.style.overflow)).not.toBe('hidden')
   await page.getByRole('button',{name:'Back',exact:true}).click()
-  await expect(page.getByLabel('Search by name or item code')).toBeVisible()
+  await expect(page.getByRole('heading',{name:'At a glance'})).toBeVisible()
   await page.locator('.kh-brand').click()
   await expect(page.getByRole('heading',{name:'At a glance'})).toBeVisible()
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1)).toBe(true);

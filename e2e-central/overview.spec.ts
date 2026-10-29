@@ -76,6 +76,13 @@ test('summary cards open due lists and scoped ledgers while the independent Ledg
     await expect(page.getByRole('button', { name: 'Rent owner', exact: true })).toBeVisible();
     await page.locator('.kh-brand').click();
     await expect(page.getByRole('button', { name: 'To receive', exact: true })).toBeVisible();
+    await expect(page.locator('.kh-summary-grid>.kh-metric')).toHaveCount(4);
+    await page.getByRole('button',{name:'Cash & Bank',exact:true}).click();
+    await expect(page.getByRole('heading',{name:'Cash / Bank',exact:true})).toBeVisible();
+    await expect(page.getByRole('columnheader',{name:'Money in',exact:true})).toBeVisible();
+    await page.getByRole('button',{name:'Back',exact:true}).click();
+    await expect(page.getByRole('heading',{name:'At a glance'})).toBeVisible();
+    await page.screenshot({path:test.info().outputPath('home-cards.png'),fullPage:true});
     await page.getByRole('button', { name: 'Expense details', exact: true }).click();
     await page.getByRole('button', { name: /Rent/ }).click();
     await expect(page.getByRole('heading', { name: 'Rent', exact: true })).toBeVisible();

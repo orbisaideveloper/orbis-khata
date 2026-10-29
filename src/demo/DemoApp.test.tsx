@@ -55,7 +55,7 @@ it('opens the redesigned dashboard with real demo totals and working business sh
     fireEvent.change(screen.getByLabelText('ভাষা'), { target: { value: 'en' } });
     expect(await screen.findByRole('heading', { name: 'At a glance' })).toBeInTheDocument();
     expect(screen.getByText('No entries yet')).toBeInTheDocument();
-    expect(screen.getAllByText('₹0.00')).toHaveLength(5);
+    expect(screen.getAllByText('₹0.00')).toHaveLength(6);
     expect(screen.getByRole('button', { name: 'Expense details' })).toBeInTheDocument();
     fireEvent.click(screen.getByLabelText('More options'));
     fireEvent.click(within(document.querySelector('.workspace-menu-panel') as HTMLElement).getByRole('button',{name:'Parties'}));
