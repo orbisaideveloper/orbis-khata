@@ -35,7 +35,7 @@ test('summary cards open due lists and scoped ledgers while the independent Ledg
             data = expenses;
         }
         if (operation === 'inventory-report') {
-            data = { items: [], warehouses: [], stocks: [], documents: [], count: 0 };
+            data = { items: [{id:'milk',name:'Milk',code:'M1',unit:'litre'}], warehouses: [{id:'main',name:'Main godown'}], stocks: [{item:'milk',warehouse:'main',opening:'0',incoming:'2000000',outgoing:'0',closing:'2000000'}], documents: Array.from({length:20},(_,n)=>({id:'bill'+n,kind:'purchase',date:'2026-10-25',party_name:'Supplier',reference:'P'+n,reversed:false,lines:[{item:'milk',warehouse:'main',to:null,quantity:'1000000',rate:'5000'}]})), count: 20 };
         }
         if (operation === 'report') {
             if (input.party) {
@@ -89,5 +89,27 @@ test('summary cards open due lists and scoped ledgers while the independent Ledg
     await expect(page.getByRole('heading', { name: 'Rent', exact: true })).toBeVisible();
     await page.getByRole('navigation', { name: 'Main navigation', exact: true }).getByRole('button', { name: 'Ledger', exact: true }).click();
     await expect(page.getByRole('button', { name: 'Customer A Party', exact: true })).toBeVisible();
+    await expect(page.getByPlaceholder('Search by name or item code')).toBeVisible();
+    await page.getByRole('combobox',{name:'Ledger',exact:true}).selectOption('party');
+    await page.getByPlaceholder('Search by name or item code').fill('Customer');
+    await expect(page.locator('.ledger-results .ledger-row')).toHaveCount(2);
+    await page.locator('.ledger-explorer').evaluate(el=>el.style.minHeight='1500px');
+    await page.evaluate(()=>window.scrollTo(0,500));
+    await expect.poll(()=>page.locator('.kh-app-header').evaluate(el=>Math.round(el.getBoundingClientRect().top))).toBe(0);
+    await page.getByLabel('More options').click();
+    const menu=page.locator('.workspace-menu-panel');
+    await expect(menu).toBeVisible();
+    expect(await menu.evaluate(el=>{const r=el.getBoundingClientRect();return r.top>=0&&r.bottom<=innerHeight;})).toBe(true);
+    await page.screenshot({path:test.info().outputPath('compact-search-sticky-menu.png'),fullPage:true});
+    await page.getByLabel('More options').click();
+    await page.locator('.ledger-explorer').evaluate(el=>el.style.minHeight='');
+    await page.evaluate(()=>window.scrollTo(0,0));
+    await page.getByRole('combobox',{name:'Ledger',exact:true}).selectOption('item');
+    await page.getByPlaceholder('Search by name or item code').fill('M1');
+    await page.getByRole('button',{name:'Milk · M1 Item',exact:true}).click();
+    await expect(page.locator('.item-movements tbody tr')).toHaveCount(20);
+    await expect(page.getByRole('columnheader',{name:'Quantity',exact:true})).toBeVisible();
+    expect(await page.locator('.item-movements').evaluate(el=>el.scrollHeight>el.clientHeight)).toBe(true);
+    await page.screenshot({path:test.info().outputPath('compact-item-statement.png'),fullPage:true});
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1)).toBe(true);
 });

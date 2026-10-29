@@ -2,8 +2,6 @@ import { useBooksBack } from '../books-navigation';
 import { expenseLedgerReport } from './expense-ledger';
 import { PartyLedger } from './PartyLedger';
 import { allPages } from './report-pages';
-import { keyedRows } from '../list-keys';
-import { rateDisplay } from '../billing/amounts';
 import { itemLabel } from '../demo/master-model';
 import { useEffect, useState } from 'react';
 import type { Language } from '../i18n';
@@ -12,11 +10,10 @@ import type { ExpenseReport } from './expense-model';
 import type { InventoryReport } from '../inventory/model';
 import { expenseReport, report } from './api';
 import { inventoryReport } from '../inventory/api';
-import { displayQuantity } from '../inventory/model';
 import { money } from './model';
 import { accountingCopy } from './copy';
 import { expenseCopy } from './expense-copy';
-import { inventoryCopy } from '../inventory/copy';
+import { ItemStatement } from './ItemStatement';
 const copy = {
     bn: { title: 'লেজার', search: 'নাম বা আইটেম কোড দিয়ে খুঁজুন', all: 'সব লেজার', party: 'পার্টি', expense: 'খরচ', item: 'আইটেম', choose: 'বিস্তারিত দেখতে একটি লেজার বেছে নিন', empty: 'কোনো লেজার পাওয়া যায়নি', back: 'তালিকায় ফিরুন' },
     en: { title: 'Ledger', search: 'Search by name or item code', all: 'All ledgers', party: 'Party', expense: 'Expense', item: 'Item', choose: 'Choose a ledger to view its details', empty: 'No matching ledgers', back: 'Back to list' },
@@ -40,7 +37,7 @@ export function LedgerExplorer({ company, language, from, to, version, parties, 
     initialSelection?: LedgerEntity;
     onBack?: () => void;
 }>) {
-    const t = copy[language], a = accountingCopy[language], e = expenseCopy[language], i = inventoryCopy[language];
+    const t = copy[language], a = accountingCopy[language], e = expenseCopy[language];
     const [search, setSearch] = useState(''), [filter, setFilter] = useState('all'), [selected, setSelected] = useState<LedgerEntity | null>(initialSelection ?? null);
     useBooksBack(Boolean(selected), () => { if(onBack) onBack(); else setSelected(null); });
     const query = JSON.stringify([company, from, to, version]);
@@ -114,10 +111,9 @@ export function LedgerExplorer({ company, language, from, to, version, parties, 
     const documents = data.inventory.documents.filter(row => !row.reversed && row.lines.some(line => line.item === selected?.id));
     const expenseAdvance = language === 'bn' ? 'অ্যাডভান্স' : 'Advance', expensePreviousDue = language === 'bn' ? 'আগের বাকি' : 'Previous due';
     const partyData = partyResult?.key === partyKey ? partyResult.data : null;
-    return <section className="books-card" aria-label={t.title}><h2>{t.title}</h2>
-  {!initialSelection && <><label>{t.search}<input type="search" value={search} onChange={event => { setSearch(event.target.value); setSelected(null); }}/></label>
-  <div className="books-buttons">{(['all', 'party', 'expense', 'item'] as const).map(type => <button type="button" key={type} aria-pressed={filter === type} onClick={() => { setFilter(type); setSelected(null); }}>{t[type]}</button>)}</div></>}
-  {!selected && <><p>{t.choose}</p>{!matches.length && <p>{t.empty}</p>}{matches.map(row => <button type="button" className="books-entity ledger-row" key={row.id} onClick={() => setSelected(row)}><strong>{row.name}</strong>{' '}<span>{t[row.type]}</span><span aria-hidden="true">›</span></button>)}</>}
+    return <section className="books-card ledger-explorer" aria-label={t.title}><h2>{t.title}</h2>
+  {!initialSelection && <div className="ledger-search"><select aria-label={t.title} value={filter} onChange={event => { setFilter(event.target.value); setSelected(null); }}>{(['all', 'party', 'expense', 'item'] as const).map(type => <option value={type} key={type}>{t[type]}</option>)}</select><input aria-label={t.search} placeholder={t.search} type="search" value={search} onChange={event => { setSearch(event.target.value); setSelected(null); }}/></div>}
+  {!selected && <><p className="ledger-hint">{t.choose}</p><div className="ledger-results">{!matches.length && <p>{t.empty}</p>}{matches.map(row => <button type="button" className="books-entity ledger-row" key={row.id} onClick={() => setSelected(row)}><strong>{row.name}</strong>{' '}<span>{t[row.type]}</span><span aria-hidden="true">›</span></button>)}</div></>}
   {selected && <div className="ledger-detail"><button type="button" onClick={() => {
                 if (onBack) {
                     onBack();
@@ -128,7 +124,8 @@ export function LedgerExplorer({ company, language, from, to, version, parties, 
             }}>{t.back}</button><h3>{selected.name}</h3>
    {selected.type === 'party' && <>{failed === partyKey && <output>{a.error}<button type="button" onClick={() => setRetry(n => n + 1)}>{a.retry}</button></output>}{failed !== partyKey && !partyData && <output>{a.loading}</output>}{failed !== partyKey && partyData && <><p>{a.receivable}: {money(partyData.ledger_balances.receivable?.closing ?? '0')} · {a.payable}: {money(-BigInt(partyData.ledger_balances.payable?.closing ?? '0'))}</p>{!partyData.entries.length && !partyData.opening_entries?.length ? <p>{a.empty}</p> : <PartyLedger data={partyData} language={language} company={company} from={from} to={to} name={selected.name} onChanged={() => setRetry(n => n + 1)}/>}</>}</>}
    {selected.type === 'expense' && <>{partyResult?.key === partyKey && partyResult.data.opening_entries?.map(row => <p key={row.id}>{a.opening} · {row.date} · {row.side === 'advance' ? expenseAdvance : expensePreviousDue} · {money(row.amount)}</p>)}<p>{e.period}: {money(expenseTotal)} · {e.outstanding}: {money(expenseDue)}</p>{!expenseEntries.length && <p>{a.empty}</p>}<PartyLedger source="expense" data={expenseLedgerReport(data.expenses, expenseEntries, parties, expenseDue)} language={language} company={company} from={from} to={to} name={selected.name} onChanged={() => setRetry(n => n + 1)}/></>}
-   {selected.type === 'item' && <><p>{i.unit}: {item?.unit}</p>{stockRows.map(row => <article className="books-entry" key={row.warehouse}><strong>{data.inventory.warehouses.find(w => w.id === row.warehouse)?.name}</strong><p>{i.start}: {displayQuantity(row.opening)} · {i.incoming}: {displayQuantity(row.incoming)} · {i.outgoing}: {displayQuantity(row.outgoing)} · {i.balance}: {displayQuantity(row.closing)} {item?.unit}</p></article>)}{!documents.length && <p>{a.empty}</p>}{documents.map(doc => <article className="books-entry" key={doc.id}><time>{doc.date}</time><p>{i[doc.kind]} · {doc.party_name} · {doc.reference}</p>{keyedRows(doc.lines.filter(line => line.item === selected.id), line => `${line.item}:${line.warehouse}:${line.to ?? ''}:${line.quantity}:${line.unit_rate ?? line.rate}`).map(({ row: line, key }) => <p key={key}>{i.quantity}: {displayQuantity(line.quantity)} {item?.unit} · {i.rate}: {line.unit_rate ? rateDisplay(line.unit_rate) : money(line.rate)}</p>)}</article>)}</>}
+   {selected.type === 'item' && <ItemStatement language={language} item={item} stocks={stockRows} documents={documents} warehouses={data.inventory.warehouses}/>}
+
   </div>}
  </section>;
 }

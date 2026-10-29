@@ -1139,3 +1139,11 @@ See [SONAR-CORRECTIONS-20261017.md](SONAR-CORRECTIONS-20261017.md) for every rep
 - Moved the closure-independent theme preference handler to module scope; behavior, storage key and events are unchanged. No quality checks or thresholds weakened.
 - Targeted theme/numeric tests: 3/3 pass. Local lint, TypeScript, production build and built-worker offline/API bypass checks pass. No database/migration/Edge/Render change; old financial records unaffected.
 - Owner authorizes corrective main commit/push. New remote Actions result remains pending; owner will report it, without assistant polling.
+
+## 2026-10-29 — Compact ledger search, item statement and pinned navigation
+
+- Parent main 0daf5a83ef08e00625d432d97dbc109e490e1f5a. Owner requests a compact, clear mobile presentation. Search now has a localized light placeholder and an integrated ledger-type selector. Matching lists scroll inside their panel without a client-side result cap; a regression verifies 75 names and code-specific lookup.
+- Item details now render opening/in/out/closing by godown in a compact summary table, followed by date/reference/party/quantity/rate rows in a bounded scrollable statement. Existing report pagination and reversal filtering remain; no accounting math or financial storage changed.
+- Reduced glass company selector to one row, reduced header and quick-entry/cash controls. Header stays pinned while the document scrolls; its menu stays anchored and can scroll internally. Replaced the inherited overflow-hidden scrolling ancestor with overflow:clip using stronger specificity.
+- Local: 520/520 unit tests in 77 files pass; coverage statements 91.97%, branches 88.67%, functions 91.40%, lines 92.85%. Lint/typecheck/KNIP pass; JSCPD zero clones; production build and worker checks pass. Browser tests verify mobile/desktop search, sticky header/menu, bounded 20-document item table and no page overflow; related invoice PDF/detail browser scenarios also pass.
+- No production data, schema, migration, Edge gateway or Render change. Owner-authorized source push only; remote Actions result remains unverified and is not polled. Owner controls deployment.
