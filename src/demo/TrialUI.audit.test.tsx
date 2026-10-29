@@ -38,12 +38,6 @@ async function bill(kind: 'sale' | 'purchase' | 'expense', party: string, qty: s
     await waitFor(()=>expect(screen.getByLabelText('Bill number')).not.toHaveValue(''));
     fireEvent.click(screen.getByRole('button', { name: 'Review bill' }));
     expect(screen.getByRole('article')).toHaveTextContent(kind === 'sale' ? 'Trial customer' : kind === 'purchase' ? 'Trial supplier' : 'Trial power');
-    if (kind === 'purchase') {
-        for (const label of ['Blue memo', 'Office bill', 'Modern']) {
-            fireEvent.click(screen.getByLabelText(label));
-            fireEvent.click(screen.getByRole('button', { name: 'Print / PDF' }));
-        }
-    }
     fireEvent.click(screen.getByRole('button', { name: 'Confirm & save' }));
     await screen.findByText('Bill saved.');
 }
@@ -84,7 +78,7 @@ describe.sequential('A–Z through actual demo React controls (DOM, no live acco
         item = value.id;
         expect(value).toMatchObject({ code: '', default_rate: null });
     });
-    it('06 buys 10 litres at 60, previews all three designs and confirms once', async () => { await bill('purchase', supplier, '10', '60'); expect(window.print).toHaveBeenCalledTimes(3); });
+    it('06 buys 10 litres at 60 using saved bill settings and confirms once', async () => { await bill('purchase', supplier, '10', '60'); expect(window.print).not.toHaveBeenCalled(); });
     it('07 sells 4 litres at 90', async () => { await bill('sale', customer, '4', '90'); });
     it('08 receives 200 cash through Accounts while preserving the chosen company', async () => {
         render(<Accounting userId="demo-owner" language="en" initialCompany={company}/>);

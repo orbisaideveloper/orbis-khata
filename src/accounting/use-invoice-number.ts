@@ -11,7 +11,7 @@ export function useInvoiceNumber({company,id,kind,date,settings,loaded,request,d
   let alive=true;
   async function allocate(){try{
    financialYear(date);
-   const value=await request<unknown>('workspace',{company,action:'number',id,kind,date});
+   const value=await request<unknown>('workspace',{company,action:'number-preview',id,kind,date});
    if(typeof value!=='string'||!(/^[1-9]\d{0,7}$/u).test(value))throw new Error('NUMBER_UNAVAILABLE');
    if(alive)setResult({key,number:value,failed:false});
   }catch{if(alive)setResult({key,number:'',failed:true});}}

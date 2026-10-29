@@ -1,0 +1,5 @@
+import {cleanup,fireEvent,render,screen,within} from '@testing-library/react';
+import {afterEach,expect,it,vi} from 'vitest';
+import {StockTable} from './StockTable';
+afterEach(cleanup);
+it('sorts stock names, keeps negative/zero quantities and opens the selected item',()=>{const select=vi.fn();const data={items:[{id:'m',name:'Milk',code:'M',unit:'litre'},{id:'a',name:'Mansarovar',code:'A',unit:'kg'},{id:'i',name:'Indi Milk',code:'I',unit:'kg'}],warehouses:[],stocks:[{item:'m',warehouse:'w',opening:'0',incoming:'0',outgoing:'183500000',closing:'-183500000'}],documents:[],count:0};const view=render(<StockTable data={data} language="en" search="" onSelect={select}/>);const rows=screen.getAllByRole('row').slice(1);expect(rows.map(row=>within(row).getByRole('button').textContent)).toEqual(['Indi Milk','Mansarovar','Milk']);expect(screen.getByText('-183.5')).toHaveClass('negative');fireEvent.click(screen.getByRole('button',{name:'Milk'}));expect(select).toHaveBeenCalledWith('m','Milk');view.rerender(<StockTable data={data} language="en" search="missing" onSelect={select}/>);expect(screen.getByText('No records yet.')).toBeInTheDocument();});

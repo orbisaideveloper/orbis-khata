@@ -106,27 +106,8 @@ it('adds and removes bill rows without losing the first row pricing', async () =
     expect(screen.queryByLabelText('Item name 2')).toBeNull();
     expect(screen.getByLabelText('Amount 1')).toHaveValue('600.00');
 });
-it('switches three printable designs without changing the bill or saving it', async () => {
-    const print = vi.spyOn(window, 'print').mockImplementation(() => { });
-    mount();
-    fill();
-    fireEvent.change(screen.getByLabelText('Company address / phone'), { target: { value: 'Krishnanagar · 12345' } });
-    fireEvent.click(screen.getByLabelText('Office bill'));
-    await reviewBill();
-    expect(screen.getByRole('article')).toHaveClass('bill-template-classic');
-    expect(screen.getByText('Krishnanagar · 12345')).toBeInTheDocument();
-    for (const [name, style] of [['Modern', 'modern'], ['Blue memo', 'sample']]) {
-        fireEvent.click(screen.getByLabelText(name));
-        expect(screen.getByRole('article')).toHaveClass('bill-template-' + style);
-        expect(within(screen.getByRole('article')).getAllByText('₹600.00').length).toBeGreaterThan(0);
-    }
-    fireEvent.click(screen.getByRole('button', { name: 'Print / PDF' }));
-    expect(print).toHaveBeenCalledOnce();
-    expect((await demoRequest<InventoryReport>('inventory-report', { company, from: '2026-01-01', to: '2099-12-31', offset: 0 })).documents).toHaveLength(0);
-    fireEvent.click(screen.getByRole('button', { name: 'Back to bill' }));
-    expect(screen.getByLabelText('Amount 1')).toHaveValue('600.00');
-    expect(screen.getByLabelText('Blue memo')).toBeChecked();
-});
+it('uses saved bill design and company details without showing settings in entry',async()=>{const settings=defaultSettings();settings.invoice={template:'modern',name:'My printed business',details:'Krishnanagar · 12345'};await demoRequest('workspace',{company,action:'settings-save',settings});supplier={...supplier,kind:'customer'};saveDemoParty(supplier);mount('sale');fill();expect(screen.queryByText('Bill settings')).not.toBeInTheDocument();expect(screen.queryByLabelText('Company address / phone')).not.toBeInTheDocument();await reviewBill();expect(screen.getByRole('article')).toHaveClass('bill-template-modern');expect(screen.getByText('My printed business')).toBeInTheDocument();expect(screen.getByText('Krishnanagar · 12345')).toBeInTheDocument();expect((await demoRequest<InventoryReport>('inventory-report',{company,from:'2026-01-01',to:'2099-12-31',offset:0})).documents).toHaveLength(0);});
+
 it('creates a supplier inside the bill, selects it, and posts to that party without losing entered lines', async () => {
     mount();
     fill();
@@ -177,8 +158,8 @@ it('uses the loaded default godown when bill opens before the godown list arrive
     await reviewBill();
     expect(screen.getByRole('button', { name: 'Confirm & save' })).toBeInTheDocument();
 });
-it('saves a partial bank payment and round-off together with the purchase bill', async () => {
- mount(); fill(); fireEvent.change(screen.getByLabelText('Quantity 1'),{target:{value:'1'}});fireEvent.change(screen.getByLabelText('Rate 1'),{target:{value:'100.49'}});fireEvent.change(screen.getByLabelText('Paid now'),{target:{value:'40'}});fireEvent.change(screen.getByLabelText('Account'),{target:{value:'bank'}});fireEvent.click(screen.getByLabelText('Round to nearest rupee'));fireEvent.focus(screen.getByLabelText('Rate 1'));fireEvent.blur(screen.getByLabelText('Rate 1'));await reviewBill();fireEvent.click(screen.getByRole('button',{name:'Confirm & save'}));await screen.findByText('Bill saved.');const r=await demoRequest<any>('report',{company,from:'2026-01-01',to:'2099-12-31',offset:0});expect(r.balances.bank.closing).toBe('-4000');expect(r.parties.find((p:any)=>p.id===supplier.id).payable).toBe('6000');
+it('saves a partial bank payment and discount together with the purchase bill', async () => {
+ mount(); fill(); fireEvent.change(screen.getByLabelText('Quantity 1'),{target:{value:'1'}});fireEvent.change(screen.getByLabelText('Rate 1'),{target:{value:'100.49'}});fireEvent.change(screen.getByLabelText('Paid now'),{target:{value:'40'}});fireEvent.change(screen.getByLabelText('Account'),{target:{value:'bank'}});fireEvent.change(screen.getByLabelText('Less / discount'),{target:{value:'0.49'}});fireEvent.focus(screen.getByLabelText('Rate 1'));fireEvent.blur(screen.getByLabelText('Rate 1'));await reviewBill();fireEvent.click(screen.getByRole('button',{name:'Confirm & save'}));await screen.findByText('Bill saved.');const r=await demoRequest<any>('report',{company,from:'2026-01-01',to:'2099-12-31',offset:0});expect(r.balances.bank.closing).toBe('-4000');expect(r.parties.find((p:any)=>p.id===supplier.id).payable).toBe('6000');
 });
 it('rejects overpayment before sending an invoice and preserves the editable draft',async()=>{mount();fill();fireEvent.change(screen.getByLabelText('Paid now'),{target:{value:'999999'}});await reviewBill();expect(screen.getByRole('alert')).toHaveTextContent('Check party');expect(screen.getByLabelText('Paid now')).toHaveValue('999999');});
 

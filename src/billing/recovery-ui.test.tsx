@@ -14,7 +14,7 @@ it('blocks the retry while a different company is selected', () => { const s = m
 it('saves a real expense bill with exact descriptive lines after its party balance loads', async () => {
     const { emptyPartyDetails } = await import('../demo/master-model');
     const party = { id, company: id, name: 'Power company', kind: 'expense' as const, receivable: '0', payable: '0', ...emptyPartyDetails };
-    const request = vi.fn().mockImplementation(async(_op,p)=>p.action==='settings'?defaultSettings():p.action==='number'?'1':undefined), previous = vi.fn().mockResolvedValue('5000'), saved = vi.fn();
+    const request = vi.fn().mockImplementation(async(_op,p)=>p.action==='settings'?defaultSettings():p.action==='number-preview'?'1':undefined), previous = vi.fn().mockResolvedValue('5000'), saved = vi.fn();
     vi.spyOn(window, 'scrollTo').mockImplementation(() => { });
     render(<BookServicesContext.Provider value={{ request, previous } as unknown as BookServices}><InvoicePage userId="owner" kind="expense" language="en" company={id} companyName="Original shop" items={[]} parties={[party]} warehouses={[]} onSaved={saved} onBack={() => { }}/></BookServicesContext.Provider>);
     fireEvent.change(screen.getByLabelText('Party'), { target: { value: id } });
@@ -26,7 +26,7 @@ it('saves a real expense bill with exact descriptive lines after its party balan
     fireEvent.click(screen.getByRole('button', { name: 'Review bill' }));
     fireEvent.click(screen.getByRole('button', { name: 'Confirm & save' }));
     await screen.findByText('Bill saved.');
-    expect(request).toHaveBeenCalledWith('expense-bill', expect.objectContaining({ command: expect.objectContaining({ company: id, payee: 'Power company', amount: '10000', method: 'bank' }), lines: [expect.objectContaining({ description: 'October power', quantity: '3000000', unit_rate: '33.33333333' })] }));
+    expect(request).toHaveBeenCalledWith('workspace',expect.objectContaining({action:'invoice-save',command:expect.objectContaining({command:expect.objectContaining({company:id,payee:'Power company',amount:'10000',method:'bank'}),lines:[expect.objectContaining({description:'October power',quantity:'3000000',unit_rate:'33.33333333'})]})}));
     expect(restoreBill('owner')).toBeNull();
     expect(saved).toHaveBeenCalledOnce();
     vi.restoreAllMocks();

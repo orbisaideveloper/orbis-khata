@@ -299,3 +299,7 @@ Company settings select automatic/manual independently for sales, purchases and 
 ## 2026-10-29 — Owner simplifies visible bill numbers
 
 This supersedes the visible prefix/year format above: automatic bill references are plain positive integers (1, 2, 3 or a configured starting serial). No prefix/date/year appears in the invoice field, persisted reference, preview or export. April–March financial years remain internal allocation scopes; sale/purchase/expense counters remain independent. Existing historical references are not rewritten. Settings expose mode and Next serial; legacy prefix properties remain accepted for compatibility but do not affect new short allocations. A legacy formatted server response is refused rather than silently shown as the new format. Production activation requires the prepared short-number SQL and previously pending dated Edge contract deployment under explicit owner approval.
+
+## 2026-10-29: Invoice numbering commits with the invoice
+
+Previewing a bill never reserves its serial. The server allocates inside the same company-locked transaction as invoice posting and records the original request/result for retries. Manual references remain owner-supplied; old references and consumed historical gaps stay unchanged. Bill-level discounts reuse the existing signed adjustment on trade bills and preserve gross expense lines alongside net expense totals. Print appearance is company settings, not repeated entry controls.

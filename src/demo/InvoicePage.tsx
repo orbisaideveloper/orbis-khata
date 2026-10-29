@@ -1,8 +1,12 @@
+import {textValue} from '../text-value';
+import type {WorkspaceSettings} from '../accounting/workspace-contract';
+import {settlementMinor} from '../accounting/record-line-amount';
+import {useTutorial} from '../tutorial';
 import {InvoiceNumberField} from '../accounting/InvoiceNumberField';
 import {useInvoiceNumber} from '../accounting/use-invoice-number';
 import { useWorkspaceSettings } from '../accounting/use-settings';
 import { billError } from '../accounting/business-error';
-import { readBillTemplate, rememberBillTemplate } from '../billing/bill-preference';
+import { readBillTemplate } from '../billing/bill-preference';
 import { BillShare } from '../billing/BillShare';
 import { inLanguage } from '../localize';
 import { restoreBill, retainBill, clearBill } from '../billing/recovery';
@@ -13,7 +17,6 @@ import '../billing/memo.css';
 import { amountFromRate, rateDisplay, rateMinor, updatePricing } from '../billing/amounts';
 import { useEffect, useRef, useState } from 'react';
 import { PaperPreview } from './PaperPreview';
-import { BillDesign, type BillTemplate } from './BillDesign';
 import type { ExpenseCommand } from '../accounting/expense-model';
 import { useBookServices, type BookServices } from '../books-services';
 import { PartyMaster } from './Masters';
@@ -67,8 +70,13 @@ function needsStockWarning(kind: BillKind, lines: Line[], stocks: {
         }
     });
 }
-function settlementAmounts(total: bigint, paid: string, round: boolean, previous: string) {
-    const adjustment = round ? ((total + 50n) / 100n) * 100n - total : 0n;
+function billAppearance(settings:WorkspaceSettings,kind:BillKind,companyName:string){const invoice=kind==='purchase'?undefined:settings.invoice;return {template:settings.invoice?.template??readBillTemplate(),printedCompany:invoice?.name.trim()||companyName,companyDetails:invoice?.details??''};}
+function savedBillReference(value:unknown){return value&&typeof value==='object'&&'reference' in value&&typeof value.reference==='string'?value.reference:'';}
+function InvoiceHelp({language}:Readonly<{language:Language}>){const tutorial=useTutorial();
+ return tutorial?<p className="books-hint">{inLanguage(language,'আইটেম, পরিমাণ ও দর বা টাকা লিখুন। দরকারে রো যোগ করুন। নম্বর শুধু সেভের পরে বাড়ে। ডিসকাউন্ট বাদ দিয়ে বাকি হিসাব হবে। শেয়ারের আগে প্রিভিউ দেখুন।','आइटम, मात्रा और दर या रकम भरें। जरूरत पर पंक्ति जोड़ें। नंबर सेव के बाद बढ़ता है। छूट के बाद बकाया निकलेगा। शेयर से पहले प्रीव्यू देखें।','Enter item, quantity and rate or amount. Add rows as needed. Numbers advance only after saving. Discount reduces the bill and due. Check the preview before sharing.')}</p>:null;
+}
+function settlementAmounts(total: bigint, paid: string, discount: string, previous: string,kind:BillKind,method:string) {
+    let adjustment=0n;try{adjustment=-BigInt(settlementMinor(discount||'0'));}catch{/* Review validates discount. */}
     let paidMinor = 0n;
     try {
         if (paid.trim()) {
@@ -77,6 +85,7 @@ function settlementAmounts(total: bigint, paid: string, round: boolean, previous
     }
     catch { /* Review validates input. */ }
     const payable = total + adjustment;
+    if(kind==='expense'&&['cash','bank'].includes(method))paidMinor=payable;
     return { adjustment, paidMinor, payable, grandTotal: payable + BigInt(previous) - paidMinor };
 }
 function BillBalanceWarning({ negativeStock, negativeCash, language }: Readonly<{
@@ -124,22 +133,16 @@ function billPaymentMethod(method: string): 'cash' | 'bank' | null {
     return null;
 }
 function billOperation(draft: BillDraft): KhataOperation {
-    const { id, company, date, party, kind, reference, note } = draft;
-    if (kind === 'expense') {
-        return { operation: 'expense-bill', input: { command: { id, company, date, kind: 'charge', amount: draft.amount, category: draft.category.trim() || party.name, payee: party.name, method: billPaymentMethod(draft.method), parent: null, reference, note }, lines: billExpenseLines(draft.lines) } };
-    }
-    const operation: KhataOperation = { operation: 'inventory-post', input: { id, company, kind, date, code: '', name: '', unit: '', party: party.id, reference, note, lines: billStockLines(draft.lines, draft.warehouse) } };
-    if (draft.paid !== '0' || draft.roundoff !== '0') {
-        return { operation: 'workspace', input: { company, action: 'bill', bill: operation.input, paid: draft.paid, account: draft.account, roundoff: draft.roundoff } };
-    }
-    return operation;
+ const {id,company,date,party,kind,reference,note}=draft;
+ const command=kind==='expense'?{company,action:'expense',id,command:{id,company,date,kind:'charge',amount:String(BigInt(draft.amount)+BigInt(draft.roundoff)),category:draft.category.trim()||party.name,payee:party.name,method:billPaymentMethod(draft.method),parent:null,reference,note},lines:billExpenseLines(draft.lines),discount:String(-BigInt(draft.roundoff))}:{company,action:'bill',bill:{id,company,kind,date,code:'',name:'',unit:'',party:party.id,reference,note,lines:billStockLines(draft.lines,draft.warehouse)},paid:draft.paid,account:draft.account,roundoff:draft.roundoff};
+ return {operation:'workspace',input:{company,action:'invoice-save',command}};
 }
 async function persistBill(operation: KhataOperation, services: BookServices | null, userId: string) {
     if (services) {
         retainBill(userId, operation);
-        await services.request(operation.operation, operation.input);
+        const result=await services.request(operation.operation, operation.input);
         clearBill(userId);
-        return;
+        return result;
     }
     if (!import.meta.env.DEV) {
         throw new Error('LIVE_SERVICES_REQUIRED');
@@ -148,18 +151,19 @@ async function persistBill(operation: KhataOperation, services: BookServices | n
         await saveDemoExpenseBill(operation.input.command as ExpenseCommand, operation.input.lines as ReturnType<typeof billExpenseLines>);
         return;
     }
-    await demoRequest(operation.operation, operation.input);
+    return await demoRequest(operation.operation, operation.input);
 }
-function recoveredBill(recovery: KhataOperation | null, parties: DemoParty[]) {
+function recoveredBill(recovery: KhataOperation | null, parties: DemoParty[]):{company:string;date:string;reference:string;partyName:string;amount:string}|null {
     if (!recovery) {
         return null;
     }
+    if(recovery.operation==='workspace'&&recovery.input.action==='invoice-save'){const inner=recovery.input.command as Record<string,unknown>;return recoveredBill(inner.action==='expense'?{operation:'expense-bill',input:{command:inner.command,lines:inner.lines}}:{operation:'workspace',input:inner},parties);}
     if (recovery.operation === 'expense-bill') {
         const command = recovery.input.command as ExpenseCommand;
         return { company: command.company, date: command.date, reference: command.reference, partyName: command.payee, amount: command.amount };
     }
     const command = (recovery.operation === 'workspace' ? recovery.input.bill : recovery.input) as InventoryCommand;
-    return { company: command.company, date: command.date, reference: command.reference, partyName: parties.find(p => p.id === command.party)?.name ?? '', amount: String(billTotal(command.lines)) };
+    return { company: command.company, date: command.date, reference: command.reference, partyName: parties.find(p => p.id === command.party)?.name ?? '', amount: String(billTotal(command.lines)+BigInt(recovery.operation==='workspace'?textValue(recovery.input.roundoff)||'0':command.roundoff??'0')) };
 }
 export function InvoicePage({ kind, language, company, companyName, items, parties, warehouses, onSaved, onBack, onLock, userId = 'demo-owner' }: Readonly<{
     onLock?: (locked: boolean) => void;
@@ -190,9 +194,9 @@ export function InvoicePage({ kind, language, company, companyName, items, parti
         id: string;
         balance: string;
     }[]>([]);
-    const [paid, setPaid] = useState(''), [account, setAccount] = useState('cash'), [round, setRound] = useState(false);
+    const [paid, setPaid] = useState(''), [account, setAccount] = useState('cash'), [discount,setDiscount]=useState(''),[savedReference,setSavedReference]=useState('');
     const balanceGeneration = useRef(0), [balanceBusy, setBalanceBusy] = useState(false), [balanceFailed, setBalanceFailed] = useState(false);
-    const [template, setTemplate] = useState<BillTemplate>(readBillTemplate), [companyDetails, setCompanyDetails] = useState('');
+    const {template,printedCompany,companyDetails}=billAppearance(settings,kind,companyName);
     const [id] = useState(() => crypto.randomUUID()), guard = useRef(false);
     const [lines, setLines] = useState<Line[]>([fresh()]), [partyId, setPartyId] = useState(''), [date, setDate] = useState(today), [reference, setReference] = useState(''), [note, setNote] = useState(''), [warehouse, setWarehouse] = useState(warehouses[0]?.id ?? ''), [category, setCategory] = useState(''), [method, setMethod] = useState('due'), [phase, setPhase] = useState<'edit' | 'review' | 'saved'>('edit'), [error, setError] = useState(''), [busy, setBusy] = useState(false), [previous, setPrevious] = useState('0');
     const [addingParty, setAddingParty] = useState(false), [addedParties, setAddedParties] = useState<DemoParty[]>([]);
@@ -273,9 +277,9 @@ export function InvoicePage({ kind, language, company, companyName, items, parti
         return [...groups].map(([unit, value]) => `${displayQuantity(String(value))}${unit ? ' ' + unit : ''}`).join(' · ') || '—';
     }
     useEffect(() => { onLock?.(busy); return () => { onLock?.(false); }; }, [busy, onLock]);
-    const { adjustment, payable, paidMinor, grandTotal } = settlementAmounts(total(), paid, round, previous);
+    const { adjustment, payable, paidMinor, grandTotal } = settlementAmounts(total(), paid, discount, previous,kind,method);
     const numbering=useInvoiceNumber({company,id,kind,date,settings,loaded,request,disabled:Boolean(recovery)});
-    const billNumber = numbering.number ?? reference.trim();
+    const billNumber = savedReference || (numbering.number ?? reference.trim());
     useEffect(() => {
         if (recovery) {
             return;
@@ -312,6 +316,7 @@ export function InvoicePage({ kind, language, company, companyName, items, parti
             if (settingsFailed || numbering.loading || numbering.failed || !billNumber || balanceBusy || balanceFailed || !party || !allowed.some(p => p.id === party.id) || date > today() || !date || !lines.length || lines.length > 50 || total() <= 0n) {
                 throw new Error('INVALID_BILL');
             }
+            if(BigInt(settlementMinor(discount||'0'))>=total())throw new Error('INVALID_DISCOUNT');
             stockLines();
             if (kind !== 'expense' && (paid.trim() && BigInt(minor(paid)) > payable || payable <= 0n)) {
                 throw new Error('INVALID_PAYMENT');
@@ -339,7 +344,8 @@ export function InvoicePage({ kind, language, company, companyName, items, parti
         setBusy(true);
         setError('');
         try {
-            await persistBill(billOperation({ id, company, kind, date, party, category, method, reference: billNumber, note, amount: String(total()), warehouse: selectedWarehouse, lines, paid: String(paidMinor), account, roundoff: String(adjustment) }), services, userId);
+            const result=await persistBill(billOperation({ id, company, kind, date, party, category, method, reference: billNumber, note, amount: String(total()), warehouse: selectedWarehouse, lines, paid: String(paidMinor), account, roundoff: String(adjustment) }), services, userId);
+            setSavedReference(savedBillReference(result));
             setPhase('saved');
             onSaved();
         }
@@ -392,8 +398,7 @@ export function InvoicePage({ kind, language, company, companyName, items, parti
     }
     if (phase !== 'edit') {
         return <section aria-label={t[kind]} className="bill-review">
-  <details className="bill-settings"><summary>{inLanguage(language, 'বিল সেটিংস', 'बिल सेटिंग्स', 'Bill settings')}</summary><BillDesign language={language} value={template} onChange={value => { setTemplate(value); rememberBillTemplate(value); }}/></details>
-  <PaperPreview template={template} companyDetails={companyDetails} draft={phase !== 'saved' ? d.draft : ''} continuation={d.continue} companyName={companyName} title={t[kind]} memo={t.memo} numberLabel={t.number} number={billNumber} dateLabel={t.date} date={date.split('-').reverse().join('-')} partyName={party?.name ?? ''} partyDetails={[party ? m[party.kind] : '', party?.phone, party?.address, party?.email].filter(Boolean).join(' · ')} headings={[t.serial, kind === 'expense' ? t.description : t.item, t.quantity, t.rate, t.amount]} rows={lines.map((line, index) => [String(index + 1), kind === 'expense' ? line.description : items.find(i => i.id === line.item)?.name ?? '', displayQuantity(quantity(line.quantity)) + ' ' + (items.find(i => i.id === line.item)?.unit ?? ''), rateDisplay(line.rate), rowAmount(line)])} totals={[[t.totalQuantity, totalQuantities()], [t.subtotal, money(total())], [inLanguage(language, 'রাউন্ড অফ', 'राउंड ऑफ', 'Round off'), money(adjustment)], [t.previous, money(previous)], [inLanguage(language, 'জমা / পরিশোধ', 'जमा / भुगतान', 'Received / paid'), money(paidMinor)], [t.total, money(grandTotal)]]} note={note} thanks={t.thanks} signatures={[t.partySignature, t.authorizedSignature]}/>
+  <PaperPreview template={template} companyDetails={companyDetails} draft={phase !== 'saved' ? d.draft : ''} continuation={d.continue} companyName={printedCompany} title={t[kind]} memo={t.memo} numberLabel={t.number} number={billNumber} dateLabel={t.date} date={date.split('-').reverse().join('-')} partyName={party?.name ?? ''} partyDetails={[party ? m[party.kind] : '', party?.phone, party?.address, party?.email].filter(Boolean).join(' · ')} headings={[t.serial, kind === 'expense' ? t.description : t.item, t.quantity, t.rate, t.amount]} rows={lines.map((line, index) => [String(index + 1), kind === 'expense' ? line.description : items.find(i => i.id === line.item)?.name ?? '', displayQuantity(quantity(line.quantity)) + ' ' + (items.find(i => i.id === line.item)?.unit ?? ''), rateDisplay(line.rate), rowAmount(line)])} totals={[[t.totalQuantity, totalQuantities()], [t.subtotal, money(total())], [inLanguage(language, 'লেস / ডিসকাউন্ট', 'छूट', 'Less / discount'), money(adjustment)], [t.total,money(payable)], [t.previous, money(previous)], [inLanguage(language, 'জমা / পরিশোধ', 'जमा / भुगतान', 'Received / paid'), money(paidMinor)], [inLanguage(language,'বাকি / ব্যালেন্স','शेष / बैलेंस','Remaining balance'), money(grandTotal)]]} note={note} thanks={t.thanks} signatures={[t.partySignature, t.authorizedSignature]}/>
   <BillShare key={phase + template} language={language} name={companyName + '-' + billNumber}/>
   <button className="bill-print-button" type="button" onClick={() => window.print()}>{d.print}</button>
   {grandTotal < 0n && <p>{t.creditBalance}: {money(-grandTotal)}</p>}{error && <output role="alert">{error}</output>}
@@ -405,9 +410,7 @@ export function InvoicePage({ kind, language, company, companyName, items, parti
     }
     return <section className="invoice-page books-card memo-paper memo-edit" aria-label={t[kind]}>
   <div className="invoice-heading memo-heading"><h1>{companyName}</h1><span className="memo-badge">{t.memo}</span><p>{t[kind]}</p></div><button className="memo-back" type="button" disabled={busy} onClick={onBack}>{t.cancel}</button>
-  <details className="bill-settings"><summary>{inLanguage(language, 'বিল সেটিংস', 'बिल सेटिंग्स', 'Bill settings')}</summary><BillDesign language={language} value={template} onChange={value => { setTemplate(value); rememberBillTemplate(value); }}/></details>
   <form onSubmit={review}>
-   <details className="bill-company-details"><summary>{d.businessDetails}</summary><label>{d.businessAddress}<textarea maxLength={250} value={companyDetails} onChange={e => setCompanyDetails(e.target.value)}/></label></details>
    <div className="invoice-party"><p className="bill-party-context">{companyName} · {m[partyKind]}</p>{<label>{t.party}<select required value={partyId} onChange={e => pickParty(e.target.value)}><option value="">{t.choose}</option>{allowed.map(p => <option key={p.id} value={p.id}>{p.name} · {m[p.kind]}</option>)}</select></label>}<button type="button" className="bill-add-party" onClick={() => setAddingParty(true)}>＋ {m.addParty}</button>{!allowed.length && <output>{t.noParty} ({m[partyKind]})</output>}{party && <address><strong>{party.name}</strong><span>{m[party.kind]}</span>{party.phone && <span>{m.phone}: {party.phone}</span>}{party.address && <span>{party.address}</span>}{party.email && <span>{party.email}</span>}</address>}</div>
    <div className="invoice-meta">{<><InvoiceNumberField numbering={numbering} reference={reference} onReference={setReference} label={t.number} language={language} settingsFailed={settingsFailed} onRetry={()=>{reloadSettings();numbering.retry();}}/><label>{t.date}<input type="date" required max={today()} value={date} onChange={e => pickDate(e.target.value)}/></label></>}</div>
 
@@ -420,12 +423,14 @@ export function InvoicePage({ kind, language, company, companyName, items, parti
                 }}>×</button></td>}</tr>)}</tbody><tfoot><tr><th colSpan={2}>{t.totalQuantity}</th><td>{totalQuantities()}</td><th>{t.subtotal}</th><td><strong>{money(total())}</strong></td>{<td />}</tr></tfoot></table></div>
    {<button className="memo-add-row" type="button" disabled={lines.length >= 50} onClick={() => setLines(old => [...old, fresh()])}>＋ {t.add}</button>}
    <BillBalanceWarning negativeStock={negativeStock} negativeCash={negativeCash} language={language}/>
-   {kind !== 'expense' && <fieldset className="bill-payment"><legend>{inLanguage(language, 'এই বিলের পেমেন্ট', 'इस बिल का भुगतान', 'Payment with this bill')}</legend><label>{kind === 'sale' ? inLanguage(language, 'এখন জমা', 'अभी प्राप्त', 'Received now') : inLanguage(language, 'এখন পরিশোধ', 'अभी भुगतान', 'Paid now')}<input inputMode="decimal" value={paid} placeholder="0.00" onChange={event => setPaid(event.target.value)}/></label><label>{inLanguage(language, 'অ্যাকাউন্ট', 'खाता', 'Account')}<select value={account} onChange={event => setAccount(event.target.value)}>{settings.accounts.filter(row => row.active).map(row => <option key={row.id} value={row.id}>{row.name}{row.channel ? ' · ' + row.channel : ''}</option>)}</select></label><label><input type="checkbox" checked={round} onChange={event => setRound(event.target.checked)}/>{inLanguage(language, 'নিকটতম টাকায় রাউন্ড অফ', 'निकटतम रुपये में राउंड ऑफ', 'Round to nearest rupee')}</label><p>{inLanguage(language, 'এই বিলের বাকি', 'इस बिल का बकाया', 'Due on this bill')}: {money(payable - paidMinor)}</p></fieldset>}
-   <dl className="memo-totals"><div><dt>{t.subtotal}</dt><dd>{money(total())}</dd></div><div><dt>{t.previous}</dt><dd>{money(previous)}</dd></div><div className="memo-grand"><dt>{t.total}</dt><dd>{money(grandTotal)}</dd></div></dl>{grandTotal < 0n && <p>{t.creditBalance}: {money(-grandTotal)}</p>}
+   <div className="invoice-discount"><label>{inLanguage(language,'লেস / ডিসকাউন্ট','छूट','Less / discount')}<input inputMode="decimal" value={discount} placeholder="0.00" onChange={e=>setDiscount(e.target.value)}/></label><strong>{t.total}: {money(payable)}</strong></div>
+   <InvoiceHelp language={language}/>
+   {kind !== 'expense' && <fieldset className="bill-payment"><legend>{inLanguage(language, 'এই বিলের পেমেন্ট', 'इस बिल का भुगतान', 'Payment with this bill')}</legend><label>{kind === 'sale' ? inLanguage(language, 'এখন জমা', 'अभी प्राप्त', 'Received now') : inLanguage(language, 'এখন পরিশোধ', 'अभी भुगतान', 'Paid now')}<input inputMode="decimal" value={paid} placeholder="0.00" onChange={event => setPaid(event.target.value)}/></label><label>{inLanguage(language, 'অ্যাকাউন্ট', 'खाता', 'Account')}<select value={account} onChange={event => setAccount(event.target.value)}>{settings.accounts.filter(row => row.active).map(row => <option key={row.id} value={row.id}>{row.name}{row.channel ? ' · ' + row.channel : ''}</option>)}</select></label><p>{inLanguage(language, 'এই বিলের বাকি', 'इस बिल का बकाया', 'Due on this bill')}: {money(payable - paidMinor)}</p></fieldset>}
+   <dl className="memo-totals">{BigInt(previous)!==0n&&<div><dt>{t.previous}</dt><dd>{money(previous)}</dd></div>}<div className="memo-grand"><dt>{inLanguage(language,'বাকি / ব্যালেন্স','शेष / बैलेंस','Remaining balance')}</dt><dd>{money(grandTotal)}</dd></div></dl>{grandTotal < 0n && <p>{t.creditBalance}: {money(-grandTotal)}</p>}
 
    {<details className="invoice-notes"><summary>{t.notes}</summary><textarea aria-label={t.notes} maxLength={500} value={note} onChange={e => setNote(e.target.value)}/></details>}
-   {kind !== 'expense' && !paid && <p className="books-hint">{t.due}</p>}{error && <output role="alert">{error}</output>}
-   <p className="memo-thanks">{t.thanks}</p><div className="memo-signatures"><span>{t.partySignature}</span><span>{t.authorizedSignature}</span></div>
+   {error && <output role="alert">{error}</output>}
+   
    <div className="books-buttons memo-controls"><button type="submit" className="books-primary" disabled={!allowed.length || balanceBusy || balanceFailed || numbering.loading || numbering.failed || settingsFailed}>{t.review}</button></div>
   </form>
  </section>;

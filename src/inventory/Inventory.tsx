@@ -1,3 +1,5 @@
+import {StockTable} from './StockTable';
+import {LedgerExplorer} from '../accounting/LedgerExplorer';
 import { inLanguage } from '../localize';
 import { confirmDelete } from '../confirm-delete';
 import { useEffect, useRef, useState, type SyntheticEvent } from 'react';
@@ -165,9 +167,11 @@ export function Inventory({ userId, company, companyName, language, from, to, ve
             setMessage(t.invalid);
         }
     }
+    const [selectedItem,setSelectedItem]=useState<{id:string;name:string}|null>(null);
     const [panel, setPanel] = useState<'items' | 'stock' | 'history'>('items');
     const panelActions = { items: ['item'], stock: ['warehouse', 'opening', 'transfer'], history: ['purchase', 'sale'] };
-    const matches = (id: string) => { const row = data?.items.find(item => item.id === id); return row && `${row.code} ${row.name}`.toLocaleLowerCase().includes(search.toLocaleLowerCase()); };
+
+    if(selectedItem)return <LedgerExplorer {...{company,language,from,to,version,parties}} initialSelection={{...selectedItem,type:'item'}} onBack={()=>setSelectedItem(null)}/>;
     return <section className="books-card inventory" aria-label={t.title}>
   <h2>{t.items}</h2>{!simple && <nav className="books-navigation">{(['items', 'stock', 'history'] as const).map(view => <button type="button" key={view} aria-current={panel === view ? 'page' : undefined} disabled={Boolean(pending) || busy} onClick={() => setPanel(view)}>{t[view]}</button>)}</nav>}{tutorial && <p className="books-hint">{t.hint}</p>}
   {loading && <output>{t.loading}</output>}
@@ -198,10 +202,12 @@ export function Inventory({ userId, company, companyName, language, from, to, ve
    </form>}
    {pending && <div className="books-confirm" aria-label={t.review}><h3>{t.review}: {t[pending.kind]}</h3><p>{companyName} · {pending.date}</p><p>{pending.code} {pending.name} {pending.unit}</p><p>{parties.find(p => p.id === pending.party)?.name}</p>{renderLines(pending)}<p>{pending.reference} {pending.note}</p>{['purchase', 'sale'].includes(pending.kind) && <strong>{t.total}: {money(billTotal(pending.lines))}</strong>}<div className="books-buttons"><button type="button" disabled={busy || blocked} onClick={() => { void save(); }}>{attempted ? t.retry : t.confirm}</button>{!attempted && <button type="button" onClick={() => setPending(null)}>{t.cancel}</button>}</div></div>}
    {editing && <form className="books-form" onSubmit={editMaster}><h3>{inLanguage(language, 'আইটেম এডিট', 'आइटम बदलें', 'Edit item')}</h3><label>{t.name}<input name="name" required maxLength={120} defaultValue={editing.name}/></label><label>{t.code}<input name="code" required maxLength={40} defaultValue={editing.code}/></label><label>{t.unit}<input name="unit" required maxLength={24} defaultValue={editing.unit}/></label><button type="submit">{t.confirm}</button><button type="button" onClick={() => setEditing(null)}>{t.cancel}</button></form>}
-   <div hidden={panel !== 'items'}><label>{t.search}<input type="search" value={search} onChange={e => setSearch(e.target.value)}/></label>
-   <h3>{t.items} ({data.items.length})</h3>{!data.items.length && <p>{t.empty}</p>}{data.items.filter(item => matches(item.id)).map(item => <p key={item.id}><strong>{item.code}</strong> · {item.name} · {item.unit}{!simple && <> · {displayQuantity(String(data.stocks.filter(row => row.item === item.id).reduce((sum, row) => sum + BigInt(row.closing), 0n)))}</>}{demo && <button type="button" disabled={Boolean(pending) || busy} onClick={() => setEditing(item)}>{inLanguage(language, 'এডিট', 'बदलें', 'Edit')}</button>}</p>)}
+   <label className="stock-search">{<input aria-label={t.search} placeholder={t.search} type="search" value={search} onChange={e => setSearch(e.target.value)}/>}</label><div hidden={panel !== 'items'}>
+   {panel==='items'&&<StockTable data={data} language={language} search={search} onSelect={(id,name)=>setSelectedItem({id,name})} onEdit={demo?setEditing:undefined}/>}
+
    </div><div hidden={panel !== 'stock'}><h3>{t.warehouses}</h3>{data.warehouses.map(w => <p key={w.id}>{w.code} · {w.name}</p>)}
-   <h3>{t.stock} · {from} — {to}</h3>{!data.stocks.length && <p>{t.empty}</p>}{data.stocks.filter(row => matches(row.item)).map(row => <article className="inventory-stock" key={`${row.item}:${row.warehouse}`}><strong>{itemName(row.item)}</strong><span>{locationName(row.warehouse)}</span><dl><dt>{t.start}</dt><dd>{displayQuantity(row.opening)}</dd><dt>{t.incoming}</dt><dd>{displayQuantity(row.incoming)}</dd><dt>{t.outgoing}</dt><dd>{displayQuantity(row.outgoing)}</dd><dt>{t.balance}</dt><dd>{displayQuantity(row.closing)}</dd></dl></article>)}
+   {panel==='stock'&&<StockTable data={data} language={language} search={search} onSelect={(id,name)=>setSelectedItem({id,name})} onEdit={demo?setEditing:undefined}/>}
+
    </div><div hidden={panel !== 'history'}><h3>{t.history} ({data.count})</h3>{data.documents.map(doc => <article className="inventory-stock" key={doc.id}><strong>{t[doc.kind]} · {doc.date} · {doc.reference}</strong>{doc.reversed && <span>{t.reversed}</span>}<button type="button" onClick={() => setBill(doc)}>{t.view}</button></article>)}
    <div className="books-buttons"><button type="button" disabled={!offset} onClick={() => setOffset(n => Math.max(0, n - 50))}>{t.previous}</button><span>{Math.floor(offset / 50) + 1}</span><button type="button" disabled={offset + 50 >= data.count} onClick={() => setOffset(n => n + 50)}>{t.next}</button></div>
   </div></>}

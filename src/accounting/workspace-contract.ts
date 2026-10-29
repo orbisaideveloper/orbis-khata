@@ -13,6 +13,7 @@ type Numbering = {
     expense: string;
 };
 export type WorkspaceSettings = {
+    invoice?: {template:'sample'|'classic'|'modern';name:string;details:string};
     mode?: {sale:'auto'|'manual';purchase:'auto'|'manual';expense:'auto'|'manual'};
     accounts: PaymentAccount[];
     numbering: Numbering;
@@ -22,12 +23,14 @@ export const defaultSettings = (): WorkspaceSettings => ({ accounts: [{ id: 'cas
 export function object(value: unknown): value is Record<string, unknown> { return value !== null && typeof value === 'object' && !Array.isArray(value); }
 const uuid = (value: unknown) => typeof value === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/iu.test(value);
 const text = (value: unknown, limit: number): value is string => typeof value === 'string' && value.length <= limit && !/[<>]/u.test(value) && Array.from(value).every(char => (char.codePointAt(0) ?? 0) >= 32);
+function validInvoice(value:unknown){return object(value)&&['sample','classic','modern'].includes(String(value.template))&&text(value.name,120)&&text(value.details,500);}
 function validNumberModes(value:unknown){return object(value)&&['sale','purchase','expense'].every(key=>['auto','manual'].includes(String(value[key])));}
 export function validSettings(value: unknown): value is WorkspaceSettings {
     if (!object(value) || !Array.isArray(value.accounts) || value.accounts.length < 2 || value.accounts.length > 30 || !object(value.numbering) || !object(value.next)) {
         return false;
     }
     if(value.mode!==undefined&&!validNumberModes(value.mode))return false;
+    if(value.invoice!==undefined&&!validInvoice(value.invoice))return false;
     const ids = new Set<string>();
     for (const row of value.accounts) {
         if (!object(row) || !text(row.id, 50) || !row.id || ids.has(String(row.id)) || !text(row.name, 60) || !String(row.name).trim() || !['cash', 'bank'].includes(String(row.kind)) || !text(row.channel, 40) || typeof row.active !== 'boolean') {
@@ -45,13 +48,15 @@ export function workspaceInput(p: Record<string, unknown>): boolean {
         case 'settings': return Object.keys(p).length === 2;
         case 'accounts': return Object.keys(p).length === 2 || Object.keys(p).length === 4 && /^\d{4}-\d{2}-\d{2}$/u.test(String(p.from)) && /^\d{4}-\d{2}-\d{2}$/u.test(String(p.to)) && String(p.from) <= String(p.to);
         case 'settings-save': return Object.keys(p).length === 3 && validSettings(p.settings);
+        case 'invoice-save': return Object.keys(p).length===3&&object(p.command)&&p.command.company===p.company&&['bill','expense'].includes(String(p.command.action))&&workspaceInput(p.command);
+        case 'number-preview':
         case 'number': return (Object.keys(p).length === 4 || Object.keys(p).length === 5 && typeof p.date==='string' && /^\d{4}-\d{2}-\d{2}$/u.test(p.date)) && uuid(p.id) && ['sale', 'purchase', 'expense'].includes(String(p.kind));
-        case 'expense': return Object.keys(p).length === 5 && uuid(p.id) && object(p.command) && p.command.id === p.id && p.command.company === p.company && Boolean(expenseCommand(p.command)) && Array.isArray(p.lines) && p.lines.length <= 50;
+        case 'expense': return (Object.keys(p).length === 5 || Object.keys(p).length===6 && typeof p.discount==='string' && /^(0|[1-9]\d{0,11})$/u.test(p.discount)) && uuid(p.id) && object(p.command) && p.command.id === p.id && p.command.company === p.company && Boolean(expenseCommand(p.command)) && Array.isArray(p.lines) && p.lines.length <= 50;
         case 'payment': return Object.keys(p).length === 10 && uuid(p.id) && uuid(p.party) && ['receipt', 'payment'].includes(String(p.kind)) && typeof p.amount === 'string' && /^[1-9]\d{0,11}$/u.test(p.amount) && text(p.account, 50) && text(p.reference, 80) && text(p.note, 500) && /^\d{4}-\d{2}-\d{2}$/u.test(String(p.date));
         case 'detail': return Object.keys(p).length === 3 && uuid(p.id);
         case 'retire':
         case 'restore': return Object.keys(p).length === 3 && text(p.name, 120);
-        case 'bill': return Object.keys(p).length === 6 && object(p.bill) && p.bill.company === p.company && Boolean(inventoryCommand(p.bill)) && ['sale', 'purchase'].includes(String(p.bill.kind)) && typeof p.paid === 'string' && /^(0|[1-9]\d{0,11})$/u.test(p.paid) && text(p.account, 50) && /^-?\d{1,4}$/u.test(String(p.roundoff));
+        case 'bill': return Object.keys(p).length === 6 && object(p.bill) && p.bill.company === p.company && Boolean(inventoryCommand(p.bill)) && ['sale', 'purchase'].includes(String(p.bill.kind)) && typeof p.paid === 'string' && /^(0|[1-9]\d{0,11})$/u.test(p.paid) && text(p.account, 50) && /^-?\d{1,12}$/u.test(String(p.roundoff));
         case 'correct': return Object.keys(p).length === 7 && uuid(p.id) && uuid(p.target) && ['voucher', 'expense'].includes(String(p.type)) && text(p.reason, 250) && Boolean(String(p.reason).trim()) && (p.replacement === null || object(p.replacement) && workspaceInput(p.replacement) && p.replacement.company === p.company && ['bill', 'payment', 'expense'].includes(String(p.replacement.action)));
         default: return false;
     }

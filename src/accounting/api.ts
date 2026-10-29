@@ -41,7 +41,7 @@ export function createKhataDataClient(options: {
     async function request<T>(operation:string,input:unknown):Promise<T>{
         const token=await options.token();if(!token){invalidate();previousToken=null;throw new Error('AUTH_REQUIRED');}if(token!==previousToken){invalidate();previousToken=token;}
         const action=(input as {action?:string}|null)?.action;
-        const reading=['companies','masters','report','inventory-report','expense-report','party-balance'].includes(operation)||(operation==='workspace'&&['settings','accounts','detail','retired-companies'].includes(action??''));
+        const reading=['companies','masters','report','inventory-report','expense-report','party-balance'].includes(operation)||(operation==='workspace'&&['settings','accounts','detail','retired-companies','number-preview'].includes(action??''));
         if(!reading){invalidate();try{return await send<T>(operation,input,token);}finally{invalidate();}}
         const key=JSON.stringify([token,operation,input]);const snapshot=cached.get(key);if(snapshot&&snapshot.until>Date.now()){return structuredClone(snapshot.value) as T;}const revision=generation;const existing=pending.get(key);if(existing){return existing as Promise<T>;}
         const result=send<T>(operation,input,token);pending.set(key,result);

@@ -48,7 +48,7 @@ it('keeps numbering per company/kind, preserves retries and supports configured 
     const id = crypto.randomUUID();
     expect(await req({ action: 'number', id, kind: 'sale' })).toBe('1');
     expect(await req({ action: 'number', id, kind: 'sale' })).toBe('1');
-    expect(await req({ action: 'number', id: crypto.randomUUID(), kind: 'sale' })).toBe('2');
+    expect(await req({ action: 'number', id: crypto.randomUUID(), kind: 'sale' })).toBe('1');
     const settings = defaultSettings();
     settings.accounts.push({ id: 'bank-two', name: 'Second bank', kind: 'bank', channel: 'GPay', active: true });
     settings.numbering.purchase = 'FY26/';

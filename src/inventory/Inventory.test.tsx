@@ -4,7 +4,7 @@ import { Inventory } from './Inventory'
 import type { InventoryReport } from './model'
 const api=vi.hoisted(()=>({inventoryReport:vi.fn(),postInventory:vi.fn()}))
 vi.mock('./api',()=>api)
-vi.mock('../accounting/api',()=>({rejected:(error:{code?:string})=>error.code==='P0001'}))
+vi.mock('../accounting/api',()=>({requestKhata:vi.fn(),report:vi.fn(),expenseReport:vi.fn(),rejected:(error:{code?:string})=>error.code==='P0001'}))
 const company='11111111-1111-4111-8111-111111111111',item='22222222-2222-4222-8222-222222222222',warehouse='33333333-3333-4333-8333-333333333333',party='44444444-4444-4444-8444-444444444444'
 const report:InventoryReport={items:[{id:item,code:'M1',name:'Milk',unit:'litre'}],warehouses:[{id:warehouse,code:'G1',name:'Shop'}],stocks:[{item,warehouse,opening:'10000000',incoming:'0',outgoing:'1250000',closing:'8750000'}],documents:[],count:0}
 const lock=vi.fn(),changed=vi.fn()
@@ -54,7 +54,7 @@ it('transfers reviewed quantities between godowns and lets the user remove extra
  fireEvent.change(screen.getByLabelText('Quantity'),{target:{value:'2.5'}})
  fireEvent.change(screen.getByLabelText('Note / reason'),{target:{value:'Move to depot'}})
  fireEvent.submit(screen.getByLabelText('Quantity').closest('form')!)
- expect(screen.getByText('Shop')).toBeInTheDocument()
+ expect(screen.getByText('G1 · Shop')).toBeInTheDocument()
  fireEvent.click(screen.getByRole('button',{name:'Confirm & save'}));await screen.findByText('Saved successfully.')
  expect(api.postInventory).toHaveBeenCalledWith(expect.objectContaining({kind:'transfer',note:'Move to depot',lines:[{item,warehouse,to:destination,quantity:'2500000',rate:'0'}]}))
 })
@@ -107,3 +107,5 @@ it('keeps a zero-stock item visible and saves its master only after explicit con
  fireEvent.click(screen.getByRole('button',{name:'Confirm & save'}))
  await waitFor(()=>expect(api.postInventory).toHaveBeenCalledWith(expect.objectContaining({kind:'item',code:'OIL',name:'Oil',unit:'litre'})))
 })
+
+it('opens the clicked stock item with its full opening, movement and closing table',async()=>{mount();fireEvent.click(await screen.findByRole('button',{name:'Milk'}));expect(await screen.findByRole('heading',{name:'Milk'})).toBeInTheDocument();expect(screen.getByRole('columnheader',{name:'Opening quantity'})).toBeInTheDocument();expect(screen.getByText('10')).toBeInTheDocument();expect(screen.getByText('8.75 litre')).toBeInTheDocument();fireEvent.click(screen.getByRole('button',{name:'Back to list'}));expect(await screen.findByRole('button',{name:'Milk'})).toBeInTheDocument();});

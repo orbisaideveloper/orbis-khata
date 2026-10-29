@@ -558,7 +558,7 @@ function demoCorrection(p: Record<string, unknown>, company: string) {
     }
     return { ok: true };
 }
-function demoNumber(p:Record<string,unknown>,company:string,settings:WorkspaceSettings){
+function numberCandidate(p:Record<string,unknown>,company:string,settings:WorkspaceSettings){
         const kind = p.kind as keyof WorkspaceSettings['next'];
         if(settings.mode?.[kind]==='manual')fail('MANUAL_NUMBER_REQUIRED');
         const year=financialYear(textValue(p.date)||today()),current=financialYear(today()),key=company+':'+kind+':'+year;
@@ -567,9 +567,11 @@ function demoNumber(p:Record<string,unknown>,company:string,settings:WorkspaceSe
         let result=String(seq);
         while(used.has(result)){seq++;result=String(seq);}
         if(seq>99999999n)fail('NUMBER_LIMIT');
-        fiscalCounters[key]=String(seq+1n);
-        if(year===current)settings.next[kind]=String(seq+1n);
-        return result;
+        return {key,year,current,kind,seq,result};
+}
+function demoNumber(p:Record<string,unknown>,company:string,settings:WorkspaceSettings){
+ const n=numberCandidate(p,company,settings);fiscalCounters[n.key]=String(n.seq+1n);if(n.year===n.current){settings.next[n.kind]=String(n.seq+1n);}
+ return n.result;
 }
 function demoWorkspaceMutation(p: Record<string, unknown>, company: string, settings: WorkspaceSettings, id: string) {
     if (p.action === 'number') return demoNumber(p,company,settings);
@@ -579,7 +581,7 @@ function demoWorkspaceMutation(p: Record<string, unknown>, company: string, sett
     if (p.action === 'expense') {
         const command = p.command as ExpenseCommand;
         const lines = p.lines as NonNullable<import('./../accounting/expense-model').ExpenseEntry['bill_lines']>;
-        if (lines.length && String(billTotal(lines.map(l => ({ ...l, item: '', warehouse: '', to: null })))) !== command.amount) {
+        if (lines.length && String(billTotal(lines.map(l => ({ ...l, item: '', warehouse: '', to: null })))-BigInt(textValue(p.discount)||'0')) !== command.amount) {
             fail('INVALID_EXPENSE_TOTAL');
         }
         postDemoExpense(command);
@@ -593,6 +595,20 @@ function demoWorkspaceMutation(p: Record<string, unknown>, company: string, sett
     }
     fail('DEMO_OPERATION_UNSUPPORTED');
 }
+function demoInvoiceSave(p:Record<string,unknown>,company:string,settings:WorkspaceSettings){
+ const command=structuredClone(p.command) as Record<string,unknown>,data=(command.action==='bill'?command.bill:command.command) as InventoryCommand|ExpenseCommand;
+ const kind=command.action==='bill'?(data as InventoryCommand).kind as 'sale'|'purchase':'expense',key='invoice:'+company+':'+data.id,payload=JSON.stringify(p),existing=workspaceEvents[key];
+ if(existing){if(existing.payload!==payload){fail('IDEMPOTENCY_CONFLICT');}
+ return existing.result;}
+ const before=structuredClone({entries,documents,expenses,paymentLinks,workspaceEvents,fiscalCounters,workspaceSettings,expenseBillLines});
+ try{
+  const reference=settings.mode?.[kind]==='manual'?data.reference.trim():demoNumber({kind,date:data.date},company,settings);
+  if(!reference){fail('BILL_NUMBER_REQUIRED');}
+  data.reference=reference;
+  const saved=demoWorkspaceMutation(command,company,settings,data.id) as Record<string,unknown>;
+  const result={...saved,id:data.id,reference};workspaceEvents[key]={payload,result};return result;
+ }catch(error){entries=before.entries;documents=before.documents;expenses=before.expenses;paymentLinks=before.paymentLinks;workspaceEvents=before.workspaceEvents;fiscalCounters=before.fiscalCounters;workspaceSettings=before.workspaceSettings;expenseBillLines=before.expenseBillLines;throw error;}
+}
 function saveWorkspaceSettings(company:string,settings:WorkspaceSettings,next:WorkspaceSettings){
  for(const kind of ['sale','purchase','expense'] as const){if(next.next[kind]!==settings.next[kind])fiscalCounters[company+':'+kind+':'+financialYear(today())]=next.next[kind];}
  workspaceSettings[company]=structuredClone(next);return next;
@@ -603,6 +619,8 @@ function demoWorkspace(p: Record<string, unknown>): unknown {
         fail('COMPANY_NOT_ACCESSIBLE');
     }
     const settings = workspaceSettings[company] ??= defaultSettings();
+    if(action==='number'||action==='number-preview')return numberCandidate(p,company,settings).result;
+    if(action==='invoice-save')return demoInvoiceSave(p,company,settings);
     if (action === 'settings') {
         return settings;
     }

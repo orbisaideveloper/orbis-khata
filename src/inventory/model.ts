@@ -127,7 +127,7 @@ export function inventoryCommand(value: unknown): InventoryCommand | null {
     if (!details(p, p.kind as InventoryKind)) {
         return null;
     }
-    if (p.roundoff !== undefined && (typeof p.roundoff !== 'string' || !/^-?\d{1,4}$/u.test(p.roundoff) || !['sale', 'purchase'].includes(p.kind))) {
+    if (p.roundoff !== undefined && (typeof p.roundoff !== 'string' || !/^-?\d{1,12}$/u.test(p.roundoff) || !['sale', 'purchase'].includes(p.kind))) {
         return null;
     }
     const result = p as unknown as InventoryCommand;
