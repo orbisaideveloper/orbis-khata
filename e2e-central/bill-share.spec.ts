@@ -26,7 +26,7 @@ test('bill settings stay collapsed and export the selected Bengali invoice as a 
             report: { balances: {}, ledger_balances: {}, parties: [party], entries: [], count: 0 },
             'inventory-report': { items: [item], warehouses: [warehouse], stocks: [], documents: [], count: 0 },
             'expense-report': { balances: {}, categories: [], bills: [], entries: [], count: 0 },
-            workspace: operation==='workspace'&&input.action==='number'?'P-2026-27/1':operation==='workspace'&&input.action==='settings'?defaultSettings():null, 'retired-companies': [], 'party-balance': '0', 'inventory-post': 'saved',
+            workspace: operation==='workspace'&&input.action==='number'?'1':operation==='workspace'&&input.action==='settings'?defaultSettings():null, 'retired-companies': [], 'party-balance': '0', 'inventory-post': 'saved',
         };
         if(savedBill){const voucher={id:savedBill.id,party_id:party.id,party_name:party.name,kind:'purchase',effective_date:savedBill.date,amount_minor:'10000',debit_account:'purchases',credit_account:'payable',reference:savedBill.reference,note:'',reversed:false};results.report={balances:{},ledger_balances:{payable:{opening:'0',closing:'-6000'}},parties:[party],entries:[{...voucher,id:'old',reversed:true,reverses_id:null},{...voucher,id:'reverse',kind:'reversal',reverses_id:'old',debit_account:'payable',credit_account:'purchases'},voucher,{...voucher,id:'linked',kind:'payment',debit_account:'payable',credit_account:'cash',amount_minor:'4000',note:'Payment with bill',reverses_id:null}],count:4};if(operation==='workspace'&&input.action==='detail')results.workspace={voucher,bill:{...savedBill,total:'10000'},payments:[],company_name:company.name,party_name:party.name,item_names:{[item.id]:item.name}};}
     expect(Object.hasOwn(results, operation)).toBe(true);
@@ -39,7 +39,7 @@ test('bill settings stay collapsed and export the selected Bengali invoice as a 
     await page.getByText('Bill settings', { exact: true }).click();
     await page.getByLabel('Modern').check();
     await page.getByText('Bill settings', { exact: true }).click();
-    await expect(page.getByLabel('Bill number',{exact:true})).toHaveValue('P-2026-27/1');
+    await expect(page.getByLabel('Bill number',{exact:true})).toHaveValue('1');
     await expect(page.getByLabel('Bill number',{exact:true})).toHaveAttribute('readonly','');
     await page.getByRole('combobox', { name: 'Party', exact: true }).selectOption(party.id);
     await page.getByLabel('Item name 1', { exact: true }).selectOption(item.id);

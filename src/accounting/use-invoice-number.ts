@@ -12,10 +12,11 @@ export function useInvoiceNumber({company,id,kind,date,settings,loaded,request,d
   async function allocate(){try{
    financialYear(date);
    const value=await request<unknown>('workspace',{company,action:'number',id,kind,date});
-   if(typeof value!=='string'||!value.trim()||value.length>80)throw Error('NUMBER_UNAVAILABLE');
+   if(typeof value!=='string'||!(/^[1-9]\d{0,7}$/u).test(value))throw new Error('NUMBER_UNAVAILABLE');
    if(alive)setResult({key,number:value,failed:false});
   }catch{if(alive)setResult({key,number:'',failed:true});}}
   void allocate();return()=>{alive=false;};
  },[company,id,kind,date,key,manual,loaded,request,disabled,attempt]);
- return {manual,number:result.key===key?result.number:'',failed:result.key===key&&result.failed,loading:!manual&&(!loaded||result.key!==key),retry:()=>setAttempt(n=>n+1)};
+ const allocated=result.key===key?result.number:'';
+ return {manual,number:manual?undefined:allocated,failed:result.key===key&&result.failed,loading:!manual&&(!loaded||result.key!==key),retry:()=>setAttempt(n=>n+1)};
 }

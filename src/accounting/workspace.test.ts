@@ -46,16 +46,16 @@ it('posts historical negative-stock sales, partial cash purchases and exact retr
 });
 it('keeps numbering per company/kind, preserves retries and supports configured payment accounts', async () => {
     const id = crypto.randomUUID();
-    expect(await req({ action: 'number', id, kind: 'sale' })).toBe('S-1');
-    expect(await req({ action: 'number', id, kind: 'sale' })).toBe('S-1');
-    expect(await req({ action: 'number', id: crypto.randomUUID(), kind: 'sale' })).toBe('S-2');
+    expect(await req({ action: 'number', id, kind: 'sale' })).toBe('1');
+    expect(await req({ action: 'number', id, kind: 'sale' })).toBe('1');
+    expect(await req({ action: 'number', id: crypto.randomUUID(), kind: 'sale' })).toBe('2');
     const settings = defaultSettings();
     settings.accounts.push({ id: 'bank-two', name: 'Second bank', kind: 'bank', channel: 'GPay', active: true });
     settings.numbering.purchase = 'FY26/';
     settings.next.purchase = '101';
     await req({ action: 'settings-save', settings });
     expect((await req({ action: 'settings' })).accounts).toHaveLength(3);
-    expect(await req({ action: 'number', id: crypto.randomUUID(), kind: 'purchase' })).toBe('FY26/101');
+    expect(await req({ action: 'number', id: crypto.randomUUID(), kind: 'purchase' })).toBe('101');
     const idp = crypto.randomUUID();
     await req({ action: 'payment', id: idp, party, kind: 'receipt', date: '2026-10-20', amount: '10000', account: 'bank-two', reference: 'R1', note: 'Advance' });
     const accounts = await req({ action: 'accounts' });

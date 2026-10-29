@@ -1,4 +1,4 @@
-import {financialYear,fiscalReference} from '../accounting/numbering';
+import {financialYear} from '../accounting/numbering';
 import { defaultSettings, type WorkspaceSettings } from '../accounting/workspace-contract';
 import { textValue } from '../text-value';
 import { emptyPartyDetails, type DemoItem, type DemoParty } from './master-model';
@@ -560,13 +560,12 @@ function demoCorrection(p: Record<string, unknown>, company: string) {
 }
 function demoNumber(p:Record<string,unknown>,company:string,settings:WorkspaceSettings){
         const kind = p.kind as keyof WorkspaceSettings['next'];
-        if(!p.date){const result=settings.numbering[kind]+settings.next[kind];settings.next[kind]=String(BigInt(settings.next[kind])+1n);return result;}
         if(settings.mode?.[kind]==='manual')fail('MANUAL_NUMBER_REQUIRED');
-        const year=financialYear(String(p.date)),current=financialYear(today()),key=company+':'+kind+':'+year;
+        const year=financialYear(textValue(p.date)||today()),current=financialYear(today()),key=company+':'+kind+':'+year;
         let seq=BigInt(fiscalCounters[key]??(year===current?settings.next[kind]:'1'));
-        const used=new Set([...documents.filter(d=>d.company===company&&d.kind===kind).map(d=>d.reference),...expenses.filter(e=>e.company===company).map(e=>e.reference),...Object.entries(workspaceEvents).filter(([key])=>key.startsWith('number:'+company+':')).map(([,e])=>e.result).filter((r):r is string=>typeof r==='string')]);
-        let result=fiscalReference(settings.numbering[kind],year,String(seq));
-        while(used.has(result)){seq++;result=fiscalReference(settings.numbering[kind],year,String(seq));}
+        const used=new Set([...documents.filter(d=>d.company===company&&d.kind===kind&&financialYear(d.date)===year).map(d=>d.reference),...expenses.filter(e=>e.company===company&&kind==='expense'&&financialYear(e.date)===year).map(e=>e.reference),...Object.entries(workspaceEvents).filter(([key])=>key.startsWith('number:'+company+':'+kind+':')&&key.endsWith(':'+year)).map(([,e])=>e.result).filter((r):r is string=>typeof r==='string')]);
+        let result=String(seq);
+        while(used.has(result)){seq++;result=String(seq);}
         if(seq>99999999n)fail('NUMBER_LIMIT');
         fiscalCounters[key]=String(seq+1n);
         if(year===current)settings.next[kind]=String(seq+1n);
@@ -629,7 +628,7 @@ function demoWorkspace(p: Record<string, unknown>): unknown {
     return demoWorkspaceTransaction(p, company, settings);
 }
 function demoWorkspaceTransaction(p: Record<string, unknown>, company: string, settings: WorkspaceSettings) {
-    const id = String(p.action === 'bill' ? (p.bill as InventoryCommand).id : p.id), year=p.action==='number'&&p.date?financialYear(String(p.date)):null, key = p.action === 'number' ? 'number:' + company+':'+p.kind+':'+id+':'+year : id, payload = JSON.stringify(year===null?p:{...p,date:year}), existing = workspaceEvents[key];
+    const id = String(p.action === 'bill' ? (p.bill as InventoryCommand).id : p.id), year=p.action==='number'?financialYear(textValue(p.date)||today()):null, key = p.action === 'number' ? 'number:' + company+':'+p.kind+':'+id+':'+year : id, payload = JSON.stringify(year===null?p:{...p,date:year}), existing = workspaceEvents[key];
     if (existing) {
         if (existing.payload !== payload) {
             fail('IDEMPOTENCY_CONFLICT');

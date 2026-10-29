@@ -94,7 +94,7 @@ function accountWillBeNegative(kind: BillKind, paid: bigint, accounts: {
     id: string;
     balance: string;
 }[], id: string) { return kind === 'purchase' && paid > BigInt(accounts.find(row => row.id === id)?.balance ?? '0'); }
-function invoiceReference(manual:boolean,reference:string,number:string){return manual?reference.trim():number;}
+
 const partyKinds = { sale: 'customer', purchase: 'supplier', expense: 'expense' } as const;
 const allowedKinds: Record<BillKind, readonly DemoParty['kind'][]> = { sale: ['customer', 'both'], purchase: ['supplier', 'both'], expense: ['expense'] };
 
@@ -275,7 +275,7 @@ export function InvoicePage({ kind, language, company, companyName, items, parti
     useEffect(() => { onLock?.(busy); return () => { onLock?.(false); }; }, [busy, onLock]);
     const { adjustment, payable, paidMinor, grandTotal } = settlementAmounts(total(), paid, round, previous);
     const numbering=useInvoiceNumber({company,id,kind,date,settings,loaded,request,disabled:Boolean(recovery)});
-    const billNumber = invoiceReference(numbering.manual,reference,numbering.number);
+    const billNumber = numbering.number ?? reference.trim();
     useEffect(() => {
         if (recovery) {
             return;

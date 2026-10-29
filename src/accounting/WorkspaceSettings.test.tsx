@@ -35,15 +35,13 @@ it('edits accounts, channels, activity and all numbering settings then saves the
     fireEvent.change(names[2], { target: { value: 'Second bank' } });
     fireEvent.change(screen.getAllByLabelText('Type')[2], { target: { value: 'cash' } });
     fireEvent.change(screen.getAllByLabelText('Numbering mode')[0],{target:{value:'manual'}});
-    for (const field of screen.getAllByLabelText('Prefix')) {
-        fireEvent.change(field, { target: { value: 'FY26/' } });
-    }
+    expect(screen.queryByLabelText('Prefix')).not.toBeInTheDocument();
     for (const field of screen.getAllByLabelText('Next serial')) {
         fireEvent.change(field, { target: { value: '10' } });
     }
     fireEvent.click(screen.getByRole('button', { name: 'Save settings' }));
     await screen.findByText('Settings saved.');
-    expect(request).toHaveBeenCalledWith('workspace', expect.objectContaining({ action: 'settings-save', settings: expect.objectContaining({ mode:{sale:'manual',purchase:'auto',expense:'auto'},numbering: { sale: 'FY26/', purchase: 'FY26/', expense: 'FY26/' } }) }));
+    expect(request).toHaveBeenCalledWith('workspace', expect.objectContaining({ action: 'settings-save', settings: expect.objectContaining({ mode:{sale:'manual',purchase:'auto',expense:'auto'},next: { sale: '10', purchase: '10', expense: '10' } }) }));
 });
 it('blocks invalid settings and keeps server failures visible', async () => { mount(); await screen.findByText('−₹1.00'); fireEvent.change(screen.getAllByLabelText('Account name')[0], { target: { value: '' } }); fireEvent.click(screen.getByRole('button', { name: 'Save settings' })); await screen.findByText('Check names and numbering.'); fireEvent.change(screen.getAllByLabelText('Account name')[0], { target: { value: 'Cash' } }); const original = request.getMockImplementation() as (op: string, p: any) => Promise<unknown>; request.mockImplementation((op, p) => p.action === 'settings-save' ? Promise.reject(Error('offline')) : original(op, p)); fireEvent.click(screen.getByRole('button', { name: 'Save settings' })); expect(await screen.findByText('Not saved. Retry.')).toBeInTheDocument(); });
 it('requires two confirmations and exact company name for retirement', async () => { mount(); await screen.findByText('−₹1.00'); fireEvent.click(screen.getByRole('button', { name: 'Delete company' })); await waitFor(() => expect(changed).toHaveBeenCalled()); expect(window.confirm).toHaveBeenCalledTimes(2); expect(request).toHaveBeenCalledWith('workspace', { company, action: 'retire', name: 'Shop' }); });
