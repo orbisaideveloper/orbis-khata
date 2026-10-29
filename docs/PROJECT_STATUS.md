@@ -1071,3 +1071,13 @@ One central account/profile for Admin, Maya and Khata; Maya five cloud birth slo
 ## 2026-10-17 — Sonar corrective candidate prepared
 
 See [SONAR-CORRECTIONS-20261017.md](SONAR-CORRECTIONS-20261017.md) for every reported file/line and the source changes. Targeted and final Termux verification, new remote Sonar analysis and owner-controlled commit/push remain pending. No merge, deployment or database change is performed by this candidate.
+
+
+## 2026-10-29 — Mobile home, record dialog and navigation release
+
+- Simplified the mobile home: one company selector, compact summary/action cards, shared bottom Home/Bills/Ledger/More navigation and a scrollable More menu. Date inputs appear only for Custom ranges.
+- Saved invoices open with a compact item/quantity/rate/amount table before explicit Edit. Native modal foreground scrolls while the background is locked. Header and browser Back traverse Khata views; Home returns directly to the Khata dashboard.
+- Edit rates display two decimals without altering stored precision until edited. Removed UI-only line keys from correction payloads and duplicate empty signature keys.
+- Local validation: 494 tests in 71 files passed; coverage statements 91.52%, branches 88.70%, functions 91.02%, lines 92.39%. All 20 mobile/desktop browser scenarios passed, including reload persistence, double delete confirmation, invoice PDF, foreground lock, view-before-edit, nested Back, home navigation and PWA offline shell. TypeScript, lint and unused-code checks passed; local duplicate scan found zero clones; targeted Sonar rule scan found zero findings.
+- No schema, Edge gateway or migration changes in this UI release. Existing accounting v3 migration and gateway remain deployed. Owner controls Render deployment.
+- Owner requested one push after local verification and no waiting/polling for GitHub Actions; remote CI result is intentionally not certified by this local report.

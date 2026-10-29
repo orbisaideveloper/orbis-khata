@@ -20,5 +20,5 @@ export function DateRange({ language, from, to, onChange }: Readonly<{
     return <div className="date-range"><fieldset className="date-presets" aria-label={t.title}>
         {presets.map(key => <button type="button" key={key} aria-pressed={selected === key} onClick={() => { const range = presetRange(key, day); setCustom(false); onChange(range.from, range.to); }}>{t[key]}</button>)}
         <button type="button" aria-pressed={!selected} onClick={() => setCustom(true)}>{t.custom}</button>
-    </fieldset><div className="books-filters"><label>{t.from}<input type="date" value={from} max={to || day} onChange={event => onChange(event.target.value, to)}/></label><label>{t.to}<input type="date" value={to} min={from} max={day} onChange={event => onChange(from, event.target.value)}/></label></div></div>;
+    </fieldset>{!selected && <div className="books-filters"><label>{t.from}<input type="date" value={from} max={to || day} onChange={event => onChange(event.target.value, to)}/></label><label>{t.to}<input type="date" value={to} min={from} max={day} onChange={event => onChange(from, event.target.value)}/></label></div>}</div>;
 }

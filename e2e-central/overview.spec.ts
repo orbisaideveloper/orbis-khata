@@ -74,12 +74,12 @@ test('summary cards open due lists and scoped ledgers while the independent Ledg
     await expect(page.getByRole('columnheader', { name: 'Money in', exact: true })).toBeVisible();
     await expect(page.getByRole('button', { name: 'Customer A', exact: true })).toBeVisible();
     await expect(page.getByRole('button', { name: 'Rent owner', exact: true })).toBeVisible();
-    await page.getByRole('button', { name: 'O ORBIS Khata Boi', exact: true }).click();
+    await page.locator('.kh-brand').click();
     await expect(page.getByRole('button', { name: 'To receive', exact: true })).toBeVisible();
     await page.getByRole('button', { name: 'Expense details', exact: true }).click();
     await page.getByRole('button', { name: /Rent/ }).click();
     await expect(page.getByRole('heading', { name: 'Rent', exact: true })).toBeVisible();
-    await page.getByRole('navigation', { name: 'Accounts', exact: true }).getByRole('button', { name: 'Ledger', exact: true }).click();
+    await page.getByRole('navigation', { name: 'Main navigation', exact: true }).getByRole('button', { name: 'Ledger', exact: true }).click();
     await expect(page.getByRole('button', { name: 'Customer A Party', exact: true })).toBeVisible();
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1)).toBe(true);
 });

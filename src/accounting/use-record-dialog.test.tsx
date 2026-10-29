@@ -1,0 +1,3 @@
+import{cleanup,render,screen}from'@testing-library/react';import{afterEach,expect,it,vi}from'vitest';import{useRecordDialog}from'./use-record-dialog';import{requestBooksBack}from'../books-navigation';
+afterEach(cleanup);
+it('locks background scroll, consumes Back and restores the previous body state',()=>{document.body.style.overflow='auto';const close=vi.fn();function Dialog(){const ref=useRecordDialog(close);return <dialog ref={ref}><button>Inside</button></dialog>;}const view=render(<Dialog/>);expect(document.body.style.overflow).toBe('hidden');expect(screen.getByRole('dialog')).toHaveAttribute('open');expect(requestBooksBack()).toBe(true);expect(close).toHaveBeenCalledOnce();view.unmount();expect(document.body.style.overflow).toBe('auto');});

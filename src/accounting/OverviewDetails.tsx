@@ -1,3 +1,4 @@
+import { useBooksBack } from '../books-navigation';
 import { AccountBreakdown, type AccountRow } from './AccountBreakdown';
 import { useEffect, useState } from 'react';
 import type { Language } from '../i18n';
@@ -26,6 +27,7 @@ export function OverviewDetails({ company, language, from, to, version, report, 
     const services = useBookServices(), request = services?.request ?? (import.meta.env.DEV ? demoRequest : requestKhata);
     const [account, setAccount] = useState<AccountRow | null>(null);
     const a = accountingCopy[language], [selected, setSelected] = useState<LedgerEntity | null>(null);
+    useBooksBack(!selected,onBack);
     const [snapshot, setSnapshot] = useState<{
         query: string;
         report: Report;

@@ -47,6 +47,7 @@ it('renders empty parties, ledger, negative cash and journal mismatch without fa
     fireEvent.click(screen.getByRole('button', { name: 'Sale' }));
     expect(screen.getByRole('button', { name: 'Review entry' })).toBeDisabled();
     expect(api.post).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole('button',{name:'Custom'}));
     fireEvent.change(screen.getByLabelText('From'), { target: { value: '' } });
     expect(await screen.findByText(/valid date range/, { selector: 'output' })).toBeVisible();
 });

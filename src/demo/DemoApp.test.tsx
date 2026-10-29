@@ -57,7 +57,8 @@ it('opens the redesigned dashboard with real demo totals and working business sh
     expect(screen.getByText('No entries yet')).toBeInTheDocument();
     expect(screen.getAllByText('₹0.00')).toHaveLength(5);
     expect(screen.getByRole('button', { name: 'Expense details' })).toBeInTheDocument();
-    fireEvent.click(within(screen.getByRole('navigation', { name: 'Main navigation' })).getByRole('button', { name: 'Parties' }));
+    fireEvent.click(screen.getByLabelText('More options'));
+    fireEvent.click(within(document.querySelector('.workspace-menu-panel') as HTMLElement).getByRole('button',{name:'Parties'}));
     expect(await screen.findByRole('button', { name: /Add party/ })).toBeInTheDocument();
     expect(globalThis.fetch).not.toHaveBeenCalled();
 });
@@ -73,7 +74,7 @@ it('opens the demo profile, toggles help and requires both reset confirmations',
     fireEvent.click(checks[checks.length - 1]);
     fireEvent.click(screen.getByRole('button', { name: 'Reset demo' }));
     expect(confirm).toHaveBeenCalledTimes(2);
-    await screen.findByRole('heading', { name: 'ডেমো দোকান' });
+    await screen.findByRole('heading', { name: 'At a glance' });
 });
 it('keeps the current draft when leaving bills is cancelled, then returns home when accepted', async () => {
     const confirm = vi.spyOn(window, 'confirm').mockReturnValue(false);
@@ -85,6 +86,6 @@ it('keeps the current draft when leaving bills is cancelled, then returns home w
     expect(screen.getByRole('region', { name: 'Purchase invoice' })).toBeInTheDocument();
     confirm.mockReturnValue(true);
     fireEvent.click(screen.getAllByRole('button', { name: 'Home' })[0]);
-    await screen.findByRole('heading', { name: 'ডেমো দোকান' });
+    await screen.findByRole('heading', { name: 'At a glance' });
     expect(confirm).toHaveBeenCalledTimes(2);
 });

@@ -9,7 +9,7 @@ import type { BooksPage } from '../books-navigation';
 import type { BillKind } from './InvoicePage';
 const pageForModule: Record<string, BooksPage> = { accounts: 'ledger', ledger: 'all-ledgers' };
 const iconForEntry: Partial<Record<Kind, DesignIconName>> = { sale: 'sale', purchase: 'purchase' };
-export function Dashboard({ language, companyName, report, failed, onRetry, onOpen, onBill, partyCount, itemCount, expenses, onOverview, periodLabel }: Readonly<{
+export function Dashboard({ language, companyName: _companyName, report, failed, onRetry, onOpen, onBill, partyCount, itemCount, expenses, onOverview, periodLabel }: Readonly<{
     language: Language;
     companyName: string;
     report: Report | null;
@@ -25,7 +25,7 @@ export function Dashboard({ language, companyName, report, failed, onRetry, onOp
 }>) {
     const t = designCopy[language];
     const metrics = [['receivable', t.receive], ['payable', t.pay], ['cash', t.cash], ['bank', t.bank], ['expenses', t.expense]] as const;
-    return <div className="kh-dashboard"><section className="kh-greeting"><span className="kh-eyebrow">{t.hello}</span><h1>{companyName}</h1><p>{t.headline}</p><span className="kh-greeting-mark" aria-hidden="true"><DesignIcon name="ledger"/></span></section>
+    return <div className="kh-dashboard">
  <div className="kh-section-heading"><h2>{t.overview}</h2><span>{periodLabel ?? t.period}</span><button className="overview-refresh" type="button" onClick={onRetry}>{inLanguage(language,'হালনাগাদ','ताज़ा करें','Refresh balances')}</button></div>
  {failed && <output role="alert">{t.error} <button type="button" onClick={onRetry}>{t.retry}</button></output>}
  {!failed && !report && <output>{t.loading}</output>}

@@ -135,6 +135,7 @@ it('keeps date, party and pagination filters within the selected company', async
     await waitFor(() => expect(api.report.mock.lastCall?.[4]).toBe(50));
     fireEvent.click(await screen.findByRole('button', { name: 'Previous' }));
     await waitFor(() => expect(api.report.mock.lastCall?.[4]).toBe(0));
+    fireEvent.click(screen.getByRole('button',{name:'Custom'}));
     fireEvent.change(screen.getByLabelText('From'), { target: { value: '2026-01-01' } });
     await screen.findByText('Customer advances');
     fireEvent.change(screen.getByLabelText('To'), { target: { value: '2026-01-31' } });
@@ -148,6 +149,7 @@ it('keeps date, party and pagination filters within the selected company', async
     fireEvent.change(screen.getByLabelText('From'), { target: { value: '2026-02-01' } });
     expect(await screen.findByText(/valid date range/, { selector: 'output' })).toBeVisible();
     expect(api.report).toHaveBeenCalledTimes(calls);
+    fireEvent.click(screen.getByRole('button',{name:'Custom'}));
     fireEvent.change(screen.getByLabelText('From'), { target: { value: '2026-01-01' } });
     fireEvent.click(await screen.findByRole('button', { name: 'Refresh' }));
     await screen.findByText('Customer advances');

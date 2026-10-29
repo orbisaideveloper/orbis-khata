@@ -120,7 +120,7 @@ test('same signup source on mobile/desktop; session reload and gateway ownership
     await page.getByRole('button', { name: /Khata Boi.*Open/ }).click();
     await page.getByLabel('Company name', { exact: true }).fill('Test shop');
     await page.getByRole('button', { name: 'Create', exact: true }).click();
-    await expect(page.getByRole('heading', { name: 'Test shop', exact: true })).toBeVisible();
+    await expect(page.getByRole('combobox', { name: 'Company', exact: true })).toContainText('Test shop');
     await fits(page);
     await expect(page.getByRole('button', { name: 'Parties 0', exact: true })).toBeVisible();
     expect(pageErrors).toEqual([]);

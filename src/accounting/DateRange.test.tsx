@@ -12,9 +12,13 @@ it('selects presets together and preserves manually chosen custom dates', () => 
     }
     render(<Harness />);
     fireEvent.click(screen.getByRole('button', { name: 'Yesterday' }));
+    expect(screen.queryByLabelText('From')).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: 'Custom' }));
     expect(screen.getByLabelText('From')).toHaveValue('2026-10-27');
     expect(screen.getByLabelText('To')).toHaveValue('2026-10-27');
     fireEvent.click(screen.getByRole('button', { name: '7 days' }));
+    expect(screen.queryByLabelText('From')).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: 'Custom' }));
     expect(screen.getByLabelText('From')).toHaveValue('2026-10-22');
     expect(screen.getByLabelText('To')).toHaveValue('2026-10-28');
     fireEvent.click(screen.getByRole('button', { name: 'Custom' }));

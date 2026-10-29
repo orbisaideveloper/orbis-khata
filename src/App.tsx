@@ -1,7 +1,8 @@
+import { BooksBottomNav } from './BooksBottomNav';
 import { BookServicesContext, liveBookServices } from './books-services';
 import { DemoWorkspace } from './demo/DemoWorkspace';
 import './demo/design.css';
-import { BooksNavigation, type BooksPage } from './books-navigation';
+import { BooksNavigation, useBooksTrail } from './books-navigation';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { languageOptions, readLanguage, saveLanguage, translations } from './i18n';
 import type { Language, TextKey } from './i18n';
@@ -49,7 +50,7 @@ function accountStateScreen(account: ReturnType<typeof useAccount>, language: La
 function App() {
     // No demo session, user, financial values, company or token is persisted.
     const account = useAccount();
-    const [booksPage, setBooksPage] = useState<BooksPage>('home');
+    const {page:booksPage,open:openBooks,back:backBooks,home:homeBooks}=useBooksTrail();
     const [tutorial, setTutorial] = useState(readTutorial);
     const [view, setView] = useState<View>(() => authClient && account.session ? 'workspace' : 'welcome');
     const [language, setLanguage] = useState<Language>(readLanguage);
@@ -64,7 +65,7 @@ function App() {
     const guestEntered = useRef(false);
     const t = (key: TextKey) => translations[language][key];
     const menu = () => <WorkspaceMenu enhanced language={language} signedIn={signedIn} onBooks={page => {
-            setBooksPage(page);
+            openBooks(page);
             if (view !== 'khata') {
                 navigate('khata');
             }
@@ -77,17 +78,18 @@ function App() {
         document.title = languagePresentation[language].title;
     }, [language]);
     useEffect(() => {
-        window.history.replaceState({ khataView: 'welcome' }, '');
+        window.history.replaceState({ khataView: view }, '');
         function onBack(event: PopStateEvent) {
             const target = (event.state as {
                 khataView?: View;
             } | null)?.khataView;
+            if(view==='khata' && signedIn){backBooks();window.history.pushState({khataView:'khata'},'');return;}
             // Browser history uses the same access policy as button navigation.
             setView(resolveKhataView(target, signedIn, guestUiEnabled, guestEntered.current));
         }
         window.addEventListener('popstate', onBack);
         return () => window.removeEventListener('popstate', onBack);
-    }, [signedIn]);
+    }, [signedIn, view, booksPage, backBooks]);
     useEffect(() => {
         if (!authClient || account.loading) {
             return;
@@ -133,7 +135,7 @@ function App() {
         {languageOptions.map(({ code, name }) => <option key={code} value={code}>{name}</option>)}
       </select>);
     }
-    const navigation = useMemo(() => ({ page: booksPage, open: setBooksPage }), [booksPage]);
+    const navigation = useMemo(() => ({ page: booksPage, open: openBooks }), [booksPage, openBooks]);
     const shellClass = mainClass(view, signedIn);
     const accountScreen = accountStateScreen(account, language, shellClass);
     if (accountScreen) {
@@ -204,7 +206,7 @@ function App() {
       </section>}
 
       {view === 'khata' && (signedIn || guestUiEnabled) && (<section className="scene light-scene active" aria-label={t('khata')}>
-          {signedIn ? <header className="kh-app-header"><button className="kh-brand" type="button" onClick={() => setBooksPage('home')}><span className="kh-logo">O</span><span><small>ORBIS</small><strong>{t('khata')}</strong></span></button><div className="kh-header-actions">{languagePicker(true)}{menu()}<button type="button" className="kh-profile-button" onClick={() => navigate('workspace')} aria-label={t('choose')}>←</button></div></header> : renderBar('workspace', 'choose', 'khata')}
+          {signedIn ? <header className="kh-app-header"><button className="kh-brand" type="button" aria-label={language==='bn'?'হোম':'Home'} onClick={homeBooks}><span className="kh-logo">O</span><span><small>ORBIS</small><strong>{t('khata')}</strong></span></button><div className="kh-header-actions">{languagePicker(true)}{menu()}<button type="button" className="kh-profile-button" onClick={backBooks} aria-label={{bn:'ফিরুন',hi:'वापस',en:'Back'}[language]}>←</button></div></header> : renderBar('workspace', 'choose', 'khata')}
           {!signedIn && <div className="khata-title"><div className="bar"><span className="eyebrow l">{t('dashboard')}</span><span className="period">{t('month')}</span></div><h1>{t('khata')}</h1><p>{t('khataHead')}</p></div>}
           <CompanyGate key={account.session?.user.id ?? 'guest'} userId={account.session?.user.id} language={language} workspace={<div className="kh-workspace"><BookServicesContext.Provider value={liveBookServices}><DemoWorkspace userId={account.session?.user.id} language={language}/></BookServicesContext.Provider></div>}>
           <div className="metrics">
@@ -214,6 +216,7 @@ function App() {
           <div className="actions-row">{(['sale', 'purchase', 'receipt', 'payment'] as const).map((key) => <button type="button" className="action-chip" disabled key={key}>{t(key)}</button>)}</div>
           {tutorial && <p className="screen-foot">{t('noFake')}</p>}
           </CompanyGate>
+          {signedIn && <BooksBottomNav language={language} page={booksPage} onOpen={openBooks}/>}
         </section>)}
     </main></TutorialContext.Provider></BooksNavigation.Provider>);
 }

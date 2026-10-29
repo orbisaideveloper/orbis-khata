@@ -1,3 +1,4 @@
+import { useBooksBack } from '../books-navigation';
 import { expenseLedgerReport } from './expense-ledger';
 import { PartyLedger } from './PartyLedger';
 import { allPages } from './report-pages';
@@ -41,6 +42,7 @@ export function LedgerExplorer({ company, language, from, to, version, parties, 
 }>) {
     const t = copy[language], a = accountingCopy[language], e = expenseCopy[language], i = inventoryCopy[language];
     const [search, setSearch] = useState(''), [filter, setFilter] = useState('all'), [selected, setSelected] = useState<LedgerEntity | null>(initialSelection ?? null);
+    useBooksBack(Boolean(selected), () => { if(onBack) onBack(); else setSelected(null); });
     const query = JSON.stringify([company, from, to, version]);
     const scopedType = initialSelection?.type;
     const [result, setResult] = useState<{

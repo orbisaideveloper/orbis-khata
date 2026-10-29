@@ -1,3 +1,4 @@
+import { BooksBottomNav } from '../BooksBottomNav';
 import { inLanguage } from '../localize';
 import { confirmDelete } from '../confirm-delete';
 import { useCallback, useMemo, useState } from 'react';
@@ -10,7 +11,6 @@ import { resetDemo } from './store';
 import '../App.css';
 import './design.css';
 import { designCopy } from './design-copy';
-import { DesignIcon } from './DesignIcon';
 const copy = { bn: { title: 'ORBIS খাতা · ডেমো', hint: 'এটি আলাদা ডেমো। আসল অ্যাকাউন্টে কিছু যাবে না। পেজ রিফ্রেশ করলে ডেমো মুছে যাবে।', reset: 'ডেমো নতুন করে শুরু', language: 'ভাষা' }, en: { title: 'ORBIS Khata · Demo', hint: 'Isolated demo. Nothing is saved to your real account. Refreshing clears this demo.', reset: 'Reset demo', language: 'Language' }, hi: { title: 'ORBIS खाता · डेमो', hint: 'अलग डेमो। असली अकाउंट में कुछ नहीं जाएगा। रिफ्रेश करने पर डेमो मिट जाएगा।', reset: 'डेमो फिर से शुरू करें', language: 'भाषा' } };
 export default function DemoApp() {
     const [language, setLanguage] = useState<Language>('bn'), [page, setPage] = useState<BooksPage>('home'), [tutorial, setTutorial] = useState(false), [revision, setRevision] = useState(0);
@@ -38,6 +38,6 @@ export default function DemoApp() {
   <div className="kh-workspace">
   <DemoWorkspace key={revision} language={language}/>
   </div>
- <nav className="kh-bottom-nav" aria-label={inLanguage(language, 'প্রধান নেভিগেশন', 'मुख्य नेविगेशन', 'Main navigation')}>{(['home', 'bills', 'all-ledgers', 'parties'] as const).map(target => <button type="button" key={target} aria-current={page === target ? 'page' : undefined} onClick={() => navigate(target)}><DesignIcon name={target === 'all-ledgers' ? 'ledger' : target}/><span>{target === 'all-ledgers' ? d.ledger : d[target]}</span></button>)}</nav>
+ <BooksBottomNav language={language} page={page} onOpen={navigate}/>
  </section></main></TutorialContext.Provider></BooksNavigation.Provider>;
 }
