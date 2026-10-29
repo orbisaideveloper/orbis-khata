@@ -1,3 +1,4 @@
+import {BusinessReports} from '../accounting/BusinessReports';
 import {PartySection} from './PartySection';
 import {Themes} from '../theme';
 import {readLocation,saveLocation} from '../workspace-location';
@@ -161,15 +162,16 @@ export function DemoWorkspace({ language, userId = 'demo-owner' }: Readonly<{
         return <Accounting userId={userId} initialCompany={company} language={language} onBill={openBill} onCompanyChange={setCompany}/>;
     }
     return <div className="books">
-  <nav className="books-navigation" aria-label={labels.ledger}>{(['home', 'ledger', 'all-ledgers', 'parties', 'items', 'bills', 'expenses', 'settings'] as const).map(page => <button type="button" key={page} disabled={locked} aria-current={navigation.page === page ? 'page' : undefined} onClick={() => { setOverview(null); setBill(null); navigation.open(page); }}>{labels[page]}</button>)}</nav>
+  <nav className="books-navigation" aria-label={labels.ledger}>{(['home', 'ledger', 'all-ledgers', 'parties', 'items', 'bills', 'expenses', 'reports', 'settings'] as const).map(page => <button type="button" key={page} disabled={locked} aria-current={navigation.page === page ? 'page' : undefined} onClick={() => { setOverview(null); setBill(null); navigation.open(page); }}>{labels[page]}</button>)}</nav>
   <label>{inLanguage(language, 'কোম্পানি', 'कंपनी', 'Company')}<select value={company} disabled={locked} onChange={e => { setOverview(null); setCompany(e.target.value); setBill(null); }}>{companies.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}</select></label>
-  {(navigation.page === 'home' || navigation.page === 'all-ledgers' || navigation.page === 'expenses' || navigation.page === 'stock' || showingOverview) && <DateRange language={language} from={from} to={to} onChange={(start, end) => { setFrom(start); setTo(end); }}/>}
+  {(navigation.page === 'home' || navigation.page === 'reports' || navigation.page === 'bills' && !bill || navigation.page === 'all-ledgers' || navigation.page === 'expenses' || navigation.page === 'stock' || showingOverview) && <DateRange language={language} from={from} to={to} onChange={(start, end) => { setFrom(start); setTo(end); }}/>}
   {(navigation.page === 'home' || navigation.page === 'overview' && !showingOverview) && <Dashboard language={language} companyName={companyName} report={report} failed={failed} onRetry={changed} onOpen={navigation.open} onBill={openBill} periodLabel={from + ' — ' + to} partyCount={masters.parties.length} itemCount={masters.items.length} expenses={result?.key === requestKey ? result.expenses : { balances: {}, categories: [], bills: [], entries: [], count: 0 }} onOverview={kind => { setOverview({ company, kind }); navigation.open('overview'); }}/>}
   {showingOverview && report && result?.key === requestKey && <OverviewDetails key={[company, overview.kind, from, to].join('/')} {...{ company, language, from, to, version, report }} expenses={result.expenses} kind={overview.kind} title={overview.kind==='liquidity'?designCopy[language].cash+' / '+designCopy[language].bank:designCopy[language][overviewLabels[overview.kind]]} onBack={closeOverview}/>}
   {showingOverview && !report && !failed && <output>{designCopy[language].loading}</output>}
   {showingOverview && failed && <output role="alert">{designCopy[language].error}<button type="button" onClick={changed}>{designCopy[language].retry}</button><button type="button" onClick={closeOverview}>{designCopy[language].home}</button></output>}
   {navigation.page === 'home' && <button className="kh-company-manage" type="button" onClick={() => navigation.open('company')}>{designCopy[language].newCompany} →</button>}
   {navigation.page === 'ledger' && <PaymentEntry key={company} userId={userId} company={company} language={language} report={report} onChanged={changed}/>}
+  {navigation.page === 'reports' && <BusinessReports {...{company,language,from,to,version}} onChanged={changed}/>}
   {navigation.page === 'themes' && <Themes language={language}/>}
   {navigation.page === 'settings' && <WorkspaceSettings company={company} name={companyName} language={language} onChanged={changed}/>}
   {navigation.page === 'items' && <ItemMaster language={language} company={company} items={masters.items} onChanged={changed}/>}
@@ -178,6 +180,6 @@ export function DemoWorkspace({ language, userId = 'demo-owner' }: Readonly<{
   {navigation.page === 'stock' && report && <Inventory userId={userId} {...{ company, companyName, language, from, to, version }} parties={report.parties} onLock={setLocked} onChanged={changed} blocked={false}/>}
   {navigation.page === 'expenses' && <><button type="button" onClick={() => openBill('expense')}>{t.expense}</button><Expenses userId={userId} {...{ company, companyName, language, from, to, version }} payees={masters.parties.filter(p => p.kind === 'expense').map(p => p.name)} onLock={setLocked} onChanged={changed} blocked={false}/></>}
   {navigation.page === 'bills' && bill && <InvoicePage onLock={setLocked} userId={userId} key={billKey} kind={bill} {...{ language, company, companyName, warehouses }} items={masters.items} parties={masters.parties} onSaved={changed} onBack={() => setBill(null)}/>}
-  {navigation.page === 'bills' && !bill && <section className="books-card kh-bill-start"><h2>{t.bills}</h2><div className="books-buttons">{(['sale', 'purchase', 'expense'] as const).map(kind => <button type="button" key={kind} onClick={() => openBill(kind)}>{t[kind]}</button>)}</div></section>}
+  {navigation.page === 'bills' && !bill && <section className="books-card kh-bill-start"><h2>{t.bills}</h2><div className="books-buttons">{(['sale', 'purchase', 'expense'] as const).map(kind => <button type="button" key={kind} onClick={() => openBill(kind)}>{t[kind]}</button>)}</div><BusinessReports {...{company,language,from,to,version}} onChanged={changed} initial="bills"/></section>}
  </div>;
 }

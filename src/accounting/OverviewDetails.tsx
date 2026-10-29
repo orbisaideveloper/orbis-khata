@@ -63,7 +63,7 @@ export function OverviewDetails({ company, language, from, to, version, report, 
     const allMovements=cash&&loaded?moneyRows(loaded.report,loaded.expenses,movementAccount):[];
     if(kind==='liquidity'&&loaded){allMovements.push(...moneyRows(loaded.report,loaded.expenses,'bank'));allMovements.sort((a,b)=>b.date.localeCompare(a.date)||a.id.localeCompare(b.id));}
 
-    const movements = account ? allMovements.filter(row => row.id.startsWith('trade:') ? account.entry_ids.includes(row.id.slice(6)) : account.id === account.kind) : allMovements;
+    const movements = account ? allMovements.filter(row => row.id.startsWith('trade:') ? account.entry_ids.includes(row.id.slice(6)) : account.id === account.kind && row.account===account.kind) : allMovements;
     const back = inLanguage(language, 'হোমে ফিরুন', 'होम पर लौटें', 'Back to home');
     return <section className="books-card overview-details" aria-label={title}>
     <button className="overview-back" type="button" onClick={onBack}>← {back}</button>

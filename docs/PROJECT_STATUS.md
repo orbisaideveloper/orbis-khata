@@ -1200,3 +1200,16 @@ See [SONAR-CORRECTIONS-20261017.md](SONAR-CORRECTIONS-20261017.md) for every rep
 
 - Full Vitest coverage run completed successfully:82 files,538 tests passed. Statements91.62%, branches88.45%, functions90.89%, lines92.78%; all repository coverage gates pass. Final lint/KNIP/JSCPD pass (zero clones). Earlier exact-source build/typecheck and mobile/desktop invoice PDF/edit tests2/2 pass.
 - Release prepared for owner-authorized main push. Live SQL and Edge v10 already active; owner next deploys the frontend from this release and verifies real-account entry. No Actions polling and no assistant Render deployment.
+
+## 2026-10-29 — Business reports and payment-account repair in progress
+
+- Owner authorizes completing payment details, bill counts/register and profit report, checking locally and pushing main. Starting HEAD36643c1710c9dfe69a7d12b7d00a982cc3094f5b. Render remains owner-deployed.
+- Reproduced live accounts failure: operator does not exist text ->> unknown. Nested journal.account shadowed unqualified JSON alias. Applied managed migration20261029180310_account_json_alias using qualified acct.value. Real-schema authorized read in rollback transaction now passes; owner financial rows unchanged.
+- Added Reports route/home shortcut and bill register with sale/purchase/expense filtering, counts, totals, detail links and all-history pagination. Added actual money-in/out list including expenses, with date/direction filters. Profit uses current effective invoices and moving weighted-average purchase costs (discounts included); unknown opening/production costs and oversold stock block an invented final profit. Purchase comparison and cash movement remain separately labelled.
+- Targeted new model/UI tests9/9 pass; related tests17/17 pass after replacing an obsolete no-profit-link assertion. Type/build and mobile/desktop browser checks underway. No current report release pushed; live SQL alias repair only. Next: browser, final coverage/quality, source review and owner-authorized main push without Actions polling.
+
+### Business-report release verification
+
+- Final full coverage run:84 files,547 tests pass. Statements91.93%, branches88.69%, functions91.31%, lines92.91%; all existing gates pass. Lint, typecheck/build/PWA worker, KNIP and JSCPD (zero clones) pass; local Sonar recommended-rule scan has no findings on changed report/controller/math sources.
+- Exact-source Playwright mobile/desktop2/2 pass: daily counts, sale filter, weighted-cost net profit, actual cash/bank payment totals, bank card details and no horizontal overflow. Screenshots visually reviewed. New model tests cover discounts/remainders, historical stock, weighted costs, unknown opening/negative stock, corrections/deletions and empty periods.
+- Live docs/account-details.rollback-test.sql passes: account-kind balances reconcile to the journal and foreign owner access is denied. No owner transactions edited. No new Edge contract/deploy required; applied SQL alias fix is active. Owner deploys frontend after main push; production report UI acceptance remains owner verification. No Actions polling.

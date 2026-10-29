@@ -303,3 +303,9 @@ This supersedes the visible prefix/year format above: automatic bill references 
 ## 2026-10-29: Invoice numbering commits with the invoice
 
 Previewing a bill never reserves its serial. The server allocates inside the same company-locked transaction as invoice posting and records the original request/result for retries. Manual references remain owner-supplied; old references and consumed historical gaps stay unchanged. Bill-level discounts reuse the existing signed adjustment on trade bills and preserve gross expense lines alongside net expense totals. Print appearance is company settings, not repeated entry controls.
+
+## 29 October 2026 — Business reports and reproducible profit
+
+Reports expose period bill counts/registers and actual cash/bank movements independently. Count only current effective sale/purchase vouchers and expense charges; reversals and superseded bills never add gross bill counts. Load every page and fail closed if any page fails. Every row opens its existing record viewer.
+
+Profit is credit-inclusive net sales minus moving weighted-average cost of items sold minus effective expense charges. Allocate net purchase cost (including bill discount) across lines with exact minor-unit rounding and assign the remainder to the final line. Cost is pooled across godowns; transfers do not change it. With date-only documents, process opening stock, purchases, then sales within each date and use IDs to break ties. Unknown opening value, missing item cost or oversold/production stock makes final profit unavailable, with affected items shown; never assume a zero production cost. Once unknown stock clears to zero, future purchased stock can be valued again. Show sales minus purchases minus expenses separately from profit, and collections minus payments separately from both. Reports do not mutate old financial records or activate the deferred production module.
