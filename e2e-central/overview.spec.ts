@@ -82,6 +82,7 @@ test('summary cards open due lists and scoped ledgers while the independent Ledg
     await expect(page.getByRole('columnheader',{name:'Money in',exact:true})).toBeVisible();
     await page.getByRole('button',{name:'Back',exact:true}).click();
     await expect(page.getByRole('heading',{name:'At a glance'})).toBeVisible();
+    const presetRows=await page.locator('.date-presets button').evaluateAll(els=>els.map(el=>Math.round(el.getBoundingClientRect().top)));expect(new Set(presetRows).size).toBe(1);
     await page.screenshot({path:test.info().outputPath('home-cards.png'),fullPage:true});
     await page.getByRole('button', { name: 'Expense details', exact: true }).click();
     await page.getByRole('button', { name: /Rent/ }).click();

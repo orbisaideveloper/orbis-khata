@@ -32,5 +32,6 @@ test('cloud masters survive reload and require two delete confirmations',async({
  page.once('dialog',d=>d.dismiss());await remove.click();expect(deletes).toBe(0)
  let count=0;const cancelSecond=async(d:import('@playwright/test').Dialog)=>{if(++count===1)await d.accept();else await d.dismiss()};page.on('dialog',cancelSecond);await remove.click();page.off('dialog',cancelSecond);expect(count).toBe(2);expect(deletes).toBe(0)
  const accept=async(d:import('@playwright/test').Dialog)=>{await d.accept()};page.on('dialog',accept);await remove.click();await expect(page.getByText('Cloud customer',{exact:true})).toHaveCount(0);page.off('dialog',accept);expect(deletes).toBe(1)
+ await page.reload();await expect(page.getByRole('heading',{name:'At a glance'})).toBeVisible();await page.getByRole('button',{name:'More',exact:true}).click();await nav.getByRole('button',{name:'Items',exact:true}).click();await expect(page.getByText('Cloud milk',{exact:true})).toHaveCount(1);await page.getByRole('button',{name:'More',exact:true}).click();await nav.getByRole('button',{name:'Parties',exact:true}).click();await expect(page.getByText('Cloud customer',{exact:true})).toHaveCount(0)
  expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1)).toBe(true)
 })

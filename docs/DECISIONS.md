@@ -269,3 +269,11 @@ validate company selection against the server-authorized list. Refresh restores
 Khata home and selected company, not the public/module picker. Header/browser Back
 returns to module home. Explicit logout clears saved module/company location.
 Future modules must use supported routes; planned Farming is not activated here.
+
+### 29 October 2026 — Neutral glass presentation
+
+Replace colored card fills with consistent light translucent glass surfaces.
+Keep negative liquidity figures red and nonnegative figures green; expense figures
+may remain purple. Selected date presets and press feedback use light saffron.
+All five date presets stay in one compact row on phones. This presentation change
+must preserve persisted financial data, correction history and delete semantics.
