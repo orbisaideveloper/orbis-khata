@@ -5,7 +5,7 @@ export type Account = 'cash' | 'bank' | 'receivable' | 'payable' | 'sales' | 'pu
 export type Voucher = {
   id: string; party_id: string; party_name: string; kind: Kind; effective_date: string
   amount_minor: string; debit_account: Account; credit_account: Account
-  reference: string; note: string; reversed: boolean
+  reference: string; note: string; reversed: boolean; reverses_id?: string | null; bill_id?: string | null; settled_minor?: string
 }
 export type Report = {
   balances: Partial<Record<Account, { closing: string; opening: string; movement: string }>>

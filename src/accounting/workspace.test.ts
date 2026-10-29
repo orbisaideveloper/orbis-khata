@@ -1,3 +1,5 @@
+import {ledgerRows} from './ledger-model';
+import {moneyRows,overviewAmount} from './overview-model';
 import { beforeEach, expect, it } from 'vitest';
 import { defaultSettings, validSettings, workspaceInput } from './workspace-contract';
 import { demoRequest, resetDemo, saveDemoItem, saveDemoParty } from '../demo/store';
@@ -75,12 +77,14 @@ it('reverses bill, linked settlement and stock once; edit replacement is atomic;
     expect(r.balances.cash?.closing).toBe('0');
     expect(r.balances.bank?.closing).toBe('-50000');
     expect(r.balances.payable?.closing).toBe('-50000');
+    const statement=ledgerRows(r,range.from);expect(statement.rows).toHaveLength(1);expect(statement).toMatchObject({bills:100000n,payments:50000n,closing:-50000n});
+    const noCosts={balances:{},categories:[],bills:[],entries:[],count:0};expect(overviewAmount(r,noCosts,'payable')).toBe(50000n);expect(overviewAmount(r,noCosts,'receivable')).toBe(0n);expect((await demoRequest<InventoryReport>('inventory-report',range)).stocks[0].closing).toBe('1000000');expect(moneyRows(r,noCosts,'cash')).toHaveLength(0);expect(moneyRows(r,noCosts,'bank').map(row=>row.amount)).toEqual(['-50000']);
     await expect(req({ ...correction, id: crypto.randomUUID() })).rejects.toThrow('RECORD_ALREADY_CORRECTED');
     const target = replacement.bill.id;
     await expect(req({ action: 'correct', id: crypto.randomUUID(), target, type: 'voucher', reason: 'Bad edit', replacement: { ...replacement, bill: bill(), paid: '999999' } })).rejects.toThrow();
     expect((await req({ action: 'detail', id: target })).voucher.reversed).toBe(false);
     await req({ action: 'correct', id: crypto.randomUUID(), target, type: 'voucher', reason: 'Delete', replacement: null });
-    expect((await demoRequest<Report>('report', range)).balances.payable?.closing).toBe('0');
+    const deleted=await demoRequest<Report>('report',range);expect(deleted.balances.payable?.closing).toBe('0');expect(ledgerRows(deleted,range.from)).toMatchObject({rows:[],bills:0n,payments:0n,closing:0n});
 });
 it('retires and restores companies without touching another tenant', async () => {
     await expect(req({ action: 'retire', name: 'wrong' })).rejects.toThrow();

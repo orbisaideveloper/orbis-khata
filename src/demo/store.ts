@@ -114,7 +114,7 @@ function report(company: string, from: string, to: string, party: string | null,
         const amount = (account: string) => String([...current, ...openingRows].filter(e => e.party_id === p.id && e.effective_date <= to).reduce((n, e) => n + (e.debit_account === account ? BigInt(e.amount_minor) : 0n) - (e.credit_account === account ? BigInt(e.amount_minor) : 0n), 0n));
         return { ...p, receivable: amount('receivable'), payable: String(-BigInt(amount('payable'))) };
     });
-    return { balances, opening_entries: parties.filter(p => p.company === company && (!party || p.id === party) && p.opening_side !== 'none' && p.opening_date <= to && BigInt(p.opening_amount) > 0n).map(p => ({ id: 'opening:' + p.id, party_id: p.id, date: p.opening_date, side: p.opening_side as 'due' | 'advance', amount: p.opening_amount })), ledger_balances: party ? partyBalances([...current, ...expenseRows, ...openingRows].filter(e => e.party_id === party), from, to) : balances, parties: partyList, entries: selected.slice(offset, offset + 50), count: selected.length, as_of: to };
+    return { balances, opening_entries: parties.filter(p => p.company === company && (!party || p.id === party) && p.opening_side !== 'none' && p.opening_date <= to && BigInt(p.opening_amount) > 0n).map(p => ({ id: 'opening:' + p.id, party_id: p.id, date: p.opening_date, side: p.opening_side as 'due' | 'advance', amount: p.opening_amount })), ledger_balances: party ? partyBalances([...current, ...expenseRows, ...openingRows].filter(e => e.party_id === party), from, to) : balances, parties: partyList, entries: selected.slice(offset, offset + 50).map(e=>({...e,reversed:current.some(r=>r.reverses_id===e.id&&r.effective_date<=to),bill_id:paymentLinks[e.id]?.bill??null})), count: selected.length, as_of: to };
 }
 function expenseReport(company: string, from: string, to: string, offset: number): ExpenseReport {
     const all = expenses.filter(e => e.company === company && e.date <= to);
@@ -473,7 +473,7 @@ function postTrade(command: Command) {
     else {
         pair = accounts[command.kind];
     }
-    entries.push({ id: command.id, company: command.company, party_id: command.party, party_name: party.name, kind: command.kind, effective_date: command.date, amount_minor: command.amount, debit_account: pair[0], credit_account: pair[1], reference: command.reference, note: command.note, reversed: false });
+    entries.push({ id: command.id, company: command.company, party_id: command.party, party_name: party.name, kind: command.kind, effective_date: command.date, amount_minor: command.amount, debit_account: pair[0], credit_account: pair[1], reference: command.reference, note: command.note, reversed: false, reverses_id: command.reverses });
 }
 export function deleteDemoParty(company: string, id: string) {
     const p = parties.find(p => p.id === id && p.company === company);

@@ -1,3 +1,4 @@
+import {currentEntries} from './current-entries';
 import { RetiredCompanies, WorkspaceSettings } from './WorkspaceSettings';
 import { DateRange } from './DateRange';
 import { textValue } from '../text-value';
@@ -443,12 +444,12 @@ function Books({ userId, language, company, onLock, onBill }: Readonly<Props & {
       </section>
 
       <section className="books-card" hidden={page !== 'ledger'}>
-        <SectionTitle title={t.ledger} subtitle={`${data.count} ${t.entries}`}/>
+        <SectionTitle title={t.ledger} subtitle={`${currentEntries(data.entries).length} ${t.entries}`}/>
         <label className="books-party-filter">{t.party}<select value={party} onChange={e => { setParty(e.target.value); setOffset(0); }}><option value="">{t.all}</option>{data.parties.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}</select></label>
         <div className="books-ledger-summary"><span>{t.opening} / {t.receivable}<strong>{money(data.ledger_balances.receivable?.opening ?? '0')}</strong></span><span>{t.opening} / {t.payable}<strong>{money(-BigInt(data.ledger_balances.payable?.opening ?? '0'))}</strong></span>
           <span>{t.closing} / {t.receivable}<strong>{money(data.ledger_balances.receivable?.closing ?? '0')}</strong></span><span>{t.closing} / {t.payable}<strong>{money(-BigInt(data.ledger_balances.payable?.closing ?? '0'))}</strong></span></div>
-        {!data.entries.length && <p className="books-empty">{t.empty}</p>}
-        {data.entries.map(v => <article className="books-entry" key={v.id}>
+        {!currentEntries(data.entries).length && <p className="books-empty">{t.empty}</p>}
+        {currentEntries(data.entries).map(v => <article className="books-entry" key={v.id}>
           <div className="books-entry-top"><span className={`books-badge ${v.kind}`}>{t[v.kind]}</span><time>{v.effective_date}</time><strong>{money(v.amount_minor)}</strong></div>
           <h3>{v.party_name}</h3><p>{t.dr}: {t[v.debit_account]} · {t.cr}: {t[v.credit_account]}</p>
           {v.reference && <p>{t.reference}: {v.reference}</p>}{v.note && <p>{v.note}</p>}

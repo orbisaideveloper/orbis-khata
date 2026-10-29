@@ -30,7 +30,7 @@ it('includes cash receipts, expense payments and their corrections exactly once'
   const trade = { id: 'v', party_id: 'a', party_name: 'Customer A', kind: 'receipt' as const, effective_date: '2026-10-10', amount_minor: '1000', debit_account: 'cash' as const, credit_account: 'receivable' as const, reference: 'R1', note: '', reversed: false }
   const payment = { id: 'p', effective_date: '2026-10-11', kind: 'payment' as const, amount: '300', category: 'Rent', payee: 'Rent owner', method: 'cash' as const, parent_id: 'e1', reverses_id: null, reference: '', note: '', reversed: true }
   const rows = moneyRows({ ...report, entries: [trade] }, { ...expenses, entries: [payment, { ...payment, id: 'reverse', kind: 'reversal', reverses_id: 'p' }] }, 'cash')
-  expect(rows).toHaveLength(3); expect(rows.reduce((n, r) => n + BigInt(r.amount), 0n)).toBe(1000n)
+  expect(rows).toHaveLength(1); expect(rows.reduce((n, r) => n + BigInt(r.amount), 0n)).toBe(1000n)
   expect(moneyRows({ ...report, entries: [trade] }, expenses, 'bank')).toHaveLength(0)
 })
 it('keeps the demo cash drill-down consistent with the journal after reversing an expense', async () => {

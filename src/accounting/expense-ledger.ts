@@ -19,7 +19,7 @@ export function expenseLedgerReport(_expenses: ExpenseReport, entries: ExpenseEn
                 accounts = [original[1], original[0]];
             }
         }
-        return { id: row.id, party_id: '', party_name: row.payee, kind: row.kind === 'charge' ? 'purchase' : row.kind, effective_date: row.effective_date, amount_minor: row.amount, debit_account: accounts[0], credit_account: accounts[1], reference: row.reference, note: [row.note, ...(row.bill_lines ?? []).map(l => l.description)].filter(Boolean).join(' · '), reversed: row.reversed };
+        return { id: row.id, party_id: '', party_name: row.payee, kind: row.kind === 'charge' ? 'purchase' : row.kind, effective_date: row.effective_date, amount_minor: row.amount, debit_account: accounts[0], credit_account: accounts[1], reference: row.reference, note: [row.note, ...(row.bill_lines ?? []).map(l => l.description)].filter(Boolean).join(' · '), reversed: row.reversed, reverses_id: row.reverses_id, settled_minor: row.kind==='charge'&&row.method?row.amount:'0' };
     });
     const movement = vouchers.reduce((sum, v) => sum + (v.debit_account === 'payable' ? BigInt(v.amount_minor) : 0n) - (v.credit_account === 'payable' ? BigInt(v.amount_minor) : 0n), 0n);
     return { balances: {}, ledger_balances: { payable: { opening: String(-due - movement), closing: String(-due) } }, parties, entries: vouchers, count: vouchers.length, as_of: '' };

@@ -84,7 +84,9 @@ it('does not offer reversing a reversed voucher or a reversal voucher', async ()
     const row = { id: 'v', party_id: 'p', party_name: 'Party', kind: 'sale' as const, effective_date: '2026-01-01', amount_minor: '100', debit_account: 'receivable' as const, credit_account: 'sales' as const, reference: '', note: '', reversed: true };
     api.report.mockResolvedValue({ ...empty, entries: [row, { ...row, id: 'r', reversed: false, kind: 'reversal' }], count: 2 });
     render(<Accounting userId="u" language="en"/>);
-    await waitFor(() => expect(document.querySelectorAll('.books-entry')).toHaveLength(2));
+    await waitFor(() => expect(api.report).toHaveBeenCalled());
+    await screen.findByText(/Journal mismatch/);
+    expect(document.querySelectorAll('.books-entry')).toHaveLength(0);
     expect(screen.queryByRole('button', { name: 'Reverse' })).toBeNull();
 });
 it('uses the voucher party identity when its display row is unavailable during retry', async () => {

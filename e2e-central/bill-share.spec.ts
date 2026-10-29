@@ -27,7 +27,7 @@ test('bill settings stay collapsed and export the selected Bengali invoice as a 
             'expense-report': { balances: {}, categories: [], bills: [], entries: [], count: 0 },
             workspace: null, 'retired-companies': [], 'party-balance': '0', 'inventory-post': 'saved',
         };
-        if(savedBill){const voucher={id:savedBill.id,party_id:party.id,party_name:party.name,kind:'purchase',effective_date:savedBill.date,amount_minor:'10000',debit_account:'purchases',credit_account:'payable',reference:savedBill.reference,note:'',reversed:false};results.report={balances:{},ledger_balances:{payable:{opening:'0',closing:'-10000'}},parties:[party],entries:[voucher],count:1};if(operation==='workspace'&&input.action==='detail')results.workspace={voucher,bill:{...savedBill,total:'10000'},payments:[],company_name:company.name,party_name:party.name,item_names:{[item.id]:item.name}};}
+        if(savedBill){const voucher={id:savedBill.id,party_id:party.id,party_name:party.name,kind:'purchase',effective_date:savedBill.date,amount_minor:'10000',debit_account:'purchases',credit_account:'payable',reference:savedBill.reference,note:'',reversed:false};results.report={balances:{},ledger_balances:{payable:{opening:'0',closing:'-6000'}},parties:[party],entries:[{...voucher,id:'old',reversed:true,reverses_id:null},{...voucher,id:'reverse',kind:'reversal',reverses_id:'old',debit_account:'payable',credit_account:'purchases'},voucher,{...voucher,id:'linked',kind:'payment',debit_account:'payable',credit_account:'cash',amount_minor:'4000',note:'Payment with bill',reverses_id:null}],count:4};if(operation==='workspace'&&input.action==='detail')results.workspace={voucher,bill:{...savedBill,total:'10000'},payments:[],company_name:company.name,party_name:party.name,item_names:{[item.id]:item.name}};}
     expect(Object.hasOwn(results, operation)).toBe(true);
         await route.fulfill({ headers, json: { data: results[operation] } });
     });
@@ -57,6 +57,10 @@ test('bill settings stay collapsed and export the selected Bengali invoice as a 
   await page.getByLabel('More options').click()
   await page.locator('.workspace-menu-panel').getByRole('button',{name:'Ledger',exact:true}).click()
   await page.getByRole('button',{name:new RegExp(party.name+' Party')}).click()
+  await expect(page.locator('.professional-ledger tbody tr')).toHaveCount(1)
+  await expect(page.locator('.professional-ledger tfoot')).toContainText('₹100.00')
+  await expect(page.locator('.professional-ledger tfoot')).toContainText('₹40.00')
+  await expect(page.locator('.professional-ledger tfoot')).toContainText('−₹60.00')
   await page.locator('.professional-ledger tbody td:nth-child(2) button').click()
   const dialog=page.getByRole('dialog',{name:'Entry details'})
   await expect(dialog.locator('.record-items table')).toBeVisible()

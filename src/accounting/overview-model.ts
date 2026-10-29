@@ -1,3 +1,4 @@
+import {currentEntries} from './current-entries'
 import { balance, type Report } from './model'
 import type { ExpenseReport } from './expense-model'
 import type { LedgerEntity } from './LedgerExplorer'
@@ -26,12 +27,12 @@ export function overviewAmount(report: Report, expenses: ExpenseReport, kind: Ov
 }
 export type MoneyRow = { id: string; date: string; name: string; amount: string; reference: string; kind: string; ledger: LedgerEntity }
 export function moneyRows(report: Report, expenses: ExpenseReport, account: 'cash' | 'bank'): MoneyRow[] {
-  const trades = report.entries.filter(v => v.debit_account === account || v.credit_account === account).map(v => ({
+  const trades = currentEntries(report.entries,true).filter(v => v.debit_account === account || v.credit_account === account).map(v => ({
     id: 'trade:' + v.id, date: v.effective_date, name: v.party_name,
     amount: String(BigInt(v.amount_minor) * (v.debit_account === account ? 1n : -1n)), reference: v.reference, kind: v.kind,
     ledger: { id: v.party_id, name: v.party_name, type: 'party' as const },
   }))
-  const costs = expenses.entries.filter(e => e.method === account).map(e => ({
+  const costs = currentEntries(expenses.entries,true).filter(e => e.method === account).map(e => ({
     id: 'expense:' + e.id, date: e.effective_date, name: e.payee || e.category,
     amount: String(BigInt(e.amount) * (e.kind === 'reversal' ? 1n : -1n)), reference: e.reference, kind: e.kind,
     ledger: { id: 'expense-payee:' + e.payee + ':' + e.category, name: e.payee || e.category, type: 'expense' as const, ...(e.payee ? { payee: e.payee } : { category: e.category }) },

@@ -244,3 +244,16 @@ advances. Preserve signed journals and advance entries in individual ledgers.
 Dues are as of the end date; expense movement uses the selected period. Load all
 transaction pages for cash/bank details and keep corrections visible. These are
 read-only display/navigation changes, not a new bill/payment posting contract.
+
+### 29 October 2026 — Current statements versus immutable corrections
+
+Owner requires edits to appear as the final bill in ordinary statements, with
+bill-time settlement in its bill row and independent payments kept separate.
+Retain the append-only correction journal for audit; exclude cancelled records
+and reversal events from ordinary gross totals. Preserve net journal balances.
+For period-boundary corrections, restate statement opening by the excluded net
+movement so opening + effective movements equals journal closing. Aggregate
+bill-time payments only through explicit bill links or the system-generated
+Payment with bill marker with one unique party/date/reference/type match; never
+join independent or ambiguous payments merely because references coincide.
+All statement exports use the same projection as the screen.

@@ -111,7 +111,7 @@ export function LedgerExplorer({ company, language, from, to, version, parties, 
     const expenseDue = selectedExpenseBills.reduce((sum, row) => sum + BigInt(row.due), 0n);
     const stockRows = data.inventory.stocks.filter(row => row.item === selected?.id);
     const item = data.inventory.items.find(row => row.id === selected?.id);
-    const documents = data.inventory.documents.filter(row => row.lines.some(line => line.item === selected?.id));
+    const documents = data.inventory.documents.filter(row => !row.reversed && row.lines.some(line => line.item === selected?.id));
     const expenseAdvance = language === 'bn' ? 'অ্যাডভান্স' : 'Advance', expensePreviousDue = language === 'bn' ? 'আগের বাকি' : 'Previous due';
     const partyData = partyResult?.key === partyKey ? partyResult.data : null;
     return <section className="books-card" aria-label={t.title}><h2>{t.title}</h2>

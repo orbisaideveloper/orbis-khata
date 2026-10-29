@@ -1,3 +1,4 @@
+import {currentEntries} from './current-entries';
 import { expensePendingKey as key, restoreExpense as recovered } from './expense-pending'
 import { useTutorial } from '../tutorial'
 import { useEffect, useRef, useState } from 'react'
@@ -118,8 +119,8 @@ export function Expenses({userId,company,companyName,language,from,to,version,on
       <h3>{t.categories}</h3>{data.categories.map(c=><p key={c.name}>{c.name} <strong>{money(c.amount)}</strong></p>)}
       <h3>{t.bills}</h3>{data.bills.map(b=><div className="books-entry" key={b.id}><span>{b.effective_date} · {b.category} · {b.payee} · {t.due}: {money(b.due)}</span>
         <button type="button" disabled={Boolean(pending)||busy||blocked} onClick={()=>pay(b)}>{t.payment}</button></div>)}
-      <h3>{t.entries} ({data.count})</h3>{!data.entries.length&&<p>{t.empty}</p>}
-      {data.entries.map(e=><article className="books-entry" key={e.id}><p>{e.effective_date} · {e.category} · {e.payee}</p>
+      <h3>{t.entries} ({currentEntries(data.entries).length})</h3>{!currentEntries(data.entries).length&&<p>{t.empty}</p>}
+      {currentEntries(data.entries).map(e=><article className="books-entry" key={e.id}><p>{e.effective_date} · {e.category} · {e.payee}</p>
         <p>{kindLabel[e.kind]} · {money(e.amount)} · {methodLabel(e)}</p>
         <p>{e.reference} {e.note}</p><details><summary>ID</summary>{e.id}</details>
         {e.reversed?<small>{t.reversed}</small>:e.kind!=='reversal'&&<button type="button" disabled={Boolean(pending)||busy||blocked} onClick={()=>reverse(e)}>{t.reversal}</button>}</article>)}
