@@ -1,13 +1,15 @@
+import {financialYear,fiscalReference} from '../accounting/numbering';
 import { defaultSettings, type WorkspaceSettings } from '../accounting/workspace-contract';
 import { textValue } from '../text-value';
 import { emptyPartyDetails, type DemoItem, type DemoParty } from './master-model';
 import { pendingCommand } from '../accounting/pending-command';
-import type { Company, Command, Report, Voucher } from '../accounting/model';
+import {today,type Company,type Command,type Report,type Voucher} from '../accounting/model';
 import { expenseCommand, type ExpenseCommand, type ExpenseReport } from '../accounting/expense-model';
 import type { InventoryCommand, InventoryReport } from '../inventory/model';
 import { billTotal, inventoryCommand, lineTotal } from '../inventory/model';
 const companyId = '11111111-1111-4111-8111-111111111111';
 const warehouseId = '22222222-2222-4222-8222-222222222222';
+let fiscalCounters:Record<string,string>={};
 let workspaceSettings: Record<string, WorkspaceSettings> = {};
 let workspaceEvents: Record<string, {
     payload: string;
@@ -38,7 +40,7 @@ let warehouses: (InventoryReport['warehouses'][number] & {
     company: string;
 })[] = [];
 export function resetDemo() {
-    workspaceSettings = {};
+    workspaceSettings = {}; fiscalCounters={};
     workspaceEvents = {};
     paymentLinks = {};
     retired = {};
@@ -163,12 +165,7 @@ export function demoPreviousBalance(company: string, partyId: string, date: stri
     const unpaid = expenseReport(company, '0001-01-01', date, 0).bills.filter(b => b.payee === p.name).reduce((sum, b) => sum + BigInt(b.due), 0n);
     return String(unpaid - (p.opening_side === 'advance' && p.opening_date <= date ? BigInt(p.opening_amount) : 0n));
 }
-export function nextDemoBillNumber(company: string, kind: 'sale' | 'purchase' | 'expense') {
-    const prefix = { sale: 'S', purchase: 'P', expense: 'E' }[kind];
-    const refs = kind === 'expense' ? expenses.filter(e => e.company === company && e.kind === 'charge').map(e => e.reference) : documents.filter(d => d.company === company && d.kind === kind).map(d => d.reference);
-    const last = refs.reduce((max, ref) => { const number = ref.startsWith(prefix + '-') ? ref.slice(2) : ''; return /^\d{1,8}$/u.test(number) ? Math.max(max, Number(number)) : max; }, 0);
-    return `${prefix}-${String(last + 1).padStart(4, '0')}`;
-}
+
 export function demoCompanyName(company: string) { return companies.find(c => c.id === company)?.name ?? ''; }
 export function demoMasters(company: string) { return { items: structuredClone(items.filter(i => i.company === company)), parties: structuredClone(parties.filter(p => p.company === company)) }; }
 function validText(value: string, max: number) { return value.length <= max && !/[<>]/u.test(value) && Array.from(value).every(char => (char.codePointAt(0) ?? 0) >= 32); }
@@ -561,13 +558,22 @@ function demoCorrection(p: Record<string, unknown>, company: string) {
     }
     return { ok: true };
 }
-function demoWorkspaceMutation(p: Record<string, unknown>, company: string, settings: WorkspaceSettings, id: string) {
-    if (p.action === 'number') {
+function demoNumber(p:Record<string,unknown>,company:string,settings:WorkspaceSettings){
         const kind = p.kind as keyof WorkspaceSettings['next'];
-        const result = settings.numbering[kind] + settings.next[kind];
-        settings.next[kind] = String(BigInt(settings.next[kind]) + 1n);
+        if(!p.date){const result=settings.numbering[kind]+settings.next[kind];settings.next[kind]=String(BigInt(settings.next[kind])+1n);return result;}
+        if(settings.mode?.[kind]==='manual')fail('MANUAL_NUMBER_REQUIRED');
+        const year=financialYear(String(p.date)),current=financialYear(today()),key=company+':'+kind+':'+year;
+        let seq=BigInt(fiscalCounters[key]??(year===current?settings.next[kind]:'1'));
+        const used=new Set([...documents.filter(d=>d.company===company&&d.kind===kind).map(d=>d.reference),...expenses.filter(e=>e.company===company).map(e=>e.reference),...Object.entries(workspaceEvents).filter(([key])=>key.startsWith('number:'+company+':')).map(([,e])=>e.result).filter((r):r is string=>typeof r==='string')]);
+        let result=fiscalReference(settings.numbering[kind],year,String(seq));
+        while(used.has(result)){seq++;result=fiscalReference(settings.numbering[kind],year,String(seq));}
+        if(seq>99999999n)fail('NUMBER_LIMIT');
+        fiscalCounters[key]=String(seq+1n);
+        if(year===current)settings.next[kind]=String(seq+1n);
         return result;
-    }
+}
+function demoWorkspaceMutation(p: Record<string, unknown>, company: string, settings: WorkspaceSettings, id: string) {
+    if (p.action === 'number') return demoNumber(p,company,settings);
     if (p.action === 'bill' || p.action === 'payment') {
         return demoSettlement(p, company, settings, id);
     }
@@ -588,6 +594,10 @@ function demoWorkspaceMutation(p: Record<string, unknown>, company: string, sett
     }
     fail('DEMO_OPERATION_UNSUPPORTED');
 }
+function saveWorkspaceSettings(company:string,settings:WorkspaceSettings,next:WorkspaceSettings){
+ for(const kind of ['sale','purchase','expense'] as const){if(next.next[kind]!==settings.next[kind])fiscalCounters[company+':'+kind+':'+financialYear(today())]=next.next[kind];}
+ workspaceSettings[company]=structuredClone(next);return next;
+}
 function demoWorkspace(p: Record<string, unknown>): unknown {
     const company = String(p.company), action = p.action;
     if (!companies.some(c => c.id === company)) {
@@ -597,10 +607,7 @@ function demoWorkspace(p: Record<string, unknown>): unknown {
     if (action === 'settings') {
         return settings;
     }
-    if (action === 'settings-save') {
-        workspaceSettings[company] = structuredClone(p.settings as WorkspaceSettings);
-        return p.settings;
-    }
+    if (action === 'settings-save') return saveWorkspaceSettings(company,settings,p.settings as WorkspaceSettings);
     if (action === 'retire' || action === 'restore') {
         if (!companies.some(c => c.id === company && c.name === p.name)) {
             fail('COMPANY_NOT_ACCESSIBLE');
@@ -622,14 +629,14 @@ function demoWorkspace(p: Record<string, unknown>): unknown {
     return demoWorkspaceTransaction(p, company, settings);
 }
 function demoWorkspaceTransaction(p: Record<string, unknown>, company: string, settings: WorkspaceSettings) {
-    const id = String(p.action === 'bill' ? (p.bill as InventoryCommand).id : p.id), key = p.action === 'number' ? 'number:' + id : id, payload = JSON.stringify(p), existing = workspaceEvents[key];
+    const id = String(p.action === 'bill' ? (p.bill as InventoryCommand).id : p.id), year=p.action==='number'&&p.date?financialYear(String(p.date)):null, key = p.action === 'number' ? 'number:' + company+':'+p.kind+':'+id+':'+year : id, payload = JSON.stringify(year===null?p:{...p,date:year}), existing = workspaceEvents[key];
     if (existing) {
         if (existing.payload !== payload) {
             fail('IDEMPOTENCY_CONFLICT');
         }
         return existing.result;
     }
-    const before = structuredClone({ entries, documents, expenses, paymentLinks, workspaceEvents, reversals: [...inventoryReversals] });
+    const before = structuredClone({ entries, documents, expenses, paymentLinks, workspaceEvents, fiscalCounters, reversals: [...inventoryReversals] });
     try {
         const result = demoWorkspaceMutation(p, company, settings, id);
         workspaceEvents[key] = { payload, result };
@@ -640,7 +647,7 @@ function demoWorkspaceTransaction(p: Record<string, unknown>, company: string, s
         documents = before.documents;
         expenses = before.expenses;
         paymentLinks = before.paymentLinks;
-        workspaceEvents = before.workspaceEvents;
+        workspaceEvents = before.workspaceEvents; fiscalCounters=before.fiscalCounters;
         inventoryReversals.clear();
         for (const [key, value] of before.reversals) {
             inventoryReversals.set(key, value);

@@ -291,3 +291,7 @@ Use memory-only duplicate-read coalescing and an 8-second masters/settings cache
 invalidate on writes, explicit refresh, token changes and logout. Do not cache
 financial reports or silently queue writes. PWA shell caching is not full offline
 financial storage; IndexedDB/offline sync remains a separate unimplemented scope.
+
+## 2026-10-29 — Bill numbering follows the invoice financial year
+
+Company settings select automatic/manual independently for sales, purchases and expenses. Automatic references use configured prefix + Indian financial year (April 1–March 31) + serial, e.g. S-2026-27/42. Next serial changes the current financial year; other years start at 1. A company/kind/year/draft reservation is idempotent and company-locked; retries and same-year date changes retain the reference. Cancelled drafts can leave gaps; reserved/used automatic references are never reused. Historical posted references are not renumbered. Manual mode requires an explicit reference. Unavailable/invalid settings or number allocation disables review and exposes retry; never substitute a UUID reference. Existing bill/payment accounting math and recovery payloads stay intact.

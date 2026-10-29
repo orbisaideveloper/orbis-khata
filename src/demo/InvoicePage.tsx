@@ -1,3 +1,5 @@
+import {InvoiceNumberField} from '../accounting/InvoiceNumberField';
+import {useInvoiceNumber} from '../accounting/use-invoice-number';
 import { useWorkspaceSettings } from '../accounting/use-settings';
 import { billError } from '../accounting/business-error';
 import { readBillTemplate, rememberBillTemplate } from '../billing/bill-preference';
@@ -21,7 +23,7 @@ import { minor, money, today } from '../accounting/model';
 import { billTotal, displayQuantity, quantity, type InventoryCommand, type StockLine } from '../inventory/model';
 import { decimal, itemLabel, type DemoItem, type DemoParty } from './master-model';
 import { masterCopy } from './master-copy';
-import { demoRequest, nextDemoBillNumber, saveDemoExpenseBill, demoPreviousBalance } from './store';
+import { demoRequest, saveDemoExpenseBill, demoPreviousBalance } from './store';
 export type BillKind = 'sale' | 'purchase' | 'expense';
 const copy = {
     bn: { memo: 'মেমো / বিল', subtotal: 'সাবটোটাল', previous: 'আগের ব্যালেন্স (B/F)', totalQuantity: 'মোট পরিমাণ', partySignature: 'পার্টির স্বাক্ষর', authorizedSignature: 'অনুমোদিত স্বাক্ষর', thanks: 'ধন্যবাদ', creditBalance: 'অবশিষ্ট অ্যাডভান্স', sale: 'বিক্রয় বিল', purchase: 'ক্রয় বিল', expense: 'খরচের বিল', number: 'বিল নম্বর', date: 'তারিখ', party: 'পার্টি', choose: 'বেছে নিন', serial: 'নং', item: 'আইটেমের নাম', description: 'বিবরণ', quantity: 'পরিমাণ', unit: 'ইউনিট', rate: 'দর', amount: 'টাকা', total: 'সর্বমোট', add: 'রো যোগ করুন', remove: 'সরান', review: 'বিল যাচাই', confirm: 'নিশ্চিত করে সংরক্ষণ', edit: 'বিলে ফিরুন', cancel: 'ফিরে যান', notes: 'নোট', warehouse: 'গোডাউন', saved: 'বিল সংরক্ষণ হয়েছে।', invalid: 'পার্টি, আইটেম, পরিমাণ ও দর পরীক্ষা করুন।', stock: 'এই গোডাউনে পর্যাপ্ত স্টক নেই।', due: 'এই বিলের টাকা বাকি হিসাবে থাকবে।', method: 'পরিশোধ', unpaid: 'বাকি', cash: 'নগদ', bank: 'ব্যাংক', print: 'বিল প্রিন্ট', newBill: 'নতুন বিল', noParty: 'আগে এই ধরনের পার্টি যোগ করুন।', category: 'খরচের খাতা' },
@@ -92,19 +94,10 @@ function accountWillBeNegative(kind: BillKind, paid: bigint, accounts: {
     id: string;
     balance: string;
 }[], id: string) { return kind === 'purchase' && paid > BigInt(accounts.find(row => row.id === id)?.balance ?? '0'); }
-function chosenReference(reference: string, serial: string, fallback: string) { return reference.trim() || serial || fallback; }
-const billPrefixes = { sale: 'S', purchase: 'P', expense: 'E' };
+function invoiceReference(manual:boolean,reference:string,number:string){return manual?reference.trim():number;}
 const partyKinds = { sale: 'customer', purchase: 'supplier', expense: 'expense' } as const;
 const allowedKinds: Record<BillKind, readonly DemoParty['kind'][]> = { sale: ['customer', 'both'], purchase: ['supplier', 'both'], expense: ['expense'] };
-function automaticBillNumber(services: BookServices | null, id: string, kind: BillKind, company: string) {
-    if (services) {
-        return `${billPrefixes[kind]}-${id.slice(0, 8).toUpperCase()}`;
-    }
-    if (import.meta.env.DEV) {
-        return nextDemoBillNumber(company, kind);
-    }
-    return '';
-}
+
 type BillDraft = {
     id: string;
     company: string;
@@ -186,7 +179,7 @@ export function InvoicePage({ kind, language, company, companyName, items, parti
 }>) {
     const t = copy[language], m = masterCopy[language], d = designCopy[language], services = useBookServices();
     const [recovery, setRecovery] = useState(() => services ? restoreBill(userId) : null);
-    const { settings, request } = useWorkspaceSettings(company, Boolean(recovery));
+    const { settings, request, loaded, reload:reloadSettings, failed:settingsFailed } = useWorkspaceSettings(company, Boolean(recovery));
     const [focusedRate, setFocusedRate] = useState('');
     const [stockSnapshot, setStockSnapshot] = useState<{
         item: string;
@@ -197,10 +190,10 @@ export function InvoicePage({ kind, language, company, companyName, items, parti
         id: string;
         balance: string;
     }[]>([]);
-    const [paid, setPaid] = useState(''), [account, setAccount] = useState('cash'), [round, setRound] = useState(false), [serial, setSerial] = useState('');
+    const [paid, setPaid] = useState(''), [account, setAccount] = useState('cash'), [round, setRound] = useState(false);
     const balanceGeneration = useRef(0), [balanceBusy, setBalanceBusy] = useState(false), [balanceFailed, setBalanceFailed] = useState(false);
     const [template, setTemplate] = useState<BillTemplate>(readBillTemplate), [companyDetails, setCompanyDetails] = useState('');
-    const [id] = useState(() => crypto.randomUUID()), [automaticNumber] = useState(() => automaticBillNumber(services, id, kind, company)), guard = useRef(false);
+    const [id] = useState(() => crypto.randomUUID()), guard = useRef(false);
     const [lines, setLines] = useState<Line[]>([fresh()]), [partyId, setPartyId] = useState(''), [date, setDate] = useState(today), [reference, setReference] = useState(''), [note, setNote] = useState(''), [warehouse, setWarehouse] = useState(warehouses[0]?.id ?? ''), [category, setCategory] = useState(''), [method, setMethod] = useState('due'), [phase, setPhase] = useState<'edit' | 'review' | 'saved'>('edit'), [error, setError] = useState(''), [busy, setBusy] = useState(false), [previous, setPrevious] = useState('0');
     const [addingParty, setAddingParty] = useState(false), [addedParties, setAddedParties] = useState<DemoParty[]>([]);
     const allParties = [...new Map([...parties, ...addedParties].filter(p => p.company === company).map(p => [p.id, p])).values()];
@@ -281,7 +274,8 @@ export function InvoicePage({ kind, language, company, companyName, items, parti
     }
     useEffect(() => { onLock?.(busy); return () => { onLock?.(false); }; }, [busy, onLock]);
     const { adjustment, payable, paidMinor, grandTotal } = settlementAmounts(total(), paid, round, previous);
-    const billNumber = chosenReference(reference, serial, automaticNumber);
+    const numbering=useInvoiceNumber({company,id,kind,date,settings,loaded,request,disabled:Boolean(recovery)});
+    const billNumber = invoiceReference(numbering.manual,reference,numbering.number);
     useEffect(() => {
         if (recovery) {
             return;
@@ -311,23 +305,11 @@ export function InvoicePage({ kind, language, company, companyName, items, parti
     }, [company, date, request, recovery]);
     const negativeStock = needsStockWarning(kind, lines, stockSnapshot, selectedWarehouse);
     const negativeCash = accountWillBeNegative(kind, paidMinor, accountBalances, account);
-    useEffect(() => {
-        if (recovery) {
-            return;
-        }
-        let alive = true;
-        void request('workspace', { company, action: 'number', id, kind }).then(value => {
-            if (alive && typeof value === 'string') {
-                setSerial(value);
-            }
-        }, () => { });
-        return () => { alive = false; };
-    }, [company, id, kind, request, recovery]);
     function review(event: React.SyntheticEvent<HTMLFormElement>) {
         event.preventDefault();
         setError('');
         try {
-            if (balanceBusy || balanceFailed || !party || !allowed.some(p => p.id === party.id) || date > today() || !date || !lines.length || lines.length > 50 || total() <= 0n) {
+            if (settingsFailed || numbering.loading || numbering.failed || !billNumber || balanceBusy || balanceFailed || !party || !allowed.some(p => p.id === party.id) || date > today() || !date || !lines.length || lines.length > 50 || total() <= 0n) {
                 throw new Error('INVALID_BILL');
             }
             stockLines();
@@ -427,7 +409,8 @@ export function InvoicePage({ kind, language, company, companyName, items, parti
   <form onSubmit={review}>
    <details className="bill-company-details"><summary>{d.businessDetails}</summary><label>{d.businessAddress}<textarea maxLength={250} value={companyDetails} onChange={e => setCompanyDetails(e.target.value)}/></label></details>
    <div className="invoice-party"><p className="bill-party-context">{companyName} · {m[partyKind]}</p>{<label>{t.party}<select required value={partyId} onChange={e => pickParty(e.target.value)}><option value="">{t.choose}</option>{allowed.map(p => <option key={p.id} value={p.id}>{p.name} · {m[p.kind]}</option>)}</select></label>}<button type="button" className="bill-add-party" onClick={() => setAddingParty(true)}>＋ {m.addParty}</button>{!allowed.length && <output>{t.noParty} ({m[partyKind]})</output>}{party && <address><strong>{party.name}</strong><span>{m[party.kind]}</span>{party.phone && <span>{m.phone}: {party.phone}</span>}{party.address && <span>{party.address}</span>}{party.email && <span>{party.email}</span>}</address>}</div>
-   <div className="invoice-meta">{<><label>{t.number}<input value={reference} placeholder={billNumber} maxLength={80} onChange={e => setReference(e.target.value)}/></label><label>{t.date}<input type="date" required max={today()} value={date} onChange={e => pickDate(e.target.value)}/></label></>}</div>
+   <div className="invoice-meta">{<><InvoiceNumberField numbering={numbering} reference={reference} onReference={setReference} label={t.number} language={language} settingsFailed={settingsFailed} onRetry={()=>{reloadSettings();numbering.retry();}}/><label>{t.date}<input type="date" required max={today()} value={date} onChange={e => pickDate(e.target.value)}/></label></>}</div>
+
    {kind !== 'expense' && warehouses.length > 1 && <label>{t.warehouse}<select value={selectedWarehouse} onChange={e => setWarehouse(e.target.value)}>{warehouses.map(w => <option key={w.id} value={w.id}>{w.name}</option>)}</select></label>}
    {kind === 'expense' && <div className="invoice-meta"><label>{t.category}<input maxLength={80} value={category} onChange={e => setCategory(e.target.value)}/></label><label>{t.method}<select value={method} onChange={e => setMethod(e.target.value)}>{(['due', 'cash', 'bank'] as const).map(value => <option key={value} value={value}>{value === 'due' ? t.unpaid : t[value]}</option>)}</select></label></div>}
    <div className="invoice-scroll"><table className="invoice-table"><thead><tr><th>{t.serial}</th><th>{kind === 'expense' ? t.description : t.item}</th><th>{t.quantity}</th><th>{t.rate}</th><th>{t.amount}</th>{<th />}</tr></thead><tbody>{lines.map((line, index) => <tr key={line.key}><td>{index + 1}</td><td>{(kind === 'expense' ? <input aria-label={`${t.description} ${index + 1}`} required maxLength={120} value={line.description} onChange={e => change(line.key, 'description', e.target.value)}/> : <select aria-label={`${t.item} ${index + 1}`} required value={line.item} onChange={e => change(line.key, 'item', e.target.value)}><option value="">{t.choose}</option>{items.map(item => <option key={item.id} value={item.id}>{itemLabel(item)}</option>)}</select>)}</td><td data-label={t.quantity}>{<input aria-label={`${t.quantity} ${index + 1}`} inputMode="decimal" required value={line.quantity} onChange={e => change(line.key, 'quantity', e.target.value)}/>}<small className="memo-unit">{items.find(i => i.id === line.item)?.unit ?? ''}</small></td><td data-label={t.rate}>{<input aria-label={`${t.rate} ${index + 1}`} inputMode="decimal" required value={focusedRate === line.key ? line.rate : displayedRate(line.rate)} onFocus={() => setFocusedRate(line.key)} onBlur={() => setFocusedRate('')} onChange={e => change(line.key, 'rate', e.target.value)}/>}</td><td data-label={t.amount}>{<input aria-label={`${t.amount} ${index + 1}`} inputMode="decimal" required value={line.amount} onChange={e => change(line.key, 'amount', e.target.value)}/>}</td>{<td><button type="button" aria-label={`${t.remove} ${index + 1}`} disabled={lines.length === 1} onClick={() => {
@@ -443,7 +426,7 @@ export function InvoicePage({ kind, language, company, companyName, items, parti
    {<details className="invoice-notes"><summary>{t.notes}</summary><textarea aria-label={t.notes} maxLength={500} value={note} onChange={e => setNote(e.target.value)}/></details>}
    {kind !== 'expense' && !paid && <p className="books-hint">{t.due}</p>}{error && <output role="alert">{error}</output>}
    <p className="memo-thanks">{t.thanks}</p><div className="memo-signatures"><span>{t.partySignature}</span><span>{t.authorizedSignature}</span></div>
-   <div className="books-buttons memo-controls"><button type="submit" className="books-primary" disabled={!allowed.length || balanceBusy || balanceFailed}>{t.review}</button></div>
+   <div className="books-buttons memo-controls"><button type="submit" className="books-primary" disabled={!allowed.length || balanceBusy || balanceFailed || numbering.loading || numbering.failed || settingsFailed}>{t.review}</button></div>
   </form>
  </section>;
 }

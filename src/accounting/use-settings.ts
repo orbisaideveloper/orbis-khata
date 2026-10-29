@@ -5,6 +5,7 @@ import { requestKhata } from './api';
 import { defaultSettings, validSettings } from './workspace-contract';
 export function useWorkspaceSettings(company: string, disabled = false) {
     const services = useBookServices(), request = services?.request ?? (import.meta.env.DEV ? demoRequest : requestKhata);
+    const [revision,setRevision]=useState(0);
     const [result, setResult] = useState({ company: '', settings: defaultSettings(), failed: false });
     useEffect(() => {
         if (disabled || !company) {
@@ -13,7 +14,7 @@ export function useWorkspaceSettings(company: string, disabled = false) {
         let alive = true;
         void request('workspace', { company, action: 'settings' }).then(value => {
             if (alive) {
-                setResult({ company, settings: validSettings(value) ? value : defaultSettings(), failed: false });
+                setResult({ company, settings: validSettings(value) ? value : defaultSettings(), failed: !validSettings(value) });
             }
         }, () => {
             if (alive) {
@@ -21,6 +22,6 @@ export function useWorkspaceSettings(company: string, disabled = false) {
             }
         });
         return () => { alive = false; };
-    }, [company, request, disabled]);
-    return { request, settings: result.company === company ? result.settings : defaultSettings(), failed: result.company === company && result.failed };
+    }, [company, request, disabled,revision]);
+    return { request, reload:()=>setRevision(n=>n+1), loaded: result.company === company && !result.failed, settings: result.company === company ? result.settings : defaultSettings(), failed: result.company === company && result.failed };
 }

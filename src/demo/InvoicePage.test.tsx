@@ -1,4 +1,5 @@
-import { cleanup, fireEvent, render, screen, within } from '@testing-library/react';
+import {defaultSettings} from '../accounting/workspace-contract';
+import { cleanup, fireEvent, render, screen, within, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { InvoicePage } from './InvoicePage';
 import { demoMasters, demoRequest, resetDemo, saveDemoItem, saveDemoParty } from './store';
@@ -17,6 +18,7 @@ function fill() {
     fireEvent.change(screen.getByLabelText('Item name 1'), { target: { value: demoMasters(company).items[0].id } });
     fireEvent.change(screen.getByLabelText('Quantity 1'), { target: { value: '10' } });
 }
+async function reviewBill(){await waitFor(()=>expect(screen.getByLabelText('Bill number')).not.toHaveValue(''));fireEvent.click(screen.getByRole('button',{name:'Review bill'}));}
 it('shows a real bill table, party contact details and an editable default rate; posts only after confirmation', async () => {
     mount();
     fill();
@@ -29,7 +31,7 @@ it('shows a real bill table, party contact details and an editable default rate;
     fireEvent.change(screen.getByLabelText('Rate 1'), { target: { value: '65' } });
     expect(screen.getByLabelText('Amount 1')).toHaveValue('650.00');
     expect(within(screen.getByRole('table')).getByText('₹650.00')).toBeInTheDocument();
-    fireEvent.click(screen.getByRole('button', { name: 'Review bill' }));
+    await reviewBill();
     expect((await demoRequest<InventoryReport>('inventory-report', { company, from: '2026-01-01', to: '2099-12-31', offset: 0 })).documents).toHaveLength(0);
     fireEvent.click(screen.getByRole('button', { name: 'Confirm & save' }));
     await screen.findByText('Bill saved.');
@@ -37,14 +39,14 @@ it('shows a real bill table, party contact details and an editable default rate;
     expect(inventory.stocks[0].closing).toBe('10000000');
     expect(inventory.documents[0].total).toBe('65000');
 });
-it('accepts an item with no default rate and lets the user enter the rate in the bill', () => {
+it('accepts an item with no default rate and lets the user enter the rate in the bill', async () => {
     const item = demoMasters(company).items[0];
     saveDemoItem({ ...item, default_rate: null });
     mount();
     fill();
     expect(screen.getByLabelText('Rate 1')).toHaveValue('');
     fireEvent.change(screen.getByLabelText('Rate 1'), { target: { value: '70' } });
-    fireEvent.click(screen.getByRole('button', { name: 'Review bill' }));
+    await reviewBill();
     expect(screen.getByRole('button', { name: 'Confirm & save' })).toBeInTheDocument();
 });
 it('keeps expense bills out of inventory and records their exact total once', async () => {
@@ -54,7 +56,7 @@ it('keeps expense bills out of inventory and records their exact total once', as
     fireEvent.change(screen.getByLabelText('Party'), { target: { value: supplier.id } });
     fireEvent.change(screen.getByLabelText('Description 1'), { target: { value: 'October electricity' } });
     fireEvent.change(screen.getByLabelText('Rate 1'), { target: { value: '100' } });
-    fireEvent.click(screen.getByRole('button', { name: 'Review bill' }));
+    await reviewBill();
     fireEvent.click(screen.getByRole('button', { name: 'Confirm & save' }));
     await screen.findByText('Bill saved.');
     const range = { company, from: '2026-01-01', to: '2099-12-31', offset: 0 };
@@ -71,7 +73,7 @@ it('uses the selected company name and posts the exact amount entered even when 
     fireEvent.change(screen.getByLabelText('Quantity 1'), { target: { value: '3' } });
     fireEvent.change(screen.getByLabelText('Amount 1'), { target: { value: '100' } });
     expect(screen.getByLabelText('Rate 1')).toHaveValue('33.33');
-    fireEvent.click(screen.getByRole('button', { name: 'Review bill' }));
+    await reviewBill();
     fireEvent.click(screen.getByRole('button', { name: 'Confirm & save' }));
     await screen.findByText('Bill saved.');
     const inventory = await demoRequest<InventoryReport>('inventory-report', { company, from: '2026-01-01', to: '2099-12-31', offset: 0 });
@@ -86,13 +88,13 @@ it('shows previous balance separately and never posts it again with the new bill
     fireEvent.change(screen.getByLabelText('Amount 1'), { target: { value: '100' } });
     expect(screen.getByText('₹500.00')).toBeInTheDocument();
     expect(screen.getByText('₹600.00')).toBeInTheDocument();
-    fireEvent.click(screen.getByRole('button', { name: 'Review bill' }));
+    await reviewBill();
     fireEvent.click(screen.getByRole('button', { name: 'Confirm & save' }));
     await screen.findByText('Bill saved.');
     expect((await demoRequest<InventoryReport>('inventory-report', { company, from: '2026-01-01', to: '2099-12-31', offset: 0 })).documents[0].total).toBe('10000');
     expect(screen.getByText('₹600.00')).toBeInTheDocument();
 });
-it('adds and removes bill rows without losing the first row pricing', () => {
+it('adds and removes bill rows without losing the first row pricing', async () => {
     mount();
     fill();
     fireEvent.click(screen.getByRole('button', { name: '＋ Add row' }));
@@ -110,7 +112,7 @@ it('switches three printable designs without changing the bill or saving it', as
     fill();
     fireEvent.change(screen.getByLabelText('Company address / phone'), { target: { value: 'Krishnanagar · 12345' } });
     fireEvent.click(screen.getByLabelText('Office bill'));
-    fireEvent.click(screen.getByRole('button', { name: 'Review bill' }));
+    await reviewBill();
     expect(screen.getByRole('article')).toHaveClass('bill-template-classic');
     expect(screen.getByText('Krishnanagar · 12345')).toBeInTheDocument();
     for (const [name, style] of [['Modern', 'modern'], ['Blue memo', 'sample']]) {
@@ -139,13 +141,13 @@ it('creates a supplier inside the bill, selects it, and posts to that party with
     expect(screen.getByLabelText('Party')).toHaveValue(created.id);
     expect(screen.getByLabelText('Amount 1')).toHaveValue('750');
     expect(screen.getByText('9876501234', { exact: false })).toBeInTheDocument();
-    fireEvent.click(screen.getByRole('button', { name: 'Review bill' }));
+    await reviewBill();
     fireEvent.click(screen.getByRole('button', { name: 'Confirm & save' }));
     await screen.findByText('Bill saved.');
     const report = await demoRequest<import('../accounting/model').Report>('report', { company, from: '2026-01-01', to: '2099-12-31', offset: 0, party: null });
     expect(report.entries[0]).toMatchObject({ party_id: created.id, party_name: 'Ajay Supplier', amount_minor: '75000' });
 });
-it('shows only matching company and bill-role parties and keeps the draft when party creation is cancelled', () => {
+it('shows only matching company and bill-role parties and keeps the draft when party creation is cancelled', async () => {
     const other = { ...supplier, id: crypto.randomUUID(), company: 'other-company', name: 'Other tenant' };
     const customer = { ...supplier, id: crypto.randomUUID(), kind: 'customer' as const, name: 'Customer only' };
     render(<InvoicePage kind="purchase" language="en" company={company} companyName="Shop" items={demoMasters(company).items} parties={[supplier, other, customer]} warehouses={[{ id: warehouse, name: 'Main' }]} onSaved={() => { }} onBack={() => { }}/>);
@@ -157,7 +159,7 @@ it('shows only matching company and bill-role parties and keeps the draft when p
     expect(screen.getByLabelText('Party')).toHaveValue(supplier.id);
     expect(screen.getByLabelText('Amount 1')).toHaveValue('600.00');
 });
-it('lets an empty sales bill add a customer rather than leaving an unusable party dropdown', () => {
+it('lets an empty sales bill add a customer rather than leaving an unusable party dropdown', async () => {
     mount('sale');
     expect(screen.getByRole('status')).toHaveTextContent('Customer');
     fireEvent.click(screen.getByRole('button', { name: '＋ Add party' }));
@@ -167,15 +169,17 @@ it('lets an empty sales bill add a customer rather than leaving an unusable part
     expect(screen.getByRole('option', { name: 'New customer · Customer' })).toBeInTheDocument();
     expect(screen.getByLabelText('Party')).toHaveValue(demoMasters(company).parties.find(p => p.name === 'New customer')!.id);
 });
-it('uses the loaded default godown when bill opens before the godown list arrives', () => {
+it('uses the loaded default godown when bill opens before the godown list arrives', async () => {
     const props = { kind: 'purchase' as const, language: 'en' as const, company, companyName: 'Shop', ...demoMasters(company), onSaved: () => { }, onBack: () => { } };
     const view = render(<InvoicePage {...props} warehouses={[]}/>);
     fill();
     view.rerender(<InvoicePage {...props} warehouses={[{ id: warehouse, name: 'Main' }]}/>);
-    fireEvent.click(screen.getByRole('button', { name: 'Review bill' }));
+    await reviewBill();
     expect(screen.getByRole('button', { name: 'Confirm & save' })).toBeInTheDocument();
 });
 it('saves a partial bank payment and round-off together with the purchase bill', async () => {
- mount(); fill(); fireEvent.change(screen.getByLabelText('Quantity 1'),{target:{value:'1'}});fireEvent.change(screen.getByLabelText('Rate 1'),{target:{value:'100.49'}});fireEvent.change(screen.getByLabelText('Paid now'),{target:{value:'40'}});fireEvent.change(screen.getByLabelText('Account'),{target:{value:'bank'}});fireEvent.click(screen.getByLabelText('Round to nearest rupee'));fireEvent.focus(screen.getByLabelText('Rate 1'));fireEvent.blur(screen.getByLabelText('Rate 1'));fireEvent.click(screen.getByRole('button',{name:'Review bill'}));fireEvent.click(screen.getByRole('button',{name:'Confirm & save'}));await screen.findByText('Bill saved.');const r=await demoRequest<any>('report',{company,from:'2026-01-01',to:'2099-12-31',offset:0});expect(r.balances.bank.closing).toBe('-4000');expect(r.parties.find((p:any)=>p.id===supplier.id).payable).toBe('6000');
+ mount(); fill(); fireEvent.change(screen.getByLabelText('Quantity 1'),{target:{value:'1'}});fireEvent.change(screen.getByLabelText('Rate 1'),{target:{value:'100.49'}});fireEvent.change(screen.getByLabelText('Paid now'),{target:{value:'40'}});fireEvent.change(screen.getByLabelText('Account'),{target:{value:'bank'}});fireEvent.click(screen.getByLabelText('Round to nearest rupee'));fireEvent.focus(screen.getByLabelText('Rate 1'));fireEvent.blur(screen.getByLabelText('Rate 1'));await reviewBill();fireEvent.click(screen.getByRole('button',{name:'Confirm & save'}));await screen.findByText('Bill saved.');const r=await demoRequest<any>('report',{company,from:'2026-01-01',to:'2099-12-31',offset:0});expect(r.balances.bank.closing).toBe('-4000');expect(r.parties.find((p:any)=>p.id===supplier.id).payable).toBe('6000');
 });
-it('rejects overpayment before sending an invoice and preserves the editable draft',()=>{mount();fill();fireEvent.change(screen.getByLabelText('Paid now'),{target:{value:'999999'}});fireEvent.click(screen.getByRole('button',{name:'Review bill'}));expect(screen.getByRole('alert')).toHaveTextContent('Check party');expect(screen.getByLabelText('Paid now')).toHaveValue('999999');});
+it('rejects overpayment before sending an invoice and preserves the editable draft',async()=>{mount();fill();fireEvent.change(screen.getByLabelText('Paid now'),{target:{value:'999999'}});await reviewBill();expect(screen.getByRole('alert')).toHaveTextContent('Check party');expect(screen.getByLabelText('Paid now')).toHaveValue('999999');});
+
+it('requires a manual reference when selected in settings and posts that exact number',async()=>{const settings=defaultSettings();settings.mode={sale:'auto',purchase:'manual',expense:'auto'};await demoRequest('workspace',{company,action:'settings-save',settings});mount();fill();await waitFor(()=>expect(screen.getByLabelText('Bill number')).not.toHaveAttribute('readonly'));fireEvent.change(screen.getByLabelText('Bill number'),{target:{value:'MY-105'}});fireEvent.click(screen.getByRole('button',{name:'Review bill'}));fireEvent.click(await screen.findByRole('button',{name:'Confirm & save'}));await screen.findByText('Bill saved.');const report=await demoRequest<InventoryReport>('inventory-report',{company,from:'2026-01-01',to:'2099-12-31',offset:0});expect(report.documents[0].reference).toBe('MY-105');});

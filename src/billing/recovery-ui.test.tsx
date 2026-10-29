@@ -1,3 +1,4 @@
+import {defaultSettings} from '../accounting/workspace-contract';
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, expect, it, vi } from 'vitest';
 import { BookServicesContext, type BookServices } from '../books-services';
@@ -13,7 +14,7 @@ it('blocks the retry while a different company is selected', () => { const s = m
 it('saves a real expense bill with exact descriptive lines after its party balance loads', async () => {
     const { emptyPartyDetails } = await import('../demo/master-model');
     const party = { id, company: id, name: 'Power company', kind: 'expense' as const, receivable: '0', payable: '0', ...emptyPartyDetails };
-    const request = vi.fn().mockResolvedValue(undefined), previous = vi.fn().mockResolvedValue('5000'), saved = vi.fn();
+    const request = vi.fn().mockImplementation(async(_op,p)=>p.action==='settings'?defaultSettings():p.action==='number'?'E-2026-27/1':undefined), previous = vi.fn().mockResolvedValue('5000'), saved = vi.fn();
     vi.spyOn(window, 'scrollTo').mockImplementation(() => { });
     render(<BookServicesContext.Provider value={{ request, previous } as unknown as BookServices}><InvoicePage userId="owner" kind="expense" language="en" company={id} companyName="Original shop" items={[]} parties={[party]} warehouses={[]} onSaved={saved} onBack={() => { }}/></BookServicesContext.Provider>);
     fireEvent.change(screen.getByLabelText('Party'), { target: { value: id } });

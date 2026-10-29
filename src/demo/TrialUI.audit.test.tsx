@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, render, screen, within } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, within, waitFor } from '@testing-library/react';
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import DemoApp from './DemoApp';
 import { ItemMaster, PartyMaster } from './Masters';
@@ -35,6 +35,7 @@ async function bill(kind: 'sale' | 'purchase' | 'expense', party: string, qty: s
     }
     change('Quantity 1', qty);
     change('Rate 1', rate);
+    await waitFor(()=>expect(screen.getByLabelText('Bill number')).not.toHaveValue(''));
     fireEvent.click(screen.getByRole('button', { name: 'Review bill' }));
     expect(screen.getByRole('article')).toHaveTextContent(kind === 'sale' ? 'Trial customer' : kind === 'purchase' ? 'Trial supplier' : 'Trial power');
     if (kind === 'purchase') {
