@@ -277,3 +277,17 @@ Keep negative liquidity figures red and nonnegative figures green; expense figur
 may remain purple. Selected date presets and press feedback use light saffron.
 All five date presets stay in one compact row on phones. This presentation change
 must preserve persisted financial data, correction history and delete semantics.
+
+### 29 October 2026 — Audited opening edits and responsive entry
+
+Owner authorizes editing a party's opening amount, side and date after transactions
+exist. Keep old/new values in khata_master_audit and retain all vouchers. Existing
+used-party kind/account identity, deletion, item-unit, ownership and purge guards
+remain. Require two confirmations for an existing opening correction in the UI.
+Numeric amount/quantity taps select the previous value for replacement. Party names
+open a scoped ledger/details view. Preserve the glass theme and add an optional
+simple blue theme under More -> Themes, with device-only theme preference.
+Use memory-only duplicate-read coalescing and an 8-second masters/settings cache;
+invalidate on writes, explicit refresh, token changes and logout. Do not cache
+financial reports or silently queue writes. PWA shell caching is not full offline
+financial storage; IndexedDB/offline sync remains a separate unimplemented scope.

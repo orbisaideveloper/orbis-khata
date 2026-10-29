@@ -1,0 +1,5 @@
+import {fireEvent,render,screen,cleanup} from '@testing-library/react';
+import {afterEach,expect,it} from 'vitest';
+import {selectNumeric} from './select-numeric';
+afterEach(cleanup);
+it('selects existing amounts and quantities on keyboard focus and repeated taps while leaving names unchanged',()=>{render(<main onFocusCapture={selectNumeric} onClickCapture={selectNumeric}><input aria-label="Amount" inputMode="decimal" defaultValue="0.00"/><input aria-label="Quantity" inputMode="numeric" defaultValue="12"/><input aria-label="Name" defaultValue="Trader"/><button>Other</button></main>);for(const name of ['Amount','Quantity']){const input=screen.getByLabelText(name) as HTMLInputElement;fireEvent.focus(input);expect(input.selectionStart).toBe(0);expect(input.selectionEnd).toBe(input.value.length);input.setSelectionRange(1,1);fireEvent.click(input);expect(input.selectionStart).toBe(0);expect(input.selectionEnd).toBe(input.value.length);}const text=screen.getByLabelText('Name') as HTMLInputElement;text.setSelectionRange(2,2);fireEvent.click(text);expect(text.selectionStart).toBe(2);fireEvent.click(screen.getByRole('button'));});

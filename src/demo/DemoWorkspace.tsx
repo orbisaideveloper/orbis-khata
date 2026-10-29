@@ -1,3 +1,5 @@
+import {PartySection} from './PartySection';
+import {Themes} from '../theme';
 import {readLocation,saveLocation} from '../workspace-location';
 import { PaymentEntry } from '../accounting/PaymentEntry';
 import { WorkspaceSettings } from '../accounting/WorkspaceSettings';
@@ -11,7 +13,7 @@ import { useBookServices, type BookServices } from '../books-services';
 import type { DemoItem, DemoParty } from './master-model';
 import { Dashboard } from './Dashboard';
 import { designCopy } from './design-copy';
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import type { Language } from '../i18n';
 import { useBooksNavigation, booksLabels } from '../books-navigation';
 import { Accounting } from '../accounting/Accounting';
@@ -21,7 +23,7 @@ import type { Report } from '../accounting/model';
 import { today } from '../accounting/model';
 import { Inventory } from '../inventory/Inventory';
 import { demoMasters, demoRequest, demoCompanyName } from './store';
-import { ItemMaster, PartyMaster } from './Masters';
+import { ItemMaster } from './Masters';
 import { InvoicePage, type BillKind } from './InvoicePage';
 const overviewLabels = { receivable: 'receive', payable: 'pay', cash: 'cash', bank: 'bank', liquidity:'cash', expenses: 'expense' } as const;
 const types = { bn: { sale: 'বিক্রয় বিল', purchase: 'ক্রয় বিল', expense: 'খরচের বিল', bills: 'বিল', stock: 'গোডাউন ও স্টক' }, en: { sale: 'Sales invoice', purchase: 'Purchase invoice', expense: 'Expense bill', bills: 'Bills', stock: 'Godown & stock' }, hi: { sale: 'बिक्री बिल', purchase: 'खरीद बिल', expense: 'खर्च बिल', bills: 'बिल', stock: 'गोदाम और स्टॉक' } };
@@ -82,6 +84,7 @@ export function DemoWorkspace({ language, userId = 'demo-owner' }: Readonly<{
     } | null>(null), [errorKey, setErrorKey] = useState('');
     useEffect(()=>{if(services&&company)saveLocation(userId,{company});},[services,company,userId]);
     const requestKey = [company, from, to, version].join('/');
+    const activeRequest=useRef(requestKey);useEffect(()=>{activeRequest.current=requestKey;},[requestKey]);
     const report = result?.key === requestKey ? result.report : null, warehouses = result?.key === requestKey ? result.warehouses : [], failed = errorKey === requestKey;
     const [overview, setOverview] = useState<{
         company: string;
@@ -91,7 +94,7 @@ export function DemoWorkspace({ language, userId = 'demo-owner' }: Readonly<{
     const showingOverview = navigation.page === 'overview' && overview !== null && overview.company === company;
     function closeOverview() { setOverview(null); navigation.open('home'); }
     const [locked, setLocked] = useState(false);
-    const changed = () => setVersion(n => n + 1);
+    const changed = () => {window.dispatchEvent(new Event('khata-refresh'));setVersion(n => n + 1);};
     useEffect(() => {
         let alive = true;
         void request<{
@@ -104,11 +107,11 @@ export function DemoWorkspace({ language, userId = 'demo-owner' }: Readonly<{
             }
         }, () => {
             if (alive) {
-                setErrorKey(requestKey);
+                setErrorKey(activeRequest.current);
             }
         });
         return () => { alive = false; };
-    }, [version, services, request, requestKey]);
+    }, [version, services, request, company]);
     useEffect(() => {
         if (!services || !company) {
             return;
@@ -123,11 +126,11 @@ export function DemoWorkspace({ language, userId = 'demo-owner' }: Readonly<{
             }
         }, () => {
             if (alive) {
-                setErrorKey(requestKey);
+                setErrorKey(activeRequest.current);
             }
         });
         return () => { alive = false; };
-    }, [services, company, version, requestKey]);
+    }, [services, company, version]);
     useEffect(() => {
         if (!company) {
             return;
@@ -147,7 +150,7 @@ export function DemoWorkspace({ language, userId = 'demo-owner' }: Readonly<{
             }
         }).catch(() => {
             if (alive) {
-                setErrorKey(requestKey);
+                setErrorKey(activeRequest.current);
             }
         });
         return () => { alive = false; };
@@ -167,9 +170,10 @@ export function DemoWorkspace({ language, userId = 'demo-owner' }: Readonly<{
   {showingOverview && failed && <output role="alert">{designCopy[language].error}<button type="button" onClick={changed}>{designCopy[language].retry}</button><button type="button" onClick={closeOverview}>{designCopy[language].home}</button></output>}
   {navigation.page === 'home' && <button className="kh-company-manage" type="button" onClick={() => navigation.open('company')}>{designCopy[language].newCompany} →</button>}
   {navigation.page === 'ledger' && <PaymentEntry key={company} userId={userId} company={company} language={language} report={report} onChanged={changed}/>}
+  {navigation.page === 'themes' && <Themes language={language}/>}
   {navigation.page === 'settings' && <WorkspaceSettings company={company} name={companyName} language={language} onChanged={changed}/>}
   {navigation.page === 'items' && <ItemMaster language={language} company={company} items={masters.items} onChanged={changed}/>}
-  {navigation.page === 'parties' && <PartyMaster language={language} company={company} parties={masters.parties} onChanged={changed}/>}
+  {navigation.page === 'parties' && <PartySection key={company} company={company} language={language} parties={masters.parties} report={report} from={from} to={to} version={version} onChanged={changed}/>}
   {navigation.page === 'all-ledgers' && report && <><LedgerExplorer {...{ company, language, from, to, version }} parties={report.parties}/><button type="button" onClick={() => navigation.open('stock')}>{t.stock}</button></>}
   {navigation.page === 'stock' && report && <Inventory userId={userId} {...{ company, companyName, language, from, to, version }} parties={report.parties} onLock={setLocked} onChanged={changed} blocked={false}/>}
   {navigation.page === 'expenses' && <><button type="button" onClick={() => openBill('expense')}>{t.expense}</button><Expenses userId={userId} {...{ company, companyName, language, from, to, version }} payees={masters.parties.filter(p => p.kind === 'expense').map(p => p.name)} onLock={setLocked} onChanged={changed} blocked={false}/></>}

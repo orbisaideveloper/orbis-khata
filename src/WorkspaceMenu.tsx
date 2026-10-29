@@ -20,7 +20,7 @@ export function WorkspaceMenu({ language, tutorial, onTutorial, onProfile, onLog
     return <details className="workspace-menu">
     <summary aria-label={t.menu}>⋮</summary>
     <div className="workspace-menu-panel">
-      {signedIn && onBooks && ([...((demo || enhanced) ? ['home' as const] : []), 'ledger', 'all-ledgers', 'parties', 'items', ...((demo || enhanced) ? ['bills' as const] : []), 'expenses', 'company', 'settings'] as const).map(page => <button type="button" key={page} onClick={event => { event.currentTarget.closest('details')?.removeAttribute('open'); onBooks(page); }}>{booksLabels[language][page]}</button>)}
+      {signedIn && onBooks && ([...((demo || enhanced) ? ['home' as const] : []), 'ledger', 'all-ledgers', 'parties', 'items', ...((demo || enhanced) ? ['bills' as const] : []), 'expenses', 'company', 'settings', 'themes'] as const).map(page => <button type="button" key={page} onClick={event => { event.currentTarget.closest('details')?.removeAttribute('open'); onBooks(page); }}>{booksLabels[language][page]}</button>)}
       {signedIn && <button type="button" onClick={event => { event.currentTarget.closest('details')?.removeAttribute('open'); onProfile(); }}>{t.profile}</button>}
       <label><input type="checkbox" checked={tutorial} onChange={event => onTutorial(event.target.checked)}/>{t.tutorial}</label>
       {!demo && <button type="button" onClick={onLogout}>{t.logout}</button>}

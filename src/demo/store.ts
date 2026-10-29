@@ -245,7 +245,7 @@ export function saveDemoParty(value: DemoParty) {
     const old = parties.find(p => p.id === value.id && p.company === value.company);
     if (old) {
         const used = entries.some(e => e.party_id === old.id) || expenses.some(e => e.company === old.company && e.payee === old.name);
-        if (used && ['kind', 'opening_account', 'opening_amount', 'opening_side', 'opening_date'].some(key => old[key as keyof DemoParty] !== value[key as keyof DemoParty])) {
+        if (used && ['kind', 'opening_account'].some(key => old[key as keyof DemoParty] !== value[key as keyof DemoParty])) {
             fail('OPENING_ALREADY_USED');
         }
         editDemoParty(old.id, value.name);

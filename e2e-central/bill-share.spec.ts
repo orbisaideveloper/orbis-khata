@@ -40,7 +40,7 @@ test('bill settings stay collapsed and export the selected Bengali invoice as a 
     await page.getByText('Bill settings', { exact: true }).click();
     await page.getByRole('combobox', { name: 'Party', exact: true }).selectOption(party.id);
     await page.getByLabel('Item name 1', { exact: true }).selectOption(item.id);
-    await page.getByLabel('Quantity 1', { exact: true }).fill('2');
+    await page.getByLabel('Quantity 1', { exact: true }).click();await page.keyboard.type('2');await expect(page.getByLabel('Quantity 1',{exact:true})).toHaveValue('2');
     await page.getByRole('button', { name: 'Review bill', exact: true }).click();
     await expect(page.locator('.bill-template-modern')).toBeVisible();
     await page.getByRole('button', { name: 'Confirm & save', exact: true }).click();
