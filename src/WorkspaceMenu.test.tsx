@@ -31,3 +31,4 @@ it('opens the party and item screens from the same menu and closes it',()=>{
  expect(open).toHaveBeenLastCalledWith('items')
  view.unmount()
 })
+it('keeps language/theme content inside the settings disclosure',()=>{const view=render(<WorkspaceMenu language="en" signedIn tutorial={false} onTutorial={()=>{}} onProfile={()=>{}} onLogout={()=>{}} settings={<label>Choose language<select aria-label="Test language"><option>English</option></select></label>}/>);fireEvent.click(screen.getByText('⋮'));fireEvent.click(screen.getByText('Settings'));expect(screen.getByLabelText('Test language')).toBeInTheDocument();view.unmount();});

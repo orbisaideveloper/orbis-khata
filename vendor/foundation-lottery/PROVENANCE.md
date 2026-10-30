@@ -55,3 +55,12 @@ Daily seller receipt panels reuse the inherited payment endpoint and its cash/PW
 (bank-independent prize-token adjustment)/bank split; the user-facing token label
 is PWD. A receipt waits for successful durable row persistence; failed persistence
 returns false and blocks the receipt. No Foundation formula, server or data changed.
+
+### Khata home commission presentation (2026-10-30)
+
+The Khata-owned home now uses Yesterday and calendar Monday–Sunday bounds,
+shared language/theme settings and a read-only date/party commission statement.
+This sums the original effective commission snapshots, distinguishes absent rows
+from explicit zero entries, retains archived-party amounts and opens existing
+daily editors for active parties. It does not change Foundation runtime formulas
+or either product's stored financial records.

@@ -1,3 +1,4 @@
+import { lotteryLabel } from "./copy";
 import { useState } from "react";
 import type { LotteryWorkspace } from "../../vendor/foundation-lottery/src/admin/models/lotteryAccountingTypes";
 import { formatPaise } from "../../vendor/foundation-lottery/src/admin/models/lotteryAccountingMoney";
@@ -37,7 +38,11 @@ export function LotteryCashDetails({
         </button>
         <h2>
           {method
-            ? lotteryMoneyMethods.find(([key]) => key === method)?.[1]
+            ? lotteryLabel(
+                language,
+                lotteryMoneyMethods.find(([key]) => key === method)?.[1] ??
+                  "Cash",
+              )
             : l("ক্যাশ", "रकम", "Cash")}
         </h2>
       </div>
@@ -57,7 +62,7 @@ export function LotteryCashDetails({
             return (
               <button type="button" key={key} onClick={() => setMethod(key)}>
                 <span>
-                  {label}
+                  {lotteryLabel(language, label)}
                   {key === "pwtPaise" && (
                     <small>
                       {l(
@@ -101,7 +106,9 @@ export function LotteryCashDetails({
                     l("দেওয়া", "दिया", "Paid"),
                     l("ব্যালেন্স", "शेष", "Balance"),
                   ].map((label) => (
-                    <th key={label}>{label}</th>
+                    <th key={lotteryLabel(language, label)}>
+                      {lotteryLabel(language, label)}
+                    </th>
                   ))}
                 </tr>
               </thead>

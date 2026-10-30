@@ -1279,3 +1279,17 @@ See [SONAR-CORRECTIONS-20261017.md](SONAR-CORRECTIONS-20261017.md) for every rep
 - Replaced the oversized money panel with one sixth-position Cash card beside Expenses. Method picker leads to one exact date/name/reference/in/out/running-balance table, with negative/outgoing red and opening/closing summaries. PWD remains a non-cash method and is excluded from liquid total; legacy UPI/cheque records remain available when relevant. Stored data/postings untouched.
 - Verification106 files/678 tests PASS; coverage statements91.28%, branches88.09%, functions90.77%, lines91.98%. New statement UI/model100% lines/functions. Full Playwright24/24 PASS; stronger final Lottery2/2 confirms header position after long scroll, language/menu, exact money drill-down, return flow and existing save/retry/reload behavior. Typecheck/build/PWA, lint (existing vendor warnings), KNIP, zero JSCPD clones and recommended local SonarJS checks PASS.
 - Detailed report docs/LOTTERY_HOME_20261030.md. No SQL/Edge/Render/Foundation changes. Main commit/push follows the owner-approved workflow; new remote Actions/Sonar pending. No post-push polling.
+
+## 2026-10-30 — Lottery periods/settings/themes and commission drill-down checkpoint
+
+- Owner requests a compact title-free period bar, Yesterday instead of3 Days, Monday–Sunday week, language/theme settings inside the three-dot menu, consistent home language and a date/party commission statement. Starting mainb5ee2ee5af007501e9d5d604e0745b1a8c4c6592; verified Actions41023926540 SUCCESS.
+- Added pure period bounds, exact date-level commission model and statement with per-side party lists, archived-party amounts, explicit zero versus absent entries, full-period totals and50-row pages. Active party names open the matching seller/stockist daily account and date. No posting or data changes.
+- Home title box removed; period bar is compact. Added language/theme disclosure in existing menu using shared persisted preferences. Home/navigation/metric labels now follow selected language; bright glass-green and blue styles reuse existing themes. Verbose formula explanations remain in tutorial mode.
+-45 related unit tests and typecheck/lint pass. Local SonarJS scan clean. Browser checks have reached seller daily drill-in; a selector was narrowed to the brand heading after adding Themes, and40 versus40.00 is accepted as the same exact displayed amount. Final focused browser and complete coverage are in progress. No SQL/Edge/Render/Foundation changes or new push yet.
+
+### Lottery commission/settings release verification
+
+- Final full unit run110 files/686 tests PASS; coverage statements91.42%, branches88.22%, functions90.91%, lines92.15%. New commission UI/period bounds/copy100% lines/functions/branches; commission model100% lines/functions.
+- Full mobile/desktop Playwright24/24 PASS plus final focused Lottery2/2. Validated Yesterday and calendar week, compact title-free bar, Settings-only language and both themes, consistent primary home copy, per-day totals, absent versus recorded seller rows, and active seller/stockist daily editor navigation for the exact party/day. User names are not fed through the semantic title translator.
+- Typecheck/build/PWA, lint (inherited vendor warnings), KNIP, zero JSCPD clones and recommended local SonarJS PASS. Detailed report docs/LOTTERY_COMMISSION_20261030.md. No SQL/Edge/Render/Foundation changes or owner financial data mutation.
+- Owner-approved main commit/push next fromb5ee2ee. New Actions/Sonar remains pending; no post-push polling.

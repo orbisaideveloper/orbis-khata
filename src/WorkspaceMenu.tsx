@@ -1,3 +1,5 @@
+import type {ReactNode} from 'react';
+import {inLanguage} from './localize';
 import { booksLabels, type BooksPage } from './books-navigation';
 import type { Language } from './i18n';
 const copy = {
@@ -5,7 +7,8 @@ const copy = {
     en: { menu: 'More options', profile: 'Account & profile', tutorial: 'Tutorial', logout: 'Log out' },
     hi: { menu: 'अन्य विकल्प', profile: 'अकाउंट और प्रोफ़ाइल', tutorial: 'ट्यूटोरियल', logout: 'लॉग आउट' },
 };
-export function WorkspaceMenu({ language, tutorial, onTutorial, onProfile, onLogout, signedIn, onBooks, demo = false, enhanced = false }: Readonly<{
+export function WorkspaceMenu({ language, tutorial, onTutorial, onProfile, onLogout, signedIn, onBooks, demo = false, enhanced = false, settings }: Readonly<{
+    settings?:ReactNode;
     language: Language;
     tutorial: boolean;
     onTutorial: (enabled: boolean) => void;
@@ -22,6 +25,7 @@ export function WorkspaceMenu({ language, tutorial, onTutorial, onProfile, onLog
     <div className="workspace-menu-panel">
       {signedIn && onBooks && ([...((demo || enhanced) ? ['home' as const] : []), 'ledger', 'all-ledgers', 'parties', 'items', ...((demo || enhanced) ? ['bills' as const] : []), 'expenses', 'reports', 'company', 'settings', 'themes'] as const).map(page => <button type="button" key={page} onClick={event => { event.currentTarget.closest('details')?.removeAttribute('open'); onBooks(page); }}>{booksLabels[language][page]}</button>)}
       {signedIn && <button type="button" onClick={event => { event.currentTarget.closest('details')?.removeAttribute('open'); onProfile(); }}>{t.profile}</button>}
+      {settings&&<details className="workspace-settings"><summary>{inLanguage(language,'সেটিংস','सेटिंग्स','Settings')}</summary><div>{settings}</div></details>}
       <label><input type="checkbox" checked={tutorial} onChange={event => onTutorial(event.target.checked)}/>{t.tutorial}</label>
       {!demo && <button type="button" onClick={onLogout}>{t.logout}</button>}
     </div>

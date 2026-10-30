@@ -1,3 +1,7 @@
+import {CommissionStatement} from '../../../../../../src/lottery/CommissionStatement';
+import type {CommissionSide} from '../../../../../../src/lottery/commission-statement';
+import {lotteryDashboardBounds,type LotteryDashboardPeriod} from '../../../../../../src/lottery/dashboard-period';
+import {lotteryLabel} from '../../../../../../src/lottery/copy';
 import {useLotteryLanguage} from '../../../../../../src/lottery/language';
 import {inLanguage} from '../../../../../../src/localize';
 import {LotteryCashDetails} from '../../../../../../src/lottery/LotteryCashDetails';
@@ -107,7 +111,7 @@ type PartyMasterType = Extract<LotteryPartyType, "SELLER" | "STOCKIST" | "CUSTOM
 type PaymentKind = "SELLER" | "STOCKIST" | "CUSTOMER" | "EXPENSE";
 type MoneyMethod = "cashPaise" | "bankPaise" | "upiPaise" | "chequePaise" | "pwtPaise";
 type LedgerPeriod = "today" | "7d" | "10d" | "month" | "year" | "custom";
-type DashboardPeriod = "today" | "3d" | "7d" | "month" | "custom";
+type DashboardPeriod = LotteryDashboardPeriod;
 type SellerFlush = () => Promise<boolean>;
 type SellerPersistenceTracker = <T,>(action: () => Promise<T>) => Promise<T>;
 type SellerLocalStateChange = (
@@ -154,8 +158,8 @@ const PARTY_PAYMENT_METHODS: Array<[MoneyMethod, string]> = [
 
 const DASHBOARD_PERIODS: Array<[DashboardPeriod, string]> = [
   ["today", "Today"],
-  ["3d", "3 Days"],
-  ["7d", "7 Days"],
+  ["yesterday", "Yesterday"],
+  ["week", "This week"],
   ["month", "Month"],
   ["custom", "Custom"],
 ];
@@ -434,6 +438,7 @@ function Metric({
   children?: React.ReactNode;
   onClick?: () => void;
 }>) {
+  const language=useLotteryLanguage();
   const toneClass = {
     green: "from-emerald-50 to-emerald-100/45 border-emerald-100",
     orange: "from-orange-50 to-amber-100/45 border-orange-100",
@@ -443,9 +448,9 @@ function Metric({
   const content = (
     <>
       <p className="text-[8px] font-black uppercase tracking-[0.08em] text-slate-500">
-        {label}
+        {lotteryLabel(language,label)}
       </p>
-      <p className="mt-1 text-lg font-black tracking-tight text-slate-950">{value}</p>
+      <p className="mt-1 text-lg font-black tracking-tight text-slate-950">{lotteryLabel(language,value)}</p>
       {children}
     </>
   );
@@ -453,13 +458,13 @@ function Metric({
     <button
       type="button"
       onClick={onClick}
-      className={`min-w-0 rounded-2xl border bg-linear-to-br p-3 text-left shadow-[inset_0_1px_0_rgba(255,255,255,.9)] ${toneClass}`}
+      data-tone={tone} className={`lottery-metric min-w-0 rounded-2xl border bg-linear-to-br p-3 text-left shadow-[inset_0_1px_0_rgba(255,255,255,.9)] ${toneClass}`}
     >
       {content}
     </button>
   ) : (
     <div
-      className={`min-w-0 rounded-2xl border bg-linear-to-br p-3 ${toneClass}`}
+      data-tone={tone} className={`lottery-metric min-w-0 rounded-2xl border bg-linear-to-br p-3 ${toneClass}`}
     >
       {content}
     </div>
@@ -491,7 +496,7 @@ function SectionCard({
   title: string;
   hint?: string;
   children: React.ReactNode;
-}>) {
+ }>) {
   return (
     <section className={LIGHT_CARD}>
       <h4 className="text-sm font-black text-slate-950">{title}</h4>
@@ -611,6 +616,7 @@ export function LotteryAccountingWorkspace({
   const sellerWorkspaceStaleRef = useRef(false);
   const sellerPersistenceTailRef = useRef<Promise<void>>(Promise.resolve());
   const [ledgerLaunch, setLedgerLaunch] = useState<LedgerLaunch | null>(null);
+  const [stockistEditRequest,setStockistEditRequest]=useState<{partyId:string;occurredAt:string;token:number}|null>(null);
   const [sellerEditRequest, setSellerEditRequest] = useState<{
     partyId: string;
     occurredAt: string;
@@ -970,6 +976,11 @@ export function LotteryAccountingWorkspace({
                 setFrom={setDashboardFrom}
                 to={dashboardTo}
                 setTo={setDashboardTo}
+                openCommissionEntry={(side,partyId,occurredAt)=>{
+                  const request={partyId,occurredAt,token:Date.now()};
+                  if(side==='seller')setSellerEditRequest(request);else setStockistEditRequest(request);
+                  setDailyMode(side==='seller'?'SELLER':'STOCKIST');setTab('daily');
+                }}
                 openLedger={(launch) => {
                   setLedgerLaunch(launch || null);
                   setTab("ledger");
@@ -989,6 +1000,7 @@ export function LotteryAccountingWorkspace({
               trackSellerPersistence={trackSellerPersistence}
               registerSellerFlush={registerDailySellerFlush}
               sellerEditRequest={sellerEditRequest}
+              stockistEditRequest={stockistEditRequest}
               localScope={localScope}
               localStore={localStore}
               onLocalRowStateChange={updateSellerWorkingRecord}
@@ -1065,6 +1077,7 @@ function DashboardPanel({
   to,
   setTo,
   openLedger,
+  openCommissionEntry,
 }: Readonly<{
   workspace: LotteryWorkspace;
   period: DashboardPeriod;
@@ -1074,8 +1087,10 @@ function DashboardPanel({
   to: string;
   setTo: (value: string) => void;
   openLedger: (launch?: LedgerLaunch) => void;
+  openCommissionEntry:(side:CommissionSide,partyId:string,day:string)=>void;
 }>) {
   const language=useLotteryLanguage();
+  const tutorial=useTutorial();
   const today = businessDateToday();
   const [expanded, setExpanded] = useState<
     "profit" | "receivable" | "payable" | "commission" | "money" | null
@@ -1084,13 +1099,7 @@ function DashboardPanel({
     "dispatch" | "return" | null
   >(null);
 
-  const bounds = useMemo(() => {
-    if (period === "today") return { from: today, to: today };
-    if (period === "3d") return { from: addDays(today, -2), to: today };
-    if (period === "7d") return { from: addDays(today, -6), to: today };
-    if (period === "month") return { from: monthStart(today), to: today };
-    return { from: from || today, to: to >= from ? to : from };
-  }, [from, period, to, today]);
+  const bounds=useMemo(()=>lotteryDashboardBounds(period,today,from,to),[period,today,from,to]);
 
   const {
     sales,
@@ -1184,24 +1193,12 @@ function DashboardPanel({
     .filter((row) => row.quantity > 0n);
   const stockDifference = purchased - sellerSold - customerSold;
 
-  const previousDay = addDays(bounds.to, -1);
-  const previousSellerCommission = [...workspace.sales, ...workspace.draftSales]
-    .filter((sale) => dateKey(sale.occurredAt) === previousDay)
-    .reduce((total, sale) => total + BigInt(sale.commissionPaise), 0n);
-  const previousStockistCommission = workspace.stockistEntries
-    .filter((entry) => dateKey(entry.occurredAt) === previousDay)
-    .reduce((total, entry) => total + BigInt(entry.commissionPaise), 0n);
-  const previousDifference =
-    previousStockistCommission - previousSellerCommission;
-
+  if(expanded==='commission')return <CommissionStatement workspace={workspace} from={bounds.from} to={bounds.to} onClose={()=>setExpanded(null)} onOpen={openCommissionEntry}/>;
   if(expanded==='money')return <LotteryCashDetails workspace={workspace} from={bounds.from} to={bounds.to} onClose={()=>setExpanded(null)}/>;
 
   return (
     <div className="space-y-3">
-      <SectionCard
-        title="Dashboard"
-        hint="Pick a period. Receivable and Payable always rank the largest open accounts first as of the selected end date."
-      >
+      <section className="lottery-period-bar" aria-label="Dashboard period">
         <div className="lottery-dashboard-periods flex gap-2 overflow-x-auto pb-1">
           {DASHBOARD_PERIODS.map(([value, label]) => (
             <Button
@@ -1209,7 +1206,7 @@ function DashboardPanel({
               active={period === value}
               onClick={() => setPeriod(value)}
             >
-              {label}
+              {lotteryLabel(language,label)}
             </Button>
           ))}
         </div>
@@ -1237,7 +1234,7 @@ function DashboardPanel({
             </label>
           </div>
         )}
-      </SectionCard>
+      </section>
 
       <div className="grid grid-cols-2 gap-2">
         <Metric
@@ -1280,7 +1277,7 @@ function DashboardPanel({
           }
         >
           <p className="mt-1 text-[7px] font-bold text-slate-500">
-            Difference {formatPaise(commissionDifference < 0n ? -commissionDifference : commissionDifference)}
+            {lotteryLabel(language,'Difference')} {formatPaise(commissionDifference < 0n ? -commissionDifference : commissionDifference)}
           </p>
         </Metric>
         <Metric
@@ -1301,17 +1298,17 @@ function DashboardPanel({
       </div>
 
       {expanded === "receivable" && (
-        <SectionCard title={`Receivable priority · ${displayDate(bounds.to)}`}>
+        <SectionCard title={`${lotteryLabel(language,'Receivable')} · ${displayDate(bounds.to)}`} >
           <PriorityList rows={receivables} />
         </SectionCard>
       )}
       {expanded === "payable" && (
-        <SectionCard title={`Payable priority · ${displayDate(bounds.to)}`}>
+        <SectionCard title={`${lotteryLabel(language,'Payable')} · ${displayDate(bounds.to)}`} >
           <PriorityList rows={payables} />
         </SectionCard>
       )}
       {expanded === "profit" && (
-        <SectionCard title="Profit & Loss quick details">
+        <SectionCard title={lotteryLabel(language,'Profit & Loss quick details')}>
           <div className="grid grid-cols-2 gap-2">
             <Metric label="Seller Gross" value={formatPaise(sellerGross)} />
             <Metric label="Customer Gross" value={formatPaise(customerGross)} />
@@ -1321,50 +1318,8 @@ function DashboardPanel({
           </div>
         </SectionCard>
       )}
-      {expanded === "commission" && (
-        <SectionCard title="Commission quick details">
-          <div className="grid grid-cols-3 gap-2">
-            <Metric label="Stockist" value={formatPaise(stockistCommission)} />
-            <Metric label="Seller" value={formatPaise(sellerCommission)} tone="orange" />
-            <Metric
-              label="Difference"
-              value={formatPaise(
-                commissionDifference < 0n ? -commissionDifference : commissionDifference,
-              )}
-              tone={commissionDifference === 0n ? "green" : "orange"}
-            />
-          </div>
-        </SectionCard>
-      )}
-
       <SectionCard
-        title="Commission reconciliation"
-        hint="Only this selected period is compared. Previous-day mismatch is shown as attention only and never carried into today's number."
-      >
-        <div className="grid grid-cols-3 gap-2">
-          <Metric label="Stockist Gross" value={formatPaise(stockistCommission)} />
-          <Metric label="Seller Gross" value={formatPaise(sellerCommission)} tone="orange" />
-          <Metric
-            label="Difference"
-            value={formatPaise(
-              commissionDifference < 0n ? -commissionDifference : commissionDifference,
-            )}
-            tone={commissionDifference === 0n ? "green" : "orange"}
-          />
-        </div>
-        {previousDifference !== 0n && (
-          <div className="mt-2">
-            <InlineNotice tone="orange">
-              {displayDate(previousDay)} had a commission mismatch of{" "}
-              {formatPaise(previousDifference < 0n ? -previousDifference : previousDifference)}.
-              It is not carried forward.
-            </InlineNotice>
-          </div>
-        )}
-      </SectionCard>
-
-      <SectionCard
-        title="TDS reconciliation"
+        title={lotteryLabel(language,'TDS reconciliation')}
         hint="Posted entries in this period. Payable and credit remain separate; their difference is a comparison, not a settlement."
       >
         <div className="grid grid-cols-2 gap-2">
@@ -1373,13 +1328,13 @@ function DashboardPanel({
           <Metric label="TDS comparison difference" value={formatPaise(tds.comparisonDifferencePaise)} tone="orange" />
           <Metric label="Legacy stockist TDS · review" value={formatPaise(tds.legacyUnclassifiedPaise)} tone="orange" />
         </div>
-        <p className="mt-2 text-[8px] text-slate-500">
+        {tutorial&&<p className="mt-2 text-[8px] text-slate-500">
           Deposits and claims are not recorded here, so these amounts are not a verified outstanding tax balance.
           Legacy stock entries retain their saved formula and require review before classification. TDS does not enter profit.
-        </p>
+        </p>}
       </SectionCard>
 
-      <SectionCard title="Profit & Loss">
+      {tutorial&&<SectionCard title={lotteryLabel(language,'Profit & Loss')}>
         <p className="text-[10px] leading-relaxed text-slate-600">
           <strong>{formatPaise(sellerGross)}</strong> seller gross +{" "}
           <strong>{formatPaise(customerGross)}</strong> customer gross −{" "}
@@ -1392,10 +1347,10 @@ function DashboardPanel({
         <p className="mt-2 text-[8px] text-slate-500">
           TDS stays separate from profit. Expense bills count as cost; their payments change money balances.
         </p>
-      </SectionCard>
+      </SectionCard>}
 
       <SectionCard
-        title="Stock truth"
+        title={lotteryLabel(language,'Stock truth')}
         hint="Tap a card for this selected period."
       >
         <div className="grid grid-cols-2 gap-2">
@@ -1464,19 +1419,19 @@ function DashboardPanel({
       )}
 
       <SectionCard
-        title="ORBIS AI business check"
+        title={lotteryLabel(language,'ORBIS AI business check')}
         hint="Module-only accounting analysis. It uses these same numbers."
       >
         <div className="grid grid-cols-2 gap-2">
           <AiCard
             title="Profit"
-            text={`${profit >= 0n ? "Profit" : "Loss"} ${formatPaise(
+            text={`${lotteryLabel(language,profit >= 0n ? "Profit" : "Loss")} ${formatPaise(
               profit >= 0n ? profit : -profit,
             )}`}
           />
           <AiCard
             title="Dues"
-            text={`${formatPaise(receivable)} receivable · ${formatPaise(payable)} payable`}
+            text={`${formatPaise(receivable)} ${lotteryLabel(language,'Receivable')} · ${formatPaise(payable)} ${lotteryLabel(language,'Payable')}`}
           />
           <AiCard
             title="Commission"
@@ -1492,7 +1447,7 @@ function DashboardPanel({
           onClick={() => openLedger()}
           className="mt-3 w-full rounded-xl border border-emerald-200 bg-white px-3 py-2.5 text-[10px] font-black text-emerald-800"
         >
-          Open Ledger
+          {lotteryLabel(language,'Open Ledger')}
         </button>
       </SectionCard>
     </div>
@@ -1500,8 +1455,9 @@ function DashboardPanel({
 }
 
 function PriorityMini({ rows }: Readonly<{ rows: PriorityRow[] }>) {
+  const language=useLotteryLanguage();
   if (!rows.length)
-    return <p className="mt-2 text-[7px] font-bold text-emerald-700">No pending account</p>;
+    return <p className="mt-2 text-[7px] font-bold text-emerald-700">{lotteryLabel(language,'No pending account')}</p>;
   return (
     <div className="mt-2 space-y-1">
       {rows.slice(0, 2).map((row) => (
@@ -1510,7 +1466,7 @@ function PriorityMini({ rows }: Readonly<{ rows: PriorityRow[] }>) {
           className="flex items-center justify-between gap-2 rounded-lg border border-white bg-white/75 px-2 py-1"
         >
           <span className="truncate text-[7px] text-slate-600">
-            {row.type} · {row.name}
+            {lotteryLabel(language,row.type)} · {row.name}
           </span>
           <strong className="shrink-0 text-[8px]">{formatPaise(row.amountPaise)}</strong>
         </div>
@@ -1586,10 +1542,11 @@ function PriorityList({ rows }: Readonly<{ rows: PriorityRow[] }>) {
 }
 
 function AiCard({ title, text }: Readonly<{ title: string; text: string }>) {
+  const language=useLotteryLanguage();
   return (
     <div className="rounded-xl border border-violet-100 bg-linear-to-br from-violet-50 to-white p-3">
-      <p className="text-[8px] font-black uppercase text-violet-700">{title}</p>
-      <p className="mt-1 text-[9px] font-bold text-slate-700">{text}</p>
+      <p className="text-[8px] font-black uppercase text-violet-700">{lotteryLabel(language,title)}</p>
+      <p className="mt-1 text-[9px] font-bold text-slate-700">{lotteryLabel(language,text)}</p>
     </div>
   );
 }
@@ -1605,6 +1562,7 @@ function DailyPanel({
   trackSellerPersistence,
   registerSellerFlush,
   sellerEditRequest,
+  stockistEditRequest,
   localScope,
   localStore,
   onLocalRowStateChange,
@@ -1623,6 +1581,7 @@ function DailyPanel({
   refreshWorkspace: () => Promise<boolean>;
   trackSellerPersistence: SellerPersistenceTracker;
   registerSellerFlush: (flush: SellerFlush | null) => void;
+  stockistEditRequest: {partyId:string;occurredAt:string;token:number}|null;
   sellerEditRequest: { partyId: string; occurredAt: string; token: number } | null;
   localScope: Omit<AccountingLocalScope, "organizationId">;
   localStore: LotteryAccountingLocalStore | null;
@@ -1703,7 +1662,7 @@ function DailyPanel({
         <DailyStockistEntry
           organizationId={organizationId}
           workspace={workspace}
-          editRequest={null}
+          editRequest={stockistEditRequest}
           onSave={async (payload) => {
             const result = await api.saveDailyStockistEntry(payload);
             await refreshWorkspace();
