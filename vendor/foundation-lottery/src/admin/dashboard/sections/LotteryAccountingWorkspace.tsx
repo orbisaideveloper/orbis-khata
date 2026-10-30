@@ -1,3 +1,6 @@
+import {useLotteryLanguage} from '../../../../../../src/lottery/language';
+import {inLanguage} from '../../../../../../src/localize';
+import {LotteryCashDetails} from '../../../../../../src/lottery/LotteryCashDetails';
 import {useTutorial} from '../../../../../../src/tutorial';
 import {lotteryOpening} from '../../../../../../src/lottery/opening-balance';
 import {PartyOpeningFields,LotteryContact,partyOpeningForm,openingPayload} from '../../../../../../src/lottery/PartyOpeningFields';
@@ -903,7 +906,7 @@ export function LotteryAccountingWorkspace({
 
   return (
     <section className="space-y-3" aria-label="Lottery Accounting data workspace">
-      <header className="rounded-[24px] border border-emerald-100 bg-linear-to-br from-emerald-50 via-white to-orange-50 p-4 shadow-[0_12px_34px_rgba(20,85,61,.07)]">
+      <header className="lottery-company-bar rounded-[24px] border border-emerald-100 bg-linear-to-br from-emerald-50 via-white to-orange-50 p-4 shadow-[0_12px_34px_rgba(20,85,61,.07)]">
         <div className="flex gap-2">
           <select
             aria-label="Accounting organization"
@@ -922,6 +925,7 @@ export function LotteryAccountingWorkspace({
               </option>
             ))}
           </select>
+          <span className="lottery-sync-dot" aria-label="Accounting local sync status" data-sync={localSyncLabel==='Synced'?'ok':'pending'} title={localSyncLabel}><span aria-hidden="true">●</span><span className="lottery-sr-only">{localSyncLabel}</span></span>
           <button
             type="button"
             aria-label="Refresh accounting workspace"
@@ -933,15 +937,6 @@ export function LotteryAccountingWorkspace({
           </button>
         </div>
       </header>
-
-      <div className="flex justify-end">
-        <span
-          aria-label="Accounting local sync status"
-          className="rounded-full border border-emerald-100 bg-white px-2 py-1 text-[8px] font-black text-emerald-700"
-        >
-          {localSyncLabel}
-        </span>
-      </div>
 
       {notice && <InlineNotice>{notice}</InlineNotice>}
       {error && <InlineNotice tone="orange">{error}</InlineNotice>}
@@ -1080,9 +1075,10 @@ function DashboardPanel({
   setTo: (value: string) => void;
   openLedger: (launch?: LedgerLaunch) => void;
 }>) {
+  const language=useLotteryLanguage();
   const today = businessDateToday();
   const [expanded, setExpanded] = useState<
-    "profit" | "receivable" | "payable" | "commission" | null
+    "profit" | "receivable" | "payable" | "commission" | "money" | null
   >(null);
   const [quantityDetail, setQuantityDetail] = useState<
     "dispatch" | "return" | null
@@ -1122,10 +1118,8 @@ function DashboardPanel({
   );
 
   const balances = moneyMethodBalances(workspace, bounds.to);
-  const totalMoney = Object.values(balances).reduce(
-    (total, value) => total + value,
-    0n,
-  );
+  // Prize tokens reduce party dues but are not cash or bank money.
+  const totalMoney = balances.cashPaise+balances.bankPaise+balances.upiPaise+balances.chequePaise;
 
   const purchased = purchases.reduce(
     (total, entry) => total + BigInt(entry.netPurchaseQuantity),
@@ -1200,13 +1194,15 @@ function DashboardPanel({
   const previousDifference =
     previousStockistCommission - previousSellerCommission;
 
+  if(expanded==='money')return <LotteryCashDetails workspace={workspace} from={bounds.from} to={bounds.to} onClose={()=>setExpanded(null)}/>;
+
   return (
     <div className="space-y-3">
       <SectionCard
-        title={`${workspace.organization.name} dashboard`}
+        title="Dashboard"
         hint="Pick a period. Receivable and Payable always rank the largest open accounts first as of the selected end date."
       >
-        <div className="flex gap-2 overflow-x-auto pb-1">
+        <div className="lottery-dashboard-periods flex gap-2 overflow-x-auto pb-1">
           {DASHBOARD_PERIODS.map(([value, label]) => (
             <Button
               key={value}
@@ -1242,47 +1238,6 @@ function DashboardPanel({
           </div>
         )}
       </SectionCard>
-
-      <section className="orbis-public-money-panel rounded-[22px] border border-emerald-100 bg-linear-to-br from-emerald-50 via-white to-orange-50 p-4 shadow-[0_12px_30px_rgba(20,85,61,.065)]">
-        <p className="text-[8px] font-black uppercase tracking-widest text-slate-500">
-          Current money
-        </p>
-        <p className="mt-1 text-3xl font-black tracking-tight text-slate-950">
-          {formatPaise(totalMoney)}
-        </p>
-        <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4">
-          {PARTY_PAYMENT_METHODS.map(([method, label], index) => {
-            const styles = [
-              "border-emerald-200 bg-emerald-50/90 text-emerald-950",
-              "border-sky-200 bg-sky-50/90 text-sky-950",
-              "border-violet-200 bg-violet-50/90 text-violet-950",
-              "border-orange-200 bg-orange-50/90 text-orange-950",
-            ];
-            return (
-              <button
-                key={method}
-                type="button"
-                onClick={() =>
-                  openLedger({
-                    bookType: "money",
-                    subtype: method,
-                    from: bounds.from,
-                    to: bounds.to,
-                  })
-                }
-                data-money-method={method}
-                className={`orbis-public-money-card min-h-[76px] rounded-xl border p-2.5 text-left shadow-xs transition active:scale-[0.985] ${styles[index % styles.length]}`}
-              >
-                <p className="text-[7px] font-black uppercase tracking-[0.08em] opacity-70">
-                  {label}
-                </p>
-                <p className="mt-1 text-sm font-black">{formatPaise(balances[method])}</p>
-                <p className="mt-1 text-[7px] font-bold opacity-60">Tap for details</p>
-              </button>
-            );
-          })}
-        </div>
-      </section>
 
       <div className="grid grid-cols-2 gap-2">
         <Metric
@@ -1342,6 +1297,7 @@ function DashboardPanel({
             })
           }
         />
+        <Metric label={inLanguage(language,'ক্যাশ','रकम','Cash')} value={formatPaise(totalMoney)} onClick={()=>setExpanded('money')}/>
       </div>
 
       {expanded === "receivable" && (

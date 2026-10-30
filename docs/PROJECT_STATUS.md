@@ -1272,3 +1272,10 @@ See [SONAR-CORRECTIONS-20261017.md](SONAR-CORRECTIONS-20261017.md) for every rep
 - Final full Playwright24/24 PASS on mobile/desktop. New regression proves30 is retained through refresh, account-type change clears it, and the second3000-paise receipt is confirmed before reload. Two payments and original exact totals remain mandatory.
 -31 related unit tests, typecheck, lint (existing vendor advisories), build/PWA, KNIP, zero-clone JSCPD and local recommended SonarJS scan PASS. No SQL/Edge/Render or user financial data changes. Detailed diagnosis/evidence: docs/LOTTERY_CI_REPAIR_20261030.md.
 - Owner-authorized corrective main push next from5c65314; new remote Actions/Sonar result pending. No post-push polling.
+
+## 2026-10-30 — Compact Lottery header/home and money statements
+
+- Continuing the owner-requested Lottery home refinement from main34261639; verified its Actions41013232432 SUCCESS. Added centered sticky header, shared language selector and three-dot utility menu beside module switching; compact organization/sync/refresh row and single-row period choices.
+- Replaced the oversized money panel with one sixth-position Cash card beside Expenses. Method picker leads to one exact date/name/reference/in/out/running-balance table, with negative/outgoing red and opening/closing summaries. PWD remains a non-cash method and is excluded from liquid total; legacy UPI/cheque records remain available when relevant. Stored data/postings untouched.
+- Verification106 files/678 tests PASS; coverage statements91.28%, branches88.09%, functions90.77%, lines91.98%. New statement UI/model100% lines/functions. Full Playwright24/24 PASS; stronger final Lottery2/2 confirms header position after long scroll, language/menu, exact money drill-down, return flow and existing save/retry/reload behavior. Typecheck/build/PWA, lint (existing vendor warnings), KNIP, zero JSCPD clones and recommended local SonarJS checks PASS.
+- Detailed report docs/LOTTERY_HOME_20261030.md. No SQL/Edge/Render/Foundation changes. Main commit/push follows the owner-approved workflow; new remote Actions/Sonar pending. No post-push polling.

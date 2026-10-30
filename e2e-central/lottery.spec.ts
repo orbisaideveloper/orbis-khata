@@ -27,6 +27,7 @@ test('independent lottery creates masters, saves daily formulas, receives split 
  });
  await page.goto('/');await page.getByRole('button',{name:/Lottery.*Open/}).click();
  await page.getByLabel('Business organization name').fill('Independent lottery');await page.getByRole('button',{name:'Create',exact:true}).click();
+ await expect(page.getByRole('heading',{name:'Dashboard',exact:true})).toBeVisible();
  const tabs=page.getByLabel('Accounting workspace sections');await tabs.getByRole('button',{name:'Masters',exact:true}).click();
  async function party(type:string,name:string,rate:string){await page.getByRole('button',{name:type,exact:true}).click();await page.getByRole('button',{name:'+ Add '+type}).click();await page.getByLabel('Party name').fill(name);await page.getByLabel('Party fixed rate').fill(rate);await page.getByLabel('Opening balance amount').fill(type==='Seller'?'500':'250');await page.getByLabel('Opening balance date').fill('2026-10-29');await page.getByRole('button',{name:'Save',exact:true}).click();await expect(page.getByLabel('Party name')).toHaveCount(0);}
  await party('Seller','Test seller','10');await party('Stockist','Test stockist','9');
@@ -58,6 +59,18 @@ test('independent lottery creates masters, saves daily formulas, receives split 
  await page.getByLabel('Accounting workspace sections').getByRole('button',{name:'Daily entry',exact:true}).click();await expect(page.getByLabel('Test seller dispatch',{exact:true})).toHaveValue('100');
  const result=await runLottery(state,{method:'getWorkspace',payload:{organizationId:(await runLottery(state,{method:'listOrganizations',payload:{}},customer.orbisIdentityId)).result[0].id}},customer.orbisIdentityId,()=>new Date('2026-10-30T10:00:00Z'));
  expect(result.result.draftSales).toHaveLength(1);expect(result.result.draftSales[0]).toMatchObject({grossSalesPaise:'80000',tdsPaise:'80',netPayablePaise:'76080'});expect(result.result.payments).toHaveLength(2);expect(result.result.payments.some((p:any)=>p.methodSplit.pwtPaise==='2000'&&p.methodSplit.cashPaise==='10000'&&p.methodSplit.bankPaise==='5000')).toBe(true);expect(result.result.summary.methodBalances).toMatchObject({cashPaise:'13000',bankPaise:'5000',pwtPaise:'2000'});expect(result.result.parties.find((p:any)=>p.name==='Test seller').openingBalancePaise).toBe('50000');
+ await page.getByLabel('Accounting workspace sections').getByRole('button',{name:'Dashboard',exact:true}).click();
+ await expect(page.locator('.orbis-public-money-panel')).toHaveCount(0);
+ const header=page.locator('header.module-heading');await expect(header.getByRole('combobox')).toBeVisible();await expect(header.getByLabel('More options')).toBeVisible();
+ await header.getByRole('combobox').selectOption('bn');await expect(header.getByRole('heading')).toHaveText('ORBIS · লটারি');await header.getByRole('combobox').selectOption('en');
+ await header.getByLabel('More options').click();await expect(header.getByRole('checkbox',{name:'Tutorial'})).toBeVisible();await header.getByLabel('More options').click();
+ await page.evaluate(()=>window.scrollTo(0,document.body.scrollHeight));expect(await page.evaluate(()=>window.scrollY)).toBeGreaterThan(100);expect((await header.boundingBox())!.y).toBeGreaterThanOrEqual(0);expect((await header.boundingBox())!.y).toBeLessThan(40);
+ await page.evaluate(()=>window.scrollTo({top:0,behavior:'instant'}));await expect.poll(()=>page.evaluate(()=>window.scrollY)).toBe(0);await page.screenshot({path:test.info().outputPath('lottery-home.png')});
+ await page.getByRole('button',{name:/^Cash.*₹180.00/}).click();await page.getByRole('button',{name:/^Cash.*₹130.00/}).click();await expect(page.getByRole('table').getByText('Test seller',{exact:true})).toHaveCount(2);
+ await expect(page.getByRole('table').getByText('₹130.00',{exact:true}).last()).toBeVisible();
+ await page.evaluate(()=>window.scrollTo(0,document.body.scrollHeight));expect((await header.boundingBox())!.y).toBeGreaterThanOrEqual(0);expect((await header.boundingBox())!.y).toBeLessThan(40);
+ await page.screenshot({path:test.info().outputPath('lottery-cash.png'),fullPage:true});
+ await page.getByRole('button',{name:/Back/}).click();await page.getByRole('button',{name:/Back/}).click();
  await page.getByLabel('Accounting workspace sections').getByRole('button',{name:'Ledger',exact:true}).click();await page.screenshot({path:test.info().outputPath('lottery-ledger.png'),fullPage:true});
  await page.locator('.module-picker summary').click();await page.getByRole('navigation',{name:'Choose module'}).getByRole('button',{name:/Khata/}).click();await expect(page.getByRole('region',{name:'Khata Boi',exact:true})).toBeVisible();await page.locator('.module-picker summary').click();await page.getByRole('navigation',{name:'Choose module'}).getByRole('button',{name:/Lottery/}).click();await expect(page.getByLabel('Accounting organization')).toContainText('Independent lottery');
  expect(await page.locator('.lottery-module').evaluate(el=>el.scrollWidth<=el.clientWidth+1)).toBe(true);

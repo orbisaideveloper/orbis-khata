@@ -1,5 +1,5 @@
 import {ModulePicker} from './ModulePicker';
-import {lazy,Suspense,useEffect,useMemo,useRef,useState} from 'react';
+import {lazy,Suspense,useEffect,useMemo,useRef,useState,type ReactNode} from 'react';
 const LotteryPage=lazy(()=>import('./lottery/LotteryPage'));
 import {selectNumeric} from './select-numeric';
 import {useTheme} from './use-theme';
@@ -40,7 +40,7 @@ function OrbitMark() {
     </svg>);
 }
 function mainClass(view: View, signedIn: boolean) { if(view==='lottery'){return 'phone lottery-shell';}return view === 'khata' && signedIn ? 'phone kh-app' : 'phone'; }
-function LotteryScene({view,owner,language,onSelect}:Readonly<{view:View;owner:string|null;language:Language;onSelect:(module:'khata'|'lottery')=>void}>){if(view!=='lottery'||!owner){return null;}return <Suspense fallback={<p>{accountCopy[language].network}</p>}><LotteryPage owner={owner} language={language} onSelect={onSelect}/></Suspense>;}
+function LotteryScene({view,owner,language,onSelect,controls}:Readonly<{view:View;owner:string|null;language:Language;onSelect:(module:'khata'|'lottery')=>void;controls:ReactNode}>){if(view!=='lottery'||!owner){return null;}return <Suspense fallback={<p>{accountCopy[language].network}</p>}><LotteryPage owner={owner} language={language} onSelect={onSelect} controls={controls}/></Suspense>;}
 function accountStateScreen(account: ReturnType<typeof useAccount>, language: Language, shellClass: string) {
     if (account.loading) {
         return <main className={shellClass}><PwaStatus language={language}/><output>{accountCopy[language].network}</output></main>;
@@ -202,7 +202,7 @@ function App() {
 
         </section>)}
 
-      <LotteryScene view={view} owner={sessionId} language={language} onSelect={navigate}/>
+      <LotteryScene view={view} owner={sessionId} language={language} onSelect={navigate} controls={<>{languagePicker(true)}<WorkspaceMenu language={language} signedIn={signedIn} tutorial={tutorial} onTutorial={enabled=>{setTutorial(enabled);saveTutorial(enabled);}} onProfile={()=>navigate('profile')} onLogout={()=>void logout()}/></>}/>
       {view === 'profile' && signedIn && <section className="scene light-scene active profile-page" aria-label={t('settings')}>
         {renderBar('workspace', 'choose', 'settings')}
         <p className="orbis-account-id">{account.session?.user.user_metadata?.orbis_display_id}</p>
