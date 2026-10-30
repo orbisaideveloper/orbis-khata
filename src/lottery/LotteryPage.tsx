@@ -27,13 +27,13 @@ export default function LotteryPage({
       )}
     >
       <header className="module-heading">
+        <div className="lottery-header-controls">{controls}</div>
+        <h1>ORBIS · {inLanguage(language, "লটারি", "लॉटरी", "Lottery")}</h1>
         <ModulePicker
           language={language}
           active="lottery"
           onSelect={onSelect}
         />
-        <h1>ORBIS · {inLanguage(language, "লটারি", "लॉटरी", "Lottery")}</h1>
-        <div className="lottery-header-controls">{controls}</div>
       </header>
       <LotteryLanguage.Provider value={language}>
         <LotteryAccountingWorkspace

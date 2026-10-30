@@ -63,7 +63,24 @@ test('independent lottery creates masters, saves daily formulas, receives split 
  expect(result.result.draftSales).toHaveLength(1);expect(result.result.draftSales[0]).toMatchObject({grossSalesPaise:'80000',tdsPaise:'80',netPayablePaise:'76080'});expect(result.result.payments).toHaveLength(2);expect(result.result.payments.some((p:any)=>p.methodSplit.pwtPaise==='2000'&&p.methodSplit.cashPaise==='10000'&&p.methodSplit.bankPaise==='5000')).toBe(true);expect(result.result.summary.methodBalances).toMatchObject({cashPaise:'13000',bankPaise:'5000',pwtPaise:'2000'});expect(result.result.parties.find((p:any)=>p.name==='Test seller').openingBalancePaise).toBe('50000');
  await page.getByLabel('Accounting workspace sections').getByRole('button',{name:'Dashboard',exact:true}).click();
  await expect(page.locator('.orbis-public-money-panel')).toHaveCount(0);
- const header=page.locator('header.module-heading');await expect(header.getByRole('combobox')).toHaveCount(0);await header.getByLabel('More options').click();await header.getByText('Settings',{exact:true}).click();await expect(header.getByRole('combobox')).toBeVisible();
+ const header=page.locator('header.module-heading');
+ const originalViewport=page.viewportSize()!;
+ for(const width of [320,360,originalViewport.width]){
+  await page.setViewportSize({width,height:originalViewport.height});
+  const menuButton=header.getByLabel('More options');const modules=header.locator('.module-picker summary');
+  expect((await menuButton.boundingBox())!.x).toBeLessThan((await modules.boundingBox())!.x);
+  await modules.click();const moduleNav=header.getByRole('navigation',{name:'Choose module'});await expect(moduleNav).toBeVisible();
+  const moduleBox=(await moduleNav.boundingBox())!;expect(moduleBox.x).toBeGreaterThanOrEqual(0);expect(moduleBox.x+moduleBox.width).toBeLessThanOrEqual(width);
+  await page.screenshot({path:test.info().outputPath(`lottery-modules-${width}.png`)});await modules.click();
+  await menuButton.click();await header.getByText('Settings',{exact:true}).click();
+  const panel=header.locator('.workspace-menu-panel');const panelBox=(await panel.boundingBox())!;expect(panelBox.x).toBeGreaterThanOrEqual(0);expect(panelBox.x+panelBox.width).toBeLessThanOrEqual(width);
+  const settings=header.locator('.workspace-settings>summary');expect((await settings.boundingBox())!.height).toBeLessThan(48);
+  expect(await settings.evaluate(el=>getComputedStyle(el).listStyleType)).toBe('none');expect(await header.getByRole('button',{name:'Account & profile',exact:true}).evaluate(el=>getComputedStyle(el).borderTopWidth)).toBe('0px');await expect(header.getByRole('combobox')).toBeVisible();await expect(header.getByRole('button',{name:'Simple · blue',exact:true})).toBeVisible();
+  await page.screenshot({path:test.info().outputPath(`lottery-settings-${width}.png`)});
+  await settings.click();await menuButton.click();
+ }
+ await page.setViewportSize(originalViewport);
+await expect(header.getByRole('combobox')).toHaveCount(0);await header.getByLabel('More options').click();await header.getByText('Settings',{exact:true}).click();await expect(header.getByRole('combobox')).toBeVisible();
  await header.getByRole('combobox').selectOption('bn');await expect(header.getByRole('heading',{level:1})).toHaveText('ORBIS · লটারি');await expect(page.getByRole('button',{name:/^কমিশন/})).toBeVisible();await header.getByRole('combobox').selectOption('en');await header.getByRole('button',{name:'Simple · blue',exact:true}).click();await expect(page.locator('main')).toHaveAttribute('data-theme','blue');await header.getByRole('button',{name:'Glass · green',exact:true}).click();await expect(page.locator('main')).toHaveAttribute('data-theme','glass');await header.getByLabel('More options').click();
  await header.getByLabel('More options').click();await expect(header.getByRole('checkbox',{name:'Tutorial'})).toBeVisible();await header.getByLabel('More options').click();
  await page.evaluate(()=>window.scrollTo(0,document.body.scrollHeight));expect(await page.evaluate(()=>window.scrollY)).toBeGreaterThan(100);expect((await header.boundingBox())!.y).toBeGreaterThanOrEqual(0);expect((await header.boundingBox())!.y).toBeLessThan(40);
