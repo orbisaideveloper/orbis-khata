@@ -32,5 +32,7 @@ it('keeps a pending expense visible and locks the company even when its page was
     render(<Accounting userId="owner" language="en"/>);
     await screen.findByRole('button', { name: 'Retry' });
     expect(screen.getByLabelText('Company')).toBeDisabled();
-    await waitFor(() => expect(mocks.expenseReport).toHaveBeenCalledOnce());
+    await waitFor(() => expect(mocks.expenseReport).toHaveBeenCalledTimes(2));
+    expect(mocks.expenseReport.mock.calls.every(call=>call[0]===company)).toBe(true);
+    expect(mocks.expenseReport).toHaveBeenCalledWith(company,'0001-01-01',expect.any(String),0);
 });

@@ -13,8 +13,8 @@ let company = '', warehouse = '', supplier = '', customer = '', power = '', item
 const query = () => ({ company, from: '2026-09-01', to: today(), offset: 0, party: null });
 function change(label: string, value: string) { fireEvent.change(label === 'Party' && document.querySelector('form select[name=party]') ? document.querySelector('form select[name=party]')! : screen.getByLabelText(label), { target: { value } }); }
 async function addParty(name: string, kind: 'supplier' | 'customer' | 'expense', side: 'due' | 'advance', amount: string) {
-    render(<PartyMaster language="en" company={company} parties={demoMasters(company).parties} onChanged={() => { }}/>);
-    fireEvent.click(screen.getByRole('button', { name: /Add party/ }));
+    render(<PartyMaster language="en" company={company} parties={demoMasters(company).parties} onChanged={() => { }} startKind={kind==='expense'?'expense':undefined}/>);
+    if(kind!=='expense')fireEvent.click(screen.getByRole('button', { name: /Add party/ }));
     change('Name', name);
     change('Category', kind);
     change('Phone number', '9876543210');
@@ -67,7 +67,7 @@ describe.sequential('A–Z through actual demo React controls (DOM, no live acco
     });
     it('02 creates a supplier with old due and contact', async () => { supplier = await addParty('Trial supplier', 'supplier', 'due', '200'); expect(supplier).toBeTruthy(); });
     it('03 creates a customer with an old advance', async () => { customer = await addParty('Trial customer', 'customer', 'advance', '100'); expect(customer).toBeTruthy(); });
-    it('04 creates an expense party with old payable', async () => { power = await addParty('Trial power', 'expense', 'due', '50'); expect(power).toBeTruthy(); });
+    it('04 retains legacy expense-party opening payable compatibility', async () => { power = await addParty('Trial power', 'expense', 'due', '50'); expect(power).toBeTruthy(); });
     it('05 creates a litre item with optional code and rate blank', () => {
         render(<ItemMaster language="en" company={company} items={[]} onChanged={() => { }}/>);
         fireEvent.click(screen.getByRole('button', { name: /Add item/ }));
@@ -106,8 +106,8 @@ describe.sequential('A–Z through actual demo React controls (DOM, no live acco
         fireEvent.click(within(label.parentElement!).getByRole('button', { name: 'Pay outstanding' }));
         change('Amount', '70');
         change('Settlement', 'bank');
-        fireEvent.click(screen.getByRole('button', { name: 'Review' }));
-        fireEvent.click(screen.getByRole('button', { name: 'Confirm' }));
+        fireEvent.click(screen.getByRole('button', { name: 'Review & save' }));
+        fireEvent.click(screen.getByRole('button', { name: 'Save' }));
         expect(await screen.findByText('Expense records saved.')).toBeInTheDocument();
     });
     it('12 verifies final ledgers, inventory and cross-company separation after all UI entries', async () => {

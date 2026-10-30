@@ -1,3 +1,4 @@
+import type {ReactNode} from 'react';
 import {currentEntries} from './current-entries';
 import { RetiredCompanies, WorkspaceSettings } from './WorkspaceSettings';
 import { DateRange } from './DateRange';
@@ -19,6 +20,7 @@ import { Inventory } from '../inventory/Inventory';
 import { Expenses } from './Expenses';
 import { restoreExpense } from './expense-pending';
 type Props = {
+    readonly moduleControl?:ReactNode;
     readonly userId: string;
     readonly language: Language;
     readonly initialCompany?: string;
@@ -46,7 +48,7 @@ function restore(user: string): Command | null {
         return null;
     }
 }
-export function Accounting({ userId, language, onBill, onCompanyChange, initialCompany }: Readonly<Props>) {
+export function Accounting({ userId, language, onBill, onCompanyChange, initialCompany, moduleControl }: Readonly<Props>) {
     const t = accountingCopy[language];
     const [list, setList] = useState<Company[]>([]);
     const [selected, setSelected] = useState(() => restore(userId)?.company ?? restoreInventory(userId)?.company ?? initialCompany ?? '');
@@ -96,10 +98,10 @@ export function Accounting({ userId, language, onBill, onCompanyChange, initialC
     const company = list.find(c => c.id === selected);
     const showRecordForm = create || !list.length;
     return <div className="books"><RetiredCompanies language={language} onChanged={() => setRefresh(n => n + 1)}/> 
-    <div className="books-company">
+    <div className="books-company kh-company-modules">
       <label>{t.company}<select aria-label={t.company} value={selected} disabled={locked || !list.length} onChange={e => setSelected(e.target.value)}>
         {list.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-      </select></label>
+      </select></label>{moduleControl}
       <button type="button" disabled={locked} onClick={() => setCreate(true)}>＋ {t.newCompany}</button>
     </div>
     {locked && <p className="books-warning">{t.locked}</p>}

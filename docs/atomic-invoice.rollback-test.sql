@@ -25,12 +25,11 @@ begin
  if v<>-4000 then raise exception 'PAYABLE_MISMATCH: %',v;end if;
  select sum(quantity) into v from public.khata_stock_movements where company_id=cid and item_id=iid;
  if v<>1000000 then raise exception 'STOCK_MISMATCH: %',v;end if;
- -- The bill is inserted before settlement validation by legacy v3; the whole
- -- invoice transaction must roll its number and all financial changes back.
+ -- A rejected account must roll back the invoice number and every financial change.
  begin
-  perform public.khata_workspace_v3(jsonb_set(jsonb_set(p,'{command,bill,id}',to_jsonb(gen_random_uuid())),'{command,paid}','"99000"'));
-  raise exception 'OVERPAYMENT_ALLOWED';
- exception when others then if sqlerrm<>'SETTLEMENT_EXCEEDS_BILL' then raise;end if;end;
+  perform public.khata_workspace_v3(jsonb_set(jsonb_set(p,'{command,bill,id}',to_jsonb(gen_random_uuid())),'{command,account}','"missing"'));
+  raise exception 'INVALID_ACCOUNT_ALLOWED';
+ exception when others then if sqlerrm<>'PAYMENT_ACCOUNT_REQUIRED' then raise;end if;end;
  r:=public.khata_workspace_v3(jsonb_build_object('company',cid,'action','number-preview','kind','purchase','id',gen_random_uuid(),'date',day));
  if r<>to_jsonb('2'::text) then raise exception 'FAILED_SAVE_CONSUMED_NUMBER';end if;
  p:=jsonb_set(p,'{command,bill,id}',to_jsonb(gen_random_uuid()));
@@ -53,5 +52,20 @@ begin
  if v<>9000 then raise exception 'EXPENSE_CORRECTION_FAILED: %',v;end if;
  r:=public.khata_workspace_v3(jsonb_build_object('company',cid,'action','number-preview','kind','expense','id',gen_random_uuid(),'date',day));
  if r<>to_jsonb('2'::text) then raise exception 'EDIT_CONSUMED_NUMBER';end if;
+ -- Sale from insufficient stock is allowed; the excess receipt remains a
+ -- party credit. Retrying must not post another receipt or consume a number.
+ eid:=gen_random_uuid();
+ b:=jsonb_build_object('id',eid,'company',cid,'kind','sale','date',day,'code','','name','','unit','','party',pid,'reference','1','note','','lines',jsonb_build_array(jsonb_build_object('item',iid,'warehouse',wid,'to',null,'quantity','45500000','rate','5500','unit_rate','55')));
+ p:=jsonb_build_object('company',cid,'action','invoice-save','command',jsonb_build_object('company',cid,'action','bill','bill',b,'paid','300000','account','cash','roundoff','-250'));
+ r:=public.khata_workspace_v3(p);
+ if r->>'total'<>'250000' or r->>'due'<>'-50000' then raise exception 'ADVANCE_TOTAL_FAILED: %',r;end if;
+ if public.khata_workspace_v3(p)<>r then raise exception 'ADVANCE_RETRY_FAILED';end if;
+ select sum(signed_minor) into v from public.khata_journal where company_id=cid and account='receivable';
+ if v<>-50000 then raise exception 'ADVANCE_PARTY_FAILED: %',v;end if;
+ select sum(quantity) into v from public.khata_stock_movements where company_id=cid and item_id=iid;
+ if v>=0 then raise exception 'NEGATIVE_STOCK_NOT_RECORDED';end if;
+ perform public.khata_workspace_v3(jsonb_build_object('company',cid,'action','correct','id',gen_random_uuid(),'target',eid,'type','voucher','reason','Rollback advance fixture','replacement',null));
+ select sum(signed_minor) into v from public.khata_journal where company_id=cid and account='receivable';
+ if v<>0 then raise exception 'ADVANCE_REVERSAL_FAILED: %',v;end if;
 end $test$;
 rollback;

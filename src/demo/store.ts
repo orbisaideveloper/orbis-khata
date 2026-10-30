@@ -500,8 +500,8 @@ function demoRecordDetail(company: string, id: unknown) {
 function demoBill(p: Record<string, unknown>, company: string, account: WorkspaceSettings['accounts'][number]) {
     const bill = { ...(p.bill as InventoryCommand), roundoff: String(p.roundoff) };
     const total = billTotal(bill.lines) + BigInt(bill.roundoff), paid = BigInt(String(p.paid));
-    if (paid > total || paid < 0n) {
-        fail('SETTLEMENT_EXCEEDS_BILL');
+    if (paid < 0n) {
+        fail('INVALID_AMOUNT');
     }
     postDemoInventory(bill, company);
     if (paid > 0n) {
