@@ -16,6 +16,8 @@ export interface LotteryOrganization {
 }
 
 export interface LotteryParty {
+  openingBalancePaise?: string;
+  openingBalanceDate?: string;
   id: string;
   organizationId: string;
   partyType: LotteryPartyType;

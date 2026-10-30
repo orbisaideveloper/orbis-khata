@@ -1,10 +1,13 @@
+import {useTutorial} from '../../../../../../src/tutorial';
+import {lotteryOpening} from '../../../../../../src/lottery/opening-balance';
+import {PartyOpeningFields,LotteryContact,partyOpeningForm,openingPayload} from '../../../../../../src/lottery/PartyOpeningFields';
 import { navigationBoolean, navigationChoice, navigationDate, navigationDateString, navigationKey, navigationString, useNavigationState } from "../../navigation/useNavigationState";
 import { lotteryPeriodTds } from "../../models/lotteryAccountingTdsReconciliation";
 import { lotteryBusinessMetrics } from "../../models/lotteryAccountingBusinessMetrics";
 import { accountingBusinessDate, accountingToday } from "../../models/lotteryAccountingBusinessDate";
 import { lotteryExpenseOutstanding } from "../../models/lotteryAccountingExpenseBalance";
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { ChevronRight, LoaderCircle, RefreshCw, WalletCards } from "lucide-react";
+import { ChevronRight, LoaderCircle, RefreshCw } from "lucide-react";
 import { DailySellerEntry, clearPendingRow } from "./DailySellerEntry";
 import { DailyStockistEntry } from "./DailyStockistEntry";
 import {
@@ -143,7 +146,7 @@ const PARTY_PAYMENT_METHODS: Array<[MoneyMethod, string]> = [
   ["bankPaise", "Bank"],
   ["upiPaise", "UPI"],
   ["chequePaise", "Cheque"],
-  ["pwtPaise", "PWT"],
+  ["pwtPaise", "PWD"],
 ];
 
 const DASHBOARD_PERIODS: Array<[DashboardPeriod, string]> = [
@@ -327,7 +330,7 @@ function sellerOutstanding(workspace: LotteryWorkspace, partyId: string, through
   const due = [...workspace.sales, ...workspace.draftSales]
     .filter((sale) => sale.partyId === partyId && throughDate(sale.occurredAt, through))
     .reduce((total, sale) => total + BigInt(sale.netPayablePaise), 0n);
-  return due - partyPaymentTotal(workspace, partyId, "RECEIPT", through);
+  return lotteryOpening(workspace.parties.find(p=>p.id===partyId),through) + due - partyPaymentTotal(workspace, partyId, "RECEIPT", through);
 }
 
 function stockistOutstanding(
@@ -338,7 +341,7 @@ function stockistOutstanding(
   const due = workspace.stockistEntries
     .filter((entry) => entry.partyId === partyId && throughDate(entry.occurredAt, through))
     .reduce((total, entry) => total + BigInt(entry.netPayablePaise), 0n);
-  return due - partyPaymentTotal(workspace, partyId, "PAYMENT", through);
+  return lotteryOpening(workspace.parties.find(p=>p.id===partyId),through) + due - partyPaymentTotal(workspace, partyId, "PAYMENT", through);
 }
 
 function customerOutstanding(
@@ -349,7 +352,7 @@ function customerOutstanding(
   const due = workspace.customerBills
     .filter((bill) => bill.partyId === partyId && throughDate(bill.occurredAt, through))
     .reduce((total, bill) => total + BigInt(bill.amountPaise), 0n);
-  return due - partyPaymentTotal(workspace, partyId, "RECEIPT", through);
+  return lotteryOpening(workspace.parties.find(p=>p.id===partyId),through) + due - partyPaymentTotal(workspace, partyId, "RECEIPT", through);
 }
 
 const expenseOutstanding = lotteryExpenseOutstanding;
@@ -489,7 +492,7 @@ function SectionCard({
   return (
     <section className={LIGHT_CARD}>
       <h4 className="text-sm font-black text-slate-950">{title}</h4>
-      {hint && <p className="mt-1 text-[9px] leading-relaxed text-slate-500">{hint}</p>}
+      {useTutorial() && hint && <p className="mt-1 text-[9px] leading-relaxed text-slate-500">{hint}</p>}
       <div className="mt-3">{children}</div>
     </section>
   );
@@ -901,23 +904,7 @@ export function LotteryAccountingWorkspace({
   return (
     <section className="space-y-3" aria-label="Lottery Accounting data workspace">
       <header className="rounded-[24px] border border-emerald-100 bg-linear-to-br from-emerald-50 via-white to-orange-50 p-4 shadow-[0_12px_34px_rgba(20,85,61,.07)]">
-        <div className="flex items-start justify-between gap-3">
-          <div>
-            <p className="text-[9px] font-black uppercase tracking-[0.16em] text-emerald-700">
-              ORBIS Khata · Lottery Accounting
-            </p>
-            <h3 className="mt-1 text-xl font-black tracking-tight text-slate-950">
-              Smart Accounting Cockpit
-            </h3>
-            <p className="mt-1 text-[10px] leading-relaxed text-slate-500">
-              Easy outside. The existing accounting rules stay underneath.
-            </p>
-          </div>
-          <span className="rounded-2xl border border-orange-100 bg-linear-to-br from-emerald-100 to-orange-100 p-3 text-emerald-800">
-            <WalletCards className="h-5 w-5" />
-          </span>
-        </div>
-        <div className="mt-3 flex gap-2">
+        <div className="flex gap-2">
           <select
             aria-label="Accounting organization"
             value={organizationId}
@@ -1752,6 +1739,7 @@ function DailyPanel({
             await refreshWorkspace();
             return true;
           }}
+          onSavePayment={async payload=>{await api.recordPayment(payload);await refreshWorkspace();}}
           onRegisterFlush={registerSellerFlush}
         />
       )}
@@ -2066,6 +2054,7 @@ function paymentOutstanding(
 }
 
 function paymentMethods(kind: PaymentKind) {
+  if(kind==='SELLER'||kind==='CUSTOMER')return PARTY_PAYMENT_METHODS.filter(([method])=>['cashPaise','pwtPaise','bankPaise'].includes(method)).map(([method,label]):[MoneyMethod,string]=>[method,method==='pwtPaise'?'PWD':label]);
   if (kind !== "EXPENSE") return PARTY_PAYMENT_METHODS;
   const expenseMethods = new Set<MoneyMethod>(["cashPaise", "bankPaise"]);
   return PARTY_PAYMENT_METHODS.filter(([method]) => expenseMethods.has(method));
@@ -3520,7 +3509,10 @@ function makePartyLedgerTransactions(
   from: string,
   to: string,
 ): { summary: Array<[string, string]>; transactions: LedgerTxn[] } {
-  const allEvents = partyLedgerEvents(workspace, party, to).sort((left, right) =>
+  const events=partyLedgerEvents(workspace, party, to);
+  const opening=lotteryOpening(party,to);
+  if(opening!==0n)events.push({id:`opening-${party.id}`,date:party.openingBalanceDate!,business:opening,money:0n,detail:'Opening balance'});
+  const allEvents = events.sort((left, right) =>
     left.date.localeCompare(right.date),
   );
   let balance = 0n;
@@ -3541,7 +3533,7 @@ function makePartyLedgerTransactions(
     inDateRange(event.date, from, to),
   );
   const business = periodEvents.reduce(
-    (total, event) => total + event.business,
+    (total, event) => total + (event.id.startsWith("opening-")?0n:event.business),
     0n,
   );
   const money = periodEvents.reduce((total, event) => total + event.money, 0n);
@@ -4182,7 +4174,7 @@ function buildPwtLedgerBooks(
       summary: [
         ["Entries", rows.length.toString()],
         [incoming ? "Received" : "Redeemed", formatPaise(total)],
-        ["PWT", formatPaise(total)],
+        ["PWD", formatPaise(total)],
       ],
     }),
   ];
@@ -4545,6 +4537,7 @@ function MastersPanel({
   const [partyEmail, setPartyEmail] = useState("");
   const [partyPhone, setPartyPhone] = useState("");
   const [partyRate, setPartyRate] = useState("");
+  const [partyOpening,setPartyOpening]=useState(()=>partyOpeningForm(undefined,businessDateToday()));
   const [expenseCategoryId, setExpenseCategoryId] = useState(
     workspace?.expenseCategories[0]?.id || "",
   );
@@ -4571,6 +4564,7 @@ function MastersPanel({
   const selectedPartyTypeLabel = type === "EXPENSE" ? "" : partyMasterLabel(type);
 
   const populatePartyEditor = useCallback((party: LotteryParty) => {
+    setPartyOpening(partyOpeningForm(party,businessDateToday()));
     setSelectedPartyId(party.id);
     setPartyName(party.name);
     setPartyEmail(party.email || "");
@@ -4646,6 +4640,7 @@ function MastersPanel({
   }
 
   const openNewParty = () => {
+    setPartyOpening(partyOpeningForm(undefined,businessDateToday()));
     setSelectedPartyId("");
     setPartyName("");
     setPartyEmail("");
@@ -4656,6 +4651,8 @@ function MastersPanel({
   const openParty = populatePartyEditor;
   const saveParty = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
+    const opening=openingPayload(partyOpening);
+    if(!opening)return;
     const ticketRatePaise =
       type === "CUSTOMER" ? "0" : parseAmount(partyRate)?.toString();
     if (!partyName.trim() || (type !== "CUSTOMER" && !ticketRatePaise)) return;
@@ -4670,6 +4667,7 @@ function MastersPanel({
             email: partyEmail.trim() || undefined,
             phone: partyPhone.trim() || undefined,
             ticketRatePaise: ticketRatePaise || "0",
+            ...opening,
           }),
         "Party profile updated.",
       );
@@ -4685,6 +4683,7 @@ function MastersPanel({
             email: partyEmail.trim() || undefined,
             phone: partyPhone.trim() || undefined,
             ticketRatePaise: ticketRatePaise || "0",
+            ...opening,
           }),
         "New party added.",
       );
@@ -4836,8 +4835,10 @@ function MastersPanel({
                   placeholder="Phone optional"
                 />
               </div>
+              <LotteryContact onNumber={setPartyPhone}/>
+              <PartyOpeningFields value={partyOpening} onChange={setPartyOpening} stockist={type==='STOCKIST'}/>
               <div className="mt-2 flex gap-2">
-                <button className={ACTIVE_BUTTON} type="submit">
+                <button className={ACTIVE_BUTTON} type="submit" disabled={Boolean(working)}>
                   {selectedPartyId ? "Save Changes" : "Save"}
                 </button>
                 <Button onClick={() => setPartyEditorOpen(false)}>Close</Button>

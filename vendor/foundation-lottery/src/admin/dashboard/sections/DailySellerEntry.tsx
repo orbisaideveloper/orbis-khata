@@ -1,3 +1,4 @@
+import {SellerReceipt} from '../../../../../../src/lottery/SellerReceipt';
 import { accountingBusinessDate, accountingToday } from "../../models/lotteryAccountingBusinessDate";
 import { sellerWorkingRecordVoided, sellerVoidForDay } from "../../models/lotteryAccountingLocalProjection";
 import React, { useEffect, useMemo, useRef, useState } from "react";
@@ -50,7 +51,7 @@ const METHOD_LABELS = {
   bankPaise: "Bank",
   upiPaise: "UPI",
   chequePaise: "Cheque",
-  pwtPaise: "PWT",
+  pwtPaise: "PWD",
 } as const;
 
 function todayInputValue() {
@@ -354,6 +355,7 @@ function DailyTotals({
 export interface DailySellerEntryProps {
   organizationId: string;
   workspace: LotteryWorkspace;
+  onSavePayment?: (payload:Record<string,unknown>)=>Promise<void>;
   onSaveDraft: (
     payload: Record<string, unknown>,
   ) => Promise<LotteryDailySellerDraftIdentity | null>;
@@ -385,6 +387,7 @@ export function DailySellerEntry({
   organizationId,
   workspace,
   onSaveDraft,
+  onSavePayment,
   onUpdateDraft,
   onDeleteDraft,
   onVoidSeller,
@@ -852,7 +855,7 @@ export function DailySellerEntry({
       dirtyPartyIdsRef.current.delete(partyId);
       onLocalRowStateChange?.(entryDate, row, "ERROR");
       setLocalError(DEVICE_STORAGE_UNAVAILABLE_MESSAGE);
-      return;
+      return false;
     }
     setPartySaving(partyId, true);
     try {
@@ -865,10 +868,12 @@ export function DailySellerEntry({
       clearPendingRow(organizationId, partyId, entryDate);
       dirtyPartyIdsRef.current.delete(partyId);
       onLocalRowStateChange?.(entryDate, row, "LOCAL_SAVED");
+      return true;
     } catch {
       dirtyPartyIdsRef.current.delete(partyId);
       onLocalRowStateChange?.(entryDate, row, "ERROR");
       setLocalError(DEVICE_STORAGE_UNAVAILABLE_MESSAGE);
+      return false;
     } finally {
       setPartySaving(partyId, false);
     }
@@ -913,12 +918,12 @@ export function DailySellerEntry({
       if (rowIsZero(row)) {
         const deleted = await deleteZeroSellerRow(row, actions);
         finishDeletingRow(partyId, entryDate, versionAtStart, deleted);
-        return;
+        return deleted;
       }
       const saved = await saveSellerRow(party, row, actions, sync);
-      if (!saved && showValidation) {
-        setLocalError("The seller entry could not be saved. Please try again.");
-        return;
+      if (!saved) {
+        if(showValidation)setLocalError("The seller entry could not be saved. Please try again.");
+        return false;
       }
       await finishSavingRow(
         partyId,
@@ -927,6 +932,7 @@ export function DailySellerEntry({
         sync.operationId,
         saved,
       );
+      return true;
     } catch (error) {
       handlePersistRowError(
         error,
@@ -936,6 +942,7 @@ export function DailySellerEntry({
         versionAtStart,
         showValidation,
       );
+      return false;
     } finally {
       setPartySaving(partyId, false);
       if (dirtyPartyIdsRef.current.has(partyId)) {
@@ -945,19 +952,18 @@ export function DailySellerEntry({
   };
 
   const persistRow = async (partyId: string, showValidation: boolean) => {
-    if (savingPartyIdsRef.current.has(partyId)) return;
+    if (savingPartyIdsRef.current.has(partyId)) return false;
     const party = sellersRef.current.find((item) => item.id === partyId);
     const row = rowsRef.current[partyId];
-    if (!party || !row) return;
+    if (!party || !row) return false;
     const entryDate = currentDateRef.current;
     const versionAtStart = rowVersionsRef.current.get(partyId) || 0;
     const storageMode = workspaceRef.current.organization.userLedgerStorage;
 
     if (storageMode === "DEVICE") {
-      await persistDeviceSellerRow(partyId, entryDate, row);
-      return;
+      return persistDeviceSellerRow(partyId, entryDate, row);
     }
-    await persistCloudSellerRow(
+    return persistCloudSellerRow(
       partyId,
       entryDate,
       versionAtStart,
@@ -1055,10 +1061,21 @@ export function DailySellerEntry({
     [selectedPartyId, sellers],
   );
 
+  const receiptFor=(party:LotteryParty)=>{
+    if(!onSavePayment)return null;
+    const row=rows[party.id]||blankRow(party.id);
+    const calculation=calculateRow(row,party,globalTdsRateBps);
+    return <SellerReceipt key={party.id+selectedDate} workspace={workspace} party={party} day={selectedDate} bill={calculation.partyPayablePaise} disabled={savingPartyIds.has(party.id)||calculation.hasInvalidReturn||calculation.hasInvalidCommission} onSave={async payload=>{
+      if(!await persistRowRef.current(party.id,true))throw new Error('SELLER_ENTRY_NOT_SAVED');
+      await onSavePayment(payload);
+    }}/>;
+  };
+
   const sellerViewProps = {
     sellers:
       viewMode === "grid" && selectedSeller ? [selectedSeller] : sellers,
     rows,
+    receiptFor,
     savingPartyIds,
     onChange: updateRow,
     onSave: saveRow,
@@ -1190,7 +1207,7 @@ export function DailySellerEntry({
       {viewMode === "grid" ? (
         <DailySellerGrid {...sellerViewProps} />
       ) : (
-        <DailySellerTable {...sellerViewProps} />
+        <><DailySellerTable {...sellerViewProps} />{selectedSeller&&receiptFor(selectedSeller)}</>
       )}
 
       <DailyTotals
@@ -1203,6 +1220,7 @@ export function DailySellerEntry({
 }
 
 interface SellerRowsProps {
+  receiptFor:(party:LotteryParty)=>React.ReactNode;
   sellers: LotteryParty[];
   rows: Record<string, DailySellerRow>;
   savingPartyIds: ReadonlySet<string>;
@@ -1518,6 +1536,7 @@ function CommissionCell({
 }
 
 function DailySellerGrid({
+  receiptFor,
   sellers,
   rows,
   savingPartyIds,
@@ -1626,6 +1645,7 @@ function DailySellerGrid({
                 />
               </div>
 
+              {receiptFor(party)}
               <div className="mt-3 flex items-center justify-between gap-2">
                 <span className="text-[8px] font-bold text-emerald-800">
                   {savingPartyIds.has(party.id)

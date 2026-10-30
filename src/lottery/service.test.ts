@@ -1,3 +1,4 @@
+import {savePartyOpening} from './party-opening';
 // @vitest-environment node
 import {beforeEach,expect,it} from 'vitest';
 import {runLottery,lotteryInput,type LotteryInput} from './service';
@@ -11,3 +12,35 @@ it('supports seller drafts/version conflicts, posting, split payments and settle
 it('supports customer bills, recurring expense profiles and a fully separate organization',async()=>{const {org,customer}=await fixture();await run('recordCustomerBill',{organizationId:org,partyId:customer.id,occurredAt:'2026-10-30',quantity:'2',unitRatePaise:'1000',receivedPaise:'1000'});const category=await run('createExpenseCategory',{organizationId:org,name:'Salary'});await run('createExpenseProfile',{organizationId:org,categoryId:category.id,name:'Worker',usualAmountPaise:'500',scheduleType:'MONTHLY'});const w=await run('getWorkspace',{organizationId:org});expect(w.customerBills).toHaveLength(1);expect(w.expenseBills).toHaveLength(1);const other=await run('createOrganization',{name:'Other company'});expect((await run('getWorkspace',{organizationId:other.id})).sales).toEqual([]);await expect(run('createParty',{organizationId:'foreign',name:'Bad',partyType:'SELLER'})).rejects.toThrow('ORGANIZATION_NOT_FOUND');});
 it('validates operation envelopes and preserves independent cloud/device storage preferences',async()=>{expect(lotteryInput({method:'listOrganizations',payload:{}})).toBe(true);for(const value of [{method:'deleteEverything',payload:{}},{method:'createOrganization',payload:{}},{method:'listOrganizations',payload:null},{method:'listOrganizations',payload:{},owner:'forged'}])expect(lotteryInput(value)).toBe(false);await expect(runLottery({}, {method:'badMethod',payload:{}} as LotteryInput,owner,now)).rejects.toThrow('LOTTERY_INPUT_INVALID');const org=await run('createOrganization',{name:'Storage preference'});await run('updateUserLedgerStorage',{organizationId:org.id,userLedgerStorage:'DEVICE'});expect((await run('getWorkspace',{organizationId:org.id})).organization.userLedgerStorage).toBe('DEVICE');});
 it('keeps stockist corrections and double-confirmed void effects in independent audit history',async()=>{const {org,stockist}=await fixture();await run('saveDailyStockistEntry',{organizationId:org,partyId:stockist.id,occurredAt:'2026-10-30',purchaseQuantity:'100',morningReturnQuantity:'0',dayReturnQuantity:'0',eveningReturnQuantity:'0',commissionPaise:'4000'});const w=await run('getWorkspace',{organizationId:org}),entry=w.stockistEntries[0];await run('correctAccountingTransaction',{organizationId:org,entityType:'STOCKIST_ENTRY',entityId:entry.id,operationId:'correct-stockist',expectedVersion:0,replacement:{purchaseQuantity:'120',commissionPaise:'3000'},reason:'Fix quantity'});const corrected=await run('getWorkspace',{organizationId:org});expect(corrected.stockistEntries[0].purchaseQuantity).toBe('120');const preview=await run('previewAccountingVoid',{organizationId:org,entityType:'STOCKIST_ENTRY',entityId:entry.id});expect(preview.effects.transactions).toBeGreaterThan(0);await run('voidAccountingTransaction',{organizationId:org,entityType:'STOCKIST_ENTRY',entityId:entry.id,operationId:'void-stockist',previewToken:preview.previewToken});const final=await run('getWorkspace',{organizationId:org});expect(final.stockistEntries).toEqual([]);expect(final.auditEvents.length).toBeGreaterThan(w.auditEvents.length);});
+it('persists and edits opening balances with balanced reversal history, no invented cash or sales',async()=>{
+ const {org,seller,stockist}=await fixture();
+ async function opening(party:any,amount:string,date='2026-10-29'){return run('updatePartyProfile',{organizationId:org,partyId:party.id,name:party.name,ticketRatePaise:party.ticketRatePaise,openingBalancePaise:amount,openingBalanceDate:date});}
+ expect(await opening(seller,'650000')).toMatchObject({openingBalancePaise:'650000',openingBalanceDate:'2026-10-29'});
+ await opening(stockist,'250000');
+ let w=await run('getWorkspace',{organizationId:org});expect(w.sales).toEqual([]);expect(w.payments).toEqual([]);expect(w.summary.methodBalances.cashPaise).toBe('0');
+ const balanced=(rows:any[])=>rows.reduce((sum,row)=>sum+(row.side==='DEBIT'?1n:-1n)*BigInt(row.amountPaise),0n);
+ expect(balanced(w.ledgerEntries)).toBe(0n);
+ await opening(seller,'-10000','2026-10-28');
+ w=await run('getWorkspace',{organizationId:org});expect(w.parties.find((p:any)=>p.id===seller.id)).toMatchObject({openingBalancePaise:'-10000',openingBalanceDate:'2026-10-28'});
+ expect(balanced(w.ledgerEntries)).toBe(0n);
+ expect(w.ledgerEntries.filter((r:any)=>r.accountCode==='PARTY_RECEIVABLE').reduce((sum:bigint,r:any)=>sum+(r.side==='DEBIT'?1n:-1n)*BigInt(r.amountPaise),0n)).toBe(-10000n);
+ const count=w.ledgerEntries.length;await opening(seller,'-10000','2026-10-28');expect((await run('getWorkspace',{organizationId:org})).ledgerEntries).toHaveLength(count);
+ await opening(seller,'0');expect((await run('getWorkspace',{organizationId:org})).parties.find((p:any)=>p.id===seller.id).openingBalancePaise).toBe('0');
+ state=JSON.parse(JSON.stringify(state));expect((await run('getWorkspace',{organizationId:org})).parties.find((p:any)=>p.id===stockist.id).openingBalancePaise).toBe('250000');
+});
+it('rejects invalid or cross-company opening balances atomically and preserves old profiles',async()=>{
+ const {org,seller}=await fixture();const before=JSON.stringify(state);
+ for(const [amount,date] of [['1.50','2026-10-29'],['100','2026-02-30'],['100','bad'],['100',''],['1000000000000000','2026-10-29']]){
+  await expect(run('createParty',{organizationId:org,name:'Invalid',partyType:'SELLER',openingBalancePaise:amount,openingBalanceDate:date})).rejects.toThrow('INVALID_OPENING_BALANCE');expect(JSON.stringify(state)).toBe(before);
+ }
+ const other=await run('createOrganization',{name:'Other'});const snapshot=JSON.stringify(state);
+ await expect(run('updatePartyProfile',{organizationId:other.id,partyId:seller.id,name:'Wrong',openingBalancePaise:'100',openingBalanceDate:'2026-10-29'})).rejects.toThrow();expect(JSON.stringify(state)).toBe(snapshot);
+});
+
+it('defends the opening writer against absent or foreign party records',async()=>{
+ const input={organizationId:'org',openingBalancePaise:'100',openingBalanceDate:'2026-10-30'};
+ for(const party of [null,{organizationId:'foreign'}]){
+  const client={foundationAccountingParty:{findUnique:()=>Promise.resolve(party)}};
+  await expect(savePartyOpening(client,'missing',input,owner)).rejects.toThrow('PARTY_NOT_FOUND');
+ }
+});

@@ -44,3 +44,14 @@ Foundation-only public account/identity administration, deployment/version
 publishing and real AI-provider calls are not copied into this accounting module.
 Existing Orbis central login is reused; deterministic accounting insights stay
 within the lottery workspace.
+
+### Khata-owned usability extensions (2026-10-30)
+
+The copied workspace now uses Khata's module picker and contact permission UI.
+Party opening balances are stored as additive fields in the Khata-owned aggregate,
+with balanced opening-equity entries and reversal/audit on change. They are not
+new sales, purchases, profit or cash. Old snapshots missing these fields mean zero.
+Daily seller receipt panels reuse the inherited payment endpoint and its cash/PWT
+(bank-independent prize-token adjustment)/bank split; the user-facing token label
+is PWD. A receipt waits for successful durable row persistence; failed persistence
+returns false and blocks the receipt. No Foundation formula, server or data changed.

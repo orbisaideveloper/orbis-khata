@@ -1,3 +1,4 @@
+import {ModulePicker} from './ModulePicker';
 import {lazy,Suspense,useEffect,useMemo,useRef,useState} from 'react';
 const LotteryPage=lazy(()=>import('./lottery/LotteryPage'));
 import {selectNumeric} from './select-numeric';
@@ -39,7 +40,7 @@ function OrbitMark() {
     </svg>);
 }
 function mainClass(view: View, signedIn: boolean) { if(view==='lottery'){return 'phone lottery-shell';}return view === 'khata' && signedIn ? 'phone kh-app' : 'phone'; }
-function LotteryScene({view,owner,language,onBack}:Readonly<{view:View;owner:string|null;language:Language;onBack:()=>void}>){if(view!=='lottery'||!owner){return null;}return <Suspense fallback={<p>{accountCopy[language].network}</p>}><LotteryPage owner={owner} language={language} onBack={onBack}/></Suspense>;}
+function LotteryScene({view,owner,language,onSelect}:Readonly<{view:View;owner:string|null;language:Language;onSelect:(module:'khata'|'lottery')=>void}>){if(view!=='lottery'||!owner){return null;}return <Suspense fallback={<p>{accountCopy[language].network}</p>}><LotteryPage owner={owner} language={language} onSelect={onSelect}/></Suspense>;}
 function accountStateScreen(account: ReturnType<typeof useAccount>, language: Language, shellClass: string) {
     if (account.loading) {
         return <main className={shellClass}><PwaStatus language={language}/><output>{accountCopy[language].network}</output></main>;
@@ -201,7 +202,7 @@ function App() {
 
         </section>)}
 
-      <LotteryScene view={view} owner={sessionId} language={language} onBack={()=>navigate('workspace')}/>
+      <LotteryScene view={view} owner={sessionId} language={language} onSelect={navigate}/>
       {view === 'profile' && signedIn && <section className="scene light-scene active profile-page" aria-label={t('settings')}>
         {renderBar('workspace', 'choose', 'settings')}
         <p className="orbis-account-id">{account.session?.user.user_metadata?.orbis_display_id}</p>
@@ -211,6 +212,7 @@ function App() {
 
       {view === 'khata' && (signedIn || guestUiEnabled) && (<section className="scene light-scene active" aria-label={t('khata')}>
           {signedIn ? <header className="kh-app-header"><button className="kh-brand" type="button" aria-label={language==='bn'?'হোম':'Home'} onClick={homeBooks}><span className="kh-logo">O</span><span><small>ORBIS</small><strong>{t('khata')}</strong></span></button><div className="kh-header-actions">{languagePicker(true)}{menu()}<button type="button" className="kh-profile-button" onClick={homeBooks} aria-label={{bn:'ফিরুন',hi:'वापस',en:'Back'}[language]}>←</button></div></header> : renderBar('workspace', 'choose', 'khata')}
+          {signedIn && <div className="module-switchbar"><span>{t('khata')}</span><ModulePicker language={language} active="khata" onSelect={navigate}/></div>}
           {!signedIn && <div className="khata-title"><div className="bar"><span className="eyebrow l">{t('dashboard')}</span><span className="period">{t('month')}</span></div><h1>{t('khata')}</h1><p>{t('khataHead')}</p></div>}
           <CompanyGate key={account.session?.user.id ?? 'guest'} userId={account.session?.user.id} language={language} workspace={<div className="kh-workspace"><BookServicesContext.Provider value={liveBookServices}><DemoWorkspace userId={account.session?.user.id} language={language}/></BookServicesContext.Provider></div>}>
           <div className="metrics">
