@@ -1,0 +1,5 @@
+@import "tailwindcss/theme";
+@import "tailwindcss/utilities" source("../../vendor/foundation-lottery/src");
+.lottery-module{background:#f4faf8;min-height:100vh;color:#203b39;font-family:'Noto Sans Bengali',system-ui,sans-serif;padding:12px}.lottery-module *{box-sizing:border-box}.lottery-module button,.lottery-module input,.lottery-module select{font-family:inherit}.lottery-module input,.lottery-module select{min-width:0}.lottery-module header.module-heading{position:sticky;top:0;z-index:30;display:flex;justify-content:space-between;align-items:center;gap:10px;background:#fff;padding:12px;border-radius:14px;margin-bottom:12px;box-shadow:0 2px 10px #163f3610}.lottery-module header.module-heading h1{font-size:19px;font-weight:700;margin:0}.lottery-module header.module-heading button{padding:8px 12px;border:1px solid #d1e2dc;border-radius:10px;background:white}.lottery-module table{border-collapse:collapse}.lottery-module .overflow-x-auto{max-width:100%}
+
+.phone.lottery-shell{max-width:1200px;width:100%}

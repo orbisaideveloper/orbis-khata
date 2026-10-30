@@ -1,3 +1,5 @@
+import {lazy,Suspense} from 'react';
+const LotteryPage=lazy(()=>import('./lottery/LotteryPage'));
 import {selectNumeric} from './select-numeric';
 import {useTheme} from './use-theme';
 import {readLocation,saveLocation,clearLocation} from './workspace-location';
@@ -37,7 +39,8 @@ function OrbitMark() {
       <circle cx="25.7" cy="8.8" r="2.4" fill="currentColor"/>
     </svg>);
 }
-function mainClass(view: View, signedIn: boolean) { return view === 'khata' && signedIn ? 'phone kh-app' : 'phone'; }
+function mainClass(view: View, signedIn: boolean) { if(view==='lottery'){return 'phone lottery-shell';}return view === 'khata' && signedIn ? 'phone kh-app' : 'phone'; }
+function LotteryScene({view,owner,language,onBack}:Readonly<{view:View;owner:string|null;language:Language;onBack:()=>void}>){if(view!=='lottery'||!owner){return null;}return <Suspense fallback={<p>{accountCopy[language].network}</p>}><LotteryPage owner={owner} language={language} onBack={onBack}/></Suspense>;}
 function accountStateScreen(account: ReturnType<typeof useAccount>, language: Language, shellClass: string) {
     if (account.loading) {
         return <main className={shellClass}><PwaStatus language={language}/><output>{accountCopy[language].network}</output></main>;
@@ -50,11 +53,12 @@ function accountStateScreen(account: ReturnType<typeof useAccount>, language: La
     }
     return null;
 }
+function LotteryModule({signedIn,language,onOpen}:Readonly<{signedIn:boolean;language:Language;onOpen:()=>void}>){const t=translations[language];return signedIn?<button type="button" className="module" onClick={onOpen}><span className="ic" aria-hidden="true">🎟️</span><span className="copy"><strong>{t.lot}</strong><small>{t.lotDesc}</small></span><span className="status">{t.open}</span></button>:<div className="module planned"><span className="ic lot" aria-hidden="true">🎟️</span><span className="copy"><strong>{t.lot}</strong><small>{t.lotDesc}</small></span><span className="status">{t.soon}</span></div>;}
 function App() {
     // Remember only owner-scoped UI location; financial data stays service-owned.
     const account = useAccount();
     const theme=useTheme();
-    const {page:booksPage,open:openBooks,back:_backBooks,home:homeBooks}=useBooksTrail();
+    const {page:booksPage,open:openBooks,home:homeBooks}=useBooksTrail();
     const [tutorial, setTutorial] = useState(readTutorial);
     const [view, setView] = useState<View>(() => authClient && account.session ? readLocation(account.session.user.id).view : 'welcome');
     const [language, setLanguage] = useState<Language>(readLanguage);
@@ -94,7 +98,7 @@ function App() {
         window.addEventListener('popstate', onBack);
         return () => window.removeEventListener('popstate', onBack);
     }, [signedIn, view, booksPage, homeBooks]);
-    useEffect(()=>{if(signedIn&&!account.loading&&(view==='khata'||view==='workspace'))saveLocation(sessionId??undefined,{view});},[signedIn,account.loading,view,sessionId]);
+    useEffect(()=>{if(signedIn&&!account.loading&&(view==='khata'||view==='lottery'||view==='workspace'))saveLocation(sessionId??undefined,{view});},[signedIn,account.loading,view,sessionId]);
     async function logout() {
         if (!authClient) {
             backToWelcome();
@@ -192,12 +196,13 @@ function App() {
           <div className="modules">
             <button type="button" className="module" onClick={() => navigate('khata')}><span className="ic" aria-hidden="true">📘</span><span className="copy"><strong>{t('khata')}</strong><small>{t('khataDesc')}</small></span><span className="status">{t('open')}</span></button>
             {renderPlanned('🌱', 'farm', 'farm', 'farmDesc', 'later')}
-            {renderPlanned('🎟️', 'lot', 'lot', 'lotDesc', 'soon')}
+            <LotteryModule signedIn={signedIn} language={language} onOpen={()=>navigate('lottery')}/>
           </div>
           {!signedIn && <button type="button" className="exit" onClick={backToWelcome}>{t('exit')}</button>}
 
         </section>)}
 
+      <LotteryScene view={view} owner={sessionId} language={language} onBack={()=>navigate('workspace')}/>
       {view === 'profile' && signedIn && <section className="scene light-scene active profile-page" aria-label={t('settings')}>
         {renderBar('workspace', 'choose', 'settings')}
         <p className="orbis-account-id">{account.session?.user.user_metadata?.orbis_display_id}</p>

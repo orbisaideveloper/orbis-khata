@@ -5,7 +5,7 @@ import { configure } from '@testing-library/react'
 configure({ asyncUtilTimeout: 5000 })
 
 // Test-only fallback for Android Node/Vitest without localStorage.
-if (typeof window.localStorage === 'undefined') {
+if (typeof window !== 'undefined' && typeof window.localStorage === 'undefined') {
   const data = new Map<string, string>()
 
   const storage: Storage = {

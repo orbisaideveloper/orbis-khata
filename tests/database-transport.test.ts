@@ -1,3 +1,4 @@
+import {runLottery} from '../src/lottery/service'
 import { readFileSync } from 'node:fs'
 import { runInNewContext } from 'node:vm'
 import { transpileModule, ModuleKind } from 'typescript'
@@ -16,12 +17,18 @@ function decodeJson(value: unknown) {
 }
 function edgeHarness() {
   const received: unknown[] = []
+  let lotteryState:unknown={},lotteryVersion=0;const lotteryOperations=new Map<string,unknown>();
   let handler: (request: Request) => Promise<Response> = async () => new Response(null, { status: 500 })
   const tx = Object.assign(async (parts: TemplateStringsArray, ...values: unknown[]) => {
     const query = parts.join('?')
     if (query.includes('resolve_ledger_owner')) return [{ id }]
     if (query.includes('::jsonb')) {
       const payloads = values.slice(query.includes('khata_master_save_v2') ? 1 : 0).map(decodeJson)
+      if(query.includes('khata_lottery_store_v1')){
+        const p=payloads[0] as Record<string,any>;
+        if(p.action==='load')return [{data:lotteryOperations.has(p.operationId)?{replay:true,result:lotteryOperations.get(p.operationId)}:{state:lotteryState,version:lotteryVersion}}];
+        lotteryState=p.state;lotteryVersion++;if(p.operationId)lotteryOperations.set(p.operationId,p.result);return [{data:p.result}];
+      }
       received.push(...payloads)
       if (!payloads.every(p => typeof p === 'object' && p !== null)) throw Object.assign(new Error('Invalid JSON shape'), { code: 'P0001' })
       return [{ data: id }]
@@ -33,7 +40,7 @@ function edgeHarness() {
   const compiled = transpileModule(source, { compilerOptions: { module: ModuleKind.CommonJS } }).outputText
   runInNewContext(compiled, {
     exports: {}, URL, console: { info() {}, warn() {} },
-    require: (name: string) => name.startsWith('npm:postgres') ? { __esModule: true, default: () => sql } : {
+    require: (name: string) => name.includes('/lottery/service') ? {runLottery} : name.startsWith('npm:postgres') ? { __esModule: true, default: () => sql } : {
       createCentralVerifier: () => async () => principal, createKhataGateway,
     },
     Deno: { env: { get: (name: string) => name === 'KHATA_DATABASE_URL' ? 'postgres://postgres@db.gqyaxsczlmvppxuoqbox.supabase.co/postgres' : '' }, serve: (value: typeof handler) => { handler = value } },
@@ -56,3 +63,11 @@ it('preserves expense command objects and line arrays across the SQL boundary', 
   expect((await edge.request('expense-post', command)).status).toBe(200)
   expect(edge.received).toEqual([command, lines, command])
 })
+
+it('runs independent lottery operations through the actual authenticated Edge entrypoint without touching ordinary tables',async()=>{
+ const edge=edgeHarness(),input={method:'createOrganization',payload:{name:'Lottery only'},operationId:crypto.randomUUID()};
+ const first=await edge.request('lottery',input),body=await first.json();expect(first.status).toBe(200);expect(body.data.name).toBe('Lottery only');
+ expect(await (await edge.request('lottery',input)).json()).toEqual(body);
+ const list=await (await edge.request('lottery',{method:'listOrganizations',payload:{}})).json();expect(list.data).toHaveLength(1);expect(edge.received).toEqual([]);
+ expect((await edge.request('lottery',{method:'arbitrarySql',payload:{query:'drop table'}})).status).toBe(400);
+});

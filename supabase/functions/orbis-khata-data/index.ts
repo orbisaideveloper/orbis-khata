@@ -1,3 +1,4 @@
+import {runLottery,type LotteryInput} from '../../../src/lottery/service.ts';
 import postgres from 'npm:postgres@3.4.7';
 import { createCentralVerifier, createKhataGateway } from '../../../src/accounting/server-gateway.ts';
 const env = (key: string) => Deno.env.get(key) ?? '';
@@ -33,6 +34,22 @@ const handler = createKhataGateway({ origins: (env('KHATA_ORIGINS') || 'https://
         await tx `set local role authenticated`;
         await tx `select set_config('request.jwt.claims',${JSON.stringify({ sub: ledgerOwnerId, role: 'authenticated' })},true)`;
         const input = operation.input;
+        if(operation.operation==='lottery'){
+            const request=input as LotteryInput;
+            const load={action:'load',request,...(request.operationId?{operationId:request.operationId}:{})};
+            const rows=await tx `select public.khata_lottery_store_v1(${tx.json(load)}::jsonb) as data`;
+            const saved=rows[0].data;
+            if(saved.replay)return saved.result;
+            let calculated;
+            try{calculated=await runLottery(saved.state,request,principal.orbisIdentityId);}catch(error){
+                const code=error&&typeof error==='object'&&'code' in error?String(error.code):'LOTTERY_COMMAND_REJECTED';
+                const currentVersion=error&&typeof error==='object'&&'currentVersion' in error?error.currentVersion:undefined;
+                return {lotteryError:/^[A-Z_]{2,80}$/u.test(code)?code:'LOTTERY_COMMAND_REJECTED',...(Number.isSafeInteger(currentVersion)&&Number(currentVersion)>=0?{currentVersion}:{})};
+            }
+            const commit={action:'commit',version:saved.version,state:calculated.state,result:calculated.result,request,...(request.operationId?{operationId:request.operationId}:{})};
+            const result=await tx `select public.khata_lottery_store_v1(${tx.json(commit)}::jsonb) as data`;
+            return result[0].data;
+        }
         if (operation.operation === 'workspace') {
             const result = await tx `select public.khata_workspace_v3(${tx.json(input)}::jsonb) as data`;
             return result[0].data;

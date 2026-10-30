@@ -1,0 +1,352 @@
+import { authenticatedAdminFetch } from "../auth/adminFetch";
+import type {
+  LotteryDailySellerDraftIdentity,
+  LotteryDailyStockistEntryIdentity,
+  LotteryOrganization,
+  LotteryPayment,
+  LotterySalePreview,
+  LotteryWorkspace,
+} from "./lotteryAccountingTypes";
+
+const LOTTERY_ADMIN_BASE =
+  "/lottery";
+
+export type LotteryRecordedPayment = Omit<
+  LotteryPayment,
+  "partyName" | "periodLabel" | "settledPaise" | "availablePaise"
+>;
+
+class LotteryAccountingRequestError extends Error {
+  readonly code: string;
+  readonly currentVersion?: number;
+
+  constructor(code: string, currentVersion?: number) {
+    super(code.replace(/_/g, " "));
+    this.name = "LotteryAccountingRequestError";
+    this.code = code;
+    this.currentVersion = currentVersion;
+  }
+}
+
+async function readLotteryResponse<T>(
+  path: string,
+  init: RequestInit = {},
+): Promise<T> {
+  const headers = new Headers(init.headers);
+  if (init.body) headers.set("Content-Type", "application/json");
+  const response = await authenticatedAdminFetch(
+    `${LOTTERY_ADMIN_BASE}${path}`,
+    { ...init, headers },
+  );
+  let body: unknown;
+  try {
+    body = await response.json();
+  } catch {
+    throw new Error("Lottery Accounting returned an invalid response.");
+  }
+  if (!response.ok) {
+    const code =
+      typeof body === "object" &&
+      body !== null &&
+      "error" in body &&
+      typeof body.error === "object" &&
+      body.error !== null &&
+      "code" in body.error &&
+      typeof body.error.code === "string"
+        ? body.error.code
+        : "LOTTERY_ACCOUNTING_UNAVAILABLE";
+    const currentVersion =
+      typeof body === "object" &&
+      body !== null &&
+      "error" in body &&
+      typeof body.error === "object" &&
+      body.error !== null &&
+      "currentVersion" in body.error &&
+      typeof body.error.currentVersion === "number" &&
+      Number.isSafeInteger(body.error.currentVersion) &&
+      body.error.currentVersion >= 0
+        ? body.error.currentVersion
+        : undefined;
+    throw new LotteryAccountingRequestError(code, currentVersion);
+  }
+  return body as T;
+}
+
+function postLottery<T>(path: string, payload: unknown): Promise<T> {
+  return readLotteryResponse<T>(path, {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+function patchLottery<T>(path: string, payload: unknown): Promise<T> {
+  return readLotteryResponse<T>(path, {
+    method: "PATCH",
+    body: JSON.stringify(payload),
+  });
+}
+
+function deleteLottery<T>(path: string, payload: unknown): Promise<T> {
+  return readLotteryResponse<T>(path, {
+    method: "DELETE",
+    body: JSON.stringify(payload),
+  });
+}
+
+export type LotteryAccountingCorrectionEntityType =
+  | "STOCKIST_ENTRY"
+  | "CUSTOMER_BILL"
+  | "EXPENSE_BILL"
+  | "EXPENSE_PAYMENT"
+  | "PAYMENT";
+
+export interface LotteryAccountingCorrectionAck {
+  correctionId: string;
+  entityType: LotteryAccountingCorrectionEntityType;
+  entityId: string;
+  version: number;
+  operationId: string;
+}
+
+export type LotteryAccountingVoidEntityType = LotteryAccountingCorrectionEntityType |
+  "SELLER_SALE" | "STOCK_MOVEMENT" | "SETTLEMENT" | "LEGACY_STOCKIST_DAY";
+export interface LotteryAccountingVoidPreview {
+  organizationId: string; entityType: LotteryAccountingVoidEntityType; entityId: string;
+  reference: string; previewToken: string;
+  effects: { transactions: number; ledgerLines: number; payments: number; settlements: number; stockAdjustments: number };
+}
+interface LotteryAccountingVoidAck extends LotteryAccountingVoidPreview {
+  id: string; operationId: string; voided: true;
+}
+
+export interface LotteryAccountingClient {
+  previewAccountingVoid?: (entityType: LotteryAccountingVoidEntityType, entityId: string,
+    payload: Record<string, unknown>) => Promise<LotteryAccountingVoidPreview>;
+  voidAccountingTransaction?: (entityType: LotteryAccountingVoidEntityType, entityId: string,
+    payload: Record<string, unknown>) => Promise<LotteryAccountingVoidAck>;
+  listOrganizations: () => Promise<LotteryOrganization[]>;
+  loadWorkspace: (organizationId: string) => Promise<LotteryWorkspace>;
+  createOrganization: (payload: {
+    name: string;
+  }) => Promise<LotteryOrganization>;
+  createParty: (payload: Record<string, unknown>) => Promise<void>;
+  updatePartyProfile: (payload: Record<string, unknown>) => Promise<void>;
+  updateOrganizationTdsRate: (payload: {
+    organizationId: string;
+    tdsRateBps: number;
+  }) => Promise<void>;
+  updateUserLedgerStorage: (payload: {
+    organizationId: string;
+    userLedgerStorage: "CLOUD" | "DEVICE";
+  }) => Promise<void>;
+  createPeriod: (payload: Record<string, unknown>) => Promise<void>;
+  createFinancialYearPeriod: (
+    payload: Record<string, unknown>,
+  ) => Promise<void>;
+  recordStockMovement: (payload: Record<string, unknown>) => Promise<void>;
+  saveDailyStockistEntry: (
+    payload: Record<string, unknown>,
+  ) => Promise<LotteryDailyStockistEntryIdentity>;
+  clearDailyEntries: (payload: {
+    organizationId: string;
+    occurredAt: string;
+    scope: "ALL" | "SELLER" | "STOCKIST" | "PAYMENT";
+  }) => Promise<void>;
+  previewSale: (
+    payload: Record<string, unknown>,
+  ) => Promise<LotterySalePreview>;
+  recordSale: (payload: Record<string, unknown>) => Promise<void>;
+  saveDailySellerDraft: (
+    payload: Record<string, unknown>,
+  ) => Promise<LotteryDailySellerDraftIdentity>;
+  updateDailySellerDraft: (
+    saleId: string,
+    payload: Record<string, unknown>,
+  ) => Promise<LotteryDailySellerDraftIdentity>;
+  deleteDailySellerDraft: (
+    saleId: string,
+    payload: Record<string, unknown>,
+  ) => Promise<void>;
+  postDailySellerDraft: (
+    saleId: string,
+    payload: Record<string, unknown>,
+  ) => Promise<void>;
+  correctPostedSale: (
+    saleId: string,
+    payload: Record<string, unknown>,
+  ) => Promise<LotteryDailySellerDraftIdentity>;
+  correctAccountingTransaction?: (
+    entityType: LotteryAccountingCorrectionEntityType,
+    entityId: string,
+    payload: Record<string, unknown>,
+  ) => Promise<LotteryAccountingCorrectionAck>;
+  recordPayment: (
+    payload: Record<string, unknown>,
+  ) => Promise<LotteryRecordedPayment>;
+
+  createExpenseCategory: (payload: Record<string, unknown>) => Promise<void>;
+  updateExpenseCategory: (
+    categoryId: string,
+    payload: Record<string, unknown>,
+  ) => Promise<void>;
+  createExpenseProfile: (payload: Record<string, unknown>) => Promise<void>;
+  updateExpenseProfile: (
+    profileId: string,
+    payload: Record<string, unknown>,
+  ) => Promise<void>;
+  recordExpenseBill: (payload: Record<string, unknown>) => Promise<void>;
+  recordExpensePayment: (payload: Record<string, unknown>) => Promise<void>;
+  recordCustomerBill: (payload: Record<string, unknown>) => Promise<void>;
+  recordSettlement: (payload: Record<string, unknown>) => Promise<void>;
+}
+
+export const lotteryAccountingClient: LotteryAccountingClient = {
+  async listOrganizations() {
+    const body = await readLotteryResponse<{
+      organizations: LotteryOrganization[];
+    }>("/organizations");
+    return body.organizations;
+  },
+  async loadWorkspace(organizationId) {
+    const body = await readLotteryResponse<{ workspace: LotteryWorkspace }>(
+      `/workspace?organizationId=${encodeURIComponent(organizationId)}`,
+    );
+    return body.workspace;
+  },
+  async createOrganization(payload) {
+    const body = await postLottery<{ organization: LotteryOrganization }>(
+      "/organizations",
+      payload,
+    );
+    return body.organization;
+  },
+  async createParty(payload) {
+    await postLottery("/parties", payload);
+  },
+  async updatePartyProfile(payload) {
+    const partyId = String(payload.partyId || "");
+    await patchLottery(
+      `/parties/${encodeURIComponent(partyId)}/profile`,
+      payload,
+    );
+  },
+  async updateOrganizationTdsRate(payload) {
+    await patchLottery("/settings/tds-rate", payload);
+  },
+  async updateUserLedgerStorage(payload) {
+    await patchLottery("/settings/user-ledger-storage", payload);
+  },
+  async createPeriod(payload) {
+    await postLottery("/periods", payload);
+  },
+  async createFinancialYearPeriod(payload) {
+    await postLottery("/periods/financial-year", payload);
+  },
+  async recordStockMovement(payload) {
+    await postLottery("/stock-movements", payload);
+  },
+  async saveDailyStockistEntry(payload) {
+    const body = await postLottery<{
+      entry: LotteryDailyStockistEntryIdentity;
+    }>("/daily-stockist-entries", payload);
+    return body.entry;
+  },
+  async clearDailyEntries(payload) {
+    await postLottery("/daily-entry-clearances", payload);
+  },
+  async previewSale(payload) {
+    return postLottery<LotterySalePreview>("/sales/preview", payload);
+  },
+  async recordSale(payload) {
+    await postLottery("/sales", payload);
+  },
+  async saveDailySellerDraft(payload) {
+    const body = await postLottery<{ sale: LotteryDailySellerDraftIdentity }>(
+      "/daily-seller-drafts",
+      payload,
+    );
+    return body.sale;
+  },
+  async updateDailySellerDraft(saleId, payload) {
+    const body = await patchLottery<{ sale: LotteryDailySellerDraftIdentity }>(
+      `/daily-seller-drafts/${encodeURIComponent(saleId)}`,
+      payload,
+    );
+    return body.sale;
+  },
+  async deleteDailySellerDraft(saleId, payload) {
+    await deleteLottery(
+      `/daily-seller-drafts/${encodeURIComponent(saleId)}`,
+      payload,
+    );
+  },
+  async postDailySellerDraft(saleId, payload) {
+    await postLottery(
+      `/daily-seller-drafts/${encodeURIComponent(saleId)}/post`,
+      payload,
+    );
+  },
+  async correctPostedSale(saleId, payload) {
+    const body = await postLottery<{ draft: LotteryDailySellerDraftIdentity }>(
+      `/sales/${encodeURIComponent(saleId)}/correct`,
+      payload,
+    );
+    return body.draft;
+  },
+  async previewAccountingVoid(entityType, entityId, payload) {
+    const body = await postLottery<{ preview: LotteryAccountingVoidPreview }>(
+      `/voids/${encodeURIComponent(entityType)}/${encodeURIComponent(entityId)}/preview`, payload);
+    return body.preview;
+  },
+  async voidAccountingTransaction(entityType, entityId, payload) {
+    const body = await postLottery<{ deletion: LotteryAccountingVoidAck }>(
+      `/voids/${encodeURIComponent(entityType)}/${encodeURIComponent(entityId)}`, payload);
+    return body.deletion;
+  },
+  async correctAccountingTransaction(entityType, entityId, payload) {
+    const body = await postLottery<{ correction: LotteryAccountingCorrectionAck }>(
+      `/corrections/${encodeURIComponent(entityType)}/${encodeURIComponent(entityId)}`,
+      payload,
+    );
+    return body.correction;
+  },
+  async recordPayment(payload) {
+    const body = await postLottery<{ payment: LotteryRecordedPayment }>(
+      "/payments",
+      payload,
+    );
+    return body.payment;
+  },
+
+  async createExpenseCategory(payload) {
+    await postLottery("/expenses/categories", payload);
+  },
+  async updateExpenseCategory(categoryId, payload) {
+    await patchLottery(
+      `/expenses/categories/${encodeURIComponent(categoryId)}`,
+      payload,
+    );
+  },
+  async createExpenseProfile(payload) {
+    await postLottery("/expenses/profiles", payload);
+  },
+  async updateExpenseProfile(profileId, payload) {
+    await patchLottery(
+      `/expenses/profiles/${encodeURIComponent(profileId)}`,
+      payload,
+    );
+  },
+  async recordExpenseBill(payload) {
+    await postLottery("/expenses/bills", payload);
+  },
+  async recordExpensePayment(payload) {
+    await postLottery("/expenses/payments", payload);
+  },
+  async recordCustomerBill(payload) {
+    await postLottery("/customer-bills", payload);
+  },
+  async recordSettlement(payload) {
+    await postLottery("/settlements", payload);
+  },
+};
+
