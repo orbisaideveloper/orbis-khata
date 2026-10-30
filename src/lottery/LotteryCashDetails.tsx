@@ -20,30 +20,63 @@ export function LotteryCashDetails({
   to: string;
   onClose: () => void;
 }>) {
+  const [bankChannel, setBankChannel] = useState("");
   const [method, setMethod] = useState<LotteryMoneyMethod | null>(null);
   const language = useLotteryLanguage();
   const l = (bn: string, hi: string, en: string) =>
     inLanguage(language, bn, hi, en);
+  const bankWorkspace = {
+    ...workspace,
+    organization: {
+      ...workspace.organization,
+      paymentOptions: {
+        upi: false,
+        cheque: false,
+        bankChannels:
+          workspace.organization?.paymentOptions?.bankChannels ?? [],
+      },
+    },
+  };
+  function back() {
+    if (bankChannel) {
+      setBankChannel("");
+      return;
+    }
+    if (method === "upiPaise" || method === "chequePaise") {
+      setMethod("bankPaise");
+      return;
+    }
+    if (method) {
+      setMethod(null);
+      return;
+    }
+    onClose();
+  }
+  const statementWorkspace=method === "bankPaise" && !bankChannel ? bankWorkspace : workspace;
   const statement = method
-    ? lotteryMoneyStatement(workspace, method, from, to)
+    ? lotteryMoneyStatement(
+        statementWorkspace,
+        method,
+        from,
+        to,
+        bankChannel || undefined,
+      )
     : null;
   return (
     <section className="lottery-cash-details" aria-label="Money details">
       <div className="cash-detail-heading">
-        <button
-          type="button"
-          onClick={() => (method ? setMethod(null) : onClose())}
-        >
+        <button type="button" onClick={back}>
           ← {l("ফিরুন", "वापस", "Back")}
         </button>
         <h2>
-          {method
-            ? lotteryLabel(
-                language,
-                lotteryMoneyMethods.find(([key]) => key === method)?.[1] ??
-                  "Cash",
-              )
-            : l("ক্যাশ", "रकम", "Cash")}
+          {bankChannel ||
+            (method
+              ? lotteryLabel(
+                  language,
+                  lotteryMoneyMethods.find(([key]) => key === method)?.[1] ??
+                    "Cash",
+                )
+              : l("ক্যাশ", "रकम", "Cash"))}
         </h2>
       </div>
       <p className="cash-period">
@@ -52,15 +85,22 @@ export function LotteryCashDetails({
       {!statement ? (
         <div className="cash-method-list">
           {lotteryMoneyMethods.map(([key, label]) => {
-            const data = lotteryMoneyStatement(workspace, key, from, to);
-            if (
-              (key === "upiPaise" || key === "chequePaise") &&
-              data.balance === 0n &&
-              data.rows.length === 0
-            )
-              return null;
+            if (key === "upiPaise" || key === "chequePaise") return null;
+            const data = lotteryMoneyStatement(
+              key === "bankPaise" ? bankWorkspace : workspace,
+              key,
+              from,
+              to,
+            );
             return (
-              <button type="button" key={key} onClick={() => setMethod(key)}>
+              <button
+                type="button"
+                key={key}
+                onClick={() => {
+                  setBankChannel("");
+                  setMethod(key);
+                }}
+              >
                 <span>
                   {lotteryLabel(language, label)}
                   {key === "pwtPaise" && (
@@ -85,6 +125,57 @@ export function LotteryCashDetails({
         </div>
       ) : (
         <>
+          {method === "bankPaise" && !bankChannel && (
+            <div className="cash-method-list" aria-label="Bank channels">
+              {lotteryMoneyMethods
+                .filter(
+                  ([key]) =>
+                    (key === "upiPaise" &&
+                      workspace.organization?.paymentOptions?.upi) ||
+                    (key === "chequePaise" &&
+                      workspace.organization?.paymentOptions?.cheque),
+                )
+                .map(([key, label]) => (
+                  <button
+                    key={key}
+                    type="button"
+                    onClick={() => setMethod(key)}
+                  >
+                    <span>{label}</span>
+                    <strong>
+                      {formatPaise(
+                        lotteryMoneyStatement(workspace, key, from, to).balance,
+                      )}
+                    </strong>
+                  </button>
+                ))}
+              {workspace.organization?.paymentOptions?.bankChannels.map(
+                (name) => (
+                  <button
+                    type="button"
+                    key={name}
+                    onClick={() => {
+                      setMethod("bankPaise");
+                      setBankChannel(name);
+                    }}
+                  >
+                    <span>{name}</span>
+                    <strong>
+                      {formatPaise(
+                        lotteryMoneyStatement(
+                          workspace,
+                          "bankPaise",
+                          from,
+                          to,
+                          name,
+                        ).balance,
+                      )}
+                    </strong>
+                  </button>
+                ),
+              )}
+            </div>
+          )}
           <div className="cash-summary">
             <span>
               {l("শুরুর ব্যালেন্স", "शुरुआती शेष", "Opening")}:{" "}

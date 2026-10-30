@@ -1,3 +1,4 @@
+import {expenseCategoryParts,isExpenseCategory} from "./expense-category";
 import { useBooksBack } from '../books-navigation';
 import { expenseLedgerReport } from './expense-ledger';
 import { PartyLedger } from './PartyLedger';
@@ -100,11 +101,11 @@ export function LedgerExplorer({ company, language, from, to, version, parties, 
     if (!data) {
         return <output>{a.loading}</output>;
     }
-    const entities: LedgerEntity[] = [...parties.map(p => ({ id: p.id, name: p.name, type: p.kind === 'expense' ? 'expense' as const : 'party' as const, ...(p.kind === 'expense' ? { payee: p.name, partyId: p.id } : {}) })), ...data.expenses.categories.map(c => ({ id: 'category:' + c.name, name: c.name, type: 'expense' as const, category: c.name })), ...data.inventory.items.map(item => ({ id: item.id, name: itemLabel(item), type: 'item' as const }))];
+    const entities: LedgerEntity[] = [...parties.map(p => ({ id: p.id, name: p.name, type: p.kind === 'expense' ? 'expense' as const : 'party' as const, ...(p.kind === 'expense' ? { payee: p.name, partyId: p.id } : {}) })), ...[...new Set(data.expenses.entries.map(e=>e.payee).filter(name=>name&&!parties.some(p=>p.kind==='expense'&&p.name===name)))].map(name=>({id:'payee:'+name,name,type:'expense' as const,payee:name})), ...[...new Set(data.expenses.categories.map(c=>expenseCategoryParts(c.name).category))].filter(name=>!data.expenses.categories.some(c=>c.name===name)).map(name=>({id:'category:'+name,name,type:'expense' as const,category:name})), ...data.expenses.categories.map(c => ({ id: 'category:' + c.name, name: c.name, type: 'expense' as const, category: c.name })), ...data.inventory.items.map(item => ({ id: item.id, name: itemLabel(item), type: 'item' as const }))];
     const matches = entities.filter(row => (filter === 'all' || row.type === filter) && row.name.toLocaleLowerCase().includes(search.trim().toLocaleLowerCase()));
-    const expenseEntries = selected?.type === 'expense' ? data.expenses.entries.filter(row => selected.category ? row.category === selected.category : row.payee === selected.payee) : [];
-    const selectedExpenseBills = data.expenses.bills.filter(row => selected?.type === 'expense' && (selected.category ? row.category === selected.category : row.payee === selected.payee));
-    const expenseTotal = selected?.category ? BigInt(data.expenses.categories.find(c => c.name === selected.category)?.amount ?? '0') : expenseEntries.filter(row => row.kind === 'charge' && !row.reversed).reduce((sum, row) => sum + BigInt(row.amount), 0n);
+    const expenseEntries = selected?.type === 'expense' ? data.expenses.entries.filter(row => selected.category ? isExpenseCategory(row.category,selected.category) : row.payee === selected.payee) : [];
+    const selectedExpenseBills = data.expenses.bills.filter(row => selected?.type === 'expense' && (selected.category ? isExpenseCategory(row.category,selected.category) : row.payee === selected.payee));
+    const expenseTotal = selected?.category ? data.expenses.categories.filter(c=>isExpenseCategory(c.name,selected.category!)).reduce((sum,c)=>sum+BigInt(c.amount),0n) : expenseEntries.filter(row => row.kind === 'charge' && !row.reversed).reduce((sum, row) => sum + BigInt(row.amount), 0n);
     const expenseDue = selectedExpenseBills.reduce((sum, row) => sum + BigInt(row.due), 0n);
     const stockRows = data.inventory.stocks.filter(row => row.item === selected?.id);
     const item = data.inventory.items.find(row => row.id === selected?.id);

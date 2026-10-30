@@ -1,3 +1,5 @@
+import {tdsRateOn} from "../../../../../../src/lottery/organization-rules";
+import {useTutorial,TutorialNote} from "../../../../../../src/tutorial";
 import {SellerReceipt} from '../../../../../../src/lottery/SellerReceipt';
 import { accountingBusinessDate, accountingToday } from "../../models/lotteryAccountingBusinessDate";
 import { sellerWorkingRecordVoided, sellerVoidForDay } from "../../models/lotteryAccountingLocalProjection";
@@ -11,7 +13,6 @@ import {
 import {
   formatPaise,
   formatPercentFromBasisPoints,
-  percentToBasisPoints,
   rupeesToPaise,
 } from "../../models/lotteryAccountingMoney";
 import {
@@ -287,7 +288,9 @@ function DailyTotals({
   title,
   calculations,
   payments,
+  organization,
 }: Readonly<{
+  organization:LotteryWorkspace['organization'];
   title: string;
   calculations: LotterySellerCalculation[];
   payments: LotteryWorkspace["payments"];
@@ -325,9 +328,9 @@ function DailyTotals({
     ["Net amount", formatPaise(totals.grossAmountPaise)],
     ["Party payable", formatPaise(totals.partyPayablePaise)],
     ["Payment received", formatPaise(totals.paymentTotal)],
-    ...Object.entries(METHOD_LABELS).map(([key, label]) => [
+    ...Object.entries(METHOD_LABELS).filter(([key])=>key!=="upiPaise"&&key!=="chequePaise"||key==="upiPaise"&&organization.paymentOptions?.upi||key==="chequePaise"&&organization.paymentOptions?.cheque).map(([key, label]) => [
       label,
-      formatPaise(totals.methodTotals[key as keyof typeof METHOD_LABELS]),
+      formatPaise(totals.methodTotals[key as keyof typeof METHOD_LABELS]+(key==="bankPaise"?(!organization.paymentOptions?.upi?totals.methodTotals.upiPaise:0n)+(!organization.paymentOptions?.cheque?totals.methodTotals.chequePaise:0n):0n)),
     ]),
   ];
   return (
@@ -392,7 +395,6 @@ export function DailySellerEntry({
   onDeleteDraft,
   onVoidSeller,
   onCorrectPosted,
-  onUpdateTdsRate,
   onRegisterFlush,
   localScope = { ownerKind: "ADMIN_REAL", ownerId: "admin-current" },
   localStore = getLotteryAccountingLocalStore(),
@@ -403,10 +405,8 @@ export function DailySellerEntry({
   const [viewMode, setViewMode] = useState<DailyViewMode>("grid");
   const [selectedDate, setSelectedDate] = useState(todayInputValue());
   const [selectedPartyId, setSelectedPartyId] = useState("");
-  const globalTdsRateBps = workspace.organization.tdsRateBps ?? 200;
-  const [tdsPercent, setTdsPercent] = useState(
-    (globalTdsRateBps / 100).toFixed(2),
-  );
+  const tutorial=useTutorial();
+  const globalTdsRateBps = tdsRateOn(workspace.organization,selectedDate);
   const sellers = useMemo(
     () => workspace.parties.filter((party) => party.partyType === "SELLER"),
     [workspace.parties],
@@ -451,9 +451,6 @@ export function DailySellerEntry({
     onCorrectPosted,
   };
 
-  useEffect(() => {
-    setTdsPercent((globalTdsRateBps / 100).toFixed(2));
-  }, [globalTdsRateBps]);
 
   useEffect(() => {
     let cancelled = false;
@@ -1047,15 +1044,6 @@ export function DailySellerEntry({
     };
   }, [selectedDate, sellerKey]);
 
-  const saveGlobalTdsRate = async () => {
-    const tdsRateBps = percentToBasisPoints(tdsPercent);
-    if (tdsRateBps === null) {
-      setLocalError("Enter a global TDS percentage from 0.00 to 100.00.");
-      return;
-    }
-    setLocalError(null);
-    await onUpdateTdsRate(Number(tdsRateBps));
-  };
   const selectedSeller = useMemo(
     () => sellers.find((party) => party.id === selectedPartyId) || sellers[0],
     [selectedPartyId, sellers],
@@ -1113,11 +1101,11 @@ export function DailySellerEntry({
             <h4 className="mt-1 text-lg font-black text-slate-900">
               Daily seller entry
             </h4>
-            <p className="mt-1 text-[10px] leading-relaxed text-slate-500">
+            {tutorial && <p className="mt-1 text-[10px] leading-relaxed text-slate-500">
               Rate comes from the seller profile. Enter commission in each sale
               row; one global TDS rate applies to every seller. Bill reference
               is created by the server when a draft is saved.
-            </p>
+            </p>}
           </div>
           <span className="rounded-xl bg-emerald-600 p-2.5 text-white">
             <FilePenLine className="h-5 w-5" />
@@ -1137,34 +1125,15 @@ export function DailySellerEntry({
               className={CONTROL_CLASS}
             />
           </label>
-          <label>
-            <span className="mb-1 block text-[9px] font-bold uppercase tracking-wide text-slate-500">
-              Global TDS on commission (%)
-            </span>
-            <div className="flex gap-2">
-              <input
-                aria-label="Global TDS percentage"
-                inputMode="decimal"
-                value={tdsPercent}
-                onChange={(event) => setTdsPercent(event.target.value)}
-                className={CONTROL_CLASS}
-              />
-              <ActionButton
-                disabled={savingPartyIds.size > 0}
-                onClick={() => void saveGlobalTdsRate()}
-              >
-                Save TDS
-              </ActionButton>
-            </div>
-          </label>
+
         </div>
-        <p className="mt-2 text-[9px] text-slate-500">
+        {tutorial && <p className="mt-2 text-[9px] text-slate-500">
           {dateCaption(selectedDate)} · Global TDS is currently{" "}
           <strong>{formatPercentFromBasisPoints(globalTdsRateBps)}</strong>.
           A number replaces the old value as soon as you type it. Autosave keeps
           the latest draft; a saved posted row is corrected safely before the
           replacement draft is stored.
-        </p>
+        </p>}
       </header>
 
       <div
@@ -1190,9 +1159,9 @@ export function DailySellerEntry({
         <select aria-label="Seller" value={selectedPartyId} onChange={(event) => setSelectedPartyId(event.target.value)} className={CONTROL_CLASS}>
           {sellers.map((party) => <option key={party.id} value={party.id}>{party.name}</option>)}
         </select>
-        <span className="mt-1 block text-[8px] text-slate-500">
+        {tutorial&&<span className="mt-1 block text-[8px] text-slate-500">
           Grid shows only this seller. Table view can show every seller for the selected date.
-        </span>
+        </span>}
       </label>
 
       {localError && (
@@ -1210,7 +1179,7 @@ export function DailySellerEntry({
         <><DailySellerTable {...sellerViewProps} />{selectedSeller&&receiptFor(selectedSeller)}</>
       )}
 
-      <DailyTotals
+      <DailyTotals organization={workspace.organization}
         title={`Daily saved total · ${dateCaption(selectedDate)}`}
         calculations={liveSellerCalculations}
         payments={dailyPayments}
@@ -1372,10 +1341,10 @@ function DailySellerTable({
                 >
                   <td className="min-w-[150px] px-2 py-2">
                     <p className="font-black text-slate-900">{party.name}</p>
-                    <p className="mt-1 text-[8px] text-slate-500">
+                    <TutorialNote><p className="mt-1 text-[8px] text-slate-500">
                       Fixed rate {formatPaise(party.ticketRatePaise)} / ticket · Global TDS{" "}
                       {formatPercentFromBasisPoints(tdsRateBps)}
-                    </p>
+                    </p></TutorialNote>
                   </td>
                   <QuantityCell
                     party={party}
@@ -1570,10 +1539,10 @@ function DailySellerGrid({
                   <h6 className="text-sm font-black text-slate-900">
                     {party.name}
                   </h6>
-                  <p className="mt-1 text-[9px] leading-relaxed text-slate-500">
+                  <TutorialNote><p className="mt-1 text-[9px] leading-relaxed text-slate-500">
                     Fixed rate {formatPaise(party.ticketRatePaise)} · Global TDS{" "}
                     {formatPercentFromBasisPoints(tdsRateBps)} on commission
-                  </p>
+                  </p></TutorialNote>
                 </div>
                 <span className="rounded-lg bg-emerald-50 px-2 py-1 text-[8px] font-bold text-emerald-800">
                   {row.reference || "Auto bill"}

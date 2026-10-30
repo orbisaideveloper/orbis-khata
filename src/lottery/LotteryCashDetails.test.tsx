@@ -38,6 +38,7 @@ it("drills into exact cash rows and returns through methods to dashboard", () =>
 it("shows legacy methods with activity and an empty-period statement", () => {
   const w = {
     ...moneyFixture,
+    organization:{...moneyFixture.organization,paymentOptions:{upi:true,cheque:true,bankChannels:[]}},
     payments: [
       ...moneyFixture.payments,
       {
@@ -55,9 +56,12 @@ it("shows legacy methods with activity and an empty-period statement", () => {
       onClose={vi.fn()}
     />,
   );
+  expect(screen.queryByRole("button", { name: /UPI/ })).toBeNull();
+  fireEvent.click(screen.getByRole("button", { name: /Bank/ }));
   expect(screen.getByRole("button", { name: /UPI/ })).toBeInTheDocument();
   expect(screen.getByRole("button", { name: /Cheque/ })).toBeInTheDocument();
-  fireEvent.click(screen.getByRole("button", { name: /Bank/ }));
+  fireEvent.click(screen.getByRole("button", { name: /UPI/ }));
+  fireEvent.click(screen.getByRole("button", { name: /Back/ }));
   rerender(
     <LotteryCashDetails
       workspace={{ ...moneyFixture, payments: [], expensePayments: [] }}

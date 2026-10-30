@@ -64,3 +64,15 @@ This sums the original effective commission snapshots, distinguishes absent rows
 from explicit zero entries, retains archived-party amounts and opens existing
 daily editors for active parties. It does not change Foundation runtime formulas
 or either product's stored financial records.
+
+### Khata dated settings and compact entry integration (2026-10-30)
+
+The independent Khata copy now resolves organization TDS schedules by the entry's
+Indian business date in seller/stockist calculations and previews. The underlying
+money formulas are unchanged; saved snapshots are not retroactively rewritten.
+Khata adds audited schedule/payment preferences and optional named bank metadata
+inside its private owner aggregate. The copied forms move settings to the common
+menu, gate explanatory copy with Tutorial and default to Cash/PWD/Bank. Foundation
+source, deployment and stored records are untouched. Khata-specific differences
+are verified by date-boundary, snapshot, payment-folder and browser regressions;
+see docs/LOTTERY_SETTINGS_EXPENSES_20261030.md.

@@ -1,3 +1,4 @@
+import {BankFolder} from "./BankFolder";
 import { accountingBusinessDate } from "../../vendor/foundation-lottery/src/admin/models/lotteryAccountingBusinessDate";
 import { useRef, useState } from "react";
 import type {
@@ -11,7 +12,7 @@ import {
 import { sellerDayBalance } from "./seller-balance";
 import { useLotteryLanguage } from "./language";
 import { inLanguage } from "../localize";
-const methods = [
+const baseMethods = [
   ["cashPaise", "Cash"],
   ["pwtPaise", "PWD"],
   ["bankPaise", "Bank"],
@@ -31,6 +32,8 @@ export function SellerReceipt({
   disabled: boolean;
   onSave: (payload: Record<string, unknown>) => Promise<void>;
 }>) {
+  const methods=[...baseMethods,...(workspace.organization.paymentOptions?.upi?[["upiPaise","UPI"] as const]:[]),...(workspace.organization.paymentOptions?.cheque?[["chequePaise","Cheque"] as const]:[])];
+  const [bankChannel,setBankChannel]=useState("");
   const language = useLotteryLanguage();
   const l = (bn: string, en: string, hi: string) =>
     inLanguage(language, bn, hi, en);
@@ -38,6 +41,8 @@ export function SellerReceipt({
     cashPaise: "",
     pwtPaise: "",
     bankPaise: "",
+    upiPaise: "",
+    chequePaise: "",
   });
   const [busy, setBusy] = useState(false);
   const locked = useRef(false);
@@ -59,12 +64,13 @@ export function SellerReceipt({
         partyId: party.id,
         occurredAt: day,
         direction: "RECEIPT",
+        bankChannel,
         totalAmountPaise: entered.toString(),
         methodSplit: Object.fromEntries(
           methods.map(([key], i) => [key, parsed[i]]),
         ),
       });
-      setAmounts({ cashPaise: "", pwtPaise: "", bankPaise: "" });
+      setAmounts({ cashPaise: "", pwtPaise: "", bankPaise: "",upiPaise:"",chequePaise:"" });
     } catch {
       setError(
         l(
@@ -125,6 +131,7 @@ export function SellerReceipt({
             </label>
           ))}
         </div>
+        <BankFolder organization={workspace.organization} value={bankChannel} onChange={setBankChannel}/>
         <button
           type="button"
           disabled={!valid || entered <= 0n}

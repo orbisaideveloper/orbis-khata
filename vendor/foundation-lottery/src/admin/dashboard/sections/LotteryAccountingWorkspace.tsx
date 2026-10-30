@@ -1,3 +1,5 @@
+import {BankFolder} from "../../../../../../src/lottery/BankFolder";
+import {LotteryPreferences} from "../../../../../../src/lottery/LotteryPreferences";
 import {CommissionStatement} from '../../../../../../src/lottery/CommissionStatement';
 import type {CommissionSide} from '../../../../../../src/lottery/commission-statement';
 import {lotteryDashboardBounds,type LotteryDashboardPeriod} from '../../../../../../src/lottery/dashboard-period';
@@ -9,7 +11,6 @@ import {useTutorial} from '../../../../../../src/tutorial';
 import {lotteryOpening} from '../../../../../../src/lottery/opening-balance';
 import {PartyOpeningFields,LotteryContact,partyOpeningForm,openingPayload} from '../../../../../../src/lottery/PartyOpeningFields';
 import { navigationBoolean, navigationChoice, navigationDate, navigationDateString, navigationKey, navigationString, useNavigationState } from "../../navigation/useNavigationState";
-import { lotteryPeriodTds } from "../../models/lotteryAccountingTdsReconciliation";
 import { lotteryBusinessMetrics } from "../../models/lotteryAccountingBusinessMetrics";
 import { accountingBusinessDate, accountingToday } from "../../models/lotteryAccountingBusinessDate";
 import { lotteryExpenseOutstanding } from "../../models/lotteryAccountingExpenseBalance";
@@ -588,6 +589,8 @@ export function LotteryAccountingWorkspace({
   localScope = { ownerKind: "ADMIN_REAL", ownerId: "admin-current" },
   localStore = getLotteryAccountingLocalStore(),
 }: Readonly<LotteryAccountingWorkspaceProps>) {
+  const [preferences,setPreferences]=useState<'tds'|'payments'|null>(null);
+  useEffect(()=>{const open=(event:Event)=>{const value=(event as CustomEvent).detail;if(value==='tds'||value==='payments')setPreferences(value);};window.addEventListener('lottery-settings',open);return()=>window.removeEventListener('lottery-settings',open);},[]);
   const [organizations, setOrganizations] = useState<
     LotteryWorkspace["organization"][]
   >([]);
@@ -965,6 +968,8 @@ export function LotteryAccountingWorkspace({
         />
       ) : (
         <>
+          {preferences&&<LotteryPreferences key={organizationId+preferences} workspace={workspace} section={preferences} onSaved={refreshWorkspace} onClose={()=>setPreferences(null)}/>}
+          <div hidden={Boolean(preferences)}>
           {tab === "dashboard" && (
             <>
               {dashboardGreeting}
@@ -1062,6 +1067,7 @@ export function LotteryAccountingWorkspace({
               run={run}
             />
           )}
+          </div>
         </>
       )}
     </section>
@@ -1114,7 +1120,6 @@ function DashboardPanel({
     profit,
   } = periodBusinessMetrics(workspace, bounds.from, bounds.to);
 
-  const tds = lotteryPeriodTds(workspace, bounds.from, bounds.to);
   const receivables = receivablePriority(workspace, bounds.to);
   const payables = payablePriority(workspace, bounds.to);
   const receivable = receivables.reduce(
@@ -1318,21 +1323,7 @@ function DashboardPanel({
           </div>
         </SectionCard>
       )}
-      <SectionCard
-        title={lotteryLabel(language,'TDS reconciliation')}
-        hint="Posted entries in this period. Payable and credit remain separate; their difference is a comparison, not a settlement."
-      >
-        <div className="grid grid-cols-2 gap-2">
-          <Metric label="Seller TDS generated" value={formatPaise(tds.generatedPayablePaise)} />
-          <Metric label="Stockist TDS recorded credit" value={formatPaise(tds.recordedCreditPaise)} />
-          <Metric label="TDS comparison difference" value={formatPaise(tds.comparisonDifferencePaise)} tone="orange" />
-          <Metric label="Legacy stockist TDS · review" value={formatPaise(tds.legacyUnclassifiedPaise)} tone="orange" />
-        </div>
-        {tutorial&&<p className="mt-2 text-[8px] text-slate-500">
-          Deposits and claims are not recorded here, so these amounts are not a verified outstanding tax balance.
-          Legacy stock entries retain their saved formula and require review before classification. TDS does not enter profit.
-        </p>}
-      </SectionCard>
+
 
       {tutorial&&<SectionCard title={lotteryLabel(language,'Profit & Loss')}>
         <p className="text-[10px] leading-relaxed text-slate-600">
@@ -1968,11 +1959,9 @@ function paymentOutstanding(
   }
 }
 
-function paymentMethods(kind: PaymentKind) {
-  if(kind==='SELLER'||kind==='CUSTOMER')return PARTY_PAYMENT_METHODS.filter(([method])=>['cashPaise','pwtPaise','bankPaise'].includes(method)).map(([method,label]):[MoneyMethod,string]=>[method,method==='pwtPaise'?'PWD':label]);
-  if (kind !== "EXPENSE") return PARTY_PAYMENT_METHODS;
-  const expenseMethods = new Set<MoneyMethod>(["cashPaise", "bankPaise"]);
-  return PARTY_PAYMENT_METHODS.filter(([method]) => expenseMethods.has(method));
+function paymentMethods(kind: PaymentKind,organization:LotteryWorkspace['organization']) {
+ const enabled=new Set(['cashPaise','bankPaise',...(kind==='EXPENSE'?[]:['pwtPaise',...(organization.paymentOptions?.upi?['upiPaise']:[]),...(organization.paymentOptions?.cheque?['chequePaise']:[])])]);
+ return PARTY_PAYMENT_METHODS.filter(([method])=>enabled.has(method)).map(([method,label]):[MoneyMethod,string]=>[method,method==='pwtPaise'?'PWD':label]);
 }
 
 function paymentDirection(kind: PaymentKind) {
@@ -2034,7 +2023,9 @@ async function saveUniversalPayment({
   setError,
   resetAmounts,
   onPaymentRecorded,
+  bankChannel,
 }: Readonly<{
+  bankChannel?:string;
   kind: PaymentKind;
   accountId: string;
   date: string;
@@ -2097,6 +2088,7 @@ async function saveUniversalPayment({
         occurredAt: date,
         totalAmountPaise: entered.toString(),
         methodSplit,
+        bankChannel,
       });
       onPaymentRecorded(saved);
     },
@@ -2171,6 +2163,7 @@ function PaymentPanel({
   run: AccountingRun;
   onPaymentRecorded: (payment: LotteryRecordedPayment) => void;
 }>) {
+  const [bankChannel,setBankChannel]=useState("");
   const [kind, setKind] = useState<PaymentKind>("SELLER");
   const [expenseCategoryId, setExpenseCategoryId] = useState(
     workspace.expenseCategories[0]?.id || "",
@@ -2198,11 +2191,11 @@ function PaymentPanel({
   }, [accountId, kind, expenseCategoryId]);
 
   const outstanding = paymentOutstanding(workspace, kind, accountId, date);
-  const methods = paymentMethods(kind);
+  const methods = paymentMethods(kind,workspace.organization);
   const parsed = Object.fromEntries(
     PARTY_PAYMENT_METHODS.map(([method]) => [
       method,
-      parseAmount(amounts[method]) || 0n,
+      methods.some(([key])=>key===method)?parseAmount(amounts[method]) || 0n:0n,
     ]),
   ) as Record<MoneyMethod, bigint>;
   const entered = methods.reduce((total, [method]) => total + parsed[method], 0n);
@@ -2227,6 +2220,7 @@ function PaymentPanel({
       setError,
       resetAmounts,
       onPaymentRecorded,
+      bankChannel,
     });
   };
 
@@ -2322,6 +2316,7 @@ function PaymentPanel({
           ))}
         </div>
 
+        {kind!=="EXPENSE"&&<BankFolder organization={workspace.organization} value={bankChannel} onChange={setBankChannel}/>}
         <div className="grid grid-cols-3 gap-2">
           <Metric label="Entered" value={formatPaise(entered)} tone="blue" />
           <Metric label="Before" value={formatPaise(outstanding)} />
@@ -4471,9 +4466,7 @@ function MastersPanel({
     "ONE_TIME" | "MONTHLY"
   >("ONE_TIME");
   const [expenseNote, setExpenseNote] = useState("");
-  const [tdsPercent, setTdsPercent] = useState(
-    ((workspace?.organization.tdsRateBps || 200) / 100).toFixed(2),
-  );
+
 
   const parties = masterParties(workspace, type);
   const profiles =
@@ -4933,40 +4926,7 @@ function MastersPanel({
         </SectionCard>
       )}
 
-      <SectionCard
-        title="Global TDS Rule"
-        hint="New entries use the current TDS. Historical seller/stockist rows keep their saved TDS snapshot."
-      >
-        <div className="flex gap-2">
-          <input
-            aria-label="Global TDS percentage"
-            inputMode="decimal"
-            value={tdsPercent}
-            onChange={(event) => setTdsPercent(event.target.value)}
-            className={CONTROL}
-          />
-          <button
-            type="button"
-            disabled={working === "tds"}
-            onClick={() => {
-              const rate = Number(tdsPercent);
-              if (!Number.isFinite(rate) || rate < 0 || rate > 100) return;
-              void run(
-                "tds",
-                () =>
-                  api.updateOrganizationTdsRate({
-                    organizationId,
-                    tdsRateBps: Math.round(rate * 100),
-                  }),
-                "TDS rule updated for new entries.",
-              );
-            }}
-            className={ACTIVE_BUTTON}
-          >
-            Save TDS
-          </button>
-        </div>
-      </SectionCard>
+
     </div>
   );
 }

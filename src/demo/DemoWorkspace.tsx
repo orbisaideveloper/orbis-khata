@@ -27,7 +27,7 @@ import { demoMasters, demoRequest, demoCompanyName } from './store';
 import { ItemMaster } from './Masters';
 import { InvoicePage, type BillKind } from './InvoicePage';
 const overviewLabels = { receivable: 'receive', payable: 'pay', cash: 'cash', bank: 'bank', liquidity:'cash', expenses: 'expense' } as const;
-const types = { bn: { sale: 'বিক্রয় বিল', purchase: 'ক্রয় বিল', expense: 'খরচের বিল', bills: 'বিল', stock: 'গোডাউন ও স্টক' }, en: { sale: 'Sales invoice', purchase: 'Purchase invoice', expense: 'Expense bill', bills: 'Bills', stock: 'Godown & stock' }, hi: { sale: 'बिक्री बिल', purchase: 'खरीद बिल', expense: 'खर्च बिल', bills: 'बिल', stock: 'गोदाम और स्टॉक' } };
+const types = { bn: { sale: 'বিক্রয় বিল', purchase: 'ক্রয় বিল', expense: 'খরচ', bills: 'বিল', stock: 'গোডাউন ও স্টক' }, en: { sale: 'Sales invoice', purchase: 'Purchase invoice', expense: 'Expense entry', bills: 'Bills', stock: 'Godown & stock' }, hi: { sale: 'बिक्री बिल', purchase: 'खरीद बिल', expense: 'खर्च', bills: 'बिल', stock: 'गोदाम और स्टॉक' } };
 type MasterSnapshot = {
     company: string;
     items: DemoItem[];
@@ -157,7 +157,7 @@ export function DemoWorkspace({ language, userId = 'demo-owner' }: Readonly<{
         return () => { alive = false; };
     }, [company, from, to, version, requestKey, request]);
     const masters = workspaceMasters(services, liveMasters, company), companyName = workspaceName(services, companies, company);
-    function openBill(kind: BillKind) { setOverview(null); setBill(kind); setBillKey(n => n + 1); navigation.open('bills'); }
+    function openBill(kind: BillKind) { setOverview(null); setBillKey(n => n + 1);if(kind==='expense'){setBill(null);navigation.open('expenses');return;} setBill(kind); navigation.open('bills'); }
     if (navigation.page === 'company' || services && !companies.length) {
         return <Accounting userId={userId} initialCompany={company} language={language} onBill={openBill} onCompanyChange={setCompany}/>;
     }
@@ -178,7 +178,7 @@ export function DemoWorkspace({ language, userId = 'demo-owner' }: Readonly<{
   {navigation.page === 'parties' && <PartySection key={company} company={company} language={language} parties={masters.parties} report={report} from={from} to={to} version={version} onChanged={changed}/>}
   {navigation.page === 'all-ledgers' && report && <><LedgerExplorer {...{ company, language, from, to, version }} parties={report.parties}/><button type="button" onClick={() => navigation.open('stock')}>{t.stock}</button></>}
   {navigation.page === 'stock' && report && <Inventory userId={userId} {...{ company, companyName, language, from, to, version }} parties={report.parties} onLock={setLocked} onChanged={changed} blocked={false}/>}
-  {navigation.page === 'expenses' && <><button type="button" onClick={() => openBill('expense')}>{t.expense}</button><Expenses userId={userId} {...{ company, companyName, language, from, to, version }} payees={masters.parties.filter(p => p.kind === 'expense').map(p => p.name)} onLock={setLocked} onChanged={changed} blocked={false}/></>}
+  {navigation.page === 'expenses' && <><Expenses gateway={request} key={company+billKey} startOpen userId={userId} {...{ company, companyName, language, from, to, version }} payees={masters.parties.filter(p => p.kind === 'expense').map(p => p.name)} onLock={setLocked} onChanged={changed} blocked={false}/></>}
   {navigation.page === 'bills' && bill && <InvoicePage onLock={setLocked} userId={userId} key={billKey} kind={bill} {...{ language, company, companyName, warehouses }} items={masters.items} parties={masters.parties} onSaved={changed} onBack={() => setBill(null)}/>}
   {navigation.page === 'bills' && !bill && <section className="books-card kh-bill-start"><h2>{t.bills}</h2><div className="books-buttons">{(['sale', 'purchase', 'expense'] as const).map(kind => <button type="button" key={kind} onClick={() => openBill(kind)}>{t[kind]}</button>)}</div><BusinessReports {...{company,language,from,to,version}} onChanged={changed} initial="bills"/></section>}
  </div>;

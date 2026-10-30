@@ -7,6 +7,9 @@ type LotteryStockMovementType =
   "RECEIPT" | "DISPATCH" | "RETURN" | "STOCKIST_RETURN" | "ADJUSTMENT";
 
 export interface LotteryOrganization {
+  tdsBaseRateBps?:number;
+  tdsRules?:{from:string;rateBps:number}[];
+  paymentOptions?:{upi:boolean;cheque:boolean;bankChannels:string[]};
   id: string;
   name: string;
   tdsRateBps: number;
@@ -129,6 +132,7 @@ interface LotteryStockistEntry extends LotteryDailyStockistEntryIdentity {
 }
 
 export interface LotteryPayment {
+  bankChannel?:string;
   id: string;
   partyId: string;
   partyName: string;

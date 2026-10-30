@@ -12,7 +12,7 @@ beforeEach(()=>{vi.clearAllMocks();sessionStorage.clear();vi.mocked(api.expenseR
 afterEach(cleanup)
 async function draft() {
   fireEvent.click(await screen.findByRole('button',{name:'＋ Add expense'}))
-  fireEvent.change(screen.getByLabelText('Expense account'),{target:{value:'Rent'}})
+  fireEvent.change(screen.getByLabelText('Category'),{target:{value:'Rent'}})
   fireEvent.change(screen.getByLabelText('Amount'),{target:{value:'100.25'}})
   fireEvent.change(screen.getByLabelText('Settlement'),{target:{value:'bank'}})
   fireEvent.click(screen.getByRole('button',{name:'Review'}))
@@ -81,3 +81,4 @@ it('requires both review and a second explicit confirmation before reversing an 
     expect(api.postExpense).toHaveBeenCalledWith(expect.objectContaining({kind:'reversal',parent:bill,method:null,amount:'100'}))
   } finally {confirm.mockRestore()}
 })
+it('opens a simple category/subcategory/payee expense without invoice rows and posts exactly once',async()=>{render(<Expenses {...props} startOpen/>);expect(screen.queryByLabelText('Quantity')).toBeNull();fireEvent.change(screen.getByLabelText('Category'),{target:{value:'Salary'}});fireEvent.change(screen.getByLabelText('Subcategory'),{target:{value:'Permanent'}});fireEvent.change(screen.getByLabelText('Paid to / owed to'),{target:{value:'Arko'}});fireEvent.change(screen.getByLabelText('Amount'),{target:{value:'150'}});fireEvent.click(screen.getByRole('button',{name:'Review'}));fireEvent.click(screen.getByRole('button',{name:'Confirm'}));await waitFor(()=>expect(api.postExpense).toHaveBeenCalledWith(expect.objectContaining({category:'Salary › Permanent',payee:'Arko',amount:'15000',method:'cash'})));expect(api.postExpense).toHaveBeenCalledOnce();});

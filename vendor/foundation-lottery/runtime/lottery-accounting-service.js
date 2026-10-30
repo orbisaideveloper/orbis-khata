@@ -1,3 +1,4 @@
+import {tdsRateOn} from "../../../src/lottery/organization-rules.ts";
 import { paymentMethodBalance } from "./accounting-money-balances.js";
 import { projectRecurringExpenseBills } from "./accounting-expense-projection.js";
 import { businessDateKey, businessDayRange } from "./accounting-business-date.js";
@@ -457,7 +458,7 @@ function createLotteryAccountingService({ prisma, now = () => new Date() }) {
       ...input,
       ticketRatePaise: profile.ticketRatePaise,
       tdsRateBps: percentageRate(
-        organization.tdsRateBps ?? DEFAULT_TDS_RATE_BPS,
+        tdsRateOn(organization, businessDateKey(input?.occurredAt || now())),
         "tdsRateBps",
       ),
     });
@@ -1499,7 +1500,7 @@ function createLotteryAccountingService({ prisma, now = () => new Date() }) {
         if (commissionPaise > grossPurchasePaise) {
           throw accountingError("RATE_OUT_OF_RANGE", "commissionPaise");
         }
-        const tdsRateBps = sourceReceipt ? sourceReceipt.tdsRateBps : percentageRate(organization.tdsRateBps ?? DEFAULT_TDS_RATE_BPS, "tdsRateBps");
+        const tdsRateBps = sourceReceipt ? sourceReceipt.tdsRateBps : percentageRate(tdsRateOn(organization, businessDateKey(input?.occurredAt || now())), "tdsRateBps");
         const tdsPaise = roundedPercentage(grossPurchasePaise, tdsRateBps);
         purchase = {
           partyId: party.id,
@@ -1668,7 +1669,7 @@ function createLotteryAccountingService({ prisma, now = () => new Date() }) {
         throw accountingError("RATE_OUT_OF_RANGE", "commissionPaise");
       }
       const tdsRateBps = percentageRate(
-        organization.tdsRateBps ?? DEFAULT_TDS_RATE_BPS,
+        tdsRateOn(organization, businessDateKey(input?.occurredAt || now())),
         "tdsRateBps",
       );
       const tdsPaise = roundedPercentage(commissionPaise, tdsRateBps);

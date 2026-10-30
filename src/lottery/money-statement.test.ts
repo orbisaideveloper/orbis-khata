@@ -61,3 +61,4 @@ it("preserves negative closing balances and stable ordering on the same date", (
     ).rows.map((r) => r.id),
   ).toEqual(["expense-e", "a", "out"]);
 });
+it('folds disabled historical UPI and cheque into Bank, while named folders remain subsets',()=>{const w={...moneyFixture,organization:{...moneyFixture.organization,paymentOptions:{upi:false,cheque:false,bankChannels:['GPay']}},payments:[{...moneyFixture.payments[1],bankChannel:'GPay',methodSplit:{bankPaise:'1000',upiPaise:'200',chequePaise:'300'}}]};expect(lotteryMoneyStatement(w,'bankPaise','2026-10-30','2026-10-30').incoming).toBe(1500n);expect(lotteryMoneyStatement(w,'bankPaise','2026-10-30','2026-10-30','GPay').incoming).toBe(1000n);w.organization.paymentOptions.upi=true;w.organization.paymentOptions.cheque=true;expect(lotteryMoneyStatement(w,'bankPaise','2026-10-30','2026-10-30').incoming).toBe(1000n);});

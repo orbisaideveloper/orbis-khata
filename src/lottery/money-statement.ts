@@ -16,11 +16,28 @@ function expenseMethodAmount(
   if (method === "bankPaise") return BigInt(payment.bankPaise);
   return 0n;
 }
+function partyMethodAmount(
+  workspace: LotteryWorkspace,
+  p: LotteryWorkspace["payments"][number],
+  method: LotteryMoneyMethod,
+  bankChannel?: string,
+) {
+  if (bankChannel && p.bankChannel !== bankChannel) return 0n;
+  let amount = BigInt(p.methodSplit[method] ?? "0");
+  if (method === "bankPaise" && !bankChannel) {
+    if (!workspace.organization?.paymentOptions?.upi)
+      amount += BigInt(p.methodSplit.upiPaise ?? "0");
+    if (!workspace.organization?.paymentOptions?.cheque)
+      amount += BigInt(p.methodSplit.chequePaise ?? "0");
+  }
+  return amount;
+}
 export function lotteryMoneyStatement(
   workspace: LotteryWorkspace,
   method: LotteryMoneyMethod,
   from: string,
   to: string,
+  bankChannel?: string,
 ) {
   const party = workspace.payments.map((p) => ({
     id: p.id,
@@ -28,7 +45,7 @@ export function lotteryMoneyStatement(
     name: p.partyName,
     reference: p.reference,
     amount:
-      BigInt(p.methodSplit[method] ?? "0") *
+      partyMethodAmount(workspace, p, method, bankChannel) *
       (p.direction === "RECEIPT" ? 1n : -1n),
   }));
   const expenses = workspace.expensePayments.map((p) => ({
@@ -36,7 +53,7 @@ export function lotteryMoneyStatement(
     date: accountingBusinessDate(p.occurredAt),
     name: p.profileName,
     reference: p.reference,
-    amount: -expenseMethodAmount(p, method),
+    amount: bankChannel ? 0n : -expenseMethodAmount(p, method),
   }));
   const events = [...party, ...expenses]
     .filter((p) => p.amount !== 0n && p.date <= to)

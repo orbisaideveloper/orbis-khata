@@ -1,3 +1,5 @@
+import {useTutorial} from "../../../../../../src/tutorial";
+import {tdsRateOn} from "../../../../../../src/lottery/organization-rules";
 import { accountingBusinessDate, accountingToday } from "../../models/lotteryAccountingBusinessDate";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { ChevronDown, FilePenLine } from "lucide-react";
@@ -379,7 +381,7 @@ export function DailyStockistEntry({
         party,
         row,
         occurredAt: day,
-        tdsRateBps: workspaceRef.current.organization.tdsRateBps ?? 200,
+        tdsRateBps: tdsRateOn(workspaceRef.current.organization,day),
       });
     } catch (error) {
       showPersistError(showValidation, error);
@@ -443,7 +445,7 @@ export function DailyStockistEntry({
     calculation: calculateRow(
       rows[party.id] || blankRow(party.id),
       party,
-      workspace.organization.tdsRateBps ?? 200,
+      tdsRateOn(workspace.organization,selectedDate),
     ),
   }));
   const totals = {
@@ -472,9 +474,7 @@ export function DailyStockistEntry({
           Simple purchase entry
         </p>
         <h4 className="mt-1 text-lg font-black text-slate-900">Daily purchase and stockist return</h4>
-        <p className="mt-1 text-[10px] text-slate-600">
-          Purchase adds stock. Morning, day and evening return sends seller-returned tickets back to the stockist. The latest saved row replaces the old row for the same date.
-        </p>
+        <StockistHelp/>
         <label className="mt-3 block max-w-xs">
           <span className="mb-1 block text-[9px] font-bold uppercase tracking-wide text-slate-500">Entry date for all stockists</span>
           <input
@@ -555,7 +555,7 @@ export function DailyStockistEntry({
                 <tr key={party.id} className="border-b border-slate-100 align-top last:border-0">
                   <td className="min-w-[150px] px-2 py-2">
                     <p className="font-black text-slate-900">{party.name}</p>
-                    <p className="mt-1 text-[8px] text-slate-500">Rate {formatPaise(party.ticketRatePaise)} · TDS {formatPercentFromBasisPoints(workspace.organization.tdsRateBps ?? 200)}</p>
+                    <p className="mt-1 text-[8px] text-slate-500">Rate {formatPaise(party.ticketRatePaise)} · TDS {formatPercentFromBasisPoints(tdsRateOn(workspace.organization,selectedDate))}</p>
                   </td>
                   {([
                     ["purchaseQuantity", "purchase"],
@@ -613,3 +613,5 @@ export function DailyStockistEntry({
   );
 }
 
+
+function StockistHelp(){return useTutorial()?<p className="mt-1 text-[10px] text-slate-600">Purchase adds stock. Returns send seller-returned tickets to the stockist. Saving replaces the same day’s entry safely.</p>:null;}
