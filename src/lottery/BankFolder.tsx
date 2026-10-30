@@ -11,7 +11,7 @@ export function BankFolder({
   if (!organization.paymentOptions?.bankChannels.length) return null;
   return (
     <label>
-      Bank
+      <span>Bank</span>
       <select
         aria-label="Bank folder"
         value={value}

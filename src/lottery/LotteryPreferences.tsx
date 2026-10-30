@@ -41,7 +41,7 @@ export function LotteryPreferences({
     try {
       const basisPoints = percentToBasisPoints(rate);
       if (section === "tds" && basisPoints === null)
-        throw Error("INVALID_TDS_RULE");
+        throw new Error("INVALID_TDS_RULE");
       const response = await lotteryFetch(
         "/lottery/settings/" +
           (section === "tds" ? "tds-rate" : "payment-options"),
@@ -63,7 +63,7 @@ export function LotteryPreferences({
           }),
         },
       );
-      if (!response.ok) throw Error("SAVE_FAILED");
+      if (!response.ok) throw new Error("SAVE_FAILED");
       await onSaved();
       setMessage(l("সংরক্ষিত", "Saved", "सहेजा गया"));
     } catch {
@@ -96,7 +96,7 @@ export function LotteryPreferences({
         {section === "tds" ? (
           <>
             <label>
-              TDS (%)
+              <span>TDS (%)</span>
               <input
                 aria-label="TDS percentage"
                 inputMode="decimal"
@@ -199,7 +199,7 @@ export function LotteryPreferences({
           {busy ? "…" : l("সেভ করুন", "Save", "सहेजें")}
         </button>
       </fieldset>
-      {message && <output role="status">{message}</output>}
+      {message && <output>{message}</output>}
     </section>
   );
 }

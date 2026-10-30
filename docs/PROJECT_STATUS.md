@@ -1317,3 +1317,9 @@ See [SONAR-CORRECTIONS-20261017.md](SONAR-CORRECTIONS-20261017.md) for every rep
 - Full700-test coverage checkpoint PASS (113 files;91.50% statements,88.54% branches,91.05% functions,92.44% lines). Full24-browser run PASS; final affected4/4 PASS, including phone screenshot review, expense save/reload, optional-method/TDS/Tutorial controls and original exact payment/retry invariants. Related76 tests and final15 server plus15 expense/cash tests PASS. Typecheck/build/PWA, lint (inherited vendor advisories), KNIP, zero clones and recommended local SonarJS checks PASS.
 - Khata Edgev15 ACTIVE; retrieved23-file source bundle matches. Existing central verifier preserved; unauthenticated401. Existing storage rollback SQL passes with fixtures rolled back. No schema migration, Foundation data changes, owner financial edits or assistant Render deploy.
 - Evidence and concrete behavior: docs/LOTTERY_SETTINGS_EXPENSES_20261030.md. Owner authorizes direct main corrective release fromb8b188a. New remote Actions/native Sonar pending after push; no polling.
+
+## 2026-10-30 — Repair six native Sonar findings
+
+- Inspected failed run41060901353/job124080072142 at4e6d9eb. All700 tests,24 browser tests and ordinary Sonar gate passed; strict zero-open-issues step reported six findings: one single-child Fragment, two ambiguous JSX label-text boundaries, two Error constructor calls and an output element's redundant status role.
+- Removed the expense wrapper Fragment, wrapped Bank/TDS label text in spans, used new Error and retained output's native status semantics. No financial, storage, API or quality-gate changes. Related App/expense/preferences tests, typecheck, lint and production build/PWA verified before corrective push. Recommended local SonarJS scan clean; native server result remains pending.
+- No SQL, Edge, Foundation or Render changes; Edgev15 remains compatible. Owner-authorized corrective main push follows, without post-push Actions polling.
