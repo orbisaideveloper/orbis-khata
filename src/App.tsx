@@ -203,7 +203,7 @@ function App() {
 
         </section>)}
 
-      <LotteryScene view={view} owner={sessionId} language={language} onSelect={navigate} controls={<><WorkspaceMenu settings={<><label className="lottery-language-setting"><span>{languagePresentation[language].pickerLabel}</span>{languagePicker()}</label><Themes language={language}/></>} language={language} signedIn={signedIn} tutorial={tutorial} onTutorial={enabled=>{setTutorial(enabled);saveTutorial(enabled);}} onProfile={()=>navigate('profile')} onLogout={()=>void logout()}/></>}/>
+      <LotteryScene view={view} owner={sessionId} language={language} onSelect={navigate} controls={<WorkspaceMenu settings={<><label className="lottery-language-setting"><span>{languagePresentation[language].pickerLabel}</span>{languagePicker()}</label><Themes language={language}/></>} language={language} signedIn={signedIn} tutorial={tutorial} onTutorial={enabled=>{setTutorial(enabled);saveTutorial(enabled);}} onProfile={()=>navigate('profile')} onLogout={()=>void logout()}/>}/>
       {view === 'profile' && signedIn && <section className="scene light-scene active profile-page" aria-label={t('settings')}>
         {renderBar('workspace', 'choose', 'settings')}
         <p className="orbis-account-id">{account.session?.user.user_metadata?.orbis_display_id}</p>

@@ -1293,3 +1293,10 @@ See [SONAR-CORRECTIONS-20261017.md](SONAR-CORRECTIONS-20261017.md) for every rep
 - Full mobile/desktop Playwright24/24 PASS plus final focused Lottery2/2. Validated Yesterday and calendar week, compact title-free bar, Settings-only language and both themes, consistent primary home copy, per-day totals, absent versus recorded seller rows, and active seller/stockist daily editor navigation for the exact party/day. User names are not fed through the semantic title translator.
 - Typecheck/build/PWA, lint (inherited vendor warnings), KNIP, zero JSCPD clones and recommended local SonarJS PASS. Detailed report docs/LOTTERY_COMMISSION_20261030.md. No SQL/Edge/Render/Foundation changes or owner financial data mutation.
 - Owner-approved main commit/push next fromb5ee2ee. New Actions/Sonar remains pending; no post-push polling.
+
+
+## 2026-10-30 — Repair redundant Lottery header fragment
+
+- Inspected failed Actions41028461462/job123972164479 at main f2eb0fa. All686 unit tests,24 browser tests and the ordinary Sonar Quality Gate passed. Only strict zero-open-issues enforcement failed: typescript:S6749 at src/App.tsx206, a fragment wrapping one WorkspaceMenu child.
+- Removed only that redundant controls fragment; the two-child Settings fragment remains necessary. No CI configuration or threshold changed. No accounting, stored records, SQL, Edge, Foundation or Render changes.
+- Local verification:30 App/menu/session/boundary tests PASS, typecheck/lint PASS (inherited vendor advisories), recommended SonarJS scan clean. Production build/PWA verification completed before push. Native remote Sonar result remains pending for the corrective commit; no post-push polling.
