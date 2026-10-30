@@ -3,7 +3,8 @@ import {authClient} from '../auth/client';
 type Route={method:string;payload:Record<string,unknown>};
 function resolveRoute(path:string,init:RequestInit):Route{
  const url=new URL(path,'https://lottery.internal'),suffix=url.pathname.split('/lottery')[1]??'';
- const payload=init.body?JSON.parse(String(init.body)):Object.fromEntries(url.searchParams);
+ if(init.body&&typeof init.body!=='string')throw new Error('LOTTERY_BODY_INVALID');
+ const payload=typeof init.body==='string'?JSON.parse(init.body):Object.fromEntries(url.searchParams);
  const verb=init.method??'GET';
  const fixed:Record<string,string>={'GET /organizations':'listOrganizations','GET /workspace':'getWorkspace','POST /organizations':'createOrganization','POST /parties':'createParty','PATCH /settings/tds-rate':'updateOrganizationTdsRate','PATCH /settings/user-ledger-storage':'updateUserLedgerStorage','POST /periods':'createPeriod','POST /periods/financial-year':'createFinancialYearPeriod','POST /stock-movements':'recordStockMovement','POST /daily-stockist-entries':'saveDailyStockistEntry','POST /daily-entry-clearances':'clearDailyEntries','POST /sales/preview':'previewSale','POST /sales':'recordSale','POST /daily-seller-drafts':'createDailySellerDraft','POST /payments':'recordPayment','POST /settlements':'recordSettlement','POST /expenses/categories':'createExpenseCategory','POST /expenses/profiles':'createExpenseProfile','POST /expenses/bills':'recordExpenseBill','POST /expenses/payments':'recordExpensePayment','POST /customer-bills':'recordCustomerBill','GET /summary':'getVerifiedSummary','GET /analyze':'analyzeVerifiedAccounting'};
  const method=fixed[verb+' '+suffix];if(method)return {method,payload};
@@ -24,7 +25,7 @@ function dynamicRoute(path:string,verb:string,payload:Record<string,unknown>):Ro
  if(root==='sales'&&action==='correct')return {method:'correctPostedSale',payload:{...payload,saleId:id}};
  if(root==='corrections'||root==='voids')return {method:dynamicMethod(root,verb,action,parts[3]==='preview'),payload:{...payload,entityType:id,entityId:action}};
  if(root==='expenses'&&(id==='categories'||id==='profiles'))return {method:id==='categories'?'updateExpenseCategory':'updateExpenseProfile',payload:{...payload,[id==='categories'?'categoryId':'profileId']:action}};
- throw Error('LOTTERY_ROUTE_NOT_SUPPORTED');
+ throw new Error('LOTTERY_ROUTE_NOT_SUPPORTED');
 }
 const readMethods=new Set(['listOrganizations','getWorkspace','previewSale','getVerifiedSummary','analyzeVerifiedAccounting','previewAccountingVoid']);
 const responseKey:Record<string,string>={listOrganizations:'organizations',getWorkspace:'workspace',createOrganization:'organization',saveDailyStockistEntry:'entry',previewAccountingVoid:'preview',voidAccountingTransaction:'deletion',correctAccountingTransaction:'correction'};

@@ -30,3 +30,8 @@ it('requires central login, preserves business errors and rejects unsupported ro
  bridge.request.mockRejectedValueOnce({reason:'WRITES_DISABLED'});await expect(api.recordPayment({})).rejects.toMatchObject({code:'WRITES_DISABLED'});
  await expect(lotteryFetch('/unknown')).rejects.toThrow('LOTTERY_ROUTE_NOT_SUPPORTED');
 });
+
+it('rejects non-JSON request bodies before accessing the gateway',async()=>{
+ await expect(lotteryFetch('/organizations',{method:'POST',body:new URLSearchParams({name:'Shop'})})).rejects.toThrow('LOTTERY_BODY_INVALID');
+ expect(bridge.request).not.toHaveBeenCalled();
+});

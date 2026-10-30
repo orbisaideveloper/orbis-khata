@@ -1,4 +1,4 @@
-import {lazy,Suspense} from 'react';
+import {lazy,Suspense,useEffect,useMemo,useRef,useState} from 'react';
 const LotteryPage=lazy(()=>import('./lottery/LotteryPage'));
 import {selectNumeric} from './select-numeric';
 import {useTheme} from './use-theme';
@@ -8,7 +8,6 @@ import { BookServicesContext, liveBookServices } from './books-services';
 import { DemoWorkspace } from './demo/DemoWorkspace';
 import './demo/design.css';
 import { BooksNavigation, useBooksTrail } from './books-navigation';
-import { useEffect, useMemo, useRef, useState } from 'react';
 import { languageOptions, readLanguage, saveLanguage, translations } from './i18n';
 import type { Language, TextKey } from './i18n';
 import './App.css';
