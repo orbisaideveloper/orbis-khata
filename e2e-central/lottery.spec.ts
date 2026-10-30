@@ -3,6 +3,7 @@ import {runLottery,type LotteryInput} from '../src/lottery/service';
 test('independent lottery creates masters, saves daily formulas, receives split payment and restores after reload',async({page})=>{
  const customer={orbisIdentityId:'11111111-1111-7111-8111-111111111111',displayId:'ORB-U-23456789'};let state:unknown={};const methods:string[]=[];let failNextDraft=false;
  const replies=new Map<string,{request:string;result:unknown}>();
+ let requestQueue=Promise.resolve();
  const headers={'access-control-allow-origin':'http://127.0.0.1:4187','access-control-allow-methods':'GET,POST,OPTIONS','access-control-allow-headers':'content-type,authorization'};
  await page.clock.setFixedTime(new Date('2026-10-30T10:00:00Z'));
  await page.addInitScript(customer=>{localStorage.setItem('orbis.central.customer.v1',JSON.stringify({version:1,customer,accessToken:'test.access',refreshToken:'test.refresh',expiresAt:Date.now()+3600000}));localStorage.setItem('orbis-khata-ui-language-v1','en');},customer);
@@ -10,14 +11,19 @@ test('independent lottery creates masters, saves daily formulas, receives split 
  await page.route('https://data.example.test/**',async route=>{
   if(route.request().method()==='OPTIONS'){await route.fulfill({headers,status:204});return;}
   const {operation,input}=route.request().postDataJSON();if(operation==='companies'||operation==='retired-companies'){await route.fulfill({headers,json:{data:[]}});return;}expect(operation).toBe('lottery');const request=input as LotteryInput;methods.push(request.method);
+  // Match the production owner lock: reads and writes share one transaction queue.
+  const previous=requestQueue;let unlock!:()=>void;
+  requestQueue=new Promise<void>(resolve=>{unlock=resolve;});await previous;
   try{
+   // Exercise a slow second receipt so a request-start check cannot pass as a save.
+   if(request.method==='recordPayment'&&request.payload.totalAmountPaise==='3000')await new Promise(resolve=>setTimeout(resolve,150));
    if(failNextDraft&&request.method==='updateDailySellerDraft'){failNextDraft=false;await route.fulfill({headers,json:{data:{lotteryError:'TEST_SAVE_FAILED'}}});return;}
    const prior=request.operationId?replies.get(request.operationId):undefined;
    if(prior){expect(prior.request).toBe(JSON.stringify(input));await route.fulfill({headers,json:{data:prior.result}});return;}
    const answer=await runLottery(state,request,customer.orbisIdentityId,()=>new Date('2026-10-30T10:00:00Z'));state=JSON.parse(JSON.stringify(answer.state));
    if(request.operationId)replies.set(request.operationId,{request:JSON.stringify(input),result:answer.result});
    await route.fulfill({headers,json:{data:answer.result}});
-  }catch(error){await route.fulfill({headers,json:{data:{lotteryError:error instanceof Error?error.message:'ERROR'}}});}
+  }catch(error){await route.fulfill({headers,json:{data:{lotteryError:error instanceof Error?error.message:'ERROR'}}});}finally{unlock();}
  });
  await page.goto('/');await page.getByRole('button',{name:/Lottery.*Open/}).click();
  await page.getByLabel('Business organization name').fill('Independent lottery');await page.getByRole('button',{name:'Create',exact:true}).click();
@@ -34,8 +40,20 @@ test('independent lottery creates masters, saves daily formulas, receives split 
  await page.getByLabel('Receipt Cash',{exact:true}).fill('100');await page.getByLabel('Receipt Bank',{exact:true}).fill('50');await page.getByLabel('Receipt PWD',{exact:true}).fill('20');failNextDraft=true;await page.getByRole('button',{name:'Save receipt',exact:true}).click();await expect(page.getByLabel('Test seller receipt').getByRole('alert')).toBeVisible();await expect(page.getByLabel('Receipt Cash')).toHaveValue('100');expect(methods.filter(m=>m==='recordPayment')).toHaveLength(0);await page.getByRole('button',{name:'Save receipt',exact:true}).click();
  await expect(page.getByLabel('Receipt Cash')).toHaveValue('');await expect(page.getByText('₹1,090.80',{exact:true})).toBeVisible();
  await page.getByRole('button',{name:/Table view/}).click();await expect(page.getByLabel('Test seller receipt')).toBeVisible();
- await tabs.getByRole('button',{name:'Payment',exact:true}).click();await expect(page.getByLabel('Payment UPI')).toHaveCount(0);await page.getByLabel('Payment Cash',{exact:true}).fill('30');await page.getByRole('button',{name:/^Receive/}).click();
- await expect.poll(()=>methods.filter(m=>m==='recordPayment').length).toBeGreaterThan(0);
+ await tabs.getByRole('button',{name:'Payment',exact:true}).click();await expect(page.getByLabel('Payment UPI')).toHaveCount(0);await page.getByLabel('Payment Cash',{exact:true}).fill('30');
+ const refresh=page.getByRole('button',{name:'Refresh accounting workspace',exact:true});await expect(refresh).toBeEnabled();
+ const refreshed=page.waitForResponse(response=>response.request().method()==='POST'&&response.request().postDataJSON()?.input?.method==='getWorkspace');
+ await refresh.click();await refreshed;await expect(refresh).toBeEnabled();
+ await expect(page.getByLabel('Payment Cash',{exact:true})).toHaveValue('30');
+ await page.getByLabel('Payment account type',{exact:true}).selectOption('STOCKIST');
+ await expect(page.getByLabel('Payment Cash',{exact:true})).toHaveValue('');
+ await page.getByLabel('Payment account type',{exact:true}).selectOption('SELLER');
+ await page.getByLabel('Payment Cash',{exact:true}).fill('30');
+ const confirmed=page.waitForResponse(response=>{if(response.request().method()!=='POST')return false;const body=response.request().postDataJSON();return body?.operation==='lottery'&&body.input?.method==='recordPayment'&&body.input.payload?.totalAmountPaise==='3000';});
+ await page.getByRole('button',{name:/^Receive/}).click();
+ const receipt=await confirmed;expect(receipt.ok()).toBe(true);expect((await receipt.json()).data.payment.totalAmountPaise).toBe('3000');
+ await expect(page.getByLabel('Payment Cash',{exact:true})).toHaveValue('');
+ expect(methods.filter(m=>m==='recordPayment')).toHaveLength(2);
  await page.reload();await expect(page.getByLabel('Accounting organization')).toContainText('Independent lottery');
  await page.getByLabel('Accounting workspace sections').getByRole('button',{name:'Daily entry',exact:true}).click();await expect(page.getByLabel('Test seller dispatch',{exact:true})).toHaveValue('100');
  const result=await runLottery(state,{method:'getWorkspace',payload:{organizationId:(await runLottery(state,{method:'listOrganizations',payload:{}},customer.orbisIdentityId)).result[0].id}},customer.orbisIdentityId,()=>new Date('2026-10-30T10:00:00Z'));

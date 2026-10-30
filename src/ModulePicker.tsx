@@ -1,6 +1,5 @@
-import type { Language } from "./i18n";
 import { inLanguage } from "./localize";
-import { translations } from "./i18n";
+import { translations, type Language } from "./i18n";
 export function ModulePicker({
   language,
   active,

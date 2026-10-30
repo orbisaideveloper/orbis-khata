@@ -2275,8 +2275,12 @@ function PaymentPanel({
     setAccountId((current) =>
       accounts.some((item) => item.id === current) ? current : accounts[0]?.id || "",
     );
-    setAmounts(emptyPaymentAmounts());
   }, [accounts]);
+
+  // Refreshing balances must not erase an unfinished payment for the same account.
+  useEffect(() => {
+    setAmounts(emptyPaymentAmounts());
+  }, [accountId, kind, expenseCategoryId]);
 
   const outstanding = paymentOutstanding(workspace, kind, accountId, date);
   const methods = paymentMethods(kind);

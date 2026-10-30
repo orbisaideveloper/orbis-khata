@@ -1259,3 +1259,16 @@ See [SONAR-CORRECTIONS-20261017.md](SONAR-CORRECTIONS-20261017.md) for every rep
 - Final-source Lottery mobile/desktop2/2 pass for direct module switching, openings, daily formulas, save-failure blocking, safe receipt retry, no duplicate bill, split PWD/cash/bank, external payment and reload. Related bill-share/report browser4/4 pass. A test fixture type error was corrected before final successful typecheck/build/browser checks.
 - Khata Edge v13 ACTIVE; retrieved22-file bundle matches reviewed source, central auth preserved. Existing storage rollback SQL passes owner isolation, commit/replay and stale/changed retry denial with all fixtures rolled back. No SQL schema change, Foundation writes or user financial data edits. Render unchanged.
 - Detailed evidence: docs/LOTTERY_VERIFICATION_20261030.md. Owner-authorized main push from7dd2c10 next; new Actions/Sonar run remains unverified until after push. No Actions polling; owner reports result.
+
+## 2026-10-30 — Repair Lottery browser CI failure
+
+- Owner requests diagnosis and direct corrective commit/push. Starting main5c65314db7b221c4d769ecc0eff8e21d965616ff; failed run41011880020/job123919361517. Install/audit/lint/typecheck/674-test coverage/build passed; Playwright22/24 passed, both Lottery cases failed expecting two payments but receiving one. Sonar steps were skipped, not failed/passed.
+- The test's wait for recordPayment count>0 was already satisfied by the first daily receipt, allowing reload without second-save confirmation. Replaced it with the matching3000-paise response, successful saved-payment content and cleared successful form before reload; retains exact two-receipt/balance assertions. Fixture now serializes read/write requests like the production owner lock and delays the second receipt to exercise real asynchronous confirmation.
+- Also reproduced a real payment draft bug deterministically: enter30, refresh workspace, field becomes empty. PaymentPanel reset all amounts whenever refreshed account-array identity changed. Reset is now tied to actual account/type/category changes; successful save still clears explicitly. Added browser assertions for preservation on refresh and clearing on type switch. No stored records or calculation formulas changed.
+- Consolidated ModulePicker i18n imports before the next Sonar pass. Corrected Lottery mobile/desktop2/2 PASS;31 related unit tests and typecheck/lint PASS. Full24-case browser suite in progress. No SQL/Edge/Render changes; existing Edgev13 unaffected. Next: final browser result, quick static checks and owner-authorized corrective main push without Actions polling.
+
+### Lottery CI repair verification
+
+- Final full Playwright24/24 PASS on mobile/desktop. New regression proves30 is retained through refresh, account-type change clears it, and the second3000-paise receipt is confirmed before reload. Two payments and original exact totals remain mandatory.
+-31 related unit tests, typecheck, lint (existing vendor advisories), build/PWA, KNIP, zero-clone JSCPD and local recommended SonarJS scan PASS. No SQL/Edge/Render or user financial data changes. Detailed diagnosis/evidence: docs/LOTTERY_CI_REPAIR_20261030.md.
+- Owner-authorized corrective main push next from5c65314; new remote Actions/Sonar result pending. No post-push polling.
