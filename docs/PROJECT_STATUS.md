@@ -1334,3 +1334,9 @@ See [SONAR-CORRECTIONS-20261017.md](SONAR-CORRECTIONS-20261017.md) for every rep
 - Applied SQL migration20261030150510_allow_bill_advances, matching remote migration history. Atomic rollback acceptance test PASS before and after applying, including exact2500bill/3000receipt/500credit, negative inventory, retry, sequence rollback and reversal. All fixture transactions rolled back; no owner financial record edit. Gateway/owner guard retained and legacy function not executable by anon.
 - Khata Edgev16 ACTIVE, only the safe business-error allowlist/translation module changed from v15. Retrieved23 files match the reviewed bundle; central verifier and existing verify_jwt=false retained; unauthenticated POST401 KHATA_LOGIN_REQUIRED. Foundation and Lottery source/data unchanged. Render deployment was not performed.
 - Details:docs/KHATA_BILLS_EXPENSES_20261030.md. Owner-authorized direct main push follows; native remote Actions/Sonar result remains pending. No post-push Actions polling.
+
+## 2026-10-30 — Repair native Sonar catch naming
+
+- Owner reports two red Actions. Inspected latest run41081425153/job124151267834 at ec60b1a: local-equivalent gates,710 unit tests,26 browser cases and ordinary Sonar gate passed. Only strict zero-open-issues failed: typescript:S7718 at InvoicePage.tsx867 requires catch variable error_ rather than failure. Earlier b03ac8e run41069690689 is SUCCESS; historical failed runs remain historical.
+- Renamed only the caught variable and its two references; validation behavior, data, stock, advances and expense UI are unchanged. No gate/configuration suppression.17 invoice regression tests, typecheck/lint and production build/PWA checked before owner-authorized corrective push. Local recommended SonarJS also checked; native remote result remains pending after push.
+- No SQL, Edge, Foundation, Lottery or Render changes. Next: direct main corrective push from ec60b1a, without post-push Actions polling.

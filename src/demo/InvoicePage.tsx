@@ -864,9 +864,9 @@ export function InvoicePage({
       stockLines();
       setPhase("review");
       window.scrollTo?.(0, 0);
-    } catch (failure) {
-      highlightBillInput(event.currentTarget,failure);
-      setError(failure instanceof Error ? failure.message : t.invalid);
+    } catch (error_) {
+      highlightBillInput(event.currentTarget,error_);
+      setError(error_ instanceof Error ? error_.message : t.invalid);
     }
   }
   async function save() {
