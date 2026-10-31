@@ -1421,3 +1421,7 @@ See [SONAR-CORRECTIONS-20261017.md](SONAR-CORRECTIONS-20261017.md) for every rep
 - Includes prior scoped stock Quantity placeholder with report date, selected item/godown and unit. No financial formula, command payload, identity, schema or persistence contract changed; no real business data written.
 - Changed App.tsx, WorkspaceMenu.tsx/tests, theme.tsx/tests, use-theme.ts, new appearance.css, Production.tsx/tests, design.css and two browser flow specs. Related unit tests: 38 + 26 PASS. Build/typecheck/PWA checks PASS; targeted lint PASS; KNIP PASS (two existing ignore hints), JSCPD zero clones. Browser flows on mobile/desktop: 4/4 PASS for production and lottery, including main-home routing, theme persistence and original-theme restoration. After final contrast adjustments, mobile production/appearance flow passed again. Screenshots inspected locally.
 - No manual Render deployment, Edge deployment, migration, staging or production data write. Next: authorized push, check remote CI including Sonar, then owner can manually deploy and inspect on phone.
+
+### 2026-10-31 — theme label static-analysis correction
+- Appearance commit c518462 passed browser suite and Sonar quality gate in run 41223017351. Strict zero-open-issue check found typescript:S3358 at theme.tsx:6 (nested label ternary).
+- Extracted themeLabel with simple branches; the three options and translations are unchanged. Theme unit tests and targeted lint pass. No financial or production data changes. Next: authorized correction push and remote CI verification.
