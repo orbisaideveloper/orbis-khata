@@ -641,7 +641,7 @@ function checkProductionLine(doc:InventoryCommand,line:InventoryCommand['lines']
 }
 function demoProductionPost(doc:InventoryCommand,company:string,settings:WorkspaceSettings){
  const existing=documents.find(d=>d.id===doc.id);
- if(existing){const saved=workspaceEvents['production:'+doc.id];if(!saved||saved.payload!==JSON.stringify(doc)||existing.company!==company){fail('IDEMPOTENCY_CONFLICT');}return saved.result;}
+ if(existing){const saved=workspaceEvents['production:'+doc.id];if(saved?.payload!==JSON.stringify(doc)||existing.company!==company){fail('IDEMPOTENCY_CONFLICT');}return saved.result;}
  if(!settings.production){fail('PRODUCTION_DISABLED');}
  if(doc.date>today()){fail('INVALID_PRODUCTION');}
  const used=new Map<string,bigint>();for(const line of doc.lines)checkProductionLine(doc,line,company,used);

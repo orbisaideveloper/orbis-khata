@@ -58,3 +58,9 @@ This commit is source prepared for release, not live activation. Under separate 
 The Lottery adapter still hydrates state to execute the unchanged domain service. Existing response-size/transport bounds and paged-read scaling are separate from the removed owner-storage cap; unlimited-scale operation is not claimed. Production history is append-only in this scope; the existing purchase correction/reversal flow includes routed stock, while a separate manual production-entry correction UI is not included.
 
 Next: verify native Actions/Sonar for the pushed commit; live migrations/Edge/frontend activation and production smoke testing require their own authorized step.
+
+## Native Sonar follow-up
+
+The first pushed source `607b901` passed all ordinary remote gates (732 unit tests, SQL acceptance, 28 browser tests and Sonar Quality Gate). Strict zero-open-issues enforcement then reported nine TypeScript findings: optional chaining, two assertion styles, five FormData object-stringification warnings and an array-index history key.
+
+The correction uses the existing string-only `textValue` helper and precise assertions. History quantities are grouped exactly by item/godown within each immutable document, producing a stable unique key even when a purchase contains repeated identical lines. Financial formulas, SQL, authentication and quality thresholds are unchanged. Related 41 tests, typecheck/lint, local SonarJS, KNIP, zero clones and mobile/desktop production 2/2 passed; the corrective native run is verified separately after push.

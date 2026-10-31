@@ -1369,3 +1369,11 @@ See [SONAR-CORRECTIONS-20261017.md](SONAR-CORRECTIONS-20261017.md) for every rep
 - Read-only live counts and identity/company/voucher/Lottery fingerprints unchanged before/after. No live auth/financial write, migration, Edge, Render or staging deployment. Full behavior, file groups, acceptance evidence and limitations: `docs/PRODUCTION_LOTTERY_20261031.md`.
 - Changed scope: production module/tests and browser flow, inventory kinds/copy, settings/navigation, invoice request/recovery, demo parity, profit costing, Lottery adapter/service/gateway/tests, two migrations, isolated SQL fixture/check scripts, pinned dev dependency/lock and CI SQL step.
 - Next exact action: one owner-authorized main commit/push after final diff; native CI pending. Live migration/Edge/frontend activation remains a separate owner-authorized step. No manual production-entry correction UI or unlimited-size read guarantee is claimed.
+
+## 2026-10-31 — Correct native Sonar findings after production release
+
+- Inspected failed Actions 41185955468/job 124492803322 at main `607b901`. All 732 unit tests, SQL acceptance, 28 browser tests, build and ordinary Sonar gate passed. Only strict zero-open-issues enforcement failed on nine native TypeScript findings.
+- Reused `textValue` for the five FormData reads, avoiding accidental File/object stringification; used optional chaining for replay lookup; made two sessionStorage length assertions explicit. Production history now summarizes each immutable document by item/godown with exact quantity sums and a stable compound key, including duplicate lines, rather than array-index keys.
+- No accounting formulas, SQL migrations, authentication, stored records, quality gates or exclusions changed. Changed five source/test files and this checkpoint/report.
+- Related 41 tests, typecheck/lint, local recommended SonarJS, KNIP, zero-clone JSCPD and production browser 2/2 PASS, including build/PWA preflight. Added exact duplicate-line summary coverage. No unrelated full certification rerun; the corrective commit's native CI remains pending until push.
+- Owner authorizes completing the failed work and correction/push. Next: direct main corrective commit/push and verify native Actions/Sonar. No live DB/Edge/Render/staging changes.
