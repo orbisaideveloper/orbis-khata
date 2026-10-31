@@ -60,6 +60,7 @@ function App() {
     const account = useAccount();
     const theme=useTheme();
     const {page:booksPage,open:openBooks,home:homeBooks}=useBooksTrail();
+    const [production,setProduction]=useState(false);
     const [tutorial, setTutorial] = useState(readTutorial);
     const [view, setView] = useState<View>(() => authClient && account.session ? readLocation(account.session.user.id).view : 'welcome');
     const [language, setLanguage] = useState<Language>(readLanguage);
@@ -73,7 +74,7 @@ function App() {
     const [logoutError, setLogoutError] = useState(false);
     const guestEntered = useRef(false);
     const t = (key: TextKey) => translations[language][key];
-    const menu = () => <WorkspaceMenu enhanced language={language} signedIn={signedIn} onBooks={page => {
+    const menu = () => <WorkspaceMenu enhanced production={view==='khata'&&production} language={language} signedIn={signedIn} onBooks={page => {
             openBooks(page);
             if (view !== 'khata') {
                 navigate('khata');
@@ -215,7 +216,7 @@ function App() {
           {signedIn ? <header className="kh-app-header"><button className="kh-brand" type="button" aria-label={language==='bn'?'হোম':'Home'} onClick={homeBooks}><span className="kh-logo">O</span><span><small>ORBIS</small><strong>{t('khata')}</strong></span></button><div className="kh-header-actions">{languagePicker(true)}{menu()}<button type="button" className="kh-profile-button" onClick={homeBooks} aria-label={{bn:'ফিরুন',hi:'वापस',en:'Back'}[language]}>←</button></div></header> : renderBar('workspace', 'choose', 'khata')}
           
           {!signedIn && <div className="khata-title"><div className="bar"><span className="eyebrow l">{t('dashboard')}</span><span className="period">{t('month')}</span></div><h1>{t('khata')}</h1><p>{t('khataHead')}</p></div>}
-          <CompanyGate key={account.session?.user.id ?? 'guest'} userId={account.session?.user.id} language={language} workspace={<div className="kh-workspace"><BookServicesContext.Provider value={liveBookServices}><DemoWorkspace userId={account.session?.user.id} language={language} moduleControl={<ModulePicker language={language} active="khata" onSelect={navigate}/>}/></BookServicesContext.Provider></div>}>
+          <CompanyGate key={account.session?.user.id ?? 'guest'} userId={account.session?.user.id} language={language} workspace={<div className="kh-workspace"><BookServicesContext.Provider value={liveBookServices}><DemoWorkspace onProductionChange={setProduction} userId={account.session?.user.id} language={language} moduleControl={<ModulePicker language={language} active="khata" onSelect={navigate}/>}/></BookServicesContext.Provider></div>}>
           <div className="metrics">
             {(['moneyIn', 'moneyOut', 'receive', 'pay'] as const).map((key) => <div className="metric" key={key}><span className="metric-label">{t(key)}</span><strong>—</strong><small>{t('emptyValue')}</small></div>)}
           </div>

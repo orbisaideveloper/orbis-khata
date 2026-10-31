@@ -1,4 +1,4 @@
-import type {ReactNode} from 'react';
+import {useEffect,useRef,type ReactNode} from 'react';
 import {inLanguage} from './localize';
 import { booksLabels, type BooksPage } from './books-navigation';
 import type { Language } from './i18n';
@@ -7,7 +7,8 @@ const copy = {
     en: { menu: 'More options', profile: 'Account & profile', tutorial: 'Tutorial', logout: 'Log out' },
     hi: { menu: 'अन्य विकल्प', profile: 'अकाउंट और प्रोफ़ाइल', tutorial: 'ट्यूटोरियल', logout: 'लॉग आउट' },
 };
-export function WorkspaceMenu({ language, tutorial, onTutorial, onProfile, onLogout, signedIn, onBooks, demo = false, enhanced = false, settings, actions }: Readonly<{
+export function WorkspaceMenu({ language, tutorial, onTutorial, onProfile, onLogout, signedIn, onBooks, demo = false, enhanced = false, settings, actions, production = false }: Readonly<{
+    production?:boolean;
     settings?:ReactNode;
     actions?:ReactNode;
     language: Language;
@@ -20,11 +21,17 @@ export function WorkspaceMenu({ language, tutorial, onTutorial, onProfile, onLog
     onLogout: () => void;
     signedIn: boolean;
 }>) {
-    const t = copy[language];
-    return <details className="workspace-menu">
+    const t = copy[language],menu=useRef<HTMLDetailsElement>(null);
+    useEffect(()=>{
+        const outside=(event:PointerEvent)=>{const details=menu.current;if(details?.open&&event.target instanceof Node&&!details.contains(event.target)){details.removeAttribute('open');}};
+        const escape=(event:KeyboardEvent)=>{const details=menu.current;if(event.key==='Escape'&&details?.open){details.removeAttribute('open');details.querySelector('summary')?.focus();}};
+        document.addEventListener('pointerdown',outside,true);document.addEventListener('keydown',escape);
+        return()=>{document.removeEventListener('pointerdown',outside,true);document.removeEventListener('keydown',escape);};
+    },[]);
+    return <details className="workspace-menu" ref={menu}>
     <summary aria-label={t.menu}>⋮</summary>
     <div className="workspace-menu-panel">
-      {signedIn && onBooks && ([...((demo || enhanced) ? ['home' as const] : []), 'ledger', 'all-ledgers', 'parties', 'items', ...((demo || enhanced) ? ['bills' as const] : []), 'expenses', 'reports', 'company', 'settings', 'themes'] as const).map(page => <button type="button" key={page} onClick={event => { event.currentTarget.closest('details')?.removeAttribute('open'); onBooks(page); }}>{booksLabels[language][page]}</button>)}
+      {signedIn && onBooks && ([...((demo || enhanced) ? ['home' as const] : []), 'ledger', 'all-ledgers', 'parties', 'items', ...((demo || enhanced) ? ['bills' as const] : []), 'expenses', 'reports', ...(production?['production' as const]:[]), 'company', 'settings', 'themes'] as const).map(page => <button type="button" key={page} onClick={event => { event.currentTarget.closest('details')?.removeAttribute('open'); onBooks(page); }}>{booksLabels[language][page]}</button>)}
       {signedIn && <button type="button" onClick={event => { event.currentTarget.closest('details')?.removeAttribute('open'); onProfile(); }}>{t.profile}</button>}
       {actions}
       {settings&&<details className="workspace-settings"><summary>{inLanguage(language,'সেটিংস','सेटिंग्स','Settings')}</summary><div>{settings}</div></details>}

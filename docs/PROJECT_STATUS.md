@@ -1377,3 +1377,12 @@ See [SONAR-CORRECTIONS-20261017.md](SONAR-CORRECTIONS-20261017.md) for every rep
 - No accounting formulas, SQL migrations, authentication, stored records, quality gates or exclusions changed. Changed five source/test files and this checkpoint/report.
 - Related 41 tests, typecheck/lint, local recommended SonarJS, KNIP, zero-clone JSCPD and production browser 2/2 PASS, including build/PWA preflight. Added exact duplicate-line summary coverage. No unrelated full certification rerun; the corrective commit's native CI remains pending until push.
 - Owner authorizes completing the failed work and correction/push. Next: direct main corrective commit/push and verify native Actions/Sonar. No live DB/Edge/Render/staging changes.
+
+## 2026-10-31 — Production menu discovery and outside dismissal
+
+- Owner screenshot shows no Production entry in the three-dot menu, and requests closing the menu by touching outside. Earlier `607b901` implemented production and Lottery row saves; `dee6008` fixed only native Sonar findings. Neither commit activated live migrations or deployment.
+- Added Production to WorkspaceMenu only when the selected company's loaded production setting is enabled. Live and demo workspaces report that derived flag to the header, clearing it on company changes/unmount. Existing mode-off behavior and separate production shortcut remain.
+- Menu now closes on outside pointer/touch and Escape, without swallowing the outside action or closing internal settings/checkbox interactions. Escape returns focus to the trigger; listeners clean up on unmount. Production selection navigates and closes the menu.
+- Local targeted verification: 27 App/menu/demo tests, typecheck/oxlint, KNIP and zero JSCPD clones PASS. Mobile/desktop production browser 2/2 PASS, including real header-menu discovery, outside click dismissal, menu navigation, company setting on/off, purchase routing and internal milk receipt. Screenshots reviewed; build/PWA preflight passed. No thresholds or CI exclusions changed.
+- Read-only live inspection: `orbis_khata.production_post(jsonb)` absent, Lottery store v2 absent, companies with production enabled = 0. Production is NOT live; enabling it safely still requires separately authorized reviewed migrations, matching Edge deployment and frontend deployment. No live setting, financial/auth record, SQL, Edge, Render or staging write performed.
+- Next: owner-authorized corrective main push and native CI verification; then report precise commit changes and the remaining activation boundary.

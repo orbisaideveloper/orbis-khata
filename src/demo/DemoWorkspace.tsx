@@ -61,9 +61,9 @@ function workspaceName(services: BookServices | null, companies: {
     }
     return '';
 }
-export function DemoWorkspace({ language, userId = 'demo-owner', moduleControl }: Readonly<{
+export function DemoWorkspace({ language, userId = 'demo-owner', moduleControl, onProductionChange }: Readonly<{
     language: Language;
-    userId?: string; moduleControl?:ReactNode;
+    userId?: string; moduleControl?:ReactNode; onProductionChange?:(enabled:boolean)=>void;
 }>) {
     const services = useBookServices(), request = services?.request ?? fallbackRequest;
     const [liveMasters, setLiveMasters] = useState<{
@@ -78,6 +78,7 @@ export function DemoWorkspace({ language, userId = 'demo-owner', moduleControl }
     }[]>([]), [version, setVersion] = useState(0);
     const productionSettings=useWorkspaceSettings(company,false,version);
     const productionEnabled=productionSettings.loaded&&productionSettings.settings.production===true;
+    useEffect(()=>{onProductionChange?.(productionEnabled);return()=>onProductionChange?.(false);},[onProductionChange,productionEnabled]);
     const [from, setFrom] = useState(() => today().slice(0, 7) + '-01'), [to, setTo] = useState(today), [bill, setBill] = useState<BillKind | null>(null), [billKey, setBillKey] = useState(0);
     const [result, setResult] = useState<{
         key: string;

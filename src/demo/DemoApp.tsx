@@ -16,6 +16,7 @@ import { designCopy } from './design-copy';
 const copy = { bn: { title: 'ORBIS খাতা · ডেমো', hint: 'এটি আলাদা ডেমো। আসল অ্যাকাউন্টে কিছু যাবে না। পেজ রিফ্রেশ করলে ডেমো মুছে যাবে।', reset: 'ডেমো নতুন করে শুরু', language: 'ভাষা' }, en: { title: 'ORBIS Khata · Demo', hint: 'Isolated demo. Nothing is saved to your real account. Refreshing clears this demo.', reset: 'Reset demo', language: 'Language' }, hi: { title: 'ORBIS खाता · डेमो', hint: 'अलग डेमो। असली अकाउंट में कुछ नहीं जाएगा। रिफ्रेश करने पर डेमो मिट जाएगा।', reset: 'डेमो फिर से शुरू करें', language: 'भाषा' } };
 export default function DemoApp() {
     const theme=useTheme();
+    const [production,setProduction]=useState(false);
     const [language, setLanguage] = useState<Language>('bn'), [page, setPage] = useState<BooksPage>('home'), [tutorial, setTutorial] = useState(false), [revision, setRevision] = useState(0);
     const t = copy[language], d = designCopy[language];
     const [profile, setProfile] = useState(false);
@@ -29,7 +30,7 @@ export default function DemoApp() {
     }, [page, language]);
     const navigation = useMemo(() => ({ page, open: navigate }), [page, navigate]);
     return <BooksNavigation.Provider value={navigation}><TutorialContext.Provider value={tutorial}><main className="phone kh-app" lang={language} data-theme={theme} onFocusCapture={selectNumeric} onClickCapture={selectNumeric}><section className="scene light-scene active">
-  <header className="kh-app-header"><button className="kh-brand" type="button" onClick={() => navigate('home')} aria-label={d.home}><span className="kh-logo">O</span><span><small>ORBIS</small><strong>{inLanguage(language, 'খাতাবই', 'खाताबही', 'Khata Boi')}</strong></span></button><div className="kh-header-actions"><select aria-label={t.language} value={language} onChange={e => setLanguage(e.target.value as Language)}>{languageOptions.map(l => <option key={l.code} value={l.code}>{l.name}</option>)}</select><WorkspaceMenu demo language={language} signedIn tutorial={tutorial} onTutorial={setTutorial} onBooks={navigate} onProfile={() => setProfile(true)} onLogout={() => { resetDemo(); setRevision(n => n + 1); }}/></div></header>
+  <header className="kh-app-header"><button className="kh-brand" type="button" onClick={() => navigate('home')} aria-label={d.home}><span className="kh-logo">O</span><span><small>ORBIS</small><strong>{inLanguage(language, 'খাতাবই', 'खाताबही', 'Khata Boi')}</strong></span></button><div className="kh-header-actions"><select aria-label={t.language} value={language} onChange={e => setLanguage(e.target.value as Language)}>{languageOptions.map(l => <option key={l.code} value={l.code}>{l.name}</option>)}</select><WorkspaceMenu demo production={production} language={language} signedIn tutorial={tutorial} onTutorial={setTutorial} onBooks={navigate} onProfile={() => setProfile(true)} onLogout={() => { resetDemo(); setRevision(n => n + 1); }}/></div></header>
   <aside className="kh-demo-strip"><span><b>{d.demo}</b> · {d.demoHint}</span><button type="button" onClick={() => {
             if (confirmDelete(language, t.reset)) {
                 resetDemo();
@@ -39,7 +40,7 @@ export default function DemoApp() {
         }}>{d.reset}</button></aside>
   {profile && <section className="books-card kh-profile-panel"><h2>{d.account}</h2><p>{d.accountHint}</p><label><input type="checkbox" checked={tutorial} onChange={e => setTutorial(e.target.checked)}/>{d.tutorial}</label></section>}
   <div className="kh-workspace">
-  <DemoWorkspace key={revision} language={language}/>
+  <DemoWorkspace onProductionChange={setProduction} key={revision} language={language}/>
   </div>
  <BooksBottomNav language={language} page={page} onOpen={navigate}/>
  </section></main></TutorialContext.Provider></BooksNavigation.Provider>;
