@@ -1,3 +1,4 @@
+import {productionCost,stockDocuments} from '../production/costing';
 import {currentEntries} from './current-entries';
 import type {Report} from './model';
 import type {ExpenseReport} from './expense-model';
@@ -27,24 +28,37 @@ function moveStock(state:Stock,kind:Document['kind'],quantity:bigint,value:bigin
  if(state.quantity===0n){state.value=0n;state.known=true;}
  return {cost,known};
 }
-/** Moving weighted-average cost, across godowns. Same-day receipts precede sales. */
-export function costOfSales(inventory:InventoryReport,from:string,to:string){
- const stock=new Map<string,Stock>(),costs=new Map<string,bigint>(),missing=new Set<string>();
- const rank={opening:0,purchase:1,sale:2,item:3,warehouse:3,transfer:3};
- const documents=inventory.documents.filter(d=>!d.reversed&&d.date<=to).sort((a,b)=>a.date.localeCompare(b.date)||rank[a.kind]-rank[b.kind]||a.id.localeCompare(b.id));
- for(const doc of documents){
-  if(!['opening','purchase','sale'].includes(doc.kind))continue;
-  const gross=doc.lines.reduce((sum,line)=>sum+lineTotal(line),0n);let allocated=0n,documentCost=0n;
-  const sale=doc.kind==='sale'&&inPeriod(doc.date,from,to);
-  for(const [index,line] of doc.lines.entries()){
-   const state=stock.get(line.item)??{quantity:0n,value:0n,known:true};
-   const value=purchaseValue(doc,index,gross,allocated);allocated+=value;
-   const movement=moveStock(state,doc.kind,BigInt(line.quantity),value);
-   documentCost+=movement.cost;
-   if(sale&&!movement.known)missing.add(line.item);
-   stock.set(line.item,state);
+type CostContext={stock:Map<string,Stock>;missing:Set<string>;production:ReturnType<typeof productionCost>};
+function rawSaleCost(raw:{cost:bigint;known:boolean}|undefined,sale:boolean,item:string,missing:Set<string>){
+ if(!sale||!raw){return 0n;}
+ if(!raw.known){missing.add(item);}
+ return raw.cost;
+}
+function applyCostDocument(doc:Document,sale:boolean,context:CostContext){
+ const {stock,missing,production}=context;
+ const gross=doc.lines.reduce((sum,line)=>sum+lineTotal(line),0n);let allocated=0n,cost=0n;
+ for(const [index,line] of doc.lines.entries()){
+  if(production.rawItems.has(line.item)||production.outputItems.has(line.item)){
+   const raw=production.rawCosts.get(doc.id+':'+index)??production.outputCosts.get(doc.id+':'+index);
+   cost+=rawSaleCost(raw,sale,line.item,missing);
+   continue;
   }
-  if(sale)costs.set(doc.id,documentCost);
+  const state=stock.get(line.item)??{quantity:0n,value:0n,known:true};
+  const output=doc.kind==='production-output';
+  const value=output?(production.outputValues.get(doc.id)??0n):purchaseValue(doc,index,gross,allocated);allocated+=value;
+  const movement=moveStock(state,output?'purchase':doc.kind,BigInt(line.quantity),value);cost+=movement.cost;
+  if(sale&&!movement.known){missing.add(line.item);}stock.set(line.item,state);
+ }
+ return cost;
+}
+/** Moving average for ordinary stock; FIFO raw inputs and cumulative production output. */
+export function costOfSales(inventory:InventoryReport,from:string,to:string){
+ const production=productionCost(inventory,to),missing=new Set(production.missing),costs=new Map<string,bigint>();
+ const context:CostContext={stock:new Map(),missing,production};
+ for(const doc of stockDocuments(inventory,to)){
+  if(!['opening','purchase','sale','production-output'].includes(doc.kind)){continue;}
+  const sale=doc.kind==='sale'&&inPeriod(doc.date,from,to),cost=applyCostDocument(doc,sale,context);
+  if(sale)costs.set(doc.id,cost);
  }
  return {costs,missing:[...missing].map(id=>inventory.items.find(item=>item.id===id)?.name??id)};
 }

@@ -1,5 +1,5 @@
 import { amountFromRate } from '../billing/amounts.ts';
-export type InventoryKind = 'item' | 'warehouse' | 'purchase' | 'sale' | 'opening' | 'transfer';
+export type InventoryKind = 'item' | 'warehouse' | 'purchase' | 'sale' | 'opening' | 'transfer' | 'production-input' | 'production-output';
 export type StockLine = {
     item: string;
     warehouse: string;

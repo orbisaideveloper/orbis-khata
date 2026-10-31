@@ -1,5 +1,6 @@
 import type { Language } from '../i18n'
 const en = {
+ 'production-input':'Production input','production-output':'Production output',
  title:'Items, bills & stock',items:'Item list',warehouses:'Godowns',stock:'Stock',history:'Bills & stock history',
  item:'New item',warehouse:'New godown',purchase:'Purchase bill',sale:'Sale bill',opening:'Opening stock',transfer:'Godown transfer',
  code:'Code',name:'Name',unit:'Unit',party:'Party',date:'Date',reference:'Bill / reference',note:'Note / reason',quantity:'Quantity',rate:'Rate (INR / unit)',
@@ -17,7 +18,7 @@ const en = {
 }
 export const inventoryCopy: Record<Language, typeof en> = {
  en,
- bn:{title:'আইটেম, বিল ও স্টক',items:'আইটেম তালিকা',warehouses:'গোডাউন',stock:'স্টক',history:'বিল ও স্টকের ইতিহাস',
+ bn:{'production-input':'প্রোডাকশনে কাঁচামাল','production-output':'প্রোডাকশন থেকে উৎপাদন',title:'আইটেম, বিল ও স্টক',items:'আইটেম তালিকা',warehouses:'গোডাউন',stock:'স্টক',history:'বিল ও স্টকের ইতিহাস',
  item:'নতুন আইটেম',warehouse:'নতুন গোডাউন',purchase:'ক্রয়ের বিল',sale:'বিক্রির বিল',opening:'শুরুর স্টক',transfer:'গোডাউন বদলি',
  code:'কোড',name:'নাম',unit:'ইউনিট',party:'পার্টি',date:'তারিখ',reference:'বিল / রেফারেন্স',note:'নোট / কারণ',quantity:'পরিমাণ',rate:'দর (টাকা / ইউনিট)',
  location:'গোডাউন',destination:'যে গোডাউনে যাবে',choose:'বেছে নিন',addLine:'আরও আইটেম',remove:'সরান',search:'কোড বা নাম দিয়ে আইটেম খুঁজুন',
@@ -31,7 +32,7 @@ export const inventoryCopy: Record<Language, typeof en> = {
  unitHint:'প্রতি আইটেমে একটি স্থির ইউনিট; পরিমাণে ছয় ঘর দশমিক। ইউনিট বদলের হিসাব, GST ও স্টকের মূল্যায়ন এখানে নেই।',
  masterHint:'এই প্রতিষ্ঠানের মধ্যে কোড আলাদা হতে হবে। সংরক্ষণের আগে ইউনিট দেখে নিন; তৈরি তথ্য অক্ষত থাকবে।',
  pending:'একটি এন্ট্রি নিশ্চিত করা বা আবার পাঠানো বাকি।',invoice:'আইটেমের বিল',accounts:'হিসাব'},
- hi:{title:'आइटम, बिल और स्टॉक',items:'आइटम सूची',warehouses:'गोदाम',stock:'स्टॉक',history:'बिल और स्टॉक इतिहास',
+ hi:{'production-input':'उत्पादन में कच्चा माल','production-output':'उत्पादन से प्राप्ति',title:'आइटम, बिल और स्टॉक',items:'आइटम सूची',warehouses:'गोदाम',stock:'स्टॉक',history:'बिल और स्टॉक इतिहास',
  item:'नया आइटम',warehouse:'नया गोदाम',purchase:'खरीद बिल',sale:'बिक्री बिल',opening:'शुरुआती स्टॉक',transfer:'गोदाम ट्रांसफर',
  code:'कोड',name:'नाम',unit:'इकाई',party:'पार्टी',date:'तारीख',reference:'बिल / संदर्भ',note:'नोट / कारण',quantity:'मात्रा',rate:'दर (रुपये / इकाई)',
  location:'गोदाम',destination:'जिस गोदाम में जाएगा',choose:'चुनें',addLine:'और आइटम',remove:'हटाएँ',search:'कोड या नाम से आइटम खोजें',

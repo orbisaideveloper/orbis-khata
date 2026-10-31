@@ -17,17 +17,18 @@ function decodeJson(value: unknown) {
 }
 function edgeHarness() {
   const received: unknown[] = []
-  let lotteryState:unknown={},lotteryVersion=0;const lotteryOperations=new Map<string,unknown>();
+  let lotteryState:Record<string,Record<string,unknown>[]>={},lotteryVersion=0;const lotteryOperations=new Map<string,unknown>();
   let handler: (request: Request) => Promise<Response> = async () => new Response(null, { status: 500 })
   const tx = Object.assign(async (parts: TemplateStringsArray, ...values: unknown[]) => {
     const query = parts.join('?')
     if (query.includes('resolve_ledger_owner')) return [{ id }]
     if (query.includes('::jsonb')) {
       const payloads = values.slice(query.includes('khata_master_save_v2') ? 1 : 0).map(decodeJson)
-      if(query.includes('khata_lottery_store_v1')){
+      if(query.includes('khata_lottery_store_v2')){
         const p=payloads[0] as Record<string,any>;
         if(p.action==='load')return [{data:lotteryOperations.has(p.operationId)?{replay:true,result:lotteryOperations.get(p.operationId)}:{state:lotteryState,version:lotteryVersion}}];
-        lotteryState=p.state;lotteryVersion++;if(p.operationId)lotteryOperations.set(p.operationId,p.result);return [{data:p.result}];
+        for(const change of p.changes){const rows=lotteryState[change.model]??=[];const index=rows.findIndex(row=>row.id===change.id);if(change.value===null){if(index>=0)rows.splice(index,1);}else if(index>=0)rows[index]=change.value;else rows.push(change.value);}
+        lotteryVersion++;if(p.operationId)lotteryOperations.set(p.operationId,p.result);return [{data:p.result}];
       }
       received.push(...payloads)
       if (!payloads.every(p => typeof p === 'object' && p !== null)) throw Object.assign(new Error('Invalid JSON shape'), { code: 'P0001' })
@@ -39,7 +40,7 @@ function edgeHarness() {
   const source = readFileSync('supabase/functions/orbis-khata-data/index.ts', 'utf8')
   const compiled = transpileModule(source, { compilerOptions: { module: ModuleKind.CommonJS } }).outputText
   runInNewContext(compiled, {
-    exports: {}, URL, console: { info() {}, warn() {} },
+    exports: {}, URL, crypto, console: { info() {}, warn() {} },
     require: (name: string) => name.includes('/lottery/service') ? {runLottery} : name.startsWith('npm:postgres') ? { __esModule: true, default: () => sql } : {
       createCentralVerifier: () => async () => principal, createKhataGateway,
     },

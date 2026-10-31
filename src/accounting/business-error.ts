@@ -1,5 +1,5 @@
 import type { Language } from '../i18n';
-export const businessReasons = ['STOCK_DATE_BEFORE_ACTIVITY', 'INSUFFICIENT_STOCK', 'INVALID_RATE', 'INVALID_AMOUNT', 'INVALID_TOTAL', 'IDEMPOTENCY_CONFLICT', 'PARTY_NOT_ACCESSIBLE', 'STOCK_MASTER_NOT_ACCESSIBLE', 'WRITES_DISABLED', 'FUTURE_DATE', 'COMPANY_NOT_ACCESSIBLE', 'RECORD_ALREADY_CORRECTED', 'PAYMENT_ACCOUNT_REQUIRED', 'SETTLEMENT_EXCEEDS_BILL', 'INVALID_DISCOUNT', 'BILL_NUMBER_REQUIRED', 'INVALID_INVOICE'] as const;
+export const businessReasons = ['PRODUCTION_DISABLED','INVALID_PRODUCTION','INSUFFICIENT_PRODUCTION_STOCK','ONE_PRODUCTION_OUTPUT_ITEM_REQUIRED','PRODUCTION_OUTPUT_CANNOT_BE_INPUT','STOCK_DATE_BEFORE_ACTIVITY', 'INSUFFICIENT_STOCK', 'INVALID_RATE', 'INVALID_AMOUNT', 'INVALID_TOTAL', 'IDEMPOTENCY_CONFLICT', 'PARTY_NOT_ACCESSIBLE', 'STOCK_MASTER_NOT_ACCESSIBLE', 'WRITES_DISABLED', 'FUTURE_DATE', 'COMPANY_NOT_ACCESSIBLE', 'RECORD_ALREADY_CORRECTED', 'PAYMENT_ACCOUNT_REQUIRED', 'SETTLEMENT_EXCEEDS_BILL', 'INVALID_DISCOUNT', 'BILL_NUMBER_REQUIRED', 'INVALID_INVOICE'] as const;
 export function safeBusinessReason(error: unknown): string | undefined {
     if (!error || typeof error !== 'object') {
         return undefined;
@@ -18,6 +18,11 @@ export function billError(error: unknown, language: Language, fallback: string) 
         string,
         string
     ]> = {
+        PRODUCTION_DISABLED:['প্রোডাকশন মোড বন্ধ আছে। সেটিংসে চালু করুন।','Production mode is off. Enable it in Settings.','उत्पादन मोड बंद है। सेटिंग्स में चालू करें।'],
+        INVALID_PRODUCTION:['প্রোডাকশনের তারিখ ও তথ্য পরীক্ষা করুন।','Check the production date and fields.','उत्पादन की तारीख और विवरण जाँचें।'],
+        INSUFFICIENT_PRODUCTION_STOCK:['এই তারিখে গোডাউনে যথেষ্ট কাঁচামাল নেই।','Insufficient raw material in this godown on this date.','इस तारीख को गोदाम में पर्याप्त कच्चा माल नहीं है।'],
+        ONE_PRODUCTION_OUTPUT_ITEM_REQUIRED:['একটানা প্রোডাকশনের একই উৎপাদিত আইটেম বেছে নিন।','Choose the same output item for this continuous production account.','लगातार उत्पादन खाते का वही आउटपुट आइटम चुनें।'],
+        PRODUCTION_OUTPUT_CANNOT_BE_INPUT:['উৎপাদিত আইটেম কাঁচামাল হিসেবে পাঠানো যাবে না।','The output item cannot be sent as raw material.','उत्पादित आइटम कच्चे माल के रूप में नहीं भेज सकते।'],
         INVALID_RATE:['সঠিক দর দিন।','Enter a valid rate.','सही दर भरें।'],
         INVALID_AMOUNT:['সঠিক টাকা বা পরিমাণ দিন।','Enter a valid amount or quantity.','सही रकम या मात्रा भरें।'],
         INVALID_TOTAL:['বিলের মোট টাকা সঠিক নয়।','The bill total is invalid.','बिल का कुल सही नहीं है।'],

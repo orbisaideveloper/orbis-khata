@@ -1,3 +1,4 @@
+import {productionDocument,validProduction,type ProductionCommand} from '../production/model';
 import {financialYear} from '../accounting/numbering';
 import { defaultSettings, type WorkspaceSettings } from '../accounting/workspace-contract';
 import { textValue } from '../text-value';
@@ -65,7 +66,7 @@ if (import.meta.env.DEV) {
 function fail(message: string): never { throw Object.assign(new Error(message), { code: '23514' }); }
 function stockMoves(company: string) {
     return documents.filter(d => d.company === company).flatMap(d => {
-        const base = d.lines.flatMap(l => { const sign = d.kind === 'sale' || d.kind === 'transfer' ? -1n : 1n; return [{ date: d.date, item: l.item, warehouse: l.warehouse, amount: sign * BigInt(l.quantity) }, ...(d.kind === 'transfer' && l.to ? [{ date: d.date, item: l.item, warehouse: l.to, amount: BigInt(l.quantity) }] : [])]; });
+        const base = d.lines.flatMap(l => { const sign = d.kind === 'sale' || d.kind === 'transfer' || d.kind==='production-input' ? -1n : 1n; return [{ date: d.date, item: l.item, warehouse: l.warehouse, amount: sign * BigInt(l.quantity) }, ...(d.kind === 'transfer' && l.to ? [{ date: d.date, item: l.item, warehouse: l.to, amount: BigInt(l.quantity) }] : [])]; });
         const reversedAt = inventoryReversals.get(d.id);
         return reversedAt ? [...base, ...base.map(m => ({ ...m, date: reversedAt, amount: -m.amount }))] : base;
     });
@@ -465,6 +466,9 @@ function postTrade(command: Command) {
         if (doc) {
             doc.reversed = true;
             inventoryReversals.set(doc.id, command.date);
+            const route=workspaceEvents['production-route:'+doc.id]?.result as {input:string}|undefined;
+            const input=route&&documents.find(d=>d.id===route.input&&d.company===command.company);
+            if(input){input.reversed=true;inventoryReversals.set(input.id,command.date);}
         }
     }
     else {
@@ -606,6 +610,12 @@ function demoInvoiceSave(p:Record<string,unknown>,company:string,settings:Worksp
   if(!reference){fail('BILL_NUMBER_REQUIRED');}
   data.reference=reference;
   const saved=demoWorkspaceMutation(command,company,settings,data.id) as Record<string,unknown>;
+  if(p.production===true){
+   if(kind!=='purchase')fail('INVALID_PRODUCTION');
+   const inputId=crypto.randomUUID();
+   const doc:InventoryCommand={...(data as InventoryCommand),id:inputId,kind:'production-input',party:null,note:'Purchase to production',lines:(data as InventoryCommand).lines.map(l=>({...l,rate:'0',unit_rate:undefined}))};
+   demoProductionPost(doc,company,settings);workspaceEvents['production-route:'+data.id]={payload:JSON.stringify(p),result:{input:inputId}};
+  }
   const result={...saved,id:data.id,reference};workspaceEvents[key]={payload,result};return result;
  }catch(error){entries=before.entries;documents=before.documents;expenses=before.expenses;paymentLinks=before.paymentLinks;workspaceEvents=before.workspaceEvents;fiscalCounters=before.fiscalCounters;workspaceSettings=before.workspaceSettings;expenseBillLines=before.expenseBillLines;throw error;}
 }
@@ -613,6 +623,35 @@ function saveWorkspaceSettings(company:string,settings:WorkspaceSettings,next:Wo
  for(const kind of ['sale','purchase','expense'] as const){if(next.next[kind]!==settings.next[kind])fiscalCounters[company+':'+kind+':'+financialYear(today())]=next.next[kind];}
  workspaceSettings[company]=structuredClone(next);return next;
 }
+
+function checkProductionStock(doc:InventoryCommand,line:InventoryCommand['lines'][number],company:string,used:Map<string,bigint>){
+ const key=line.item+':'+line.warehouse,q=(used.get(key)??0n)+BigInt(line.quantity);used.set(key,q);
+ const moves=stockMoves(company).filter(m=>m.item===line.item&&m.warehouse===line.warehouse);
+ if(moves.reduce((n,m)=>n+m.amount,0n)<q||moves.filter(m=>m.date<=doc.date).reduce((n,m)=>n+m.amount,0n)<q){fail('INSUFFICIENT_PRODUCTION_STOCK');}
+}
+function checkProductionLine(doc:InventoryCommand,line:InventoryCommand['lines'][number],company:string,used:Map<string,bigint>){
+ if(!items.some(i=>i.company===company&&i.id===line.item)||!warehouses.some(w=>w.company===company&&w.id===line.warehouse)){fail('STOCK_MASTER_NOT_ACCESSIBLE');}
+ const output=documents.filter(d=>d.company===company&&d.kind==='production-output').flatMap(d=>d.lines.map(l=>l.item));
+ if(doc.kind==='production-output'){
+  if(output.some(id=>id!==line.item)||documents.some(d=>d.company===company&&d.kind==='production-input'&&d.lines.some(l=>l.item===line.item))){fail('ONE_PRODUCTION_OUTPUT_ITEM_REQUIRED');}
+  return;
+ }
+ if(output.includes(line.item)){fail('PRODUCTION_OUTPUT_CANNOT_BE_INPUT');}
+ checkProductionStock(doc,line,company,used);
+}
+function demoProductionPost(doc:InventoryCommand,company:string,settings:WorkspaceSettings){
+ const existing=documents.find(d=>d.id===doc.id);
+ if(existing){const saved=workspaceEvents['production:'+doc.id];if(!saved||saved.payload!==JSON.stringify(doc)||existing.company!==company){fail('IDEMPOTENCY_CONFLICT');}return saved.result;}
+ if(!settings.production){fail('PRODUCTION_DISABLED');}
+ if(doc.date>today()){fail('INVALID_PRODUCTION');}
+ const used=new Map<string,bigint>();for(const line of doc.lines)checkProductionLine(doc,line,company,used);
+ documents.push({...structuredClone(doc),total:'0',party_name:null,reversed:false});
+ const result={id:doc.id};workspaceEvents['production:'+doc.id]={payload:JSON.stringify(doc),result};return result;
+}
+function demoProductionAction(p:Record<string,unknown>,company:string,settings:WorkspaceSettings){
+ if(!validProduction(p)){fail('INVALID_PRODUCTION');}return demoProductionPost(productionDocument(p as ProductionCommand),company,settings);
+}
+
 function demoWorkspace(p: Record<string, unknown>): unknown {
     const company = String(p.company), action = p.action;
     if (!companies.some(c => c.id === company)) {
@@ -620,6 +659,7 @@ function demoWorkspace(p: Record<string, unknown>): unknown {
     }
     const settings = workspaceSettings[company] ??= defaultSettings();
     if(action==='number'||action==='number-preview')return numberCandidate(p,company,settings).result;
+    if(action==='production'){return demoProductionAction(p,company,settings);}
     if(action==='invoice-save')return demoInvoiceSave(p,company,settings);
     if (action === 'settings') {
         return settings;

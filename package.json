@@ -14,7 +14,8 @@
     "quality:knip": "knip --no-progress",
     "quality:jscpd": "jscpd src --config .jscpd.json --fail-on-empty --exit-code 1",
     "test:e2e": "playwright test --config playwright.central.config.ts",
-    "check": "npm test -- --run && npx oxlint"
+    "check": "npm test -- --run && npx oxlint",
+    "test:sql": "node scripts/verify-lottery-rows.mjs && node scripts/verify-production.mjs"
   },
   "dependencies": {
     "@fontsource/noto-sans-bengali": "5.3.0",
@@ -30,6 +31,7 @@
     "tailwindcss": "4.1.18"
   },
   "devDependencies": {
+    "@electric-sql/pglite": "0.3.14",
     "@playwright/test": "1.63.0",
     "@testing-library/jest-dom": "7.0.1",
     "@testing-library/react": "16.3.3",

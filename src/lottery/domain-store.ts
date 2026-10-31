@@ -1,5 +1,6 @@
 import metadata from '../../vendor/foundation-lottery/runtime/model-metadata.ts';
 type Row=Record<string,any>;
+export type LotteryChange={model:string;id:string;value:Row|null};
 export type LotteryState=Record<string,Row[]>;
 type Field={type:string;nullable:boolean;default?:string};
 type Model={fields:Record<string,Field>;unique:string[][];relations:{target:string;fields:string[];references:string[]}[]};
@@ -84,26 +85,27 @@ function foreignKeys(model:Model,state:LotteryState,row:Row){
  * validate records; this adapter supplies atomic rollback, types and uniqueness.
  */
 export function createLotteryStore(initial:LotteryState={},clock=()=>new Date()){
- let state=structuredClone(initial);const client:Row={};
+ let state=structuredClone(initial),changes=new Map<string,LotteryChange>();const client:Row={};
+ const touch=(model:string,row:Row,removed=false)=>{if(typeof row.id!=='string'||!row.id){throw new Error('LOTTERY_RECORD_ID_REQUIRED');}changes.set(model+':'+row.id,{model,id:row.id,value:removed?null:structuredClone(row)});};
  for(const [name,model] of Object.entries(models)){
   state[name]??=[];
   const rows=()=>state[name];
   const find=({where={},orderBy={},skip=0,take,select}:Row={})=>rows().filter(row=>matches(row,where)).sort((a,b)=>compare(orderBy,a,b)).slice(skip,take===undefined?undefined:skip+take).map(row=>structuredClone(select?Object.fromEntries(Object.keys(select).filter(k=>select[k]).map(k=>[k,row[k]])):row));
-  const create=({data}:Row)=>{const row=defaults(model,data,clock());if(row.organizationId&&!state.foundationAccountingOrganization.some(org=>org.id===row.organizationId)){throw new Error('ORGANIZATION_NOT_FOUND');}foreignKeys(model,state,row);unique(model,rows(),row);rows().push(row);return structuredClone(row);};
+  const create=({data}:Row)=>{const row=defaults(model,data,clock());if(row.organizationId&&!state.foundationAccountingOrganization.some(org=>org.id===row.organizationId)){throw new Error('ORGANIZATION_NOT_FOUND');}foreignKeys(model,state,row);unique(model,rows(),row);touch(name,row);rows().push(row);return structuredClone(row);};
   const update=({where,data}:Row)=>{
    const row=rows().find(row=>matches(row,where));if(!row){throw new Error('LOTTERY_RECORD_NOT_FOUND');}
    const next={...row};for(const [key,value] of Object.entries(data)){next[key]=changedValue(row[key],value,model.fields[key]);}
-   foreignKeys(model,state,next);unique(model,rows(),next,row);Object.assign(row,next);return structuredClone(row);
+   if(next.id!==row.id){throw new Error('LOTTERY_RECORD_ID_IMMUTABLE');}foreignKeys(model,state,next);unique(model,rows(),next,row);Object.assign(row,next);touch(name,row);return structuredClone(row);
   };
   client[name]={findMany:(args:Row)=>defer(()=>find(args)),findFirst:(args:Row)=>defer(()=>find(args)[0]??null),findUnique:(args:Row)=>defer(()=>find(args)[0]??null),count:(args:Row)=>defer(()=>find(args).length),create:(args:Row)=>defer(()=>create(args)),update:(args:Row)=>defer(()=>update(args)),
    createMany:({data}:Row)=>defer(()=>{for(const row of data){create({data:row});}return {count:data.length};}),
    updateMany:({where,data}:Row)=>defer(()=>{const found=find({where});for(const row of found){update({where:{id:row.id},data});}return {count:found.length};}),
    upsert:({where,create:data,update:change}:Row)=>defer(()=>find({where}).length?update({where,data:change}):create({data})),
-   delete:({where}:Row)=>defer(()=>{const row=rows().find(row=>matches(row,where));if(!row){throw new Error('LOTTERY_RECORD_NOT_FOUND');}state[name]=rows().filter(r=>r!==row);return structuredClone(row);}),
+   delete:({where}:Row)=>defer(()=>{const row=rows().find(row=>matches(row,where));if(!row){throw new Error('LOTTERY_RECORD_NOT_FOUND');}state[name]=rows().filter(r=>r!==row);touch(name,row,true);return structuredClone(row);}),
   };
  }
- client.$transaction=async(action:(tx:Row)=>Promise<any>)=>{const previous=structuredClone(state);try{return await action(client);}catch(error){state=previous;throw error;}};
+ client.$transaction=async(action:(tx:Row)=>Promise<any>)=>{const previous=structuredClone(state),priorChanges=structuredClone(changes);try{return await action(client);}catch(error_){state=previous;changes=priorChanges;throw error_;}};
  // Original row-lock calls are satisfied by the enclosing SQL owner lock.
  client.$queryRawUnsafe=(query:string)=>defer(()=>{if(!/^SELECT "id" FROM "Foundation\w+" WHERE .* FOR UPDATE$/u.test(query)){throw new Error('LOTTERY_QUERY_DENIED');}return [];});
- return {client,snapshot:()=>structuredClone(state)};
+ return {client,snapshot:()=>structuredClone(state),changes:():LotteryChange[]=>encodeLottery([...changes.values()])};
 }

@@ -39,6 +39,7 @@ jobs:
           npm audit --audit-level=low 2>&1 | tee quality-reports/audit.txt
           npm run lint 2>&1 | tee quality-reports/lint.txt
           npm run typecheck 2>&1 | tee quality-reports/typecheck.txt
+          npm run test:sql 2>&1 | tee quality-reports/sql-acceptance.txt
           npm run test:coverage 2>&1 | tee quality-reports/coverage.txt
           npm run quality:knip 2>&1 | tee quality-reports/knip.txt
           npm run quality:jscpd 2>&1 | tee quality-reports/jscpd.txt

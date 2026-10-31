@@ -217,6 +217,7 @@ const allowedKinds: Record<BillKind, readonly DemoParty["kind"][]> = {
 };
 
 type BillDraft = {
+  production?: boolean;
   id: string;
   company: string;
   kind: BillKind;
@@ -304,7 +305,7 @@ function billOperation(draft: BillDraft): KhataOperation {
         };
   return {
     operation: "workspace",
-    input: { company, action: "invoice-save", command },
+    input: { company, action: "invoice-save", command, ...(draft.production&&kind==='purchase'?{production:true}:{}) },
   };
 }
 async function persistBill(
@@ -428,6 +429,7 @@ export function InvoicePage({
     reload: reloadSettings,
     failed: settingsFailed,
   } = useWorkspaceSettings(company, Boolean(recovery));
+  const [sendToProduction,setSendToProduction]=useState(false);
   const [focusedRate, setFocusedRate] = useState("");
   const [stockSnapshot, setStockSnapshot] = useState<
     | {
@@ -754,6 +756,7 @@ export function InvoicePage({
           note,
           amount: String(total()),
           warehouse: selectedWarehouse,
+          production:sendToProduction,
           lines,
           paid: String(paidMinor),
           account,
@@ -940,6 +943,7 @@ export function InvoicePage({
           </p>
         )}
         {error && <output role="alert">{error}</output>}
+        {kind==='purchase'&&sendToProduction&&<p>{inLanguage(language,'এই বিলের পুরো মাল প্রোডাকশনে যাবে।','इस बिल का पूरा माल उत्पादन में जाएगा।','All items on this bill will enter production.')}</p>}
         <div className="books-buttons memo-controls">
           {phase === "review" ? (
             <>
@@ -1083,6 +1087,7 @@ export function InvoicePage({
           }
         </div>
 
+        {kind==='purchase'&&settings.production&&<label><input type="checkbox" checked={sendToProduction} onChange={e=>setSendToProduction(e.target.checked)}/><span>{inLanguage(language,'প্রোডাকশনে পাঠান','उत्पादन में भेजें','Send to production')}</span></label>}
         {kind !== "expense" && warehouses.length > 1 && (
           <label>
             {t.warehouse}
@@ -1375,6 +1380,7 @@ export function InvoicePage({
         }
         {error && <output role="alert">{error}</output>}
 
+        {kind==='purchase'&&sendToProduction&&<p>{inLanguage(language,'এই বিলের পুরো মাল প্রোডাকশনে যাবে।','इस बिल का पूरा माल उत्पादन में जाएगा।','All items on this bill will enter production.')}</p>}
         <div className="books-buttons memo-controls">
           <button
             type="submit"

@@ -69,7 +69,7 @@ export async function runLottery(
     }
     return result;
   });
-  return { result: serialize(result), state: encodeLottery(store.snapshot()) };
+  return { result: serialize(result), state: encodeLottery(store.snapshot()), changes: store.changes() };
 }
 
 async function saveOrganizationRules(

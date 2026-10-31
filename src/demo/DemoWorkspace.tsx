@@ -1,3 +1,5 @@
+import {Production} from '../production/Production';
+import {useWorkspaceSettings} from '../accounting/use-settings';
 import type {ReactNode} from 'react';
 import {BusinessReports} from '../accounting/BusinessReports';
 import {PartySection} from './PartySection';
@@ -74,6 +76,8 @@ export function DemoWorkspace({ language, userId = 'demo-owner', moduleControl }
         id: string;
         name: string;
     }[]>([]), [version, setVersion] = useState(0);
+    const productionSettings=useWorkspaceSettings(company,false,version);
+    const productionEnabled=productionSettings.loaded&&productionSettings.settings.production===true;
     const [from, setFrom] = useState(() => today().slice(0, 7) + '-01'), [to, setTo] = useState(today), [bill, setBill] = useState<BillKind | null>(null), [billKey, setBillKey] = useState(0);
     const [result, setResult] = useState<{
         key: string;
@@ -163,15 +167,17 @@ export function DemoWorkspace({ language, userId = 'demo-owner', moduleControl }
         return <Accounting moduleControl={moduleControl} userId={userId} initialCompany={company} language={language} onBill={openBill} onCompanyChange={setCompany}/>;
     }
     return <div className="books">
-  <nav className="books-navigation" aria-label={labels.ledger}>{(['home', 'ledger', 'all-ledgers', 'parties', 'items', 'bills', 'expenses', 'reports', 'settings'] as const).map(page => <button type="button" key={page} disabled={locked} aria-current={navigation.page === page ? 'page' : undefined} onClick={() => { setOverview(null); setBill(null); navigation.open(page); }}>{labels[page]}</button>)}</nav>
+  <nav className="books-navigation" aria-label={labels.ledger}>{(['home', 'ledger', 'all-ledgers', 'parties', 'items', 'bills', 'expenses', 'reports', 'settings', ...(productionEnabled?['production' as const]:[])] as const).map(page => <button type="button" key={page} disabled={locked} aria-current={navigation.page === page ? 'page' : undefined} onClick={() => { setOverview(null); setBill(null); navigation.open(page); }}>{labels[page]}</button>)}</nav>
   <div className="kh-company-modules"><label>{inLanguage(language, 'কোম্পানি', 'कंपनी', 'Company')}<select value={company} disabled={locked} onChange={e => { setOverview(null); setCompany(e.target.value); setBill(null); }}>{companies.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}</select></label>{moduleControl}</div>
-  {(navigation.page === 'home' || navigation.page === 'reports' || navigation.page === 'bills' && !bill || navigation.page === 'all-ledgers' || navigation.page === 'expenses' || navigation.page === 'stock' || showingOverview) && <DateRange language={language} from={from} to={to} onChange={(start, end) => { setFrom(start); setTo(end); }}/>}
+  {productionEnabled&&<div className="books-buttons"><button type="button" disabled={locked} aria-current={navigation.page==='production'?'page':undefined} onClick={()=>navigation.open('production')}>{labels.production}</button></div>}
+  {(navigation.page === 'production' || navigation.page === 'home' || navigation.page === 'reports' || navigation.page === 'bills' && !bill || navigation.page === 'all-ledgers' || navigation.page === 'expenses' || navigation.page === 'stock' || showingOverview) && <DateRange language={language} from={from} to={to} onChange={(start, end) => { setFrom(start); setTo(end); }}/>}
   {(navigation.page === 'home' || navigation.page === 'overview' && !showingOverview) && <Dashboard language={language} companyName={companyName} report={report} failed={failed} onRetry={changed} onOpen={navigation.open} onBill={openBill} periodLabel={from + ' — ' + to} partyCount={masters.parties.length} itemCount={masters.items.length} expenses={result?.key === requestKey ? result.expenses : { balances: {}, categories: [], bills: [], entries: [], count: 0 }} onOverview={kind => { setOverview({ company, kind }); navigation.open('overview'); }}/>}
   {showingOverview && report && result?.key === requestKey && <OverviewDetails key={[company, overview.kind, from, to].join('/')} {...{ company, language, from, to, version, report }} expenses={result.expenses} kind={overview.kind} title={overview.kind==='liquidity'?designCopy[language].cash+' / '+designCopy[language].bank:designCopy[language][overviewLabels[overview.kind]]} onBack={closeOverview}/>}
   {showingOverview && !report && !failed && <output>{designCopy[language].loading}</output>}
   {showingOverview && failed && <output role="alert">{designCopy[language].error}<button type="button" onClick={changed}>{designCopy[language].retry}</button><button type="button" onClick={closeOverview}>{designCopy[language].home}</button></output>}
   {navigation.page === 'home' && <button className="kh-company-manage" type="button" onClick={() => navigation.open('company')}>{designCopy[language].newCompany} →</button>}
   {navigation.page === 'ledger' && <PaymentEntry key={company} userId={userId} company={company} language={language} report={report} onChanged={changed}/>}
+  {navigation.page === 'production' && productionEnabled && <Production key={company} {...{company,userId,language,to,version}} onChanged={changed}/>}
   {navigation.page === 'reports' && <BusinessReports {...{company,language,from,to,version}} onChanged={changed}/>}
   {navigation.page === 'themes' && <Themes language={language}/>}
   {navigation.page === 'settings' && <WorkspaceSettings company={company} name={companyName} language={language} onChanged={changed}/>}

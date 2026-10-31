@@ -4,7 +4,19 @@ import {beforeEach,expect,it} from 'vitest';
 import {runLottery,lotteryInput,type LotteryInput} from './service';
 let state:unknown;const owner='11111111-1111-7111-8111-111111111111';
 const now=()=>new Date('2026-10-30T10:00:00Z');
-async function run(method:string,payload:Record<string,unknown>={}){const answer=await runLottery(state,{method,payload,operationId:crypto.randomUUID()},owner,now);state=answer.state;return answer.result;}
+async function run(method:string,payload:Record<string,unknown>={}){
+ const answer=await runLottery(state,{method,payload,operationId:crypto.randomUUID()},owner,now);
+ const persisted=structuredClone(state) as Record<string,Record<string,unknown>[]>;
+ for(const change of answer.changes){
+  const rows=persisted[change.model]??=[];
+  const index=rows.findIndex(row=>row.id===change.id);
+  if(change.value===null){if(index>=0)rows.splice(index,1);}
+  else if(index>=0)rows[index]=change.value;else rows.push(change.value);
+ }
+ const populated=(value:Record<string,unknown[]>)=>Object.fromEntries(Object.entries(value).filter(([,rows])=>rows.length));
+ expect(populated(persisted)).toEqual(populated(answer.state));
+ state=JSON.parse(JSON.stringify(persisted));return answer.result;
+}
 beforeEach(()=>{state={};});
 async function fixture(){const organization=await run('createOrganization',{name:'Independent lottery'});const org=organization.id;const stockist=await run('createParty',{organizationId:org,name:'Stockist',partyType:'STOCKIST',ticketRatePaise:'900'});const seller=await run('createParty',{organizationId:org,name:'Seller',partyType:'SELLER',ticketRatePaise:'1000'});const customer=await run('createParty',{organizationId:org,name:'Customer',partyType:'CUSTOMER'});return {org,stockist,seller,customer};}
 it('keeps exact Foundation formulas across independent durable snapshot round trips',async()=>{const {org,stockist,seller}=await fixture();await run('saveDailyStockistEntry',{organizationId:org,partyId:stockist.id,occurredAt:'2026-10-30',purchaseQuantity:'100',morningReturnQuantity:'0',dayReturnQuantity:'0',eveningReturnQuantity:'0',commissionPaise:'4000'});const sale=await run('recordSale',{organizationId:org,partyId:seller.id,occurredAt:'2026-10-30',dispatchQuantity:'100',morningReturnQuantity:'5',dayReturnQuantity:'10',eveningReturnQuantity:'5',commissionPaise:'4000'});expect(sale.calculated).toMatchObject({grossSalesPaise:'80000',commissionPaise:'4000',tdsPaise:'80',netPayablePaise:'76080'});state=JSON.parse(JSON.stringify(state));const workspace=await run('getWorkspace',{organizationId:org});expect(workspace.sales).toHaveLength(1);expect(workspace.stockistEntries).toHaveLength(1);expect(workspace.summary.verified).toBe(true);expect(workspace.summary.netPayablePaise).toBe('76080');expect(await run('listOrganizations')).toHaveLength(1);});
