@@ -7,7 +7,9 @@ const copy = {
     en: { menu: 'More options', profile: 'Account & profile', tutorial: 'Tutorial', logout: 'Log out' },
     hi: { menu: 'अन्य विकल्प', profile: 'अकाउंट और प्रोफ़ाइल', tutorial: 'ट्यूटोरियल', logout: 'लॉग आउट' },
 };
-export function WorkspaceMenu({ language, tutorial, onTutorial, onProfile, onLogout, signedIn, onBooks, demo = false, enhanced = false, settings, actions, production = false }: Readonly<{
+export function WorkspaceMenu({ language, tutorial, onTutorial, onProfile, onLogout, signedIn, onBooks, demo = false, enhanced = false, settings, actions, production = false, onMainHome, onAppearance }: Readonly<{
+    onMainHome?:()=>void;
+    onAppearance?:()=>void;
     production?:boolean;
     settings?:ReactNode;
     actions?:ReactNode;
@@ -31,6 +33,8 @@ export function WorkspaceMenu({ language, tutorial, onTutorial, onProfile, onLog
     return <details className="workspace-menu" ref={menu}>
     <summary aria-label={t.menu}>⋮</summary>
     <div className="workspace-menu-panel">
+      {signedIn&&onMainHome&&<button type="button" onClick={event=>{event.currentTarget.closest('details')?.removeAttribute('open');onMainHome();}}>{inLanguage(language,'মূল হোম','मुख्य होम','Main home')}</button>}
+      {signedIn&&onAppearance&&<button type="button" onClick={event=>{event.currentTarget.closest('details')?.removeAttribute('open');onAppearance();}}>{inLanguage(language,'ডিজাইন','डिज़ाइन','Appearance')}</button>}
       {signedIn && onBooks && ([...((demo || enhanced) ? ['home' as const] : []), 'ledger', 'all-ledgers', 'parties', 'items', ...((demo || enhanced) ? ['bills' as const] : []), 'expenses', 'reports', ...(production?['production' as const]:[]), 'company', 'settings', 'themes'] as const).map(page => <button type="button" key={page} onClick={event => { event.currentTarget.closest('details')?.removeAttribute('open'); onBooks(page); }}>{booksLabels[language][page]}</button>)}
       {signedIn && <button type="button" onClick={event => { event.currentTarget.closest('details')?.removeAttribute('open'); onProfile(); }}>{t.profile}</button>}
       {actions}

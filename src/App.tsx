@@ -13,6 +13,7 @@ import { BooksNavigation, useBooksTrail } from './books-navigation';
 import { languageOptions, readLanguage, saveLanguage, translations } from './i18n';
 import type { Language, TextKey } from './i18n';
 import './App.css';
+import './appearance.css';
 import { PwaStatus } from './PwaStatus';
 import { WorkspaceMenu } from './WorkspaceMenu';
 import { TutorialContext, readTutorial, saveTutorial } from './tutorial';
@@ -61,6 +62,9 @@ function App() {
     const theme=useTheme();
     const {page:booksPage,open:openBooks,home:homeBooks}=useBooksTrail();
     const [production,setProduction]=useState(false);
+    const [appearance,setAppearance]=useState(false);
+    const mainHome=()=>{setAppearance(false);navigate('workspace');};
+    const showAppearance=()=>{setAppearance(true);navigate('workspace');};
     const [tutorial, setTutorial] = useState(readTutorial);
     const [view, setView] = useState<View>(() => authClient && account.session ? readLocation(account.session.user.id).view : 'welcome');
     const [language, setLanguage] = useState<Language>(readLanguage);
@@ -74,7 +78,7 @@ function App() {
     const [logoutError, setLogoutError] = useState(false);
     const guestEntered = useRef(false);
     const t = (key: TextKey) => translations[language][key];
-    const menu = () => <WorkspaceMenu enhanced production={view==='khata'&&production} language={language} signedIn={signedIn} onBooks={page => {
+    const menu = () => <WorkspaceMenu onMainHome={mainHome} onAppearance={showAppearance} enhanced production={view==='khata'&&production} language={language} signedIn={signedIn} onBooks={page => {
             openBooks(page);
             if (view !== 'khata') {
                 navigate('khata');
@@ -195,6 +199,7 @@ function App() {
           <header className="bar workspace-header">{renderBrand('workBrand')}{languagePicker(true)}{signedIn && menu()}</header>
           <div className="workspace-title"><p className="orbis-account-id">{account.session?.user.user_metadata?.orbis_display_id}</p><span className="eyebrow l">{t('workBadge')}</span><h1>{t('hi')}</h1><p className="subtitle">{t('choose')}</p></div>
           <div className="welcome-panel"><strong>{t('panel')}</strong>{tutorial && <p>{t('panelDesc')}</p>}</div>
+          {appearance&&<Themes language={language}/>}
           <div className="modules">
             <button type="button" className="module" onClick={() => navigate('khata')}><span className="ic" aria-hidden="true">📘</span><span className="copy"><strong>{t('khata')}</strong><small>{t('khataDesc')}</small></span><span className="status">{t('open')}</span></button>
             {renderPlanned('🌱', 'farm', 'farm', 'farmDesc', 'later')}
@@ -204,7 +209,7 @@ function App() {
 
         </section>)}
 
-      <LotteryScene view={view} owner={sessionId} language={language} onSelect={navigate} controls={<WorkspaceMenu settings={<><label className="lottery-language-setting"><span>{languagePresentation[language].pickerLabel}</span>{languagePicker()}</label><Themes language={language}/></>} actions={(['tds','payments'] as const).map(section=><button type="button" key={section} onClick={event=>{event.currentTarget.closest('.workspace-menu')?.removeAttribute('open');window.dispatchEvent(new CustomEvent('lottery-settings',{detail:section}));}}>{section==='tds'?'TDS':{bn:'পেমেন্টের মাধ্যম',en:'Payment methods',hi:'भुगतान के तरीके'}[language]}</button>)} language={language} signedIn={signedIn} tutorial={tutorial} onTutorial={enabled=>{setTutorial(enabled);saveTutorial(enabled);}} onProfile={()=>navigate('profile')} onLogout={()=>void logout()}/>}/>
+      <LotteryScene view={view} owner={sessionId} language={language} onSelect={navigate} controls={<WorkspaceMenu onMainHome={mainHome} onAppearance={showAppearance} settings={<><label className="lottery-language-setting"><span>{languagePresentation[language].pickerLabel}</span>{languagePicker()}</label><Themes language={language}/></>} actions={(['tds','payments'] as const).map(section=><button type="button" key={section} onClick={event=>{event.currentTarget.closest('.workspace-menu')?.removeAttribute('open');window.dispatchEvent(new CustomEvent('lottery-settings',{detail:section}));}}>{section==='tds'?'TDS':{bn:'পেমেন্টের মাধ্যম',en:'Payment methods',hi:'भुगतान के तरीके'}[language]}</button>)} language={language} signedIn={signedIn} tutorial={tutorial} onTutorial={enabled=>{setTutorial(enabled);saveTutorial(enabled);}} onProfile={()=>navigate('profile')} onLogout={()=>void logout()}/>}/>
       {view === 'profile' && signedIn && <section className="scene light-scene active profile-page" aria-label={t('settings')}>
         {renderBar('workspace', 'choose', 'settings')}
         <p className="orbis-account-id">{account.session?.user.user_metadata?.orbis_display_id}</p>

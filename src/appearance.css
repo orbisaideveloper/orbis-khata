@@ -1,0 +1,28 @@
+/* Optional presentation only: original glass and blue styles remain untouched. */
+.phone[data-theme=smart]{--kh-brand:#2456a5;--kh-ink:#193454;--kh-muted:#62778f;--kh-edge:#d8e3f0;font-family:'Noto Sans Bengali',system-ui,sans-serif;color:#193454;background:#edf3fb}
+.phone[data-theme=smart] .light-scene,.phone[data-theme=smart] .lottery-module{background:linear-gradient(150deg,#f7faff,#eaf1fb);color:#193454;font-family:inherit}
+.phone[data-theme=smart] .kh-app-header,.phone[data-theme=smart] .workspace-header{background:linear-gradient(115deg,#173c75,#2a65ad);color:white}
+.phone[data-theme=smart] .books-card,.phone[data-theme=smart] .module,.phone[data-theme=smart] .welcome-panel,.phone[data-theme=smart] .lottery-metric{background:#fff;border:1px solid #d8e3f0;border-radius:16px;box-shadow:0 5px 18px #193b6a08}
+.phone[data-theme=smart] .books-card h2,.phone[data-theme=smart] .lottery-module h2,.phone[data-theme=smart] .lottery-module h3{color:#193454;font-weight:700;letter-spacing:normal}
+.phone[data-theme=smart] .books-primary,.phone[data-theme=smart] .kh-action-primary{background:#2456a5;border-color:#2456a5;color:white}
+.phone[data-theme=smart] .books-bottom-nav button[aria-current=page]{color:#2456a5;background:#e6effb}
+.phone[data-theme=smart] .books input:not([type=checkbox]),.phone[data-theme=smart] .books select,.phone[data-theme=smart] .books textarea{border-color:#d3dfef;border-radius:10px;background:#fcfdff;font-weight:400}
+.phone[data-theme=smart] input[type=checkbox]{accent-color:#2456a5}
+.phone[data-theme=smart] .production-setting:has(input:checked){background:#e8f0fc;border-color:#2456a5}
+.phone[data-theme=smart] .lottery-module header.module-heading{background:#f8fbff;border-color:#cfddf0;box-shadow:0 4px 16px #193b6a0a;backdrop-filter:none}
+.phone[data-theme=smart] .lottery-module .lottery-period-bar{background:#e9f1fc;border-color:#d2e0f2}
+.phone[data-theme=smart] .lottery-module .lottery-metric[data-tone]{background:#f7faff;border-color:#d6e3f4}
+.phone[data-theme=smart] .lottery-module button,.phone[data-theme=smart] .lottery-module input,.phone[data-theme=smart] .lottery-module select{font-family:inherit;border-radius:10px}
+.phone[data-theme=smart] .lottery-module [class~=font-black]{font-weight:700}
+.phone[data-theme=smart] .lottery-module [role=dialog]{background:#fff;border:1px solid #d3e0f1;border-radius:18px;box-shadow:0 18px 50px #163e6c24}
+.phone[data-theme=smart] .theme-settings{margin:12px 0;padding:16px;border:1px solid #d8e3f0;border-radius:16px;background:white}
+.theme-settings button[aria-pressed=true]{outline:2px solid currentColor;outline-offset:2px}
+.phone .theme-settings{padding:18px;border:1px solid #d8e3f0;border-radius:16px;background:#fff;color:#193454}
+.phone .theme-settings h2{font-size:20px;margin:0 0 8px}
+.phone .theme-settings p{font-size:14px;line-height:1.6;color:#62778f}
+.phone .theme-settings button{display:block;width:100%;min-height:46px;margin:10px 0;padding:12px 14px;border:1px solid #cbd9ec;border-radius:12px;background:#f7faff;color:#24496e;text-align:left;font:inherit;font-size:14px;cursor:pointer}
+.phone .theme-settings button[aria-pressed=true]{background:#e7effc;border-color:#2456a5;color:#173c75}
+.phone[data-theme=smart] .workspace-header{padding:12px;border-radius:16px;gap:10px}
+.phone[data-theme=smart] .workspace-header .brand,.phone[data-theme=smart] .workspace-header .brand small{color:#fff}
+.phone[data-theme=smart] .welcome-panel{padding:16px;color:#193454}
+.phone[data-theme=smart] .welcome-panel strong{color:#193454}
