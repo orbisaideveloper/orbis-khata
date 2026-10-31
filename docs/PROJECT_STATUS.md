@@ -1400,3 +1400,9 @@ See [SONAR-CORRECTIONS-20261017.md](SONAR-CORRECTIONS-20261017.md) for every rep
 - Verification: 8 related test files / 58 tests PASS, build/typecheck and PWA worker check PASS; targeted lint has no errors (existing InvoicePage:612 warning); diff whitespace check PASS.
 - Included prior compact checkboxes, collapsed payment accounts, tutorial-only hints and removal of redundant shortcut.
 - No database, migration, Edge, financial record or manual deployment changes. This authorized main push may trigger configured CI/auto-deployment; remote CI status must be checked after push. Signed-in mobile visual confirmation remains with owner.
+
+### 2026-10-31 — repair production browser test
+- Baseline main 421a84c; CI 41209217683 failed in two production browser cases because the test still expected the removed standalone shortcut. Other 26 browser cases and preceding gates passed; Sonar was skipped.
+- Updated e2e-central/production.spec.ts to wait for settings-save acknowledgement before opening the conditional Production menu. No application source, financial logic, database or deployment changes.
+- Targeted Playwright production flow PASS on mobile and desktop (2/2): purchase routing, own milk receipt, average cost, no duplicate posting, mode off and no horizontal overflow. Build/PWA check passed. Restored matching official browser archive after a CDN download failure.
+- Next: push this correction under the existing authorization to repair CI and verify remote result.
