@@ -1386,3 +1386,17 @@ See [SONAR-CORRECTIONS-20261017.md](SONAR-CORRECTIONS-20261017.md) for every rep
 - Local targeted verification: 27 App/menu/demo tests, typecheck/oxlint, KNIP and zero JSCPD clones PASS. Mobile/desktop production browser 2/2 PASS, including real header-menu discovery, outside click dismissal, menu navigation, company setting on/off, purchase routing and internal milk receipt. Screenshots reviewed; build/PWA preflight passed. No thresholds or CI exclusions changed.
 - Read-only live inspection: `orbis_khata.production_post(jsonb)` absent, Lottery store v2 absent, companies with production enabled = 0. Production is NOT live; enabling it safely still requires separately authorized reviewed migrations, matching Edge deployment and frontend deployment. No live setting, financial/auth record, SQL, Edge, Render or staging write performed.
 - Next: owner-authorized corrective main push and native CI verification; then report precise commit changes and the remaining activation boundary.
+
+### 2026-10-31 — local production UI refinement
+- Branch main, baseline 7e7726244db4e92debcdc61791c130636d0f4cf6; uncommitted local checkpoint.
+- Compact text-adjacent right-hand checkboxes for purchase routing and settings; selected production setting has a tinted background. Payment accounts initially collapsed. Settings explanations and production cumulative hint use TutorialNote. Removed duplicate standalone Production shortcut; conditional navigation remains. Production godown labels now distinguish source and receiving warehouse.
+- Changed: WorkspaceSettings.tsx, InvoicePage.tsx, DemoWorkspace.tsx, design.css, Production.tsx.
+- Targeted settings/invoice/production tests: 32 passed. Typecheck passed. Targeted lint: no errors, pre-existing InvoicePage.tsx:612 set-state-in-effect warning. No accounting algorithm, schema, or financial data changes.
+- Next: owner reviews source/destination wording and stock-transfer proposal; mobile visual verification before release. No push, migration, staging or production deployment in this checkpoint.
+
+### 2026-10-31 — approved production transfer terminology and push
+- Owner explicitly authorized commit/push of UI refinements. Production form and review/history use Production Input / Output in Bengali, Hindi and English, under Stock transfer. Source/receiving godown direction is explicit. Existing transaction kinds, calculations and API payloads are preserved.
+- Added three-language direction/option regression coverage. Updated old heading assertion to target page heading after adding the transfer subsection.
+- Verification: 8 related test files / 58 tests PASS, build/typecheck and PWA worker check PASS; targeted lint has no errors (existing InvoicePage:612 warning); diff whitespace check PASS.
+- Included prior compact checkboxes, collapsed payment accounts, tutorial-only hints and removal of redundant shortcut.
+- No database, migration, Edge, financial record or manual deployment changes. This authorized main push may trigger configured CI/auto-deployment; remote CI status must be checked after push. Signed-in mobile visual confirmation remains with owner.

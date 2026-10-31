@@ -1087,7 +1087,7 @@ export function InvoicePage({
           }
         </div>
 
-        {kind==='purchase'&&settings.production&&<label><input type="checkbox" checked={sendToProduction} onChange={e=>setSendToProduction(e.target.checked)}/><span>{inLanguage(language,'প্রোডাকশনে পাঠান','उत्पादन में भेजें','Send to production')}</span></label>}
+        {kind==='purchase'&&settings.production&&<label className="books-inline-check"><input type="checkbox" checked={sendToProduction} onChange={e=>setSendToProduction(e.target.checked)}/><span>{inLanguage(language,'প্রোডাকশনে পাঠান','उत्पादन में भेजें','Send to production')}</span></label>}
         {kind !== "expense" && warehouses.length > 1 && (
           <label>
             {t.warehouse}
