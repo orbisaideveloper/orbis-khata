@@ -71,3 +71,19 @@
 
 .kh-app .books label.books-inline-check{display:flex;flex-direction:row;align-items:center;justify-content:flex-start;gap:10px;min-height:44px;width:fit-content;font-size:inherit;cursor:pointer}.kh-app .books .books-inline-check input[type=checkbox]{order:2;flex:0 0 20px;width:20px;height:20px;min-height:20px;margin:0;padding:0;accent-color:var(--kh-brand)}.kh-app .production-setting{padding:8px 12px}.kh-app .production-setting:has(input:checked){background:#edf8f1;border-color:#08745a}
 .kh-app .production-page input[name=quantity]::placeholder{color:var(--kh-muted);font-weight:400;opacity:.7}
+/* Compact accounting summaries and mobile statements. */
+.kh-app .books-summary-rows{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:0;margin:12px 0 20px;font-size:14px;line-height:1.6}
+.kh-app .books-summary-rows dt,.kh-app .books-summary-rows dd{padding:11px 0;border-bottom:1px solid var(--kh-edge);margin:0;min-width:0}
+.kh-app .books-summary-rows dt{color:var(--kh-muted);padding-right:14px;overflow-wrap:anywhere}
+.kh-app .books-summary-rows dd{text-align:right;font-weight:700;font-variant-numeric:tabular-nums;overflow-wrap:anywhere}
+.kh-app .books-summary-pair{display:contents}
+.kh-app .production-page form{display:grid;gap:14px}
+.kh-app .production-page .production-save{width:100%;min-height:48px;font-size:15px;font-weight:700;margin-top:4px}
+.kh-app .production-page .books-confirm{border:1px solid var(--kh-edge);border-radius:12px;padding:14px;background:#f7faff}
+.kh-app .expense-page>details{padding:10px 0;border-bottom:1px solid var(--kh-edge)}
+.kh-app .expense-page>details>summary{cursor:pointer;font-size:14px;font-weight:600;color:var(--kh-muted)}
+.kh-app .expense-page .books-section-title{align-items:center;gap:10px}
+.kh-app .expense-page .books-section-title h2{font-size:18px;margin:0}
+.kh-app .expense-page .books-section-title button{flex-shrink:0;padding:9px 12px;font-size:12px}
+.kh-app .expense-search{margin:18px 0 12px}
+.kh-app .expense-statement{max-height:none;border:0;overflow:visible}.kh-app .expense-statement table{min-width:0;width:100%}.kh-app .expense-statement thead{position:absolute;width:1px;height:1px;clip-path:inset(50%);overflow:hidden}.kh-app .expense-statement tbody{display:grid;gap:10px}.kh-app .expense-statement tr{display:grid;grid-template-columns:minmax(0,1fr) auto;border:1px solid var(--kh-edge);border-radius:12px;padding:12px;background:#fff}.kh-app .expense-statement td{padding:3px 0;border:0;min-width:0;overflow-wrap:anywhere}.kh-app .expense-statement td:nth-child(2){grid-column:1;grid-row:2;color:var(--kh-muted);font-size:12px}.kh-app .expense-statement td:nth-child(3){grid-column:1;grid-row:1;font-weight:700}.kh-app .expense-statement td:nth-child(4){grid-column:2;grid-row:1;font-weight:700;padding-left:10px}.kh-app .expense-statement td:nth-child(5){grid-column:2;grid-row:2;text-align:right;color:var(--kh-muted)}.kh-app .expense-statement td:nth-child(1),.kh-app .expense-statement td:nth-child(6),.kh-app .expense-statement td:nth-child(7){grid-column:1/-1;color:var(--kh-muted);font-size:12px}.kh-app .expense-statement td:empty{display:none}

@@ -1,3 +1,4 @@
+import {inLanguage} from '../localize';
 import { allPages } from "./report-pages";
 import { ExpenseChoice } from "./ExpenseChoice";
 import { readExpenseCatalog, writeExpenseCatalog } from "./expense-catalog";
@@ -72,6 +73,8 @@ export function Expenses({
     readExpenseCatalog(userId, company),
   );
   const [selectedCategory, setSelectedCategory] = useState("");
+  const [search,setSearch]=useState('');
+  const label=(bn:string,hi:string,en:string)=>inLanguage(language,bn,hi,en);
   const [history, setHistory] = useState<ExpenseReport | null>(null);
   useEffect(() => {
     let alive = true;
@@ -130,7 +133,7 @@ export function Expenses({
   }
   const [offset, setOffset] = useState(0),
     [reload, setReload] = useState(0);
-  const query = JSON.stringify([company, from, to, offset, version, reload]);
+  const query = JSON.stringify([company, from, to, version, reload]);
   const [result, setResult] = useState<{
     query: string;
     data: ExpenseReport | null;
@@ -160,27 +163,15 @@ export function Expenses({
   useEffect(() => {
     let alive = true;
     if (!from || !to || from > to) return;
-    void (
-      gateway
-        ? gateway<ExpenseReport>("expense-report", {
-            company,
-            from,
-            to,
-            offset,
-          })
-        : expenseReport(company, from, to, offset)
-    ).then(
-      (data) => {
-        if (alive) setResult({ query, data });
-      },
-      () => {
-        if (alive) setResult({ query, data: null });
-      },
+    const load=(offset:number)=>gateway?gateway<ExpenseReport>("expense-report",{company,from,to,offset}):expenseReport(company,from,to,offset);
+    void load(0).then(first=>allPages(first,"entries",load)).then(
+      data=>{if(alive)setResult({query,data});},
+      ()=>{if(alive)setResult({query,data:null});},
     );
     return () => {
       alive = false;
     };
-  }, [company, from, to, offset, query, gateway]);
+  }, [company, from, to, query, gateway]);
   useEffect(() => {
     onLock(Boolean(pending) || busy);
   }, [pending, busy, onLock]);
@@ -317,8 +308,11 @@ export function Expenses({
   const movement = (account: string) =>
     BigInt(data?.balances[account]?.movement ?? "0");
   const paid = -movement("cash") - movement("bank");
+  const terms=search.normalize('NFKC').toLocaleLowerCase().trim().split(/\s+/u).filter(Boolean);
+  const entries=currentEntries(data?.entries??[]).filter(entry=>{const text=[entry.category,entry.payee,entry.note,entry.reference,entry.effective_date].join(' ').normalize('NFKC').toLocaleLowerCase();return terms.every(term=>text.includes(term));});
+  const pageOffset=Math.min(offset,Math.max(0,Math.floor((entries.length-1)/50)*50));
   return (
-    <section className="books-card" aria-label={t.title}>
+    <section className="books-card expense-page" aria-label={t.title}>
       <div className="books-section-title">
         <h2>{t.title}</h2>
         {!draft && (
@@ -503,29 +497,13 @@ export function Expenses({
       )}
       {data && (
         <>
-          <div className="books-stats">
-            <div className="books-metric">
-              <span>{t.period}</span>
-              <strong>{money(movement("expenses"))}</strong>
-            </div>
-            <div className="books-metric">
-              <span>{t.paid}</span>
-              <strong>{money(paid)}</strong>
-            </div>
-            <div className="books-metric">
-              <span>{t.outstanding}</span>
-              <strong>
-                {money(-BigInt(data.balances.expense_payable?.closing ?? "0"))}
-              </strong>
-            </div>
-          </div>
-          <h3>{t.categories}</h3>
-          {data.categories.map((c) => (
-            <p key={c.name}>
-              {c.name} <strong>{money(c.amount)}</strong>
-            </p>
-          ))}
-          <h3>{t.bills}</h3>
+          <details className="expense-summary"><summary>{label('খরচের সারাংশ','खर्च का सारांश','Expense summary')}</summary><dl className="books-summary-rows">
+            <dt>{t.period}</dt><dd>{money(movement("expenses"))}</dd>
+            <dt>{t.paid}</dt><dd>{money(paid)}</dd>
+            <dt>{t.outstanding}</dt><dd>{money(-BigInt(data.balances.expense_payable?.closing??"0"))}</dd>
+          </dl></details>
+          <details className="expense-category-summary"><summary>{t.categories}</summary><dl className="books-summary-rows">{data.categories.map(c=><div className="books-summary-pair" key={c.name}><dt>{c.name}</dt><dd>{money(c.amount)}</dd></div>)}</dl></details>
+          {data.bills.length>0&&<><h3>{t.bills} ({data.bills.length})</h3>
           {data.bills.map((b) => (
             <div className="books-entry" key={b.id}>
               <span>
@@ -541,10 +519,12 @@ export function Expenses({
               </button>
             </div>
           ))}
+          </>}
+          <label className="expense-search">{label('খরচ খুঁজুন','खर्च खोजें','Search expenses')}<input type="search" value={search} placeholder={label('ক্যাটাগরি, সাব-ক্যাটাগরি, নাম বা বিবরণ','श्रेणी, उप-श्रेणी, नाम या विवरण','Category, subcategory, name or note')} onChange={event=>{setSearch(event.target.value);setOffset(0);}}/></label>
           <h3>
-            {t.entries} ({currentEntries(data.entries).length})
+            {t.entries} ({entries.length})
           </h3>
-          {!currentEntries(data.entries).length && <p>{t.empty}</p>}
+          {!entries.length && <p>{search.trim()?label('মিলছে এমন খরচ পাওয়া যায়নি।','मिलता हुआ खर्च नहीं मिला।','No matching expenses.'):t.empty}</p>}
           <div className="expense-statement">
             <table>
               <thead>
@@ -559,14 +539,14 @@ export function Expenses({
                 </tr>
               </thead>
               <tbody>
-                {currentEntries(data.entries).map((e) => (
+                {entries.slice(pageOffset,pageOffset+50).map((e) => (
                   <tr key={e.id}>
-                    <td>{e.effective_date}</td>
-                    <td>{e.category}</td>
-                    <td>{e.payee}</td>
-                    <td>{money(e.amount)}</td>
-                    <td>{methodLabel(e)}</td>
-                    <td>{e.note}</td>
+                    <td data-label={t.date}>{e.effective_date}</td>
+                    <td data-label={t.category}>{e.category}</td>
+                    <td data-label={t.payee}>{e.payee}</td>
+                    <td data-label={t.amount}>{money(e.amount)}</td>
+                    <td data-label={t.method}>{methodLabel(e)}</td>
+                    <td data-label={t.note}>{e.note}</td>
                     <td>
                       {e.reversed ? (
                         <small>{t.reversed}</small>
@@ -590,16 +570,16 @@ export function Expenses({
           <div className="books-buttons">
             <button
               type="button"
-              disabled={!offset}
-              onClick={() => setOffset((n) => Math.max(0, n - 50))}
+              disabled={!pageOffset}
+              onClick={() => setOffset(Math.max(0, pageOffset - 50))}
             >
               {t.previous}
             </button>
-            <span>{Math.floor(offset / 50) + 1}</span>
+            <span>{Math.floor(pageOffset / 50) + 1}</span>
             <button
               type="button"
-              disabled={offset + 50 >= data.count}
-              onClick={() => setOffset((n) => n + 50)}
+              disabled={pageOffset + 50 >= entries.length}
+              onClick={() => setOffset(pageOffset + 50)}
             >
               {t.next}
             </button>
