@@ -85,7 +85,10 @@ await expect(header.getByRole('combobox')).toHaveCount(0);await header.getByLabe
  await header.getByLabel('More options').click();await expect(header.getByRole('checkbox',{name:'Tutorial'})).toBeVisible();await header.getByLabel('More options').click();
  await page.evaluate(()=>window.scrollTo(0,document.body.scrollHeight));expect(await page.evaluate(()=>window.scrollY)).toBeGreaterThan(100);expect((await header.boundingBox())!.y).toBeGreaterThanOrEqual(0);expect((await header.boundingBox())!.y).toBeLessThan(40);
  await page.evaluate(()=>window.scrollTo({top:0,behavior:'instant'}));await expect.poll(()=>page.evaluate(()=>window.scrollY)).toBe(0);await page.screenshot({path:test.info().outputPath('lottery-home.png')});
- await page.getByRole('button',{name:/^Cash.*₹180.00/}).click();await page.getByRole('button',{name:/^Cash.*₹130.00/}).click();await expect(page.getByRole('table').getByText('Test seller',{exact:true})).toHaveCount(2);
+ // Combined money: cash 100 + 30, bank 50, PWD 20 = 200; the cash ledger remains 130.
+ const combinedMoney=page.getByRole('button',{name:/^Cash.*₹200.00/});
+ await expect(combinedMoney).toBeVisible();
+ await combinedMoney.click();await page.getByRole('button',{name:/^Cash.*₹130.00/}).click();await expect(page.getByRole('table').getByText('Test seller',{exact:true})).toHaveCount(2);
  await expect(page.getByRole('table').getByText('₹130.00',{exact:true}).last()).toBeVisible();
  await page.evaluate(()=>window.scrollTo(0,document.body.scrollHeight));expect((await header.boundingBox())!.y).toBeGreaterThanOrEqual(0);expect((await header.boundingBox())!.y).toBeLessThan(40);
  await page.screenshot({path:test.info().outputPath('lottery-cash.png'),fullPage:true});
