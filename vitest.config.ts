@@ -13,6 +13,9 @@ export default defineConfig({
       provider: 'v8',
       include: ['src/**/*.{ts,tsx}'],
       exclude: [
+        // Imported vendor/**/src is outside sonar.sources=src; keep the same first-party coverage boundary.
+        // Its changed behavior is exercised by tests/lottery and workspace integration tests.
+        '**/vendor/**',
         'src/main.tsx',
         'src/**/*.test.{ts,tsx}',
         'src/test/**',

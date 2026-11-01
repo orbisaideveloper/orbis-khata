@@ -1,5 +1,5 @@
 import type { Language } from '../i18n';
-export const businessReasons = ['PRODUCTION_DISABLED','INVALID_PRODUCTION','INSUFFICIENT_PRODUCTION_STOCK','ONE_PRODUCTION_OUTPUT_ITEM_REQUIRED','PRODUCTION_OUTPUT_CANNOT_BE_INPUT','STOCK_DATE_BEFORE_ACTIVITY', 'INSUFFICIENT_STOCK', 'INVALID_RATE', 'INVALID_AMOUNT', 'INVALID_TOTAL', 'IDEMPOTENCY_CONFLICT', 'PARTY_NOT_ACCESSIBLE', 'STOCK_MASTER_NOT_ACCESSIBLE', 'WRITES_DISABLED', 'FUTURE_DATE', 'COMPANY_NOT_ACCESSIBLE', 'RECORD_ALREADY_CORRECTED', 'PAYMENT_ACCOUNT_REQUIRED', 'SETTLEMENT_EXCEEDS_BILL', 'INVALID_DISCOUNT', 'BILL_NUMBER_REQUIRED', 'INVALID_INVOICE'] as const;
+export const businessReasons = ['INVALID_PROFILE_PAYMENT','PROFILE_PAYMENT_ALREADY_EXISTS','EXPENSE_CATEGORY_IN_USE','CATEGORY_ALREADY_EXISTS','SCHEDULE_HISTORY_LOCKED','WORK_HISTORY_IMMUTABLE','USE_PROFILE_PAYMENT_CANCEL','PRODUCTION_DISABLED','INVALID_PRODUCTION','INSUFFICIENT_PRODUCTION_STOCK','ONE_PRODUCTION_OUTPUT_ITEM_REQUIRED','PRODUCTION_OUTPUT_CANNOT_BE_INPUT','STOCK_DATE_BEFORE_ACTIVITY', 'INSUFFICIENT_STOCK', 'INVALID_RATE', 'INVALID_AMOUNT', 'INVALID_TOTAL', 'IDEMPOTENCY_CONFLICT', 'PARTY_NOT_ACCESSIBLE', 'STOCK_MASTER_NOT_ACCESSIBLE', 'WRITES_DISABLED', 'FUTURE_DATE', 'COMPANY_NOT_ACCESSIBLE', 'RECORD_ALREADY_CORRECTED', 'PAYMENT_ACCOUNT_REQUIRED', 'SETTLEMENT_EXCEEDS_BILL', 'INVALID_DISCOUNT', 'BILL_NUMBER_REQUIRED', 'INVALID_INVOICE'] as const;
 export function safeBusinessReason(error: unknown): string | undefined {
     if (!error || typeof error !== 'object') {
         return undefined;
@@ -18,6 +18,12 @@ export function billError(error: unknown, language: Language, fallback: string) 
         string,
         string
     ]> = {
+        INVALID_PROFILE_PAYMENT:['এই তারিখের বকেয়ার বেশি পেমেন্ট করা যাবে না।','Payment cannot exceed the balance due on this date.','इस तारीख के बकाये से अधिक भुगतान नहीं हो सकता।'],
+        EXPENSE_CATEGORY_IN_USE:['আগে প্রোফাইল অন্য ক্যাটাগরিতে সরান।','Move the profiles to another category first.','पहले खाते दूसरी श्रेणी में ले जाएँ।'],
+        CATEGORY_ALREADY_EXISTS:['এই ক্যাটাগরি আগে থেকেই আছে।','This category already exists.','यह श्रेणी पहले से है।'],
+        SCHEDULE_HISTORY_LOCKED:['পুরোনো শিডিউল বদলানো যাবে না। নতুন প্রোফাইল করুন।','The historical schedule is locked. Create a new profile.','पुराना शेड्यूल सुरक्षित है। नया खाता बनाएँ।'],
+        WORK_HISTORY_IMMUTABLE:['বন্ধ–চালুর আগের ইতিহাস মুছবেন না।','Previous work history cannot be removed.','काम का पिछला इतिहास नहीं हट सकता।'],
+        USE_PROFILE_PAYMENT_CANCEL:['বেতন ও বিল পেজ থেকে পেমেন্ট বাতিল করুন।','Cancel this payment from Salary and bills.','वेतन और बिल पेज से भुगतान रद्द करें।'],
         PRODUCTION_DISABLED:['প্রোডাকশন মোড বন্ধ আছে। সেটিংসে চালু করুন।','Production mode is off. Enable it in Settings.','उत्पादन मोड बंद है। सेटिंग्स में चालू करें।'],
         INVALID_PRODUCTION:['প্রোডাকশনের তারিখ ও তথ্য পরীক্ষা করুন।','Check the production date and fields.','उत्पादन की तारीख और विवरण जाँचें।'],
         INSUFFICIENT_PRODUCTION_STOCK:['এই তারিখে গোডাউনে যথেষ্ট কাঁচামাল নেই।','Insufficient raw material in this godown on this date.','इस तारीख को गोदाम में पर्याप्त कच्चा माल नहीं है।'],

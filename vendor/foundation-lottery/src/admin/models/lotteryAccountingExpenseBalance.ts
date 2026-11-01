@@ -1,3 +1,5 @@
+import { scheduledBills } from "../../../../../src/lottery/expense-schedule";
+import { lotteryOpening } from "../../../../../src/lottery/opening-balance";
 import { accountingBusinessDate } from "./lotteryAccountingBusinessDate";
 import type { LotteryWorkspace } from "./lotteryAccountingTypes";
 
@@ -9,10 +11,11 @@ function recurringBillDay(month: string, startsOn: string): string {
 }
 
 export function projectedLotteryExpenseBills(workspace: ExpenseBooks, through: string) {
-  const bills: Array<{ profileId: string; amountPaise: string; occurredAt: string }> = [...workspace.expenseBills];
+  const bills: Array<{ profileId: string; amountPaise: string; occurredAt: string }> = workspace.expenseBills.filter(bill => !("scheduled" in bill));
   const existing = new Set([...workspace.expenseBills.filter((bill) => bill.billingMonth), ...(workspace.voidedExpenseMonths || [])]
     .map((bill) => `${bill.profileId}:${bill.billingMonth}`));
   for (const profile of workspace.expenseProfiles) {
+    if (profile.schedule) { bills.push(...scheduledBills(profile, through)); continue; }
     const startsOn = profile.recurringStartsAt ? accountingBusinessDate(profile.recurringStartsAt) : "";
     if (profile.scheduleType !== "MONTHLY" || !startsOn || startsOn > through ||
         BigInt(profile.usualAmountPaise || "0") <= 0n) continue;
@@ -31,10 +34,10 @@ export function projectedLotteryExpenseBills(workspace: ExpenseBooks, through: s
 }
 
 export function lotteryExpensePeriodCost(workspace: ExpenseBooks, from: string, to: string): bigint {
-  return projectedLotteryExpenseBills(workspace, to).filter((bill) => {
-    const day = accountingBusinessDate(bill.occurredAt);
-    return day && day >= from && day <= to;
-  }).reduce((total, bill) => total + BigInt(bill.amountPaise), 0n);
+  return workspace.expensePayments.filter(payment => {
+    const day=accountingBusinessDate(payment.occurredAt);
+    return day && day>=from && day<=to;
+  }).reduce((total,payment)=>total+BigInt(payment.totalAmountPaise),0n);
 }
 
 export function lotteryExpenseOutstanding(workspace: ExpenseBooks, profileId: string, through: string): bigint {
@@ -44,6 +47,6 @@ export function lotteryExpenseOutstanding(workspace: ExpenseBooks, profileId: st
   const paid = workspace.expensePayments.filter((payment) =>
     payment.profileId === profileId && accountingBusinessDate(payment.occurredAt) <= through)
     .reduce((total, payment) => total + BigInt(payment.totalAmountPaise), 0n);
-  return due - paid;
+  return lotteryOpening(workspace.expenseProfiles.find(profile => profile.id === profileId), through) + due - paid;
 }
 

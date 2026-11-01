@@ -92,3 +92,10 @@ it("uses contact permission only on tap and supports cancellation/manual fallbac
   );
   expect(screen.queryByRole("button")).toBeNull();
 });
+it('uses clear expense payable and advance labels in all three languages',()=>{
+ const value=partyOpeningForm({openingBalancePaise:'-12500',openingBalanceDate:'2026-10-29'},'2026-10-30');
+ for(const [language,due,advance] of [['en','You owe this person','Advance paid / recoverable'],['bn','ওকে দেবেন / ও পাবেন','আগে দিয়েছেন / ওর কাছে পাবেন'],['hi','उसे देना है','पहले दिया / उससे लेना है']] as const){
+  const view=render(<LotteryLanguage.Provider value={language}><PartyOpeningFields value={{...value,advance:language !== "bn"}} onChange={()=>{}} stockist={false} expense/></LotteryLanguage.Provider>);
+  expect(screen.getByRole('option',{name:due})).toBeInTheDocument();expect(screen.getByRole('option',{name:advance})).toBeInTheDocument();expect(screen.getByLabelText('Opening balance amount')).toHaveValue('125.00');view.unmount();
+ }
+});

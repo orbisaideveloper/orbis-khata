@@ -1,3 +1,4 @@
+import './design.css';
 import {Themes} from './theme';
 import {ModulePicker} from './ModulePicker';
 import {lazy,Suspense,useEffect,useMemo,useRef,useState,type ReactNode} from 'react';

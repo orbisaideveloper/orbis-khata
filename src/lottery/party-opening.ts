@@ -20,15 +20,18 @@ async function openingLedger(
   date: string,
   actor: string,
   reverse = false,
+  expense = false,
 ) {
   if (amount === 0n) return;
   const seller = party.partyType === "SELLER" || party.partyType === "CUSTOMER";
   const debit = (seller === amount > 0n) !== reverse;
   const transactionId = crypto.randomUUID();
+  let accountCode = seller ? "PARTY_RECEIVABLE" : "PARTY_PAYABLE";
+  if (expense) accountCode = "EXPENSE_PAYABLE";
   const common = {
     organizationId: party.organizationId,
     transactionId,
-    sourceType: "PARTY_OPENING",
+    sourceType: expense ? "EXPENSE_OPENING" : "PARTY_OPENING",
     sourceId: party.id,
     amountPaise: amount < 0n ? -amount : amount,
     occurredAt: new Date(date + "T00:00:00+05:30"),
@@ -39,7 +42,7 @@ async function openingLedger(
       {
         ...common,
         lineNumber: 1,
-        accountCode: seller ? "PARTY_RECEIVABLE" : "PARTY_PAYABLE",
+        accountCode,
         side: debit ? "DEBIT" : "CREDIT",
       },
       {
@@ -51,11 +54,12 @@ async function openingLedger(
     ],
   });
 }
-export async function savePartyOpening(
+async function saveOpening(
   client: Client,
   partyId: string,
   input: Record<string, unknown>,
   actor: string,
+  expense: boolean,
 ) {
   if (
     input.openingBalancePaise === undefined &&
@@ -63,11 +67,12 @@ export async function savePartyOpening(
   )
     return;
   const next = openingInput(input);
-  const party = await client.foundationAccountingParty.findUnique({
+  const model = expense ? client.foundationAccountingExpenseProfile : client.foundationAccountingParty;
+  const party = await model.findUnique({
     where: { id: partyId },
   });
   if (!party || party.organizationId !== input.organizationId)
-    throw new Error("PARTY_NOT_FOUND");
+    throw new Error(expense ? "EXPENSE_PROFILE_NOT_FOUND" : "PARTY_NOT_FOUND");
   const previous = BigInt(party.openingBalancePaise ?? 0);
   if (
     previous === next.openingBalancePaise &&
@@ -82,6 +87,7 @@ export async function savePartyOpening(
       party.openingBalanceDate,
       actor,
       true,
+      expense,
     );
   await openingLedger(
     client,
@@ -89,16 +95,18 @@ export async function savePartyOpening(
     next.openingBalancePaise,
     next.openingBalanceDate,
     actor,
+    false,
+    expense,
   );
-  await client.foundationAccountingParty.update({
+  await model.update({
     where: { id: partyId },
     data: next,
   });
   await client.foundationLotteryAuditEvent.create({
     data: {
       organizationId: party.organizationId,
-      eventType: "PARTY_OPENING_UPDATED",
-      entityType: "PARTY",
+      eventType: expense ? "EXPENSE_OPENING_UPDATED" : "PARTY_OPENING_UPDATED",
+      entityType: expense ? "EXPENSE_PROFILE" : "PARTY",
       entityId: partyId,
       actorAdminId: actor,
       metadata: {
@@ -109,4 +117,11 @@ export async function savePartyOpening(
       },
     },
   });
+}
+
+export function savePartyOpening(client: Client, id: string, input: Record<string, unknown>, actor: string) {
+  return saveOpening(client, id, input, actor, false);
+}
+export function saveExpenseOpening(client: Client, id: string, input: Record<string, unknown>, actor: string) {
+  return saveOpening(client, id, input, actor, true);
 }

@@ -24,7 +24,7 @@ function dynamicRoute(path:string,verb:string,payload:Record<string,unknown>):Ro
  if(root==='daily-seller-drafts')return {method:dynamicMethod(root,verb,action,false),payload:{...payload,saleId:id}};
  if(root==='sales'&&action==='correct')return {method:'correctPostedSale',payload:{...payload,saleId:id}};
  if(root==='corrections'||root==='voids')return {method:dynamicMethod(root,verb,action,parts[3]==='preview'),payload:{...payload,entityType:id,entityId:action}};
- if(root==='expenses'&&(id==='categories'||id==='profiles'))return {method:id==='categories'?'updateExpenseCategory':'updateExpenseProfile',payload:{...payload,[id==='categories'?'categoryId':'profileId']:action}};
+ if(root==='expenses'&&(id==='categories'||id==='profiles'))return {method:id==='categories'?(verb==='DELETE'?'deleteExpenseCategory':'updateExpenseCategory'):'updateExpenseProfile',payload:{...payload,[id==='categories'?'categoryId':'profileId']:action}};
  throw new Error('LOTTERY_ROUTE_NOT_SUPPORTED');
 }
 const readMethods=new Set(['listOrganizations','getWorkspace','previewSale','getVerifiedSummary','analyzeVerifiedAccounting','previewAccountingVoid']);

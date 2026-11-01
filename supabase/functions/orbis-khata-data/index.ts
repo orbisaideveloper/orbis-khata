@@ -1,3 +1,4 @@
+import { runProfiles, type ProfileCommand, type ProfileState } from "../../../src/expense-profiles/model.ts";
 import {runLottery,type LotteryInput} from '../../../src/lottery/service.ts';
 import postgres from 'npm:postgres@3.4.7';
 import { createCentralVerifier, createKhataGateway } from '../../../src/accounting/server-gateway.ts';
@@ -34,6 +35,19 @@ const handler = createKhataGateway({ origins: (env('KHATA_ORIGINS') || 'https://
         await tx `set local role authenticated`;
         await tx `select set_config('request.jwt.claims',${JSON.stringify({ sub: ledgerOwnerId, role: 'authenticated' })},true)`;
         const input = operation.input;
+        if(operation.operation==='expense-profiles') {
+            const command=input as ProfileCommand;
+            const loaded=await tx`select public.khata_expense_profiles_v1(${tx.json({company:command.company,action:'load',request:command,...(command.operationId?{operationId:command.operationId}:{})})}::jsonb) as data`;
+            const saved=loaded[0].data;
+            if(saved.replay)return saved.state;
+            const next=await runProfiles(saved.state as ProfileState,command,async payment=>{
+                const result=await tx`select public.khata_expense_post_v1(${tx.json(payment)}::jsonb) as data`;
+                return result[0].data;
+            });
+            if(command.action==='list')return next;
+            const committed=await tx`select public.khata_expense_profiles_v1(${tx.json({company:command.company,action:'commit',operationId:command.operationId,request:command,state:next,version:saved.version})}::jsonb) as data`;
+            return committed[0].data.state;
+        }
         if(operation.operation==='lottery'){
             const request=input as LotteryInput;
             const load={action:'load',request,...(request.operationId?{operationId:request.operationId}:{})};
@@ -50,6 +64,13 @@ const handler = createKhataGateway({ origins: (env('KHATA_ORIGINS') || 'https://
             const commit={action:'commit',version:saved.version,changes:calculated.changes,result:calculated.result,request,operationId:request.operationId??crypto.randomUUID()};
             const result=await tx `select public.khata_lottery_store_v2(${tx.json(commit)}::jsonb) as data`;
             return result[0].data;
+        }
+        if((operation.operation==='expense-post'&&input.kind==='reversal')||(operation.operation==='workspace'&&input.action==='correct'&&input.type==='expense')) {
+            const exists=await tx`select to_regclass('public.khata_expense_profile_state') as name`;
+            if(exists[0].name) {
+                const linked=await tx`select 1 from public.khata_expense_profile_state s cross join lateral jsonb_array_elements(s.state->'payments') payment where s.company_id=${input.company}::uuid and payment->>'id'=${String(input.parent??input.target)} limit 1`;
+                if(linked.length)throw Object.assign(new Error('USE_PROFILE_PAYMENT_CANCEL'),{code:'P0001'});
+            }
         }
         if (operation.operation === 'workspace') {
             const result = await tx `select public.khata_workspace_v3(${tx.json(input)}::jsonb) as data`;

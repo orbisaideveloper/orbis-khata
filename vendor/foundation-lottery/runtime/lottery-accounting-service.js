@@ -1,3 +1,4 @@
+import { lotteryOpening } from "../../../src/lottery/opening-balance.ts";
 import {tdsRateOn} from "../../../src/lottery/organization-rules.ts";
 import { paymentMethodBalance } from "./accounting-money-balances.js";
 import { projectRecurringExpenseBills } from "./accounting-expense-projection.js";
@@ -751,6 +752,8 @@ function createLotteryAccountingService({ prisma, now = () => new Date() }) {
     const name = requiredText(input?.name, "name");
     return prisma.$transaction(async (client) => {
       await ensureOrganization(client, organizationId);
+      const existing = await client.foundationAccountingExpenseCategory.findMany({where:{organizationId,status:"ACTIVE"}});
+      if(existing.some(row=>row.name.normalize("NFKC").trim().toLowerCase()===name.normalize("NFKC").trim().toLowerCase()))throw accountingError("EXPENSE_CATEGORY_ALREADY_EXISTS","name");
       const category = await client.foundationAccountingExpenseCategory.create({
         data: { organizationId, name, status: "ACTIVE" },
       });
@@ -765,6 +768,8 @@ function createLotteryAccountingService({ prisma, now = () => new Date() }) {
     const name = requiredText(input?.name, "name");
     return prisma.$transaction(async (client) => {
       const category = await ensureExpenseCategory(client, organizationId, categoryId);
+      const existing=await client.foundationAccountingExpenseCategory.findMany({where:{organizationId,status:"ACTIVE"}});
+      if(existing.some(row=>row.id!==categoryId&&row.name.normalize("NFKC").trim().toLowerCase()===name.normalize("NFKC").trim().toLowerCase()))throw accountingError("EXPENSE_CATEGORY_ALREADY_EXISTS","name");
       const updated = await client.foundationAccountingExpenseCategory.update({
         where: { id: category.id },
         data: { name },
@@ -785,6 +790,17 @@ function createLotteryAccountingService({ prisma, now = () => new Date() }) {
       ),
       scheduleType: expenseScheduleType(input?.scheduleType),
     };
+  }
+
+  async function deleteExpenseCategory(input, actorAdminId) {
+    const organizationId=requiredText(input?.organizationId,"organizationId"), categoryId=requiredText(input?.categoryId,"categoryId");
+    return prisma.$transaction(async client=>{
+      await ensureExpenseCategory(client,organizationId,categoryId);
+      if(await client.foundationAccountingExpenseProfile.count({where:{organizationId,categoryId}})) throw accountingError("EXPENSE_CATEGORY_IN_USE","categoryId");
+      const result=await client.foundationAccountingExpenseCategory.update({where:{id:categoryId},data:{status:"ARCHIVED"}});
+      await client.foundationLotteryAuditEvent.create({data:{organizationId,eventType:"EXPENSE_CATEGORY_ARCHIVED",entityType:"EXPENSE_CATEGORY",entityId:categoryId,actorAdminId,metadata:{categoryId}}});
+      return serialize(result);
+    });
   }
 
   async function createExpenseProfile(input, actorAdminId) {
@@ -1024,6 +1040,7 @@ function createLotteryAccountingService({ prisma, now = () => new Date() }) {
     );
 
     for (const profile of profiles) {
+      if (profile.schedule) continue;
       await ensureRecurringProfileBills(
         client,
         organizationId,
@@ -1046,7 +1063,8 @@ function createLotteryAccountingService({ prisma, now = () => new Date() }) {
       optionalReference(input?.reference),
     ];
     return prisma.$transaction(async (client) => {
-      await ensureExpenseProfile(client, organizationId, profileId);
+      const profile = await ensureExpenseProfile(client, organizationId, profileId);
+      if (profile.schedule) throw accountingError("SCHEDULED_EXPENSE_AUTOMATIC", "profileId");
       const bill = await createExpenseBillPosting(client, {
         organizationId,
         profileId,
@@ -1100,7 +1118,7 @@ function createLotteryAccountingService({ prisma, now = () => new Date() }) {
     const occurredAt = optionalDate(input?.occurredAt, "occurredAt", now());
     const suppliedReference = optionalReference(input?.reference);
     return prisma.$transaction(async (client) => {
-      await ensureExpenseProfile(client, organizationId, profileId);
+      const expenseProfile = await ensureExpenseProfile(client, organizationId, profileId);
       await ensureRecurringExpenseBillsThrough(
         client,
         organizationId,
@@ -1113,11 +1131,11 @@ function createLotteryAccountingService({ prisma, now = () => new Date() }) {
         } }),
         effectivePaymentBooks(client, organizationId, occurredAtFilter),
       ]);
-      const bills = projectAccountingRows(rawBills, books.corrections, "EXPENSE_BILL");
+      const bills = projectRecurringExpenseBills([expenseProfile], projectAccountingRows(rawBills, books.corrections, "EXPENSE_BILL"), businessDateKey(occurredAt));
       const billed = bills.reduce((total, bill) => total + BigInt(bill.amountPaise), 0n);
       const alreadyPaid = books.expensePayments.filter((payment) => payment.profileId === profileId)
         .reduce((total, payment) => total + BigInt(payment.totalAmountPaise), 0n);
-      if (totalAmountPaise > billed - alreadyPaid) {
+      if (totalAmountPaise > lotteryOpening(expenseProfile, businessDateKey(occurredAt)) + billed - alreadyPaid) {
         throw accountingError("INVALID_PAYMENT", "totalAmountPaise");
       }
       const availableCash = paymentMethodBalance(books.payments, "cashPaise", books.expensePayments);
@@ -2992,6 +3010,7 @@ function createLotteryAccountingService({ prisma, now = () => new Date() }) {
     createDailySellerDraft,
     createExpenseCategory,
     createExpenseProfile,
+    deleteExpenseCategory,
     createOrganization,
     createParty,
     createFinancialYearPeriod,

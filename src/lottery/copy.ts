@@ -11,6 +11,8 @@ const copy: Record<string, readonly [string, string]> = {
   "This week": ["এই সপ্তাহ", "इस सप्ताह"],
   Month: ["এই মাস", "इस महीने"],
   Custom: ["নিজের মতো", "कस्टम"],
+  "Stockist Commission": ["স্টকিস্ট কমিশন", "स्टॉकिस्ट कमीशन"],
+  "Seller Commission": ["বিক্রেতার কমিশন", "विक्रेता कमीशन"],
   "Net Profit": ["নিট লাভ", "शुद्ध लाभ"],
   Receivable: ["পাওনা", "लेना है"],
   Payable: ["দেনা", "देना है"],

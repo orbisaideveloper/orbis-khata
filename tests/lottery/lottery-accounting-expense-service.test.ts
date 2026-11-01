@@ -27,6 +27,7 @@ describe("Lottery Accounting additive expense service", () => {
         findFirst: vi.fn().mockResolvedValue(organization),
       },
       foundationAccountingExpenseCategory: {
+        findMany: vi.fn().mockResolvedValue([]),
         create: vi.fn().mockResolvedValue(category),
       },
       foundationLotteryAuditEvent: {

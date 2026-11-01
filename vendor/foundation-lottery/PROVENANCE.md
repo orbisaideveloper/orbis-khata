@@ -76,3 +76,18 @@ menu, gate explanatory copy with Tutorial and default to Cash/PWD/Bank. Foundati
 source, deployment and stored records are untouched. Khata-specific differences
 are verified by date-boundary, snapshot, payment-folder and browser regressions;
 see docs/LOTTERY_SETTINGS_EXPENSES_20261030.md.
+
+
+### Khata expense opening extension (2026-11-01; local candidate)
+Expense profile fields and payment/outstanding/ledger views accept a signed dated
+opening without creating a new expense charge. The copied runtime payment limit
+uses the same opening to permit paying historical dues and to offset advances.
+Balanced opening/reversal rows and audit history are supplied by the Khata adapter.
+The independent Foundation source/deployment/data and Lottery profit/commission/
+TDS formulas remain unchanged. Quick details expose the existing commission inputs.
+
+### 1 November 2026 — Owner-approved expense policy update
+
+Expense profit now deducts actual expense payments in the selected period; accrued bills and signed opening balances remain account debt. This intentionally supersedes the earlier expense-accrual formula only. Stockist/seller/customer sales, commission, TDS, PWT and stock arithmetic remain unchanged.
+
+Expense profiles optionally carry the shared salary/bill schedule. Salary has dated, append-only unpaid stop/resume intervals and exact daily proration; bills have full calendar/date-cycle charges without salary controls. Legacy profiles and stored bills remain compatible. Scheduled profiles reject manual bill posting to avoid duplicate accrual. Used categories cannot be archived; category names reject duplicates. Real master-form integration, domain service and reconciliation tests cover these paths. No Foundation repository/database was changed.

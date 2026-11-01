@@ -22,9 +22,9 @@ describe("Backend and dashboard reconciliation", () => {
       expenseProfiles: [], customerBills: [customerBill], payments: [receipt] };
     const ui = lotteryBusinessMetrics(workspace, "2026-09-01", "2026-09-30");
     expect(ui.profit.toString()).toBe(summary.operatingResultPaise);
-    expect(summary).toMatchObject({ operatingResultPaise: "130000", expensePaise: "30000",
+    expect(summary).toMatchObject({ operatingResultPaise: "150000", expensePaise: "10000",
       paidExpensePaise: "10000", netCashFlowPaise: "-10000", pwtBalancePaise: "60000", tdsPaise: "1000" });
-    expect(ui.expenses).toBe(30000n);
+    expect(ui.expenses).toBe(10000n);
   });
 
   it("keeps held cheques and PWT separate from cash/bank/UPI flow", () => {
@@ -35,9 +35,9 @@ describe("Backend and dashboard reconciliation", () => {
     expect(summary.tdsPaise).toBe("0");
   });
 
-  it("does not count paying an earlier expense bill as a new expense", () => {
+  it("deducts settlement of an earlier expense in the payment period", () => {
     const summary = summarizeLotteryAccounting({ expensePayments: [expensePayment] });
-    expect(summary).toMatchObject({ expensePaise: "0", operatingResultPaise: "0", netCashFlowPaise: "-10000" });
+    expect(summary).toMatchObject({ expensePaise: "10000", operatingResultPaise: "-10000", netCashFlowPaise: "-10000" });
   });
 
   it("agrees on unmaterialized monthly costs, preserves snapshots and avoids duplicates", () => {
@@ -46,8 +46,8 @@ describe("Backend and dashboard reconciliation", () => {
     const projected = projectRecurringExpenseBills([profile], [expenseBill], "2026-11-04");
     const amount = projected.reduce((sum, bill) => sum + BigInt(bill.amountPaise), 0n);
     expect(amount).toBe(110000n);
-    expect(lotteryExpensePeriodCost(workspace, "2026-09-01", "2026-11-04")).toBe(amount);
-    expect(lotteryExpensePeriodCost(workspace, "2026-10-01", "2026-10-31")).toBe(40000n);
+    expect(lotteryExpensePeriodCost(workspace, "2026-09-01", "2026-11-04")).toBe(0n);
+    expect(lotteryExpensePeriodCost(workspace, "2026-10-01", "2026-10-31")).toBe(0n);
     expect(projectRecurringExpenseBills([profile], projected, "2026-11-04")).toHaveLength(3);
   });
 
@@ -58,3 +58,10 @@ describe("Backend and dashboard reconciliation", () => {
   });
 });
 
+
+it('reproduces the owner screenshot profit without treating stock quantities or historical balances as income',()=>{
+ const workspace={sales:[],draftSales:[{occurredAt:'2026-10-31',grossSalesPaise:'3876550',commissionPaise:'0'}],stockistEntries:[{occurredAt:'2026-10-31',grossPurchasePaise:'3801600',commissionPaise:'140000'}],customerBills:[],expenseBills:[],expensePayments:[],expenseProfiles:[{id:'old',openingBalancePaise:'250000',openingBalanceDate:'2026-10-30',usualAmountPaise:'0'}],payments:[]};
+ const result=lotteryBusinessMetrics(workspace,'2026-10-31','2026-10-31');
+ expect(result).toMatchObject({sellerGross:3876550n,stockistGross:3801600n,stockistCommission:140000n,sellerCommission:0n,expenses:0n,profit:214950n});
+ expect(result.sellerGross-result.stockistGross).toBe(74950n);
+});

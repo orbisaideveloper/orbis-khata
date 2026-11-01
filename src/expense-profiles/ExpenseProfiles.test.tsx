@@ -1,0 +1,36 @@
+import {afterEach,it,expect,vi} from 'vitest';
+import {cleanup,fireEvent,render,screen,waitFor} from '@testing-library/react';
+import ExpenseProfiles from './ExpenseProfiles';
+import {runProfiles,type ProfileCommand,type ProfileState} from './model';
+import {WorkSwitch} from './ScheduleFields';
+afterEach(()=>{cleanup();vi.restoreAllMocks();sessionStorage.clear();});
+const id='11111111-1111-4111-8111-111111111111';
+it('saves a zero-opening profile then settles its scheduled balance through the expense journal',async()=>{
+ let state:ProfileState={categories:[{id,name:'Salary'}],profiles:[],payments:[]};
+ const post=vi.fn().mockResolvedValue(null),changed=vi.fn();
+ const gateway=async <T,>(_operation:string,input:unknown):Promise<T>=>{state=await runProfiles(state,input as ProfileCommand,post);return structuredClone(state) as T;};
+ vi.spyOn(window,'confirm').mockReturnValue(true);
+ render(<ExpenseProfiles company={id} userId={id} language="en" gateway={gateway} onBack={vi.fn()} onChanged={changed} onLock={vi.fn()} blocked={false}/>);
+ fireEvent.click(await screen.findByRole('button',{name:'＋ Profile'}));
+ fireEvent.change(screen.getByLabelText('Profile name'),{target:{value:'Worker'}});
+ fireEvent.change(screen.getByLabelText('Profile amount'),{target:{value:'100'}});
+ fireEvent.click(screen.getByRole('button',{name:'Save'}));
+ await waitFor(()=>expect(state.profiles).toHaveLength(1));
+ expect(post).not.toHaveBeenCalled();
+ expect(state.profiles[0].opening).toBe("0");
+ fireEvent.click(await screen.findByRole('button',{name:/Worker/}));
+ fireEvent.change(screen.getByLabelText('Profile payment amount'),{target:{value:'50'}});
+ fireEvent.click(screen.getByRole('button',{name:'Save payment'}));
+ await waitFor(()=>expect(post).toHaveBeenCalledWith(expect.objectContaining({amount:'5000',kind:'charge',method:'cash'})));
+ expect(window.confirm).toHaveBeenCalledTimes(2);
+ expect(state.payments).toHaveLength(1);
+});
+it('shows pause control only for salary and labels the inclusive stop day',()=>{
+ const schedule={kind:'BILL' as const,mode:'CALENDAR' as const,start:'2026-11-01',amount:'2000000',changes:[]},change=vi.fn();
+ const view=render(<WorkSwitch value={schedule} language="en" onChange={change}/>);
+ expect(screen.queryByRole('button')).not.toBeInTheDocument();
+ view.rerender(<WorkSwitch value={{...schedule,kind:'SALARY'}} language="en" onChange={change}/>);
+ fireEvent.change(screen.getByLabelText('Last paid work day'),{target:{value:'2026-11-10'}});
+ fireEvent.click(screen.getByRole('button',{name:'Stop salary'}));
+ expect(change).toHaveBeenCalledWith(false,'2026-11-10');
+});

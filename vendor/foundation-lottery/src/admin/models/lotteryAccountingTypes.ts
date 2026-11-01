@@ -1,3 +1,4 @@
+import type { ExpenseSchedule } from "../../../../../src/expense-profiles/schedule";
 export type LotteryPartyType =
   "STOCKIST" | "SERVICE_STOCKIST" | "SELLER" | "CUSTOMER";
 
@@ -240,6 +241,9 @@ export interface LotteryExpenseCategory {
 }
 
 export interface LotteryExpenseProfile {
+  schedule?: ExpenseSchedule;
+  openingBalancePaise?: string;
+  openingBalanceDate?: string;
   id: string;
   organizationId: string;
   categoryId: string;

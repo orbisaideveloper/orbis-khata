@@ -1,10 +1,11 @@
+import { profileCommand } from "../expense-profiles/model.ts";
 import {lotteryInput} from '../lottery/protocol.ts';
 import { workspaceInput } from './workspace-contract.ts';
 import { safeBusinessReason } from './business-error.ts';
 import { itemInput, partyInput, masterIdentity } from '../master-input.ts';
 import { billTotal, inventoryCommand } from '../inventory/model.ts';
 import { expenseCommand } from './expense-model.ts';
-type Operation = 'lottery' | 'workspace' | 'retired-companies' | 'masters' | 'party-save' | 'item-save' | 'party-delete' | 'item-delete' | 'party-balance' | 'expense-bill' | 'companies' | 'create' | 'report' | 'post' | 'expense-report' | 'expense-post' | 'inventory-post' | 'inventory-report';
+type Operation = 'expense-profiles' | 'lottery' | 'workspace' | 'retired-companies' | 'masters' | 'party-save' | 'item-save' | 'party-delete' | 'item-delete' | 'party-balance' | 'expense-bill' | 'companies' | 'create' | 'report' | 'post' | 'expense-report' | 'expense-post' | 'inventory-post' | 'inventory-report';
 export type KhataPrincipal = {
     orbisIdentityId: string;
     displayId: string;
@@ -61,6 +62,7 @@ function pagedReportInput(input: Record<string, unknown>) {
 function validOperation(operation: unknown, input: Record<string, unknown>): operation is Operation {
     switch (operation) {
         case 'lottery': return lotteryInput(input);
+        case 'expense-profiles': return profileCommand(input);
         case 'workspace': return workspaceInput(input);
         case 'retired-companies': return keys(input, []);
         case 'masters': return keys(input, ['company']) && id(input.company);

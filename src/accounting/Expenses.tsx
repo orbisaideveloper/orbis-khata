@@ -1,3 +1,5 @@
+import { lazy, Suspense } from "react";
+const ExpenseProfiles = lazy(()=>import("../expense-profiles/ExpenseProfiles"));
 import {inLanguage} from '../localize';
 import { allPages } from "./report-pages";
 import { ExpenseChoice } from "./ExpenseChoice";
@@ -67,6 +69,7 @@ export function Expenses({
   startOpen = false,
   gateway,
 }: Readonly<Props>) {
+  const [profilesOpen,setProfilesOpen]=useState(false);
   const t = expenseCopy[language];
   const tutorial = useTutorial();
   const [catalog, setCatalog] = useState(() =>
@@ -311,10 +314,12 @@ export function Expenses({
   const terms=search.normalize('NFKC').toLocaleLowerCase().trim().split(/\s+/u).filter(Boolean);
   const entries=currentEntries(data?.entries??[]).filter(entry=>{const text=[entry.category,entry.payee,entry.note,entry.reference,entry.effective_date].join(' ').normalize('NFKC').toLocaleLowerCase();return terms.every(term=>text.includes(term));});
   const pageOffset=Math.min(offset,Math.max(0,Math.floor((entries.length-1)/50)*50));
+  if(profilesOpen)return <Suspense fallback={<p>{t.loading}</p>}><ExpenseProfiles userId={userId} company={company} language={language} gateway={gateway} onBack={()=>setProfilesOpen(false)} onChanged={onChanged} onLock={onLock} blocked={blocked}/></Suspense>;
   return (
     <section className="books-card expense-page" aria-label={t.title}>
       <div className="books-section-title">
         <h2>{t.title}</h2>
+        <button type="button" disabled={Boolean(pending)||busy||blocked} onClick={()=>setProfilesOpen(true)}>{label("বেতন ও বিল","वेतन और बिल","Salary and bills")}</button>
         {!draft && (
           <button
             type="button"

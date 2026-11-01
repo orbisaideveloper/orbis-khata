@@ -1,3 +1,6 @@
+import {projectedLotteryExpenseBills} from "../../models/lotteryAccountingExpenseBalance";
+import { ScheduleFields, WorkSwitch } from "../../../../../../src/expense-profiles/ScheduleFields";
+import { changeWork, type ExpenseSchedule } from "../../../../../../src/expense-profiles/schedule";
 import {BankFolder} from "../../../../../../src/lottery/BankFolder";
 import {LotteryPreferences} from "../../../../../../src/lottery/LotteryPreferences";
 import {CommissionStatement} from '../../../../../../src/lottery/CommissionStatement';
@@ -394,6 +397,10 @@ function receivablePriority(workspace: LotteryWorkspace, through: string) {
       if (amountPaise > 0n)
         result.push({ id: party.id, name: party.name, type: "Customer", amountPaise });
     }
+  }
+  for (const profile of workspace.expenseProfiles) {
+    const balance = expenseOutstanding(workspace, profile.id, through);
+    if (balance < 0n) result.push({ id: profile.id, name: expenseProfileLabel(profile, workspace.expenseCategories), type: "Expense", amountPaise: -balance });
   }
   return sortPriorityRows(result);
 }
@@ -1319,6 +1326,8 @@ function DashboardPanel({
             <Metric label="Customer Gross" value={formatPaise(customerGross)} />
             <Metric label="Stockist Gross" value={formatPaise(stockistGross)} tone="orange" />
             <Metric label="Expenses" value={formatPaise(expenses)} tone="violet" />
+            <Metric label={lotteryLabel(language, "Stockist Commission")} value={formatPaise(stockistCommission)} />
+            <Metric label={lotteryLabel(language, "Seller Commission")} value={formatPaise(sellerCommission)} />
             <Metric label="Net Profit" value={formatPaise(profit)} />
           </div>
         </SectionCard>
@@ -1336,7 +1345,7 @@ function DashboardPanel({
           <strong>{formatPaise(profit)}</strong>.
         </p>
         <p className="mt-2 text-[8px] text-slate-500">
-          TDS stays separate from profit. Expense bills count as cost; their payments change money balances.
+          TDS stays separate from profit. Only actual expense payments reduce profit; scheduled dues remain in the account balance.
         </p>
       </SectionCard>}
 
@@ -1804,7 +1813,7 @@ function ExpenseBillEntry({
 }: SimpleEntryProps) {
   const [categoryId, setCategoryId] = useState(workspace.expenseCategories[0]?.id || "");
   const profiles = workspace.expenseProfiles.filter(
-    (profile) => profile.categoryId === categoryId,
+    (profile) => !profile.schedule && profile.categoryId === categoryId,
   );
   const [profileId, setProfileId] = useState(profiles[0]?.id || "");
   const [date, setDate] = useState(businessDateToday());
@@ -1813,11 +1822,11 @@ function ExpenseBillEntry({
 
   useEffect(() => {
     const next = workspace.expenseProfiles.find(
-      (profile) => profile.categoryId === categoryId,
+      (profile) => !profile.schedule && profile.categoryId === categoryId,
     );
     setProfileId((current) =>
       workspace.expenseProfiles.some(
-        (profile) => profile.id === current && profile.categoryId === categoryId,
+        (profile) => !profile.schedule && profile.id === current && profile.categoryId === categoryId,
       )
         ? current
         : next?.id || "",
@@ -2006,7 +2015,7 @@ function expensePaymentContext(
     latestPayment,
     currentBillAmount:
       currentBill?.amountPaise ||
-      (profile?.scheduleType === "MONTHLY" ? profile.usualAmountPaise : "0"),
+      (profile?.schedule ? (projectedLotteryExpenseBills(workspace,date).filter(b=>b.profileId===accountId).at(-1)?.amountPaise??"0") : profile?.scheduleType === "MONTHLY" ? profile.usualAmountPaise : "0"),
   };
 }
 
@@ -3798,7 +3807,9 @@ function buildExpenseLedgerBooks(
         (payment) =>
           payment.profileId === profile.id && throughDate(payment.occurredAt, to),
       );
+      const opening = lotteryOpening(profile, to);
       const events = [
+        ...(opening !== 0n ? [{ id: `opening-${profile.id}`, occurredAt: profile.openingBalanceDate!, business: opening, money: 0n, detail: "Opening balance" }] : []),
         ...allBills.map((bill) => ({
           id: `bill-${bill.id}`,
           occurredAt: bill.occurredAt,
@@ -4443,6 +4454,7 @@ function MastersPanel({
     success: string,
   ) => Promise<boolean>;
 }>) {
+  const language = useLotteryLanguage();
   const [organizationName, setOrganizationName] = useState("");
   const [type, setType] = useState<PartyMasterType | "EXPENSE">("SELLER");
   const [selectedPartyId, setSelectedPartyId] = useState("");
@@ -4461,11 +4473,11 @@ function MastersPanel({
   const [expenseProfileId, setExpenseProfileId] = useState("");
   const [expenseEditorOpen, setExpenseEditorOpen] = useState(false);
   const [expenseName, setExpenseName] = useState("");
+  const [expenseOpening, setExpenseOpening] = useState(() => partyOpeningForm(undefined, businessDateToday()));
   const [expenseAmount, setExpenseAmount] = useState("");
-  const [expenseScheduleType, setExpenseScheduleType] = useState<
-    "ONE_TIME" | "MONTHLY"
-  >("ONE_TIME");
   const [expenseNote, setExpenseNote] = useState("");
+  const [scheduleEdited,setScheduleEdited]=useState(false);
+  const [expenseSchedule,setExpenseSchedule] = useState<ExpenseSchedule>(()=>({kind:"BILL",mode:"ONCE",start:businessDateToday(),amount:"0",changes:[]}));
 
 
   const parties = masterParties(workspace, type);
@@ -4490,6 +4502,9 @@ function MastersPanel({
   }, []);
 
   const populateExpenseEditor = useCallback((profile: LotteryExpenseProfile) => {
+    setScheduleEdited(false);
+    setExpenseSchedule(profile.schedule ?? {kind:"BILL",mode:profile.scheduleType==="MONTHLY"?"CALENDAR":"ONCE",start:profile.recurringStartsAt?.slice(0,10)??businessDateToday(),amount:profile.usualAmountPaise,changes:[]});
+    setExpenseOpening(partyOpeningForm(profile, businessDateToday()));
     setExpenseProfileId(profile.id);
     setExpenseName(profile.name);
     setExpenseAmount(
@@ -4497,7 +4512,6 @@ function MastersPanel({
         ? paiseInput(BigInt(profile.usualAmountPaise))
         : "",
     );
-    setExpenseScheduleType(profile.scheduleType || "ONE_TIME");
     setExpenseNote(profile.note || "");
     setExpenseEditorOpen(true);
   }, []);
@@ -4635,13 +4649,20 @@ function MastersPanel({
   const openExpense = populateExpenseEditor;
   const saveExpense = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    if (!expenseCategoryId || !expenseName.trim()) return;
+    const opening = openingPayload(expenseOpening);
+    if (!expenseCategoryId || !expenseName.trim() || !opening) return;
+    const previous = workspace?.expenseProfiles.find(profile => profile.id === expenseProfileId);
+    if (previous && (BigInt(previous.openingBalancePaise ?? "0") !== BigInt(opening.openingBalancePaise) || (previous.openingBalanceDate && previous.openingBalanceDate !== opening.openingBalanceDate))) {
+      if (!window.confirm(inLanguage(language,"এই অ্যাকাউন্টের আগের ব্যালেন্স বদলাবেন?","इस खाते का पुराना शेष बदलें?","Change this account opening balance?")) || !window.confirm(inLanguage(language,"আগের ব্যালেন্সের সংশোধন নিশ্চিত করুন। পুরোনো বিল ও পেমেন্ট থাকবে।","पुराने शेष में सुधार की पुष्टि करें। पुराने बिल और भुगतान सुरक्षित रहेंगे।","Confirm the opening correction; existing bills and payments will be retained."))) return;
+    }
     const payload = {
       organizationId,
       categoryId: expenseCategoryId,
       name: expenseName.trim(),
       usualAmountPaise: (parseAmount(expenseAmount) || 0n).toString(),
-      scheduleType: expenseScheduleType,
+      scheduleType: expenseSchedule.mode === "ONCE" ? "ONE_TIME" : "MONTHLY",
+      ...((previous && !previous.schedule && !scheduleEdited) || expenseSchedule.kind === "BILL" && expenseSchedule.mode === "ONCE" && !(parseAmount(expenseAmount) ?? 0n) ? {} : {schedule:{...expenseSchedule,amount:(parseAmount(expenseAmount)??0n).toString()}}),
+      ...opening,
       note: expenseNote.trim() || undefined,
     };
     const ok = expenseProfileId
@@ -4660,7 +4681,6 @@ function MastersPanel({
       setExpenseProfileId("");
       setExpenseName("");
       setExpenseAmount("");
-      setExpenseScheduleType("ONE_TIME");
       setExpenseNote("");
     }
   };
@@ -4815,6 +4835,7 @@ function MastersPanel({
               >
                 Edit Category
               </Button>
+              <Button onClick={()=>{if(!expenseCategoryId)return;if(window.confirm(inLanguage(language,"ক্যাটাগরি সরাবেন?","श्रेणी हटाएँ?","Remove category?"))&&window.confirm(inLanguage(language,"নিশ্চিত করুন। ব্যবহৃত ক্যাটাগরি সরানো হবে না।","पुष्टि करें। उपयोग की गई श्रेणी नहीं हटेगी।","Confirm. Categories with profiles cannot be removed.")))void run("expense-category-delete",()=>api.deleteExpenseCategory(expenseCategoryId,{organizationId}),"Category removed.");}}>× {inLanguage(language,"সরান","हटाएँ","Remove")}</Button>
             </div>
           </div>
 
@@ -4843,11 +4864,12 @@ function MastersPanel({
             <Button
               active
               onClick={() => {
+                setExpenseSchedule({kind:"BILL",mode:"ONCE",start:businessDateToday(),amount:"0",changes:[]});
+                setExpenseOpening(partyOpeningForm(undefined, businessDateToday()));
                 setExpenseProfileId("");
                 setExpenseName("");
                 setExpenseAmount("");
-                setExpenseScheduleType("ONE_TIME");
-                setExpenseNote("");
+                          setExpenseNote("");
                 setExpenseEditorOpen(true);
               }}
             >
@@ -4868,19 +4890,6 @@ function MastersPanel({
                   className={`${CONTROL} col-span-2`}
                   placeholder="e.g. Raju"
                 />
-                <select
-                  aria-label="Expense payment type"
-                  value={expenseScheduleType}
-                  onChange={(event) =>
-                    setExpenseScheduleType(
-                      event.target.value as "ONE_TIME" | "MONTHLY",
-                    )
-                  }
-                  className={CONTROL}
-                >
-                  <option value="ONE_TIME">One-time bill</option>
-                  <option value="MONTHLY">Monthly recurring</option>
-                </select>
                 <input
                   aria-label="Expense usual amount"
                   value={expenseAmount}
@@ -4888,7 +4897,7 @@ function MastersPanel({
                   inputMode="decimal"
                   className={CONTROL}
                   placeholder={
-                    expenseScheduleType === "MONTHLY"
+                    expenseSchedule.mode !== "ONCE"
                       ? "Monthly amount ₹"
                       : "Usual/default amount ₹"
                   }
@@ -4901,6 +4910,9 @@ function MastersPanel({
                   placeholder="Note optional"
                 />
               </div>
+              <ScheduleFields value={expenseSchedule} onChange={value=>{setScheduleEdited(true);setExpenseSchedule(value);}} language={language}/>
+              <PartyOpeningFields value={expenseOpening} onChange={setExpenseOpening} stockist={false} expense />
+              {expenseProfileId && workspace.expenseProfiles.find(p=>p.id===expenseProfileId)?.schedule && <WorkSwitch disabled={Boolean(working)} value={expenseSchedule} language={language} onChange={(active,date)=>{void (async()=>{try {const profile=workspace.expenseProfiles.find(p=>p.id===expenseProfileId)!;const next=changeWork(expenseSchedule,date,active);if(!window.confirm(inLanguage(language,"কাজের অবস্থা বদলাবেন?","काम की स्थिति बदलें?","Change work status?"))||!window.confirm(inLanguage(language,"নিশ্চিত করুন। আগের হিসাব থাকবে।","पुष्टि करें। पुराना हिसाब रहेगा।","Confirm. Previous accounts will be retained.")))return;const ok=await run("expense-work-status",()=>api.updateExpenseProfile(profile.id,{organizationId,categoryId:profile.categoryId,name:profile.name,usualAmountPaise:profile.usualAmountPaise,scheduleType:profile.scheduleType,schedule:next}),"Saved.");if(ok)setExpenseSchedule(next);} catch {window.alert(inLanguage(language,"তারিখ ও আগের বন্ধ–চালু পরীক্ষা করুন।","तारीख और पिछली स्थिति जाँचें।","Check the date and previous work status."));}})();}}/>}
               <div className="mt-2 flex gap-2">
                 <button className={ACTIVE_BUTTON} type="submit">
                   Save Profile

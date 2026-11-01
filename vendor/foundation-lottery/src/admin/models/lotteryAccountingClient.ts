@@ -189,6 +189,7 @@ export interface LotteryAccountingClient {
     categoryId: string,
     payload: Record<string, unknown>,
   ) => Promise<void>;
+  deleteExpenseCategory: (categoryId:string, payload:Record<string,unknown>)=>Promise<void>;
   createExpenseProfile: (payload: Record<string, unknown>) => Promise<void>;
   updateExpenseProfile: (
     profileId: string,
@@ -327,6 +328,7 @@ export const lotteryAccountingClient: LotteryAccountingClient = {
       payload,
     );
   },
+  async deleteExpenseCategory(categoryId,payload) { await readLotteryResponse(`/expenses/categories/${encodeURIComponent(categoryId)}`,{method:"DELETE",body:JSON.stringify(payload)}); },
   async createExpenseProfile(payload) {
     await postLottery("/expenses/profiles", payload);
   },

@@ -59,3 +59,83 @@ it('defends the opening writer against absent or foreign party records',async()=
 it('applies scheduled TDS on seller and stockist dates while preserving prior saved snapshots',async()=>{const {org,stockist,seller}=await fixture();const row={organizationId:org,partyId:stockist.id,purchaseQuantity:'100',morningReturnQuantity:'0',dayReturnQuantity:'0',eveningReturnQuantity:'0',commissionPaise:'10000'};await run('saveDailyStockistEntry',{...row,occurredAt:'2026-10-30'});await run('updateOrganizationTdsRate',{organizationId:org,tdsRateBps:300,effectiveFrom:'2026-10-31'});await run('saveDailyStockistEntry',{...row,occurredAt:'2026-10-31'});const sale={organizationId:org,partyId:seller.id,dispatchQuantity:'10',morningReturnQuantity:'0',dayReturnQuantity:'0',eveningReturnQuantity:'0',commissionPaise:'1000'};expect((await run('recordSale',{...sale,occurredAt:'2026-10-30'})).calculated.tdsPaise).toBe('20');expect((await run('recordSale',{...sale,occurredAt:'2026-10-31'})).calculated.tdsPaise).toBe('30');state=JSON.parse(JSON.stringify(state));const w=await run('getWorkspace',{organizationId:org});expect(w.stockistEntries.map((r:any)=>r.tdsRateBps).sort()).toEqual([200,300]);expect(w.organization.tdsRules).toEqual([{from:'2026-10-31',rateBps:300}]);const before=JSON.stringify(state);await expect(run('updateOrganizationTdsRate',{organizationId:org,effectiveFrom:'2026-02-30',tdsRateBps:200})).rejects.toThrow();expect(JSON.stringify(state)).toBe(before);await expect(run('updateOrganizationPreferences',{organizationId:'missing',paymentOptions:{upi:false,cheque:false,bankChannels:[]}})).rejects.toThrow();});
 it('persists named bank receipt folders without double-counting balances and rejects unknown folders',async()=>{const {org,seller}=await fixture();await run('updateOrganizationPreferences',{organizationId:org,paymentOptions:{upi:false,cheque:false,bankChannels:['GPay']}});const input={organizationId:org,partyId:seller.id,occurredAt:'2026-10-30',direction:'RECEIPT',totalAmountPaise:'10000',methodSplit:{bankPaise:'10000'},bankChannel:'GPay'};await run('recordPayment',input);const w=await run('getWorkspace',{organizationId:org});expect(w.payments[0].bankChannel).toBe('GPay');expect(w.summary.methodBalances.bankPaise).toBe('10000');await expect(run('recordPayment',{...input,bankChannel:'Unknown'})).rejects.toThrow();await run('updateOrganizationPreferences',{organizationId:org,paymentOptions:{upi:false,cheque:false,bankChannels:[]}});expect((await run('getWorkspace',{organizationId:org})).payments[0].bankChannel).toBe('GPay');});
 it('rejects missing organization settings and non-text bank folder metadata without changing records',async()=>{const {org,seller}=await fixture();const before=JSON.stringify(state);await expect(run('updateOrganizationPreferences',{paymentOptions:{upi:false,cheque:false,bankChannels:[]}})).rejects.toThrow('ORGANIZATION_NOT_FOUND');await expect(run('recordPayment',{organizationId:org,partyId:seller.id,direction:'RECEIPT',occurredAt:'2026-10-30',totalAmountPaise:'100',methodSplit:{bankPaise:'100'},bankChannel:123})).rejects.toThrow('INVALID_BANK_CHANNEL');expect(JSON.stringify(state)).toBe(before);});
+
+it('links historical expense dues to the profile and payment ledger without re-expensing them',async()=>{
+ const {org,seller}=await fixture();
+ const category=await run('createExpenseCategory',{organizationId:org,name:'Home'});
+ const profile=await run('createExpenseProfile',{organizationId:org,categoryId:category.id,name:'Worker',usualAmountPaise:'0',scheduleType:'ONE_TIME',openingBalancePaise:'100000',openingBalanceDate:'2026-10-29'});
+ expect(profile).toMatchObject({openingBalancePaise:'100000',openingBalanceDate:'2026-10-29'});
+ const {lotteryExpenseOutstanding}=await import('../../vendor/foundation-lottery/src/admin/models/lotteryAccountingExpenseBalance');
+ let w=await run('getWorkspace',{organizationId:org});
+ expect(lotteryExpenseOutstanding(w,profile.id,'2026-10-28')).toBe(0n);
+ expect(lotteryExpenseOutstanding(w,profile.id,'2026-10-30')).toBe(100000n);
+ expect(w.summary).toMatchObject({expensePaise:'0',operatingResultPaise:'0',netCashFlowPaise:'0'});
+ expect(w.expenseBills).toEqual([]);
+ expect(w.ledgerEntries.filter((row:any)=>row.sourceType==='EXPENSE_OPENING')).toHaveLength(2);
+ await run('recordPayment',{organizationId:org,partyId:seller.id,direction:'RECEIPT',occurredAt:'2026-10-30',totalAmountPaise:'200000',methodSplit:{cashPaise:'200000'}});
+ await run('recordExpensePayment',{organizationId:org,profileId:profile.id,occurredAt:'2026-10-30',totalAmountPaise:'50000',cashPaise:'50000',bankPaise:'0'});
+ w=await run('getWorkspace',{organizationId:org});
+ expect(lotteryExpenseOutstanding(w,profile.id,'2026-10-30')).toBe(50000n);
+ expect(w.summary).toMatchObject({expensePaise:'50000',operatingResultPaise:'-50000'});
+ const update={organizationId:org,profileId:profile.id,categoryId:category.id,name:'Worker',usualAmountPaise:'0',scheduleType:'ONE_TIME',openingBalancePaise:'150000',openingBalanceDate:'2026-10-29'};
+ await run('updateExpenseProfile',update);w=await run('getWorkspace',{organizationId:org});
+ expect(lotteryExpenseOutstanding(w,profile.id,'2026-10-30')).toBe(100000n);
+ const count=w.ledgerEntries.length;
+ await run('updateExpenseProfile',update);w=await run('getWorkspace',{organizationId:org});expect(w.ledgerEntries).toHaveLength(count);
+ expect(w.expensePayments).toHaveLength(1);
+ const rows=w.ledgerEntries;
+ expect(rows.reduce((sum:bigint,row:any)=>sum+(row.side==='DEBIT'?1n:-1n)*BigInt(row.amountPaise),0n)).toBe(0n);
+ const withoutOpening={...update} as Record<string,unknown>;delete withoutOpening.openingBalancePaise;delete withoutOpening.openingBalanceDate;
+ await run('updateExpenseProfile',withoutOpening);expect((await run('getWorkspace',{organizationId:org})).expenseProfiles[0].openingBalancePaise).toBe('150000');
+ await expect(run('recordExpensePayment',{organizationId:org,profileId:profile.id,occurredAt:'2026-10-28',totalAmountPaise:'1',cashPaise:'1',bankPaise:'0'})).rejects.toThrow('INVALID_PAYMENT');
+});
+
+it('carries historical expense advances into future bills, preserves zero/legacy and rejects invalid or foreign openings',async()=>{
+ const {org,seller}=await fixture();
+ const category=await run('createExpenseCategory',{organizationId:org,name:'Other'});
+ const input={organizationId:org,categoryId:category.id,name:'Advance',usualAmountPaise:'0',scheduleType:'ONE_TIME'};
+ const before=JSON.stringify(state);
+ for(const extra of [{openingBalancePaise:'1.50',openingBalanceDate:'2026-10-29'},{openingBalancePaise:'1',openingBalanceDate:'2026-02-30'}]){
+  await expect(run('createExpenseProfile',{...input,...extra})).rejects.toThrow('INVALID_OPENING_BALANCE');expect(JSON.stringify(state)).toBe(before);
+ }
+ const p=await run('createExpenseProfile',{...input,openingBalancePaise:'-10000',openingBalanceDate:'2026-10-29'});
+ await run('recordExpenseBill',{organizationId:org,profileId:p.id,amountPaise:'25000',occurredAt:'2026-10-30'});
+ const {lotteryExpenseOutstanding}=await import('../../vendor/foundation-lottery/src/admin/models/lotteryAccountingExpenseBalance');
+ let w=await run('getWorkspace',{organizationId:org});expect(lotteryExpenseOutstanding(w,p.id,'2026-10-30')).toBe(15000n);
+ expect(w.summary.expensePaise).toBe('0');
+ await run('recordPayment',{organizationId:org,partyId:seller.id,direction:'RECEIPT',occurredAt:'2026-10-30',totalAmountPaise:'50000',methodSplit:{cashPaise:'50000'}});
+ await expect(run('recordExpensePayment',{organizationId:org,profileId:p.id,occurredAt:'2026-10-30',totalAmountPaise:'20000',cashPaise:'20000',bankPaise:'0'})).rejects.toThrow('INVALID_PAYMENT');
+ await run('updateExpenseProfile',{...input,profileId:p.id,openingBalancePaise:'0',openingBalanceDate:'2026-10-29'});
+ w=await run('getWorkspace',{organizationId:org});expect(lotteryExpenseOutstanding(w,p.id,'2026-10-30')).toBe(25000n);
+ const other=await run('createOrganization',{name:'Foreign'}),snapshot=JSON.stringify(state);
+ await expect(run('updateExpenseProfile',{...input,organizationId:other.id,profileId:p.id,openingBalancePaise:'100',openingBalanceDate:'2026-10-29'})).rejects.toThrow();expect(JSON.stringify(state)).toBe(snapshot);
+ const {saveExpenseOpening}=await import('./party-opening');
+ for(const profile of [null,{organizationId:'foreign'}])await expect(saveExpenseOpening({foundationAccountingExpenseProfile:{findUnique:async()=>profile}},'bad',{organizationId:org,openingBalancePaise:'1',openingBalanceDate:'2026-10-29'},owner)).rejects.toThrow('EXPENSE_PROFILE_NOT_FOUND');
+});
+
+it('accrues date-cycle salary only on active days, settles it separately and preserves immutable leave history',async()=>{
+ const {org,seller}=await fixture();
+ const c=await run('createExpenseCategory',{organizationId:org,name:'Salary'});
+ const schedule={kind:'SALARY',mode:'CALENDAR',start:'2026-10-01',amount:'310000',changes:[]};
+ const input={organizationId:org,categoryId:c.id,name:'Worker',usualAmountPaise:'310000',scheduleType:'MONTHLY',schedule};
+ const p=await run('createExpenseProfile',input);
+ const {changeWork}=await import('../expense-profiles/schedule');
+ const next=changeWork(changeWork(schedule as any,'2026-10-10',false),'2026-10-21',true);
+ await run('updateExpenseProfile',{...input,profileId:p.id,schedule:next});
+ const {lotteryExpenseOutstanding}=await import('../../vendor/foundation-lottery/src/admin/models/lotteryAccountingExpenseBalance');
+ let w=await run('getWorkspace',{organizationId:org});
+ expect(lotteryExpenseOutstanding(w,p.id,'2026-10-30')).toBe(200000n);
+ expect(w.summary.expensePaise).toBe('0');
+ await run('recordPayment',{organizationId:org,partyId:seller.id,direction:'RECEIPT',occurredAt:'2026-10-30',totalAmountPaise:'300000',methodSplit:{cashPaise:'300000'}});
+ await run('recordExpensePayment',{organizationId:org,profileId:p.id,occurredAt:'2026-10-30',totalAmountPaise:'100000',cashPaise:'100000',bankPaise:'0'});
+ w=await run('getWorkspace',{organizationId:org});
+ expect(lotteryExpenseOutstanding(w,p.id,'2026-10-30')).toBe(100000n);
+ expect(w.summary.expensePaise).toBe('100000');
+ const before=JSON.stringify(state);
+ await expect(run('updateExpenseProfile',{...input,profileId:p.id})).rejects.toThrow('WORK_HISTORY_IMMUTABLE');
+ expect(JSON.stringify(state)).toBe(before);
+ await expect(run('deleteExpenseCategory',{organizationId:org,categoryId:c.id})).rejects.toThrow('EXPENSE_CATEGORY_IN_USE');
+ const spare=await run('createExpenseCategory',{organizationId:org,name:'Spare'});
+ await run('deleteExpenseCategory',{organizationId:org,categoryId:spare.id});
+ expect((await run('getWorkspace',{organizationId:org})).expenseCategories.map((c:any)=>c.id)).not.toContain(spare.id);
+});

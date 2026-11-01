@@ -5,7 +5,7 @@ import { useLotteryLanguage } from "./language";
 import { rupeesToPaise } from "../../vendor/foundation-lottery/src/admin/models/lotteryAccountingMoney";
 export type OpeningForm = { amount: string; advance: boolean; date: string };
 export function partyOpeningForm(
-  party: LotteryParty | undefined,
+  party: Pick<LotteryParty, "openingBalancePaise" | "openingBalanceDate"> | undefined,
   today: string,
 ): OpeningForm {
   const amount = BigInt(party?.openingBalancePaise ?? "0");
@@ -32,14 +32,26 @@ export function PartyOpeningFields({
   value,
   onChange,
   stockist,
+  expense = false,
 }: Readonly<{
   value: OpeningForm;
   onChange: (value: OpeningForm) => void;
   stockist: boolean;
+  expense?: boolean;
 }>) {
   const language = useLotteryLanguage();
   const l = (bn: string, en: string, hi: string) =>
     inLanguage(language, bn, hi, en);
+  let dueLabel = l("পার্টির কাছে পাবেন", "Party owes you", "पार्टी से लेना है");
+  let advanceLabel = l("আগে পাওয়া অগ্রিম", "Advance received", "पहले मिला अग्रिम");
+  if (stockist) {
+    dueLabel = l("স্টকিস্টকে দেবেন", "You owe the stockist", "स्टॉकिस्ट को देना है");
+    advanceLabel = l("আগে দেওয়া অগ্রিম", "Advance paid", "पहले दिया अग्रिम");
+  }
+  if (expense) {
+    dueLabel = l("ওকে দেবেন / ও পাবেন", "You owe this person", "उसे देना है");
+    advanceLabel = l("আগে দিয়েছেন / ওর কাছে পাবেন", "Advance paid / recoverable", "पहले दिया / उससे लेना है");
+  }
   return (
     <fieldset className="lottery-opening">
       <legend>{l("আগের ব্যালেন্স", "Opening balance", "पुराना शेष")}</legend>
@@ -52,20 +64,8 @@ export function PartyOpeningFields({
             onChange({ ...value, advance: e.target.value === "advance" })
           }
         >
-          <option value="due">
-            {stockist
-              ? l(
-                  "স্টকিস্টকে দেবেন",
-                  "You owe the stockist",
-                  "स्टॉकिस्ट को देना है",
-                )
-              : l("পার্টির কাছে পাবেন", "Party owes you", "पार्टी से लेना है")}
-          </option>
-          <option value="advance">
-            {stockist
-              ? l("আগে দেওয়া অগ্রিম", "Advance paid", "पहले दिया अग्रिम")
-              : l("আগে পাওয়া অগ্রিম", "Advance received", "पहले मिला अग्रिम")}
-          </option>
+          <option value="due">{dueLabel}</option>
+          <option value="advance">{advanceLabel}</option>
         </select>
       </label>
       <div>

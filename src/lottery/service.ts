@@ -1,5 +1,6 @@
+import { saveExpenseSchedule } from "./expense-schedule.ts";
 import { scheduledTds, paymentOptions } from "./organization-rules.ts";
-import { savePartyOpening } from "./party-opening.ts";
+import { savePartyOpening, saveExpenseOpening } from "./party-opening.ts";
 import {
   createLotteryAccountingService,
   serialize,
@@ -66,6 +67,11 @@ export async function runLottery(
       return store.client.foundationAccountingParty.findUnique({
         where: { id: result.id },
       });
+    }
+    if (input.method === "createExpenseProfile" || input.method === "updateExpenseProfile") {
+      await saveExpenseOpening(store.client, result.id, input.payload, owner);
+      await saveExpenseSchedule(store.client, result.id, input.payload, owner);
+      return store.client.foundationAccountingExpenseProfile.findUnique({ where: { id: result.id } });
     }
     return result;
   });

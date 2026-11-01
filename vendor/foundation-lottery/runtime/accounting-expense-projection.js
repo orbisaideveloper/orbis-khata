@@ -1,3 +1,4 @@
+import { scheduledBills } from "../../../src/lottery/expense-schedule.ts";
 import { businessDateKey, businessDayRange } from "./accounting-business-date.js";
 
 function projectRecurringExpenseBills(profiles, bills, throughDay, voidedMonths = []) {
@@ -5,6 +6,10 @@ function projectRecurringExpenseBills(profiles, bills, throughDay, voidedMonths 
   const existing = new Set([...bills.filter((bill) => bill.billingMonth), ...voidedMonths]
     .map((bill) => `${bill.profileId}:${bill.billingMonth}`));
   for (const profile of profiles) {
+    if (profile.schedule) {
+      result.push(...scheduledBills(profile,throughDay).map(row=>({...row,amountPaise:BigInt(row.amountPaise),occurredAt:new Date(row.occurredAt+"T00:00:00+05:30")})));
+      continue;
+    }
     if (profile.scheduleType !== "MONTHLY" || !profile.recurringStartsAt ||
         BigInt(profile.usualAmountPaise || 0) <= 0n) continue;
     const startsOn = businessDateKey(profile.recurringStartsAt);

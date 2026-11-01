@@ -289,7 +289,7 @@ function summarizeLotteryAccounting({
   const stockistCommission = total(stockistEntries, "commissionPaise");
   const accruedExpense = total(expenseBills, "amountPaise");
   const paidExpense = total(expensePayments, "totalAmountPaise");
-  const expenseCost = expenses + accruedExpense;
+  const expenseCost = expenses + paidExpense;
   const outstanding = netPayable + customerGross - receipts;
   const operatingResult = grossSales + customerGross - purchaseGross +
     stockistCommission - commission - expenseCost;

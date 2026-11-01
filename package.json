@@ -15,7 +15,7 @@
     "quality:jscpd": "jscpd src --config .jscpd.json --fail-on-empty --exit-code 1",
     "test:e2e": "playwright test --config playwright.central.config.ts",
     "check": "npm test -- --run && npx oxlint",
-    "test:sql": "node scripts/verify-lottery-rows.mjs && node scripts/verify-production.mjs"
+    "test:sql": "node scripts/verify-lottery-rows.mjs && node scripts/verify-production.mjs && node scripts/verify-expense-profiles.mjs"
   },
   "dependencies": {
     "@fontsource/noto-sans-bengali": "5.3.0",

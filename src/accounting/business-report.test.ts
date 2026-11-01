@@ -12,3 +12,13 @@ it('allocates net purchase discounts and keeps rounding exact across several lin
 it('never invents profit when opening, production or oversold stock costs are unknown',()=>{const d=reportFixture();d.inventory.documents=[document('opening','opening',10,0),document('sell','sale',4,2000)];expect(businessReport(d,day,day)).toMatchObject({complete:false,missing:['Milk']});d.inventory.documents=[document('sell','sale',4,2000)];expect(businessReport(d,day,day).complete).toBe(false);d.inventory.documents=[];expect(businessReport(d,day,day).uncosted).toBe(1);});
 it('excludes edited/deleted bills and payments and counts only the final replacement',()=>{const d=reportFixture();d.trade.entries[1].reversed=true;d.trade.entries.push({...voucher('undo','sale','8000'),kind:'reversal',reverses_id:'sell'},voucher('new-sale','sale','6000'));d.inventory.documents[1].reversed=true;d.inventory.documents.push(document('new-sale','sale',3,2000));d.trade.entries[2].reversed=true;d.trade.entries.push({...voucher('undo-payment','payment','3000'),kind:'reversal',reverses_id:'paid'});const r=businessReport(d,day,day);expect(r.sales).toBe(6000n);expect(r.cost).toBe(3000n);expect(r.bills.filter(b=>b.kind==='sale')).toHaveLength(1);expect(r.paid).toBe(500n);});
 it('handles empty periods, ignored transfers and stock that becomes fully costed again',()=>{const d=reportFixture();expect(businessReport(d,'2026-11-01','2026-11-02').bills).toHaveLength(0);d.inventory.documents=[document('opening','opening',1,0),document('clear','sale',1,100),document('buy','purchase',10,1000),document('sell','sale',4,2000),{...document('transfer','opening',1,0),kind:'transfer'}];const r=costOfSales(d.inventory,'2026-10-30','2026-10-30');expect(r.missing).toEqual([]);});
+it('deducts only expense settlements in their payment period while preserving unpaid bill history',()=>{
+ const d=reportFixture();
+ d.expenses.entries=d.expenses.entries.map(e=>({...e,method:null}));
+ expect(businessReport(d,day,day).expense).toBe(0n);
+ const bill=d.expenses.entries[0];
+ d.expenses.entries.push({...bill,id:'late-pay',kind:'payment',method:'cash',effective_date:'2026-11-01',amount:'300'});
+ expect(businessReport(d,day,day).expense).toBe(0n);
+ expect(businessReport(d,'2026-11-01','2026-11-01').expense).toBe(300n);
+ expect(d.expenses.entries[0]).toMatchObject({id:"expense",amount:"500",method:null});
+});
