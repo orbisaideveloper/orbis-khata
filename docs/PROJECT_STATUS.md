@@ -1441,3 +1441,7 @@ See [SONAR-CORRECTIONS-20261017.md](SONAR-CORRECTIONS-20261017.md) for every rep
 - Standard Android/Termux khata wrapper cannot certify this cloud Linux path; the equivalent available Linux stages were executed directly in the prescribed order. No claim of an Android Downloads wrapper certificate.
 - Application changes do not alter ledger/cost formulas, database schema, Edge function or live records. SQL tests ran only in disposable PGlite fixtures; browser tests used controlled mock services. No manual deployment/migration or live financial writes.
 - Additional changed file: src/demo/LiveWorkspace.test.tsx (test-only calendar robustness). Exact next action: authorized main commit/push, then inspect exact-commit Actions and strict Sonar until green. Preserve any remotely configured deployment behavior; no manual Render action in this task.
+
+### 2026-11-01 — strict Sonar source cleanup
+- Commit 6d254c317eb5683d1947003609f35d87cb761c4e / run 41266395212 passed all preceding gates, browser suite and Sonar quality gate; strict zero-open-issue stage reported Production.tsx S3776 (component cognitive complexity 17/15) and S2681 (one-line guarded return needs braces).
+- Extracted the existing stock-placeholder calculation into a small helper and braced the duplicate-submit guard. No quantity, payload, retry or accounting behavior changes. Related production/cost tests 16/16 PASS; targeted lint/typecheck PASS. Next: push this small source cleanup under existing authorization and verify exact-commit remote CI; thresholds/exclusions unchanged.
