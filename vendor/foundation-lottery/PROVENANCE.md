@@ -91,3 +91,7 @@ TDS formulas remain unchanged. Quick details expose the existing commission inpu
 Expense profit now deducts actual expense payments in the selected period; accrued bills and signed opening balances remain account debt. This intentionally supersedes the earlier expense-accrual formula only. Stockist/seller/customer sales, commission, TDS, PWT and stock arithmetic remain unchanged.
 
 Expense profiles optionally carry the shared salary/bill schedule. Salary has dated, append-only unpaid stop/resume intervals and exact daily proration; bills have full calendar/date-cycle charges without salary controls. Legacy profiles and stored bills remain compatible. Scheduled profiles reject manual bill posting to avoid duplicate accrual. Used categories cannot be archived; category names reject duplicates. Real master-form integration, domain service and reconciliation tests cover these paths. No Foundation repository/database was changed.
+
+### 1 November 2026 — Cash/bank overdraft and combined PWD display
+
+Owner removes cash/bank funding limits for ordinary and expense payments and corrections; debt limits and split validation remain. PWD keeps its independent ledger and nonnegative spending policy, including a chronological guard against backdated reuse. The dashboard combined-money card includes PWD; cash-flow, TDS and profit formulas remain separate. Existing posted financial rows are not migrated or rewritten.

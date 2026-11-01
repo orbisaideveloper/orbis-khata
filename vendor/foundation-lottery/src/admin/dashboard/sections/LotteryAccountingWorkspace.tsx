@@ -1139,8 +1139,8 @@ function DashboardPanel({
   );
 
   const balances = moneyMethodBalances(workspace, bounds.to);
-  // Prize tokens reduce party dues but are not cash or bank money.
-  const totalMoney = balances.cashPaise+balances.bankPaise+balances.upiPaise+balances.chequePaise;
+  // Total usable balances include PWD; its separate ledger retains the token balance.
+  const totalMoney = balances.cashPaise+balances.bankPaise+balances.upiPaise+balances.chequePaise+balances.pwtPaise;
 
   const purchased = purchases.reduce(
     (total, entry) => total + BigInt(entry.netPurchaseQuantity),

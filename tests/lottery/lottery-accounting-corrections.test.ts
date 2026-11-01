@@ -159,7 +159,7 @@ function createMock() {
 }
 
 describe("Accounting correction contract", () => {
-  it("does not use a cleared receipt as funds for an outgoing correction", async () => {
+  it("allows cash correction after receipt clearance without requiring funds", async () => {
     const prisma = createMock();
     prisma.state.clearances.push({ organizationId: "org-1", scope: "PAYMENT",
       occurredAt: new Date(CORRECTION_DATE), createdAt: new Date("2026-09-02T00:00:00.000Z") });
@@ -170,11 +170,11 @@ describe("Accounting correction contract", () => {
     await expect(service.correctAccountingTransaction({ organizationId: "org-1", entityType: "PAYMENT",
       entityId: "out", expectedVersion: 0, operationId: "cleared-funds",
       replacement: { totalAmountPaise: "2000", methodSplit: { cashPaise: "2000" } } }, "admin"))
-      .rejects.toMatchObject({ code: "INVALID_PAYMENT" });
-    expect(prisma.state.corrections).toHaveLength(0);
+      .resolves.toMatchObject({version:1});
+    expect(prisma.state.corrections).toHaveLength(1);
   });
 
-  it("does not fund an outgoing correction with money already spent on expenses", async () => {
+  it("allows cash correction after expenses without rewriting old entries", async () => {
     const prisma = createMock();
     prisma.state.expensePayments.push({ id: "cash-spent", organizationId: "org-1", profileId: "profile-1",
       cashPaise: 8000n, bankPaise: 0n, totalAmountPaise: 8000n, occurredAt: new Date(CORRECTION_DATE) });
@@ -186,11 +186,11 @@ describe("Accounting correction contract", () => {
       expectedVersion: 0, operationId: "out-expense-balance" };
     await expect(service.correctAccountingTransaction({ ...input,
       replacement: { totalAmountPaise: "3000", methodSplit: { cashPaise: "3000" } } }, "admin"))
-      .rejects.toMatchObject({ code: "INVALID_PAYMENT" });
-    expect(prisma.state.corrections).toHaveLength(0);
-    await expect(service.correctAccountingTransaction({ ...input,
+      .resolves.toMatchObject({version:1});
+    expect(prisma.state.corrections).toHaveLength(1);
+    await expect(service.correctAccountingTransaction({ ...input,expectedVersion:1,operationId:"out-expense-balance-2",
       replacement: { totalAmountPaise: "2000", methodSplit: { cashPaise: "2000" } } }, "admin"))
-      .resolves.toMatchObject({ version: 1 });
+      .resolves.toMatchObject({ version: 2 });
   });
 
   it("corrects a customer bill append-only with balanced reversal/replacement and stock compensation", async () => {

@@ -36,6 +36,12 @@ function activeDays(s: ExpenseSchedule, first: string, last: string): number {
   }
   return count;
 }
+function accruedPeriod(s:ExpenseSchedule,from:string,next:string,through:string):SchedulePeriod {
+ const to=shiftDay(next,-1),days=Math.round((Date.parse(next)-Date.parse(from))/dayMs);
+ const worked=activeDays(s,from,to<through?to:through);
+ const amount=s.kind==='BILL'?BigInt(s.amount):(BigInt(s.amount)*BigInt(worked)+BigInt(Math.floor(days/2)))/BigInt(days);
+ return {from:from<s.start?s.start:from,to,days,worked,amount:amount.toString()};
+}
 export function schedulePeriods(s: ExpenseSchedule, through: string): SchedulePeriod[] {
   if (!validSchedule(s) || !validDay(through)) throw new Error('INVALID_EXPENSE_SCHEDULE');
   if (through<s.start) return [];
@@ -45,11 +51,7 @@ export function schedulePeriods(s: ExpenseSchedule, through: string): SchedulePe
   for(let n=0;n<1200;n++) {
     const from=monthDay(year,month+n,anchor), next=monthDay(year,month+n+1,anchor), to=shiftDay(next,-1);
     if(from>through) return periods;
-    const days=Math.round((Date.parse(next)-Date.parse(from))/dayMs);
-    const last=to<through?to:through;
-    const worked=activeDays(s,from,last);
-    const amount=s.kind==='BILL'?BigInt(s.amount):(BigInt(s.amount)*BigInt(worked)+BigInt(Math.floor(days/2)))/BigInt(days);
-    if(last>=s.start) periods.push({from:from<s.start?s.start:from,to,days,worked,amount:amount.toString()});
+    periods.push(accruedPeriod(s,from,next,through));
     if(to>=through) return periods;
   }
   throw new Error('SCHEDULE_RANGE_TOO_LONG');

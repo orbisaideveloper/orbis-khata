@@ -139,3 +139,28 @@ it('accrues date-cycle salary only on active days, settles it separately and pre
  await run('deleteExpenseCategory',{organizationId:org,categoryId:spare.id});
  expect((await run('getWorkspace',{organizationId:org})).expenseCategories.map((c:any)=>c.id)).not.toContain(spare.id);
 });
+
+it('allows negative cash/bank, spends PWD, and never overdraws PWD or rewrites the original receipts',async()=>{
+ const {org,seller,stockist}=await fixture();
+ await run('recordPayment',{organizationId:org,partyId:seller.id,direction:'RECEIPT',occurredAt:'2026-10-29',totalAmountPaise:'3222400',methodSplit:{cashPaise:'1255100',bankPaise:'867300',pwtPaise:'1100000'}});
+ const before=await run('getWorkspace',{organizationId:org}),receipt=structuredClone(before.payments[0]);
+ await run('recordPayment',{organizationId:org,partyId:stockist.id,direction:'PAYMENT',occurredAt:'2026-10-30',totalAmountPaise:'2831000',methodSplit:{cashPaise:'1261000',bankPaise:'470000',pwtPaise:'1100000'}});
+ let w=await run('getWorkspace',{organizationId:org});
+ expect(w.summary.methodBalances).toMatchObject({cashPaise:'-5900',bankPaise:'397300',pwtPaise:'0'});
+ expect(w.payments.find((p:any)=>p.id===receipt.id)).toEqual(receipt);
+ await run('recordPayment',{organizationId:org,partyId:stockist.id,direction:'PAYMENT',occurredAt:'2026-10-30',totalAmountPaise:'500000',methodSplit:{bankPaise:'500000'}});
+ w=await run('getWorkspace',{organizationId:org});expect(w.summary.methodBalances.bankPaise).toBe('-102700');
+ const snapshot=JSON.stringify(state);
+ await expect(run('recordPayment',{organizationId:org,partyId:stockist.id,direction:'PAYMENT',occurredAt:'2026-10-30',totalAmountPaise:'1',methodSplit:{pwtPaise:'1'}})).rejects.toThrow('INVALID_PAYMENT');
+ // A backdated second PWD spend cannot consume tokens already committed on the next day.
+ await expect(run('recordPayment',{organizationId:org,partyId:stockist.id,direction:'PAYMENT',occurredAt:'2026-10-29',totalAmountPaise:'1',methodSplit:{pwtPaise:'1'}})).rejects.toThrow('INVALID_PAYMENT');
+ await expect(run('correctAccountingTransaction',{organizationId:org,entityType:'PAYMENT',entityId:receipt.id,expectedVersion:0,operationId:'pwd-receipt-correction',replacement:{totalAmountPaise:'3222399',methodSplit:{cashPaise:'1255100',bankPaise:'867300',pwtPaise:'1099999'}}})).rejects.toThrow('INVALID_PAYMENT');
+ expect(JSON.stringify(state)).toBe(snapshot);
+});
+it('permits expense cash/bank overdrafts while retaining the unpaid-profile limit',async()=>{
+ const {org}=await fixture(),c=await run('createExpenseCategory',{organizationId:org,name:'Bills'});
+ const p=await run('createExpenseProfile',{organizationId:org,categoryId:c.id,name:'Payee',usualAmountPaise:'0',scheduleType:'ONE_TIME',openingBalancePaise:'30000',openingBalanceDate:'2026-10-29'});
+ await run('recordExpensePayment',{organizationId:org,profileId:p.id,occurredAt:'2026-10-30',totalAmountPaise:'20000',cashPaise:'10000',bankPaise:'10000'});
+ const w=await run('getWorkspace',{organizationId:org});expect(w.summary.methodBalances).toMatchObject({cashPaise:'-10000',bankPaise:'-10000'});
+ await expect(run('recordExpensePayment',{organizationId:org,profileId:p.id,occurredAt:'2026-10-30',totalAmountPaise:'10001',cashPaise:'10001',bankPaise:'0'})).rejects.toThrow('INVALID_PAYMENT');
+});

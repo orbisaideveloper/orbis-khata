@@ -24,5 +24,21 @@ function visiblePaymentRows(payments, clearances) {
     new Date(payment.updatedAt || payment.createdAt || 0) <= new Date(clearance.createdAt)));
 }
 
-export { paymentMethodBalance, accountingMoneyBalances, visiblePaymentRows };
+function nonnegativePwt(payments) {
+  const days = new Map();
+  for (const payment of payments) {
+    const day = businessDateKey(payment.occurredAt);
+    const amount = BigInt(payment.methodSplit?.pwtPaise || 0);
+    const signed = payment.direction === "RECEIPT" ? amount : -amount;
+    days.set(day, (days.get(day) || 0n) + signed);
+  }
+  let balance = 0n;
+  for (const [, amount] of [...days].sort(([a], [b]) => a.localeCompare(b))) {
+    balance += amount;
+    if (balance < 0n) return false;
+  }
+  return true;
+}
+
+export { nonnegativePwt, paymentMethodBalance, accountingMoneyBalances, visiblePaymentRows };
 

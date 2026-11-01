@@ -307,7 +307,7 @@ const sale = {
 };
 
 describe("Lottery Accounting Service", () => {
-  it("deducts corrected expenses and uses corrected receipts for new cash payments", async () => {
+  it("allows cash overdrafts while preserving corrected receipts and expenses", async () => {
     const prisma = createPrismaMock();
     const date = new Date("2026-09-01T12:00:00.000Z");
     prisma.state.payments.push({ id: "in", organizationId: "org-1", partyId: "party-1",
@@ -324,11 +324,11 @@ describe("Lottery Accounting Service", () => {
     const service = createLotteryAccountingService({ prisma });
     const outgoing = { organizationId: "org-1", partyId: "party-1", direction: "PAYMENT", occurredAt: "2026-09-01" };
     await expect(service.recordPayment({ ...outgoing, totalAmountPaise: "70000",
-      methodSplit: { cashPaise: "70000" } }, "admin")).rejects.toMatchObject({ code: "INVALID_PAYMENT" });
+      methodSplit: { cashPaise: "70000" } }, "admin")).resolves.toMatchObject({verifiedPayment:{totalAmountPaise:"70000"}});
     const posted = await service.recordPayment({ ...outgoing, totalAmountPaise: "60000",
       methodSplit: { cashPaise: "60000" } }, "admin");
     expect(posted.verifiedPayment.totalAmountPaise).toBe("60000");
-    expect(prisma.state.payments).toHaveLength(2);
+    expect(prisma.state.payments).toHaveLength(3);
   });
 
   it("reduces a 5000 seller due by a 600 PWT receipt without cash or TDS", async () => {

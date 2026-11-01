@@ -55,3 +55,12 @@ it('saves expense opening through the actual master form, restores it, and cance
  expect(workspace.summary).toMatchObject({operatingResultPaise:'0',expensePaise:'0',netCashFlowPaise:'0'});
  expect(workspace.expenseBills).toEqual([]);expect(workspace.expensePayments).toEqual([]);
 });
+it('includes PWD alongside cash and bank in the dashboard total without merging its ledger',async()=>{
+ const org=await execute('createOrganization',{name:'Funds fixture'});
+ const seller=await execute('createParty',{organizationId:org.id,name:'Synthetic seller',partyType:'SELLER',ticketRatePaise:'1000'});
+ await execute('recordPayment',{organizationId:org.id,partyId:seller.id,direction:'RECEIPT',occurredAt:'2026-10-29',totalAmountPaise:'3222400',methodSplit:{cashPaise:'1255100',bankPaise:'867300',pwtPaise:'1100000'}});
+ const api={listOrganizations:()=>execute('listOrganizations'),loadWorkspace:(organizationId:string)=>execute('getWorkspace',{organizationId})} as unknown as LotteryAccountingClient;
+ render(<LotteryAccountingWorkspace api={api} localStore={null} localScope={{ownerKind:'PUBLIC_USER',ownerId:owner}}/>);
+ expect(await screen.findByText('₹32,224.00')).toBeInTheDocument();
+ const w=await execute('getWorkspace',{organizationId:org.id});expect(w.summary.pwtBalancePaise).toBe('1100000');expect(w.summary.netCashFlowPaise).toBe('2122400');
+});

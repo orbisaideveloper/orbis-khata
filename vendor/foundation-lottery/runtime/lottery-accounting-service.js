@@ -1,6 +1,6 @@
 import { lotteryOpening } from "../../../src/lottery/opening-balance.ts";
 import {tdsRateOn} from "../../../src/lottery/organization-rules.ts";
-import { paymentMethodBalance } from "./accounting-money-balances.js";
+import { paymentMethodBalance, nonnegativePwt } from "./accounting-money-balances.js";
 import { projectRecurringExpenseBills } from "./accounting-expense-projection.js";
 import { businessDateKey, businessDayRange } from "./accounting-business-date.js";
 import {
@@ -1085,10 +1085,10 @@ function createLotteryAccountingService({ prisma, now = () => new Date() }) {
   async function effectivePaymentBooks(client, organizationId, occurredAtFilter) {
     const [payments, expensePayments, corrections, clearances] = await Promise.all([
       client.foundationLotteryPayment.findMany({ where: {
-        organizationId, status: "POSTED", occurredAt: occurredAtFilter,
+        organizationId, status: "POSTED", ...(occurredAtFilter ? { occurredAt: occurredAtFilter } : {}),
       } }),
       client.foundationAccountingExpensePayment.findMany({ where: {
-        organizationId, occurredAt: occurredAtFilter,
+        organizationId, ...(occurredAtFilter ? { occurredAt: occurredAtFilter } : {}),
       } }),
       client.foundationAccountingCorrection.findMany({ where: { organizationId } }),
       client.foundationLotteryEntryClearance.findMany({ where: { organizationId } }),
@@ -1138,15 +1138,6 @@ function createLotteryAccountingService({ prisma, now = () => new Date() }) {
       if (totalAmountPaise > lotteryOpening(expenseProfile, businessDateKey(occurredAt)) + billed - alreadyPaid) {
         throw accountingError("INVALID_PAYMENT", "totalAmountPaise");
       }
-      const availableCash = paymentMethodBalance(books.payments, "cashPaise", books.expensePayments);
-      const availableBank = paymentMethodBalance(books.payments, "bankPaise", books.expensePayments);
-      if (cashPaise > 0n && cashPaise > availableCash) {
-        throw accountingError("INVALID_PAYMENT", "cashPaise");
-      }
-      if (bankPaise > 0n && bankPaise > availableBank) {
-        throw accountingError("INVALID_PAYMENT", "bankPaise");
-      }
-
       const reference = await nextReference(client, {
         organizationId,
         occurredAt,
@@ -2392,7 +2383,7 @@ function createLotteryAccountingService({ prisma, now = () => new Date() }) {
         );
         for (const method of PAYMENT_METHOD_FIELDS) {
           const requested = BigInt(payment.methodSplit[method] || 0);
-          if (requested === 0n) continue;
+          if (requested === 0n || method === "cashPaise" || method === "bankPaise") continue;
           const available = paymentMethodBalance(books.payments, method, books.expensePayments);
           if (requested > available) {
             throw accountingError(
@@ -2400,6 +2391,12 @@ function createLotteryAccountingService({ prisma, now = () => new Date() }) {
               `methodSplit.${method}`,
             );
           }
+        }
+      }
+      if (BigInt(payment.methodSplit.pwtPaise || 0) > 0n) {
+        const allBooks = await effectivePaymentBooks(client, organizationId);
+        if (!nonnegativePwt([...allBooks.payments, { ...payment, occurredAt }])) {
+          throw accountingError("INVALID_PAYMENT", "methodSplit.pwtPaise");
         }
       }
       const resolvedReference = await nextReference(client, {

@@ -27,37 +27,49 @@ export function profileBalance(state:ProfileState,profile:ExpenseProfile,date:st
  return (profile.openingDate<=date?BigInt(profile.opening):0n)+scheduledAmount(profile.schedule,date)-state.payments.filter(p=>p.profileId===profile.id&&(!p.voided||(p.voidDate!==undefined&&p.voidDate>date))&&p.date<=date).reduce((n,p)=>n+BigInt(p.amount),0n);
 }
 const profileError=(message:string)=>Object.assign(new Error(message),{code:"P0001"});
-export async function runProfiles(state:ProfileState,command:ProfileCommand,post:(p:Record<string,unknown>)=>Promise<unknown>) {
+type Post=(payment:Record<string,unknown>)=>Promise<unknown>;
+function saveCategory(next:ProfileState,command:ProfileCommand) {
+ const normalize=(name:string)=>name.normalize('NFKC').trim().toLocaleLowerCase();
+ if(next.categories.some(c=>c.id!==command.id&&normalize(c.name)===normalize(command.name!)))throw profileError('CATEGORY_ALREADY_EXISTS');
+ const category=next.categories.find(c=>c.id===command.id);
+ if(category){category.name=command.name!.trim();}
+ else {next.categories.push({id:command.id!,name:command.name!.trim()});}
+}
+function removeCategory(next:ProfileState,id:string) {
+ if(next.profiles.some(p=>p.categoryId===id))throw profileError('EXPENSE_CATEGORY_IN_USE');
+ next.categories=next.categories.filter(c=>c.id!==id);
+}
+function saveProfile(next:ProfileState,profile:ExpenseProfile) {
+ if(!next.categories.some(c=>c.id===profile.categoryId))throw profileError('EXPENSE_CATEGORY_NOT_FOUND');
+ const index=next.profiles.findIndex(p=>p.id===profile.id),old=next.profiles[index];
+ if(!old){next.profiles.push(profile);return;}
+ if(old.schedule.changes.some((change,i)=>JSON.stringify(change)!==JSON.stringify(profile.schedule.changes[i])))throw profileError('WORK_HISTORY_IMMUTABLE');
+ const locked=old.schedule.changes.length>0||next.payments.some(p=>p.profileId===profile.id);
+ if(locked&&['kind','mode','start','amount'].some(key=>old.schedule[key as keyof ExpenseSchedule]!==profile.schedule[key as keyof ExpenseSchedule]))throw profileError('SCHEDULE_HISTORY_LOCKED');
+ next.profiles[index]=profile;
+}
+async function savePayment(next:ProfileState,command:ProfileCommand,post:Post) {
+ const payment=command.payment!,profile=next.profiles.find(p=>p.id===payment.profileId);
+ if(next.payments.some(p=>p.id===payment.id))throw profileError('PROFILE_PAYMENT_ALREADY_EXISTS');
+ if(!profile||BigInt(payment.amount)>profileBalance(next,profile,payment.date))throw profileError('INVALID_PROFILE_PAYMENT');
+ const category=next.categories.find(c=>c.id===profile.categoryId)!;
+ await post({id:payment.id,company:command.company,date:payment.date,kind:'charge',amount:payment.amount,category:category.name,payee:profile.name,method:payment.method,parent:null,reference:'',note:'Scheduled account payment'});
+ next.payments.push(payment);
+}
+async function voidPayment(next:ProfileState,command:ProfileCommand,post:Post) {
+ const payment=next.payments.find(p=>p.id===command.id&&!p.voided);
+ if(!payment)throw profileError('PROFILE_PAYMENT_NOT_FOUND');
+ await post({id:crypto.randomUUID(),company:command.company,date:command.date,kind:'reversal',amount:payment.amount,category:'',payee:'',method:null,parent:payment.id,reference:'',note:'Scheduled account payment cancelled'});
+ payment.voided=true;payment.voidDate=command.date;
+}
+export async function runProfiles(state:ProfileState,command:ProfileCommand,post:Post) {
  const next=structuredClone(state);
- const duplicate=(id:string,name:string)=>next.categories.some(c=>c.id!==id&&c.name.normalize('NFKC').trim().toLocaleLowerCase()===name.normalize('NFKC').trim().toLocaleLowerCase());
- if(command.action==='list')return next;
- if(command.action==='category') {
-  if(duplicate(command.id!,command.name!))throw profileError('CATEGORY_ALREADY_EXISTS');
-  const category=next.categories.find(c=>c.id===command.id);if(category)category.name=command.name!.trim();else next.categories.push({id:command.id!,name:command.name!.trim()});
- } else if(command.action==='category-delete') {
-  if(next.profiles.some(p=>p.categoryId===command.id))throw profileError('EXPENSE_CATEGORY_IN_USE');
-  next.categories=next.categories.filter(c=>c.id!==command.id);
- } else if(command.action==='save') {
-  const profile=command.profile!;
-  if(!next.categories.some(c=>c.id===profile.categoryId))throw profileError('EXPENSE_CATEGORY_NOT_FOUND');
-  const index=next.profiles.findIndex(p=>p.id===profile.id),old=next.profiles[index];
-  if(old) {
-   if(old.schedule.changes.some((change,i)=>JSON.stringify(change)!==JSON.stringify(profile.schedule.changes[i])))throw profileError('WORK_HISTORY_IMMUTABLE');
-   if((old.schedule.changes.length||next.payments.some(p=>p.profileId===profile.id))&&['kind','mode','start','amount'].some(key=>old.schedule[key as keyof ExpenseSchedule]!==profile.schedule[key as keyof ExpenseSchedule]))throw profileError('SCHEDULE_HISTORY_LOCKED');
-   next.profiles[index]=profile;
-  }else next.profiles.push(profile);
- } else if(command.action==='pay') {
-  const payment=command.payment!,profile=next.profiles.find(p=>p.id===payment.profileId);
-  if(next.payments.some(p=>p.id===payment.id))throw profileError("PROFILE_PAYMENT_ALREADY_EXISTS");
-  if(!profile||BigInt(payment.amount)>profileBalance(next,profile,payment.date))throw profileError('INVALID_PROFILE_PAYMENT');
-  const category=next.categories.find(c=>c.id===profile.categoryId)!;
-  await post({id:payment.id,company:command.company,date:payment.date,kind:'charge',amount:payment.amount,category:category.name,payee:profile.name,method:payment.method,parent:null,reference:'',note:'Scheduled account payment'});
-  next.payments.push(payment);
- } else if(command.action==='void') {
-  const payment=next.payments.find(p=>p.id===command.id&&!p.voided);
-  if(!payment)throw profileError('PROFILE_PAYMENT_NOT_FOUND');
-  await post({id:crypto.randomUUID(),company:command.company,date:command.date,kind:'reversal',amount:payment.amount,category:'',payee:'',method:null,parent:payment.id,reference:'',note:'Scheduled account payment cancelled'});
-  payment.voided=true;payment.voidDate=command.date;
+ switch(command.action) {
+  case 'category':saveCategory(next,command);break;
+  case 'category-delete':removeCategory(next,command.id!);break;
+  case 'save':saveProfile(next,command.profile!);break;
+  case 'pay':await savePayment(next,command,post);break;
+  case 'void':await voidPayment(next,command,post);break;
  }
  return next;
 }

@@ -1,6 +1,6 @@
 "use strict";
 
-import { paymentMethodBalance, visiblePaymentRows } from "./accounting-money-balances.js";
+import { paymentMethodBalance, visiblePaymentRows, nonnegativePwt } from "./accounting-money-balances.js";
 import { businessDateKey, businessDayRange } from "./accounting-business-date.js";
 
 import { createHash, randomUUID } from "node:crypto";
@@ -439,7 +439,7 @@ async function normalizeExpensePayment(
     );
   }
 
-  const [bills, expensePayments, lotteryPayments, corrections, clearances] =
+  const [bills, expensePayments, corrections] =
     await Promise.all([
       client.foundationAccountingExpenseBill.findMany({
         where: { organizationId, profileId: original.profileId },
@@ -447,11 +447,7 @@ async function normalizeExpensePayment(
       client.foundationAccountingExpensePayment.findMany({
         where: { organizationId, profileId: original.profileId },
       }),
-      client.foundationLotteryPayment.findMany({
-        where: { organizationId, status: "POSTED" },
-      }),
       client.foundationAccountingCorrection.findMany({ where: { organizationId } }),
-      client.foundationLotteryEntryClearance.findMany({ where: { organizationId } }),
     ]);
 
   const occurredAt = new Date(original.occurredAt);
@@ -483,41 +479,6 @@ async function normalizeExpensePayment(
       "INVALID_PAYMENT",
       TOTAL_AMOUNT_FIELD,
     );
-  }
-
-  const effectiveLotteryPayments = visiblePaymentRows(projectAccountingRows(
-    lotteryPayments,
-    corrections,
-    "PAYMENT",
-  ), clearances).filter((payment) => new Date(payment.occurredAt) < businessDayRange(occurredAt).endsAt);
-  const allOtherExpensePayments = projectAccountingRows(
-    await client.foundationAccountingExpensePayment.findMany({
-      where: { organizationId },
-    }),
-    corrections,
-    "EXPENSE_PAYMENT",
-  ).filter(
-    (payment) =>
-      payment.id !== original.id &&
-      new Date(payment.occurredAt) < businessDayRange(occurredAt).endsAt,
-  );
-  const availableCash =
-    paymentMethodBalance(effectiveLotteryPayments, "cashPaise") -
-    allOtherExpensePayments.reduce(
-      (total, payment) => total + BigInt(payment.cashPaise),
-      0n,
-    );
-  const availableBank =
-    paymentMethodBalance(effectiveLotteryPayments, "bankPaise") -
-    allOtherExpensePayments.reduce(
-      (total, payment) => total + BigInt(payment.bankPaise),
-      0n,
-    );
-  if (cashPaise > availableCash) {
-    throw correctionError("INVALID_PAYMENT", "replacement.cashPaise");
-  }
-  if (bankPaise > availableBank) {
-    throw correctionError("INVALID_PAYMENT", "replacement.bankPaise");
   }
 
   return serialize({ totalAmountPaise, cashPaise, bankPaise });
@@ -576,7 +537,8 @@ async function normalizePayment(
 
   await assertPaymentHasNoSettlements(client, organizationId, original.id);
 
-  if (original.direction !== "RECEIPT") {
+  const changesPwt=BigInt(previous.methodSplit?.pwtPaise || 0)>0n||BigInt(methodSplit.pwtPaise || 0)>0n;
+  if (original.direction !== "RECEIPT" || changesPwt) {
     const postedPaymentsQuery =
       client.foundationLotteryPayment.findMany({
         where: { organizationId, status: "POSTED" },
@@ -592,20 +554,25 @@ async function normalizePayment(
       client.foundationLotteryEntryClearance.findMany({ where: { organizationId } }),
     ]);
     const occurredAt = new Date(original.occurredAt);
-    const otherEffective = visiblePaymentRows(projectAccountingRows(
+    const allEffective = visiblePaymentRows(projectAccountingRows(
       payments,
       corrections,
       "PAYMENT",
-    ), clearances).filter(
+    ), clearances);
+    const otherEffective = allEffective.filter(
       (payment) =>
         payment.id !== original.id &&
         new Date(payment.occurredAt) < businessDayRange(occurredAt).endsAt,
     );
     const otherExpenses = projectAccountingRows(expensePayments, corrections, "EXPENSE_PAYMENT")
       .filter((payment) => new Date(payment.occurredAt) < businessDayRange(occurredAt).endsAt);
+    const candidate = { ...original, totalAmountPaise, methodSplit };
+    if (!nonnegativePwt([...allEffective.filter(row => row.id !== original.id), candidate])) {
+      throw correctionError("INVALID_PAYMENT", "replacement.methodSplit.pwtPaise");
+    }
     for (const field of PAYMENT_METHOD_FIELDS) {
       const requested = BigInt(methodSplit[field] || 0);
-      if (requested === 0n) continue;
+      if (original.direction === "RECEIPT" || requested === 0n || field === "cashPaise" || field === "bankPaise") continue;
       const available = paymentMethodBalance(otherEffective, field, otherExpenses);
       if (requested > available) {
         throw correctionError(

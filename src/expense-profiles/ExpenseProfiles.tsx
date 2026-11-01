@@ -5,6 +5,7 @@ import {requestKhata,rejected} from '../accounting/api';
 import {minor,money,today} from '../accounting/model';
 import {ScheduleFields,WorkSwitch} from './ScheduleFields';
 import {billError} from '../accounting/business-error';
+import {textValue} from '../text-value';
 import {changeWork,validSchedule} from './schedule';
 import {profileBalance,profileCommand,type ExpenseProfile,type ProfileCommand,type ProfileState} from './model';
 type Request=<T>(operation:string,input:unknown)=>Promise<T>;
@@ -17,7 +18,7 @@ export default function ExpenseProfiles({userId,company,language,gateway=request
  const l=(bn:string,hi:string,en:string)=>inLanguage(language,bn,hi,en);
  const [data,setData]=useState<ProfileState|null>(null),[draft,setDraft]=useState<Draft|null>(null),[selected,setSelected]=useState(''),[message,setMessage]=useState(''),[busy,setBusy]=useState(false),[attempt,setAttempt]=useState(0);
  const key=`orbis.expense-profiles.pending.v1:${userId}:${company}`;
- const [pending,setPending]=useState<ProfileCommand|null>(()=>{try {const p=JSON.parse(sessionStorage.getItem(key)??'null');return p&&p.company===company&&profileCommand(p)?p:null;}catch{return null;}});
+ const [pending,setPending]=useState<ProfileCommand|null>(()=>{try {const p=JSON.parse(sessionStorage.getItem(key)??'null');return p?.company===company&&profileCommand(p)?p:null;}catch{return null;}});
  const running=useRef(false);
  useEffect(()=>{let active=true;setData(null);void gateway<ProfileState>('expense-profiles',{company,action:'list'}).then(value=>{if(active)setData(value);},()=>{if(active)setMessage(l('তথ্য লোড হয়নি। আবার চেষ্টা করুন।','जानकारी नहीं मिली। फिर कोशिश करें।','Could not load accounts. Retry.'));});return()=>{active=false;};},[company,gateway,attempt]);
  useEffect(()=>{onLock(Boolean(pending)||busy);return()=>onLock(false);},[pending,busy,onLock]);
@@ -34,7 +35,7 @@ export default function ExpenseProfiles({userId,company,language,gateway=request
  }
  function confirmTwice(question:string){return window.confirm(question)&&window.confirm(l('নিশ্চিত করুন। পুরোনো ইতিহাস থাকবে।','पुष्टि करें। पुराना इतिहास सुरक्षित रहेगा।','Confirm. Existing history will be retained.'));}
  const mutate=(command:Omit<ProfileCommand,'company'|'operationId'>)=>void send({...command,company,operationId:crypto.randomUUID()});
- function save(event:React.FormEvent<HTMLFormElement>) {
+ function save(event:React.SubmitEvent<HTMLFormElement>) {
   event.preventDefault();if(!draft||!data)return;
   const amount=amountInput(draft.amount),opening=amountInput(draft.opening,true);
   if(amount===null||BigInt(amount)<=0n||opening===null){setMessage(l('টাকার পরিমাণ পরীক্ষা করুন।','राशि जाँचें।','Check the amount.'));return;}
@@ -44,12 +45,20 @@ export default function ExpenseProfiles({userId,company,language,gateway=request
   if(previous&&JSON.stringify(previous)!==JSON.stringify(profile)&&!confirmTwice(l('এই প্রোফাইলের সংশোধন সেভ করবেন?','इस खाते का सुधार सहेजें?','Save this account correction?')))return;
   mutate({action:'save',id:crypto.randomUUID(),profile});
  }
+ function pay(event:React.SubmitEvent<HTMLFormElement>,profile:ExpenseProfile) {
+  event.preventDefault();
+  const f=new FormData(event.currentTarget),amount=amountInput(textValue(f.get('amount')));
+  if(amount===null||BigInt(amount)<=0n){return;}
+  if(confirmTwice(l('পেমেন্ট সেভ করবেন?','भुगतान सहेजें?','Save payment?'))) {
+   mutate({action:'pay',payment:{id:crypto.randomUUID(),profileId:profile.id,date:textValue(f.get('date')),amount,method:textValue(f.get('method')) as 'cash'|'bank'}});
+  }
+ }
  const current=data?.profiles.find(p=>p.id===selected);
  return <section className="books-card" aria-label={l('বেতন ও বিল','वेतन और बिल','Salary and bills')}>
   <div className="expense-profile-toolbar"><button type="button" disabled={busy||Boolean(pending)} onClick={onBack}>← {l('ফিরুন','वापस','Back')}</button><h2>{l('বেতন ও বিল','वेतन और बिल','Salary and bills')}</h2></div>
   {message&&<output aria-live="polite">{message}</output>}
   {!data&&!pending&&<button type="button" onClick={()=>setAttempt(n=>n+1)}>{l('আবার চেষ্টা','फिर कोशिश','Retry')}</button>}
-  {pending&&<div role="status"><p>{l('আগের সেভটি আগে নিশ্চিত করুন।','पहले पिछला सहेजना पूरा करें।','Resolve the previous save first.')}</p><button type="button" disabled={busy} onClick={()=>void send(pending)}>{l('একই এন্ট্রি আবার পাঠান','यही प्रविष्टि फिर भेजें','Retry same entry')}</button></div>}
+  {pending&&<div><output>{l('আগের সেভটি আগে নিশ্চিত করুন।','पहले पिछला सहेजना पूरा करें।','Resolve the previous save first.')}</output><button type="button" disabled={busy} onClick={()=>void send(pending)}>{l('একই এন্ট্রি আবার পাঠান','यही प्रविष्टि फिर भेजें','Retry same entry')}</button></div>}
   {data&&!pending&&<>
    <div className="expense-profile-toolbar">
     <button type="button" disabled={busy||blocked} onClick={()=>{const name=window.prompt(l('ক্যাটাগরির নাম','श्रेणी का नाम','Category name'));if(name?.trim())mutate({action:'category',id:crypto.randomUUID(),name:name.trim()});}}>＋ {l('ক্যাটাগরি','श्रेणी','Category')}</button>
@@ -73,7 +82,7 @@ export default function ExpenseProfiles({userId,company,language,gateway=request
     <div className="expense-profile-summary"><strong>{current.name}</strong><strong>{money(profileBalance(data,current,today()).toString())}</strong></div>
     <div className="expense-profile-toolbar"><button type="button" onClick={()=>setSelected('')}>← {l('তালিকা','सूची','List')}</button><button type="button" disabled={busy||blocked} onClick={()=>setDraft({profile:structuredClone(current),amount:decimal(current.schedule.amount),opening:decimal((BigInt(current.opening)<0n?-BigInt(current.opening):BigInt(current.opening)).toString()),advance:BigInt(current.opening)<0n})}>{l('সংশোধন','सुधार','Edit')}</button></div>
     <WorkSwitch disabled={busy||blocked} value={current.schedule} language={language} onChange={(active,date)=>{try{const profile={...current,schedule:changeWork(current.schedule,date,active)};if(confirmTwice(l('কাজের অবস্থা বদলাবেন?','काम की स्थिति बदलें?','Change work status?')))mutate({action:'save',id:crypto.randomUUID(),profile});}catch{setMessage(l('তারিখ পরীক্ষা করুন।','तारीख जाँचें।','Check the date.'));}}}/>
-    <form className="books-form" onSubmit={event=>{event.preventDefault();const f=new FormData(event.currentTarget),amount=amountInput(String(f.get('amount')));if(amount===null||BigInt(amount)<=0n)return;if(confirmTwice(l('পেমেন্ট সেভ করবেন?','भुगतान सहेजें?','Save payment?')))mutate({action:'pay',payment:{id:crypto.randomUUID(),profileId:current.id,date:String(f.get('date')),amount:amount.toString(),method:f.get('method') as 'cash'|'bank'}});}}>
+    <form className="books-form" onSubmit={event=>pay(event,current)}>
      <label>{l('পেমেন্ট','भुगतान','Payment')}<input name="amount" aria-label="Profile payment amount" inputMode="decimal" required pattern="[0-9]+([.][0-9]{1,2})?"/></label><label>{l('তারিখ','तारीख','Date')}<input name="date" type="date" defaultValue={today()} required/></label><select name="method" aria-label="Profile payment method"><option value="cash">{l('নগদ','नकद','Cash')}</option><option value="bank">{l('ব্যাংক','बैंक','Bank')}</option></select><button disabled={busy||blocked} type="submit">{l('পেমেন্ট সেভ','भुगतान सहेजें','Save payment')}</button>
     </form>
     <details><summary>{l('বন্ধ–চালুর ইতিহাস','काम की स्थिति का इतिहास','Work history')}</summary>{current.schedule.changes.map((change,i)=><p key={change.date+String(i)}>{change.date} · {change.active?l('চালু','चालू','Active'):l('বন্ধ','बंद','Stopped')}</p>)}</details>
