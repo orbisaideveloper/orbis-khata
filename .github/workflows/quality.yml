@@ -39,6 +39,7 @@ jobs:
           npm audit --audit-level=low 2>&1 | tee quality-reports/audit.txt
           npm run lint 2>&1 | tee quality-reports/lint.txt
           npm run typecheck 2>&1 | tee quality-reports/typecheck.txt
+          node --test scripts/check-sonar.test.mjs 2>&1 | tee quality-reports/sonar-report-tests.txt
           npm run test:sql 2>&1 | tee quality-reports/sql-acceptance.txt
           npm run test:coverage 2>&1 | tee quality-reports/coverage.txt
           npm run quality:knip 2>&1 | tee quality-reports/knip.txt
@@ -53,6 +54,7 @@ jobs:
           set -o pipefail
           npm run test:e2e 2>&1 | tee quality-reports/playwright.txt
       - name: Sonar analysis AND quality gate
+        id: sonar
         uses: SonarSource/sonarqube-scan-action@v8.2.1
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
@@ -64,6 +66,7 @@ jobs:
             -Dsonar.qualitygate.wait=true
             -Dsonar.qualitygate.timeout=300
       - name: Strict overall Sonar metrics
+        if: ${{ !cancelled() && (steps.sonar.outcome == 'success' || steps.sonar.outcome == 'failure') }}
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
           SONAR_PROJECT_KEY: ${{ vars.SONAR_PROJECT_KEY }}
