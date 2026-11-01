@@ -278,7 +278,7 @@ async function writeCorrectionLedger(
   }
 }
 
-async function normalizeStockistEntry(client, organizationId, original, previous, replacement) {
+function normalizeStockistEntry(original, previous, replacement) {
   assertOnlyKeys(
     replacement,
     new Set([
@@ -326,42 +326,7 @@ async function normalizeStockistEntry(client, organizationId, original, previous
   const netPayablePaise =
     grossPurchasePaise - commissionPaise + tdsPaise;
 
-  const [sales, stockistRows, corrections] = await Promise.all([
-    client.foundationLotterySale.findMany({ where: { organizationId } }),
-    client.foundationLotteryStockistEntry.findMany({ where: { organizationId } }),
-    client.foundationAccountingCorrection.findMany({ where: { organizationId } }),
-  ]);
-  const effectiveRows = projectAccountingRows(
-    stockistRows,
-    corrections,
-    "STOCKIST_ENTRY",
-  ).filter((row) => row.id !== original.id);
-  const day = businessDateKey(original.occurredAt);
-  for (const [saleField, quantity] of [
-    ["morningReturnQuantity", morningReturnQuantity],
-    ["dayReturnQuantity", dayReturnQuantity],
-    ["eveningReturnQuantity", eveningReturnQuantity],
-  ]) {
-    const sellerReturn = sales
-      .filter(
-        (sale) =>
-          businessDateKey(sale.occurredAt) === day,
-      )
-      .reduce((total, sale) => total + BigInt(sale[saleField] || 0), 0n);
-    const alreadyReturned = effectiveRows
-      .filter(
-        (entry) =>
-          businessDateKey(entry.occurredAt) === day,
-      )
-      .reduce((total, entry) => total + BigInt(entry[saleField] || 0), 0n);
-    if (quantity > sellerReturn - alreadyReturned) {
-      throw correctionError(
-        "RETURN_EXCEEDS_AVAILABLE_STOCK",
-        `replacement.${saleField}`,
-      );
-    }
-  }
-
+  // Keep correction independent of seller entry timing, just like initial save.
   return serialize({
     purchaseQuantity,
     morningReturnQuantity,
@@ -596,8 +561,6 @@ async function normalizeReplacement(
 ) {
   if (type === "STOCKIST_ENTRY") {
     return normalizeStockistEntry(
-      client,
-      organizationId,
       original,
       previous,
       replacement,

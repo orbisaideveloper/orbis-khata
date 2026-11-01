@@ -1,3 +1,5 @@
+import {useLotteryLanguage} from "../../../../../../src/lottery/language";
+import {inLanguage} from "../../../../../../src/localize";
 import {useTutorial} from "../../../../../../src/tutorial";
 import {tdsRateOn} from "../../../../../../src/lottery/organization-rules";
 import { accountingBusinessDate, accountingToday } from "../../models/lotteryAccountingBusinessDate";
@@ -22,6 +24,7 @@ type StockistRow = {
   eveningReturnQuantity: string;
   commissionRupees: string;
   saved?: boolean;
+  pending?: boolean;
 };
 
 const CONTROL_CLASS =
@@ -246,6 +249,12 @@ function stockistEntryPayload({
   };
 }
 
+function stockistSaveStatus(saving:boolean,row:StockistRow) {
+  if(saving)return 'Saving';
+  if(row.pending)return 'Not saved';
+  return row.saved?'Saved':'Not entered';
+}
+
 function savableStockistRow(
   partyId: string,
   savingPartyIds: ReadonlySet<string>,
@@ -265,6 +274,7 @@ export function DailyStockistEntry({
   onSave,
   editRequest,
 }: Readonly<Props>) {
+  const language=useLotteryLanguage();
   const [selectedDate, setSelectedDate] = useState(todayInputValue());
   const [selectedPartyId, setSelectedPartyId] = useState("");
   const stockists = useMemo(
@@ -306,7 +316,7 @@ export function DailyStockistEntry({
     const recovered = stockistsRef.current.flatMap((party) => {
       const pending = readPending(organizationId, party.id, selectedDate);
       if (!pending) return [];
-      next[party.id] = { ...next[party.id], ...pending, partyId: party.id };
+      next[party.id] = { ...next[party.id], ...pending, partyId: party.id, pending: true };
       return [party.id];
     });
     setRows(next);
@@ -326,7 +336,7 @@ export function DailyStockistEntry({
   }, [editRequest]);
 
   const updateRow = (partyId: string, field: keyof StockistRow, value: string) => {
-    const next = { ...(rowsRef.current[partyId] || blankRow(partyId)), [field]: value };
+    const next = { ...(rowsRef.current[partyId] || blankRow(partyId)), [field]: value, pending: true };
     storePending(organizationId, partyId, selectedDate, next);
     setRows((current) => ({ ...current, [partyId]: next }));
     dirtyRef.current.add(partyId);
@@ -355,7 +365,7 @@ export function DailyStockistEntry({
       setAutosaveVersion((current) => current + 1);
       return;
     }
-    const latest = { ...row, saved: !rowIsZero(row) };
+    const latest = { ...row, saved: !rowIsZero(row), pending: false };
     const dayRows = savedRowsRef.current.get(day) || {};
     savedRowsRef.current.set(day, { ...dayRows, [partyId]: latest });
     setRows((current) => ({ ...current, [partyId]: latest }));
@@ -396,10 +406,14 @@ export function DailyStockistEntry({
       }
       finishSavedRow(partyId, row, day, version);
     } catch (error) {
-      showPersistError(showValidation, error);
+      showPersistError(true, error);
     } finally {
       setPartySaving(partyId, false);
-      if (dirtyRef.current.has(partyId)) setAutosaveVersion((current) => current + 1);
+      // Retry automatically only for an edit made while this request was in flight.
+      // A failed unchanged entry stays pending for an explicit retry instead of looping.
+      if (dirtyRef.current.has(partyId) && dateRef.current === day && versionsRef.current.get(partyId) !== version) {
+        setAutosaveVersion((current) => current + 1);
+      }
     }
   };
   const persistRef = useRef(persistRow);
@@ -462,6 +476,7 @@ export function DailyStockistEntry({
     ...selectedSessionBalance(workspace, selectedDate, session),
   }));
 
+  const returnMismatch=sessions.some(session=>session.waiting!==0n);
   const saveTable = async () => {
     setLocalError(null);
     if (selectedPartyId) await persistRef.current(selectedPartyId, true);
@@ -485,15 +500,16 @@ export function DailyStockistEntry({
             className={CONTROL_CLASS}
           />
         </label>
-        <div className="mt-3 rounded-xl border border-orange-200 bg-orange-50 p-3">
-          <p className="text-[9px] font-bold uppercase text-orange-700">Return waiting for this date</p>
+        <div aria-label="Return reconciliation" data-mismatch={returnMismatch} className={`mt-3 rounded-xl border p-3 ${returnMismatch?'border-red-200 bg-red-50':'border-emerald-200 bg-emerald-50'}`}>
+          <p className="text-[9px] font-bold uppercase">{inLanguage(language,'রিটার্ন মিলিয়ে দেখুন','रिटर्न मिलान','Return reconciliation')}</p>
+          <p className="mt-1 text-[9px]">{returnMismatch?inLanguage(language,'অমিল আছে। তবুও স্টকিস্টের এন্ট্রি সেভ করা যাবে।','अंतर है। फिर भी स्टॉकिस्ट की प्रविष्टि सहेज सकते हैं।','Mismatch. Stockist entries can still be saved.'):inLanguage(language,'রিটার্ন মিলেছে।','रिटर्न मिल गया।','Returns match.')}</p>
           <div className="mt-2 grid grid-cols-3 gap-2">
             {sessions.map(({ session, sellerReturn, stockistReturn, waiting }) => (
               <div key={session} className="rounded-lg bg-white/70 p-2 text-[8px] text-orange-900">
                 <p className="font-black">{session === "MORNING" ? "Morning" : session === "DAY" ? "Day" : "Evening"}</p>
-                <p>Seller {sellerReturn.toString()}</p>
-                <p>Sent {stockistReturn.toString()}</p>
-                <p className="font-black">Left {waiting.toString()}</p>
+                <p>{inLanguage(language,'সেলার','सेलर','Seller')} {sellerReturn.toString()}</p>
+                <p>{inLanguage(language,'স্টকিস্ট','स्टॉकिस्ट','Stockist')} {stockistReturn.toString()}</p>
+                <p className="font-black">{inLanguage(language,'পার্থক্য','अंतर','Difference')} {waiting.toString()}</p>
               </div>
             ))}
           </div>
@@ -588,7 +604,7 @@ export function DailyStockistEntry({
                     />
                   </td>
                   <td className="px-2 py-3 font-black">{formatPaise(calculation.payable)}</td>
-                  <td className="px-2 py-3 text-[8px] font-bold text-emerald-700">{saving.has(party.id) ? "Saving" : row.saved ? "Saved" : "Not entered"}</td>
+                  <td className="px-2 py-3 text-[8px] font-bold text-emerald-700">{stockistSaveStatus(saving.has(party.id),row)}</td>
                 </tr>
               ))}
             </tbody>
@@ -614,4 +630,4 @@ export function DailyStockistEntry({
 }
 
 
-function StockistHelp(){return useTutorial()?<p className="mt-1 text-[10px] text-slate-600">Purchase adds stock. Returns send seller-returned tickets to the stockist. Saving replaces the same day’s entry safely.</p>:null;}
+function StockistHelp(){return useTutorial()?<p className="mt-1 text-[10px] text-slate-600">Purchase adds stock. Stockist returns are independent of seller entry; differences are shown for reconciliation. Saving replaces the same day’s entry safely.</p>:null;}

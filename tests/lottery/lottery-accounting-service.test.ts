@@ -1046,7 +1046,7 @@ describe("Lottery Accounting Service", () => {
     });
   });
 
-  it("rejects a stockist return above the seller-return stock", async () => {
+  it("saves a stockist return without requiring seller-return entries", async () => {
     const prisma = createPrismaMock();
     prisma.state.parties.push({
       id: STOCKIST_ID,
@@ -1069,7 +1069,7 @@ describe("Lottery Accounting Service", () => {
         },
         "admin-1",
       ),
-    ).rejects.toMatchObject({ code: "RETURN_EXCEEDS_AVAILABLE_STOCK" });
+    ).resolves.toMatchObject({totalReturnQuantity:"1",netPurchaseQuantity:"-1",grossPurchasePaise:"-100"});
   });
 
   it("lets a zero daily row override and clear an older technical stock entry", async () => {

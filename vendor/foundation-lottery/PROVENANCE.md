@@ -95,3 +95,7 @@ Expense profiles optionally carry the shared salary/bill schedule. Salary has da
 ### 1 November 2026 — Cash/bank overdraft and combined PWD display
 
 Owner removes cash/bank funding limits for ordinary and expense payments and corrections; debt limits and split validation remain. PWD keeps its independent ledger and nonnegative spending policy, including a chronological guard against backdated reuse. The dashboard combined-money card includes PWD; cash-flow, TDS and profit formulas remain separate. Existing posted financial rows are not migrated or rewritten.
+
+### 1 November 2026 — Independent stockist returns and bounded autosave
+
+Remove the seller-return quota from initial daily stockist saves and audited stockist corrections under the owner's explicit clarification. Reconciliation remains visible as a nonblocking red/green status. No stock, payable, commission or TDS formula is replaced. Failed unchanged stockist autosaves stop automatic requeueing, retain pending input for manual retry, and display an unsaved/error state; newer in-flight edits still save subsequently. Customer/statement sharing is a separate proposed feature and is not enabled by this patch.

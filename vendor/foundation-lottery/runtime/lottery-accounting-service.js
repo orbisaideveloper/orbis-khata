@@ -1597,13 +1597,12 @@ function createLotteryAccountingService({ prisma, now = () => new Date() }) {
     const commissionPaise = optionalMoney(input?.commissionPaise, "commissionPaise");
 
     return prisma.$transaction(async (client) => {
-      const [party, organization, allStock, allSales, dailyEntries, parties, clearances, corrections] = await Promise.all([
+      const [party, organization, allStock, dailyEntries, parties, clearances, corrections] = await Promise.all([
         ensureParty(client, organizationId, partyId),
         ensureOrganization(client, organizationId),
         client.foundationLotteryStockMovement.findMany({
           where: { organizationId },
         }),
-        client.foundationLotterySale.findMany({ where: { organizationId } }),
         client.foundationLotteryStockistEntry.findMany({
           where: { organizationId },
         }),
@@ -1627,11 +1626,6 @@ function createLotteryAccountingService({ prisma, now = () => new Date() }) {
             clearanceScopeForStockMovement(movement),
           ),
       );
-      const visibleSales = visibleAfterClearances(
-        clearances,
-        allSales.filter((sale) => sale.status !== "REVERSED"),
-        "SELLER",
-      );
       const visibleDailyEntries = visibleAfterClearances(
         clearances,
         projectAccountingRows(dailyEntries, corrections, "STOCKIST_ENTRY", { includeVoided: true }),
@@ -1654,22 +1648,7 @@ function createLotteryAccountingService({ prisma, now = () => new Date() }) {
           businessDateKey(entry.occurredAt) === entryDate &&
           !wasVoided(corrections, "STOCKIST_ENTRY", entry.id),
       );
-      for (const [session, field] of Object.entries({
-        MORNING: "morningReturnQuantity",
-        DAY: "dayReturnQuantity",
-        EVENING: "eveningReturnQuantity",
-      })) {
-        const sellerReturn = visibleSales
-          .filter((sale) => businessDateKey(sale.occurredAt) === entryDate)
-          .reduce((total, sale) => total + BigInt(sale[field]), 0n);
-        const alreadyReturned = visibleDailyEntries
-          .filter((entry) => !entry.voided && entry.id !== existingDaily?.id && businessDateKey(entry.occurredAt) === entryDate)
-          .reduce((total, entry) => total + BigInt(entry[field]), 0n);
-        if (returns[session] > sellerReturn - alreadyReturned) {
-          throw accountingError("RETURN_EXCEEDS_AVAILABLE_STOCK", `${field}`);
-        }
-      }
-
+      // Seller return reconciliation is advisory; stockist entries are independent.
       const unitRatePaise = partyProfileFromRow(party).ticketRatePaise;
       const netPurchaseQuantity = purchaseQuantity - totalReturnQuantity;
       const commissionLimit =

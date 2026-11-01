@@ -164,3 +164,20 @@ it('permits expense cash/bank overdrafts while retaining the unpaid-profile limi
  const w=await run('getWorkspace',{organizationId:org});expect(w.summary.methodBalances).toMatchObject({cashPaise:'-10000',bankPaise:'-10000'});
  await expect(run('recordExpensePayment',{organizationId:org,profileId:p.id,occurredAt:'2026-10-30',totalAmountPaise:'10001',cashPaise:'10001',bankPaise:'0'})).rejects.toThrow('INVALID_PAYMENT');
 });
+
+it('saves and corrects stockist returns independently of absent seller entries without duplicating the daily row',async()=>{
+ const {org,stockist}=await fixture();
+ const input={organizationId:org,partyId:stockist.id,occurredAt:'2026-10-30',purchaseQuantity:'100',morningReturnQuantity:'10',dayReturnQuantity:'20',eveningReturnQuantity:'5',commissionPaise:'0'};
+ const first=await run('saveDailyStockistEntry',input);
+ expect(first).toMatchObject({netPurchaseQuantity:'65',totalReturnQuantity:'35',grossPurchasePaise:'58500'});
+ await run('saveDailyStockistEntry',input);
+ let w=await run('getWorkspace',{organizationId:org});expect(w.sales).toHaveLength(0);expect(w.draftSales).toHaveLength(0);expect(w.stockistEntries).toHaveLength(1);
+ await run('correctAccountingTransaction',{organizationId:org,entityType:'STOCKIST_ENTRY',entityId:first.id,expectedVersion:0,operationId:'independent-return-correction',replacement:{morningReturnQuantity:'20'}});
+ w=await run('getWorkspace',{organizationId:org});
+ expect(w.stockistEntries).toHaveLength(1);expect(w.stockistEntries[0]).toMatchObject({netPurchaseQuantity:'55',totalReturnQuantity:'45',grossPurchasePaise:'49500'});
+ expect(w.summary.verified).toBe(true);
+ const snapshot=JSON.stringify(state);
+ await expect(run('saveDailyStockistEntry',{...input,morningReturnQuantity:'-1'})).rejects.toThrow();
+ await expect(run('saveDailyStockistEntry',{...input,organizationId:'foreign'})).rejects.toThrow();
+ expect(JSON.stringify(state)).toBe(snapshot);
+});
