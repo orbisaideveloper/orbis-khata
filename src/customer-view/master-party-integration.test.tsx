@@ -1,0 +1,35 @@
+import {cleanup,fireEvent,render,screen,waitFor} from '@testing-library/react';
+import {afterEach,expect,it,vi} from 'vitest';
+import {LotteryAccountingWorkspace} from '../../vendor/foundation-lottery/src/admin/dashboard/sections/LotteryAccountingWorkspace';
+import type {LotteryAccountingClient} from '../../vendor/foundation-lottery/src/admin/models/lotteryAccountingClient';
+import {runLottery} from '../lottery/service';
+import {requestKhata} from '../accounting/api';
+vi.mock('../accounting/api',()=>({requestKhata:vi.fn()}));
+afterEach(()=>{cleanup();vi.resetAllMocks();localStorage.clear();sessionStorage.clear();});
+it('creates once, keeps the saved party after link failure, retries through edit, and preserves ledger history',async()=>{
+ let state:unknown={};const owner='11111111-1111-7111-8111-111111111111';
+ async function execute(method:string,payload:Record<string,unknown>={}){const result=await runLottery(state,{method,payload,operationId:crypto.randomUUID()},owner,()=>new Date('2026-10-30T10:00:00Z'));state=result.state;return result.result;}
+ const org=await execute('createOrganization',{name:'Master fixture'});
+ let attempts=0;const invites:unknown[]=[];let link:unknown[]=[];
+ vi.mocked(requestKhata).mockImplementation(async(_op,input)=>{const command=input as {action:string;id:string;party:string};if(command.action==='list'){return link;}invites.push(command);if(attempts++===0){throw new Error('offline');}link=[{id:command.id,organizationId:org.id,partyId:command.party,organization:'Master fixture',party:'New seller',recipient:'ORB-U-23456789',status:'pending',outgoing:true}];return {saved:true};});
+ const create=vi.fn((payload:Record<string,unknown>)=>execute('createParty',payload));
+ const update=vi.fn(async(payload:Record<string,unknown>)=>{await execute('updatePartyProfile',payload);});
+ const api={listOrganizations:()=>execute('listOrganizations'),loadWorkspace:(organizationId:string)=>execute('getWorkspace',{organizationId}),createParty:create,updatePartyProfile:update} as unknown as LotteryAccountingClient;
+ render(<LotteryAccountingWorkspace api={api} localStore={null} localScope={{ownerKind:'PUBLIC_USER',ownerId:owner}}/>);
+ fireEvent.click(await screen.findByRole('button',{name:'Masters'}));
+ fireEvent.click(screen.getByRole('button',{name:'+ Add Seller'}));
+ await waitFor(()=>expect(screen.getByLabelText('Customer Orbis ID')).toBeEnabled());
+ fireEvent.change(screen.getByLabelText('Party name'),{target:{value:'New seller'}});
+ fireEvent.change(screen.getByLabelText('Party fixed rate'),{target:{value:'10'}});
+ fireEvent.change(screen.getByLabelText('Customer Orbis ID'),{target:{value:'ORB-U-23456789'}});
+ fireEvent.click(screen.getByRole('button',{name:'Save'}));
+ await screen.findByText(/Could not check or send/);
+ expect(create).toHaveBeenCalledOnce();
+ const saved=await execute('getWorkspace',{organizationId:org.id});expect(saved.parties).toHaveLength(1);const journal=JSON.stringify(saved.ledgerEntries);
+ expect(invites[0]).toMatchObject({party:saved.parties[0].id,organization:org.id});
+ fireEvent.click(screen.getByRole('button',{name:'Save Changes'}));
+ await waitFor(()=>expect(screen.queryByLabelText('Party name')).not.toBeInTheDocument());
+ expect(create).toHaveBeenCalledOnce();expect(update).toHaveBeenCalledOnce();expect(invites[1]).toEqual(invites[0]);
+ const final=await execute('getWorkspace',{organizationId:org.id});expect(final.parties).toHaveLength(1);expect(JSON.stringify(final.ledgerEntries)).toBe(journal);
+ fireEvent.click(screen.getByRole('button',{name:'New seller'}));await screen.findByText('Pending acceptance');expect(screen.getByText('ORB-U-23456789')).toBeVisible();
+});

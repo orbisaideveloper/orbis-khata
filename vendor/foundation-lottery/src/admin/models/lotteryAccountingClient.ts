@@ -129,7 +129,7 @@ export interface LotteryAccountingClient {
   createOrganization: (payload: {
     name: string;
   }) => Promise<LotteryOrganization>;
-  createParty: (payload: Record<string, unknown>) => Promise<void>;
+  createParty: (payload: Record<string, unknown>) => Promise<{id:string}>;
   updatePartyProfile: (payload: Record<string, unknown>) => Promise<void>;
   updateOrganizationTdsRate: (payload: {
     organizationId: string;
@@ -222,7 +222,7 @@ export const lotteryAccountingClient: LotteryAccountingClient = {
     return body.organization;
   },
   async createParty(payload) {
-    await postLottery("/parties", payload);
+    return postLottery<{id:string}>("/parties", payload);
   },
   async updatePartyProfile(payload) {
     const partyId = String(payload.partyId || "");

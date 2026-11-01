@@ -35,3 +35,5 @@ it('rejects non-JSON request bodies before accessing the gateway',async()=>{
  await expect(lotteryFetch('/organizations',{method:'POST',body:new URLSearchParams({name:'Shop'})})).rejects.toThrow('LOTTERY_BODY_INVALID');
  expect(bridge.request).not.toHaveBeenCalled();
 });
+
+it('returns the server-created party identity for a master invitation without a second account lookup',async()=>{bridge.request.mockResolvedValueOnce({id:'created-party'});expect(await api.createParty({name:'New seller'})).toEqual({id:'created-party'});});

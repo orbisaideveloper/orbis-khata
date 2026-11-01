@@ -21,6 +21,7 @@ const before=await fingerprint();
 const files=await readdir('supabase/migrations');
 await db.exec(await readFile('supabase/migrations/'+files.find(file=>file.endsWith('_lottery_party_sharing.sql')),'utf8'));
 async function config(a,o,display){await db.query("select set_config('request.jwt.claim.sub',$1,false),set_config('orbis.khata.identity',$2,false),set_config('orbis.khata.display_id',$3,false),set_config('orbis.khata.gateway_verified','v1',false)",[o,a,display]);}
+await db.exec(await readFile('docs/master-party-links.review.sql','utf8'));
 const rpc=async p=>(await db.query('select orbis_khata.party_sharing_v1($1::jsonb) result',[JSON.stringify(p)])).rows[0].result;
 await config(actor,owner,'ORB-U-23456789');
 assert.equal((await rpc({action:'choices'})).length,1);
@@ -28,6 +29,7 @@ const invitation={action:'invite',id,organization:org,party,recipient:'ORB-U-ABC
 await assert.rejects(rpc({...invitation,party:'foreign'}),/SHARE_NOT_AVAILABLE/);
 await rpc(invitation);await rpc(invitation);
 assert.equal((await rpc({action:'list'}))[0].outgoing,true);
+assert.equal((await rpc({action:'list'}))[0].partyId,party);assert.equal((await rpc({action:'list'}))[0].organizationId,org);
 await assert.rejects(rpc({...invitation,recipient:'ORB-U-BCDEFGHJ'}),/IDEMPOTENCY_CONFLICT/);
 await assert.rejects(rpc({action:'statement',id}),/SHARE_NOT_AVAILABLE/);
 await config(stranger,stranger,'ORB-U-BCDEFGHJ');

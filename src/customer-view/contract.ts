@@ -19,6 +19,8 @@ export type ShareCommand = {
     offset: number;
 };
 export type Share = {
+    organizationId?: string;
+    partyId?: string;
     id: string;
     organization: string;
     party: string;

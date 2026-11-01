@@ -4,6 +4,7 @@ test('independent lottery creates masters, saves daily formulas, receives split 
  // This scenario now also covers appearance settings and both commission editors.
  test.setTimeout(60000);
  const customer={orbisIdentityId:'11111111-1111-7111-8111-111111111111',displayId:'ORB-U-23456789'};let state:unknown={};const methods:string[]=[];let failNextDraft=false;
+ const shares:Record<string,unknown>[]=[];
  const replies=new Map<string,{request:string;result:unknown}>();
  let requestQueue=Promise.resolve();
  const headers={'access-control-allow-origin':'http://127.0.0.1:4187','access-control-allow-methods':'GET,POST,OPTIONS','access-control-allow-headers':'content-type,authorization'};
@@ -12,7 +13,15 @@ test('independent lottery creates masters, saves daily formulas, receives split 
  await page.route('https://admin.example.test/**',r=>r.fulfill({headers,json:{version:'orbis.customer.v1',customer}}));
  await page.route('https://data.example.test/**',async route=>{
   if(route.request().method()==='OPTIONS'){await route.fulfill({headers,status:204});return;}
-  const {operation,input}=route.request().postDataJSON();if(operation==='companies'||operation==='retired-companies'){await route.fulfill({headers,json:{data:[]}});return;}expect(operation).toBe('lottery');const request=input as LotteryInput;methods.push(request.method);
+  const {operation,input}=route.request().postDataJSON();if(operation==='companies'||operation==='retired-companies'){await route.fulfill({headers,json:{data:[]}});return;}if(operation==='party-sharing'){
+   if(input.action==='list'){await route.fulfill({headers,json:{data:shares}});return;}
+   expect(input.action).toBe('invite');expect(input.recipient).toBe('ORB-U-ABCDEFGH');
+   const source=await runLottery(state,{method:'getWorkspace',payload:{organizationId:input.organization}},customer.orbisIdentityId,()=>new Date('2026-10-30T10:00:00Z'));
+   const party=source.result.parties.find((row:{id:string})=>row.id===input.party);expect(party).toBeDefined();
+   shares.push({id:input.id,organizationId:input.organization,partyId:input.party,organization:source.result.organization.name,party:party.name,partyType:party.partyType,recipient:input.recipient,status:'pending',outgoing:true});
+   await route.fulfill({headers,json:{data:{saved:true}}});return;
+  }
+  expect(operation).toBe('lottery');const request=input as LotteryInput;methods.push(request.method);
   // Match the production owner lock: reads and writes share one transaction queue.
   const previous=requestQueue;let unlock!:()=>void;
   requestQueue=new Promise<void>(resolve=>{unlock=resolve;});await previous;
@@ -31,8 +40,9 @@ test('independent lottery creates masters, saves daily formulas, receives split 
  await page.getByLabel('Business organization name').fill('Independent lottery');await page.getByRole('button',{name:'Create',exact:true}).click();
  await expect(page.getByRole('button',{name:/^Net Profit/})).toBeVisible();
  const tabs=page.getByLabel('Accounting workspace sections');await tabs.getByRole('button',{name:'Masters',exact:true}).click();
- async function party(type:string,name:string,rate:string){await page.getByRole('button',{name:type,exact:true}).click();await page.getByRole('button',{name:'+ Add '+type}).click();await page.getByLabel('Party name').fill(name);await page.getByLabel('Party fixed rate').fill(rate);await page.getByLabel('Opening balance amount').fill(type==='Seller'?'500':'250');await page.getByLabel('Opening balance date').fill('2026-10-29');await page.getByRole('button',{name:'Save',exact:true}).click();await expect(page.getByLabel('Party name')).toHaveCount(0);}
+ async function party(type:string,name:string,rate:string){await page.getByRole('button',{name:type,exact:true}).click();await page.getByRole('button',{name:'+ Add '+type}).click();await page.getByLabel('Party name').fill(name);await page.getByLabel('Party fixed rate').fill(rate);if(type==='Seller'){await expect(page.getByLabel('Customer Orbis ID')).toBeEnabled();await page.getByLabel('Customer Orbis ID').fill('ORB-U-ABCDEFGH');}await page.getByLabel('Opening balance amount').fill(type==='Seller'?'500':'250');await page.getByLabel('Opening balance date').fill('2026-10-29');await page.getByRole('button',{name:'Save',exact:true}).click();await expect(page.getByLabel('Party name')).toHaveCount(0);}
  await party('Seller','Test seller','10');await party('Stockist','Test stockist','9');
+ expect(shares).toHaveLength(1);await page.getByRole('button',{name:'Seller',exact:true}).click();await page.getByRole('button',{name:'Test seller',exact:true}).click();await expect(page.getByText('Pending acceptance',{exact:true})).toBeVisible();await expect(page.getByText('ORB-U-ABCDEFGH',{exact:true})).toBeVisible();await page.getByRole('button',{name:'Close',exact:true}).click();
  await tabs.getByRole('button',{name:'Daily entry',exact:true}).click();await page.getByRole('button',{name:'Stockist Purchase',exact:true}).click();
  await page.getByLabel('Test stockist purchase', {exact:true}).fill('100');await page.getByLabel('Test stockist commission amount').fill('40');await page.getByRole('button',{name:'Save table',exact:true}).click();
  await expect.poll(()=>methods.filter(m=>m==='saveDailyStockistEntry').length).toBeGreaterThan(0);

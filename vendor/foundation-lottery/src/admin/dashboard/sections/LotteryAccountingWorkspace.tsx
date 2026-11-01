@@ -1,3 +1,5 @@
+import {useMasterPartyLink} from '../../../../../../src/customer-view/useMasterPartyLink';
+import {MasterPartyLink} from '../../../../../../src/customer-view/MasterPartyLink';
 import {projectedLotteryExpenseBills} from "../../models/lotteryAccountingExpenseBalance";
 import { ScheduleFields, WorkSwitch } from "../../../../../../src/expense-profiles/ScheduleFields";
 import { changeWork, type ExpenseSchedule } from "../../../../../../src/expense-profiles/schedule";
@@ -965,7 +967,7 @@ export function LotteryAccountingWorkspace({
       />
 
       {!workspace ? (
-        <MastersPanel
+        <MastersPanel key={organizationId}
           workspace={null}
           organizationId=""
           api={api}
@@ -1065,7 +1067,7 @@ export function LotteryAccountingWorkspace({
           )}
           {tab === "ai" && <AiPanel workspace={workspace} />}
           {tab === "masters" && (
-            <MastersPanel
+            <MastersPanel key={organizationId}
               workspace={workspace}
               organizationId={organizationId}
               api={api}
@@ -4455,6 +4457,8 @@ function MastersPanel({
   ) => Promise<boolean>;
 }>) {
   const language = useLotteryLanguage();
+  const partyLink=useMasterPartyLink(organizationId);
+  const {select:selectPartyLink}=partyLink;
   const [organizationName, setOrganizationName] = useState("");
   const [type, setType] = useState<PartyMasterType | "EXPENSE">("SELLER");
   const [selectedPartyId, setSelectedPartyId] = useState("");
@@ -4489,6 +4493,7 @@ function MastersPanel({
 
   const populatePartyEditor = useCallback((party: LotteryParty) => {
     setPartyOpening(partyOpeningForm(party,businessDateToday()));
+    void selectPartyLink(party.id);
     setSelectedPartyId(party.id);
     setPartyName(party.name);
     setPartyEmail(party.email || "");
@@ -4499,7 +4504,7 @@ function MastersPanel({
         : "",
     );
     setPartyEditorOpen(true);
-  }, []);
+  },[selectPartyLink]);
 
   const populateExpenseEditor = useCallback((profile: LotteryExpenseProfile) => {
     setScheduleEdited(false);
@@ -4566,6 +4571,7 @@ function MastersPanel({
   }
 
   const openNewParty = () => {
+    void partyLink.select("");
     setPartyOpening(partyOpeningForm(undefined,businessDateToday()));
     setSelectedPartyId("");
     setPartyName("");
@@ -4578,15 +4584,16 @@ function MastersPanel({
   const saveParty = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     const opening=openingPayload(partyOpening);
-    if(!opening)return;
+    if(!opening||!partyLink.valid)return;
+    let linkSaved=true;
     const ticketRatePaise =
       type === "CUSTOMER" ? "0" : parseAmount(partyRate)?.toString();
     if (!partyName.trim() || (type !== "CUSTOMER" && !ticketRatePaise)) return;
     if (selectedPartyId) {
       const ok = await run(
         "party-profile",
-        () =>
-          api.updatePartyProfile({
+        async () => {
+          await api.updatePartyProfile({
             organizationId,
             partyId: selectedPartyId,
             name: partyName.trim(),
@@ -4594,15 +4601,17 @@ function MastersPanel({
             phone: partyPhone.trim() || undefined,
             ticketRatePaise: ticketRatePaise || "0",
             ...opening,
-          }),
+          });
+          linkSaved=await partyLink.save(selectedPartyId);
+        },
         "Party profile updated.",
       );
-      if (ok) setPartyEditorOpen(false);
+      if (ok&&linkSaved) setPartyEditorOpen(false);
     } else {
       const ok = await run(
         "party",
-        () =>
-          api.createParty({
+        async () => {
+          const created=await api.createParty({
             organizationId,
             partyType: type,
             name: partyName.trim(),
@@ -4610,10 +4619,13 @@ function MastersPanel({
             phone: partyPhone.trim() || undefined,
             ticketRatePaise: ticketRatePaise || "0",
             ...opening,
-          }),
+          });
+          setSelectedPartyId(created.id);
+          linkSaved=await partyLink.save(created.id);
+        },
         "New party added.",
       );
-      if (ok) setPartyEditorOpen(false);
+      if (ok&&linkSaved) setPartyEditorOpen(false);
     }
   };
 
@@ -4721,7 +4733,7 @@ function MastersPanel({
           title={`${selectedPartyTypeLabel} Profiles`}
         >
           <div className="mb-2 flex justify-end">
-            <Button active onClick={openNewParty}>
+            <Button active disabled={Boolean(working)||partyLink.busy} onClick={openNewParty}>
               + Add {selectedPartyTypeLabel}
             </Button>
           </div>
@@ -4768,12 +4780,13 @@ function MastersPanel({
                 />
               </div>
               <LotteryContact onNumber={setPartyPhone}/>
+              <MasterPartyLink link={partyLink} language={language}/>
               <PartyOpeningFields value={partyOpening} onChange={setPartyOpening} stockist={type==='STOCKIST'}/>
               <div className="mt-2 flex gap-2">
-                <button className={ACTIVE_BUTTON} type="submit" disabled={Boolean(working)}>
+                <button className={ACTIVE_BUTTON} type="submit" disabled={Boolean(working)||partyLink.busy||!partyLink.valid}>
                   {selectedPartyId ? "Save Changes" : "Save"}
                 </button>
-                <Button onClick={() => setPartyEditorOpen(false)}>Close</Button>
+                <Button disabled={Boolean(working)||partyLink.busy} onClick={() => setPartyEditorOpen(false)}>Close</Button>
               </div>
             </form>
           )}
@@ -4782,6 +4795,7 @@ function MastersPanel({
               <button
                 key={party.id}
                 type="button"
+                disabled={Boolean(working)||partyLink.busy}
                 onClick={() => openParty(party)}
                 className="flex w-full items-center justify-between gap-3 bg-white px-2 py-3 text-left"
               >
