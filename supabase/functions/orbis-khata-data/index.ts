@@ -1,3 +1,4 @@
+import {readSharedStatement} from '../../../src/customer-view/read-statement.ts';
 import { runProfiles, type ProfileCommand, type ProfileState } from "../../../src/expense-profiles/model.ts";
 import {runLottery,type LotteryInput} from '../../../src/lottery/service.ts';
 import postgres from 'npm:postgres@3.4.7';
@@ -32,9 +33,16 @@ const handler = createKhataGateway({ origins: (env('KHATA_ORIGINS') || 'https://
             throw new Error('KHATA_OWNER_RESOLUTION_FAILED');
         }
         await tx `select set_config('orbis.khata.gateway_verified','v1',true)`;
+        await tx `select set_config('orbis.khata.identity',${principal.orbisIdentityId},true),set_config('orbis.khata.display_id',${principal.displayId},true)`;
         await tx `set local role authenticated`;
         await tx `select set_config('request.jwt.claims',${JSON.stringify({ sub: ledgerOwnerId, role: 'authenticated' })},true)`;
         const input = operation.input;
+        if(operation.operation==='party-sharing') {
+            const rows=await tx`select orbis_khata.party_sharing_v1(${tx.json(input)}::jsonb) as data`;
+            const shared=rows[0].data;
+            if(input.action!=='statement')return shared;
+            return readSharedStatement(shared.state,shared.organization,shared.party,String(input.from),String(input.to),Number(input.offset));
+        }
         if(operation.operation==='expense-profiles') {
             const command=input as ProfileCommand;
             const loaded=await tx`select public.khata_expense_profiles_v1(${tx.json({company:command.company,action:'load',request:command,...(command.operationId?{operationId:command.operationId}:{})})}::jsonb) as data`;

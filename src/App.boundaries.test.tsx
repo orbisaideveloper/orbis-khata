@@ -40,3 +40,5 @@ it('retries unavailable sessions by reloading the page', () => {
   try { fireEvent.click(screen.getByRole('button')); expect(reload).toHaveBeenCalledOnce() }
   finally { vi.unstubAllGlobals() }
 })
+
+it('requires central login for Customer view even in guest mode',()=>{expect(resolveKhataView('customer',false,true,true)).toBe('welcome');expect(resolveKhataView('customer',true,false,false)).toBe('customer');});

@@ -1,3 +1,4 @@
+import {shareCommand} from '../customer-view/contract.ts';
 import { profileCommand } from "../expense-profiles/model.ts";
 import {lotteryInput} from '../lottery/protocol.ts';
 import { workspaceInput } from './workspace-contract.ts';
@@ -5,7 +6,7 @@ import { safeBusinessReason } from './business-error.ts';
 import { itemInput, partyInput, masterIdentity } from '../master-input.ts';
 import { billTotal, inventoryCommand } from '../inventory/model.ts';
 import { expenseCommand } from './expense-model.ts';
-type Operation = 'expense-profiles' | 'lottery' | 'workspace' | 'retired-companies' | 'masters' | 'party-save' | 'item-save' | 'party-delete' | 'item-delete' | 'party-balance' | 'expense-bill' | 'companies' | 'create' | 'report' | 'post' | 'expense-report' | 'expense-post' | 'inventory-post' | 'inventory-report';
+type Operation = 'party-sharing' | 'expense-profiles' | 'lottery' | 'workspace' | 'retired-companies' | 'masters' | 'party-save' | 'item-save' | 'party-delete' | 'item-delete' | 'party-balance' | 'expense-bill' | 'companies' | 'create' | 'report' | 'post' | 'expense-report' | 'expense-post' | 'inventory-post' | 'inventory-report';
 export type KhataPrincipal = {
     orbisIdentityId: string;
     displayId: string;
@@ -82,6 +83,7 @@ function validOperation(operation: unknown, input: Record<string, unknown>): ope
                 return false;
             }
         }
+        case 'party-sharing': return shareCommand(input);
         case 'inventory-post': return Boolean(inventoryCommand(input));
         case 'inventory-report': return pagedReportInput(input);
         case 'expense-post': return Boolean(expenseCommand(input));

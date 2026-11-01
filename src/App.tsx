@@ -1,7 +1,9 @@
 import './design.css';
+import {shareCopy} from './customer-view/copy';
 import {Themes} from './theme';
 import {ModulePicker} from './ModulePicker';
 import {lazy,Suspense,useEffect,useMemo,useRef,useState,type ReactNode} from 'react';
+const CustomerView=lazy(()=>import('./customer-view/CustomerView'));
 const LotteryPage=lazy(()=>import('./lottery/LotteryPage'));
 import {selectNumeric} from './select-numeric';
 import {useTheme} from './use-theme';
@@ -105,7 +107,7 @@ function App() {
         window.addEventListener('popstate', onBack);
         return () => window.removeEventListener('popstate', onBack);
     }, [signedIn, view, booksPage, homeBooks]);
-    useEffect(()=>{if(signedIn&&!account.loading&&(view==='khata'||view==='lottery'||view==='workspace'))saveLocation(sessionId??undefined,{view});},[signedIn,account.loading,view,sessionId]);
+    useEffect(()=>{if(signedIn&&!account.loading&&(view==='khata'||view==='lottery'||view==='customer'||view==='workspace'))saveLocation(sessionId??undefined,{view});},[signedIn,account.loading,view,sessionId]);
     async function logout() {
         if (!authClient) {
             backToWelcome();
@@ -204,13 +206,15 @@ function App() {
           <div className="modules">
             <button type="button" className="module" onClick={() => navigate('khata')}><span className="ic" aria-hidden="true">📘</span><span className="copy"><strong>{t('khata')}</strong><small>{t('khataDesc')}</small></span><span className="status">{t('open')}</span></button>
             {renderPlanned('🌱', 'farm', 'farm', 'farmDesc', 'later')}
+            {signedIn&&<button type="button" className="module" onClick={()=>navigate('customer')}><span className="copy"><strong>{shareCopy(language,'title')}</strong><small>{shareCopy(language,'readonly')}</small></span></button>}
             <LotteryModule signedIn={signedIn} language={language} onOpen={()=>navigate('lottery')}/>
           </div>
           {!signedIn && <button type="button" className="exit" onClick={backToWelcome}>{t('exit')}</button>}
 
         </section>)}
 
-      <LotteryScene view={view} owner={sessionId} language={language} onSelect={navigate} controls={<WorkspaceMenu onMainHome={mainHome} onAppearance={showAppearance} settings={<><label className="lottery-language-setting"><span>{languagePresentation[language].pickerLabel}</span>{languagePicker()}</label><Themes language={language}/></>} actions={(['tds','payments'] as const).map(section=><button type="button" key={section} onClick={event=>{event.currentTarget.closest('.workspace-menu')?.removeAttribute('open');window.dispatchEvent(new CustomEvent('lottery-settings',{detail:section}));}}>{section==='tds'?'TDS':{bn:'পেমেন্টের মাধ্যম',en:'Payment methods',hi:'भुगतान के तरीके'}[language]}</button>)} language={language} signedIn={signedIn} tutorial={tutorial} onTutorial={enabled=>{setTutorial(enabled);saveTutorial(enabled);}} onProfile={()=>navigate('profile')} onLogout={()=>void logout()}/>}/>
+      <LotteryScene view={view} owner={sessionId} language={language} onSelect={navigate} controls={<WorkspaceMenu onMainHome={mainHome} onAppearance={showAppearance} settings={<><label className="lottery-language-setting"><span>{languagePresentation[language].pickerLabel}</span>{languagePicker()}</label><Themes language={language}/></>} actions={<><button type="button" onClick={()=>navigate('customer')}>{shareCopy(language,'title')}</button>{(['tds','payments'] as const).map(section=><button type="button" key={section} onClick={event=>{event.currentTarget.closest('.workspace-menu')?.removeAttribute('open');window.dispatchEvent(new CustomEvent('lottery-settings',{detail:section}));}}>{section==='tds'?'TDS':{bn:'পেমেন্টের মাধ্যম',en:'Payment methods',hi:'भुगतान के तरीके'}[language]}</button>)}</>} language={language} signedIn={signedIn} tutorial={tutorial} onTutorial={enabled=>{setTutorial(enabled);saveTutorial(enabled);}} onProfile={()=>navigate('profile')} onLogout={()=>void logout()}/>}/>
+      {view==='customer'&&signedIn&&<Suspense fallback={<p>{accountCopy[language].network}</p>}><CustomerView key={sessionId} language={language} onBack={mainHome} onBooks={()=>navigate('lottery')}/></Suspense>}
       {view === 'profile' && signedIn && <section className="scene light-scene active profile-page" aria-label={t('settings')}>
         {renderBar('workspace', 'choose', 'settings')}
         <p className="orbis-account-id">{account.session?.user.user_metadata?.orbis_display_id}</p>
