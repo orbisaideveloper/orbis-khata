@@ -14,7 +14,7 @@ export function StatementView({ statement, language, busy, offset, onPage }: Rea
         <header className="statement-heading"><small>{t('statement')}</small><h2>{statement.source} · {t(statement.sourceRole === 'Stockist' ? 'stockist' : 'customer')}</h2><p>{statement.party} · {statement.from} — {statement.to}</p><small>{t(statement.direction)}</small></header>
         <dl className="customer-balances"><div><dt>{t('opening')}</dt><dd>{money(statement.opening)}</dd></div><div><dt>{t('balance')}</dt><dd>{money(statement.balance)}</dd></div></dl>
         <p className="customer-scroll-hint">{t('scrollHint')}</p>
-        <section className="customer-table" aria-label={t('entries')} tabIndex={0}><table>
+        <section className="customer-table" aria-label={t('entries')}><table>
             <caption>{t('entries')} · {statement.total}</caption>
             <thead><tr>{(['serial', 'date', 'dispatch', 'unsold', 'netQuantity', 'rate', 'commission', 'tds', 'bill', 'payment', 'running'] as const).map(key => <th scope="col" key={key}>{t(key)}</th>)}</tr></thead>
             <tbody>{statement.rows.map((row, index) => <tr key={row.id}>
