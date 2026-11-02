@@ -1,0 +1,15 @@
+import {cleanup,fireEvent,render,screen,within} from '@testing-library/react';
+import {afterEach,expect,it,vi} from 'vitest';
+import {StatementView} from './StatementView';
+import type {PartyStatement} from './statement';
+afterEach(cleanup);
+const statement:PartyStatement={party:'Viewer',source:'Source books',sourceRole:'Stockist',direction:'pay',from:'2026-10-01',to:'2026-11-02',opening:'-123',balance:'1234567890123456789',rows:[{id:'sale',date:'2026-10-31',reference:'S1',kind:'DRAFT',business:'1200',money:'0',quantity:'10',returned:'3',netQuantity:'7',rate:'200',commission:'0',tds:'0',balance:'1200'},{id:'payment',date:'2026-11-01',reference:'P1',kind:'payment',business:'0',money:'1000',balance:'200',split:{cashPaise:'400',bankPaise:'100',pwtPaise:'500'}}],total:102,next:100};
+it('renders separate date-wise dispatch, total unsold, bill, payment and balance columns with exact money',()=>{
+ const onPage=vi.fn();render(<StatementView statement={statement} language="en" busy={false} offset={0} onPage={onPage}/>);const table=screen.getByRole('table');expect(within(table).getByRole('columnheader',{name:'Total unsold'})).toBeVisible();expect(within(table).queryByRole('columnheader',{name:'Details'})).not.toBeInTheDocument();const rows=within(table).getAllByRole('row');expect(within(rows[1]).getAllByRole('cell').map(cell=>cell.textContent).slice(0,4)).toEqual(['1','10','3','7']);expect(within(rows[2]).getByText('₹10.00')).toBeVisible();expect(screen.getByText('−₹1.23')).toBeVisible();expect(screen.getByText('₹12,34,56,78,90,12,34,567.89')).toBeVisible();expect(screen.getByRole('button',{name:'Previous page'})).toBeDisabled();fireEvent.click(screen.getByRole('button',{name:'Next page'}));expect(onPage).toHaveBeenCalledWith(100);
+});
+it('supports supplier/customer rows without inventing missing ticket or split data',()=>{
+ const onPage=vi.fn();const supplier={...statement,sourceRole:'Customer' as const,direction:'receive' as const,next:null,rows:[{id:'bill',date:'2026-11-01',reference:'B1',kind:'bill' as const,business:'100',money:'0',quantity:'1',balance:'100'},{id:'pay',date:'2026-11-01',reference:'P2',kind:'payment' as const,business:'0',money:'100',balance:'0'}]};render(<StatementView statement={supplier} language="bn" busy={false} offset={100} onPage={onPage}/>);expect(screen.getByRole('heading',{name:'Source books · গ্রাহক'})).toBeVisible();expect(screen.getByText('101')).toBeVisible();expect(screen.getByRole('button',{name:'পরের পৃষ্ঠা'})).toBeDisabled();fireEvent.click(screen.getByRole('button',{name:'আগের পৃষ্ঠা'}));expect(onPage).toHaveBeenCalledWith(0);expect(screen.queryByText(/নগদ \/ ব্যাংক/)).not.toBeInTheDocument();
+});
+it('shows an empty Hindi statement and disables busy pagination',()=>{
+ render(<StatementView statement={{...statement,rows:[],total:0,next:null}} language="hi" busy offset={0} onPage={vi.fn()}/>);expect(screen.getByText('इस अवधि में कोई एंट्री नहीं।')).toBeVisible();expect(screen.getByRole('button',{name:'पिछला पृष्ठ'})).toBeDisabled();expect(screen.getByRole('button',{name:'अगला पृष्ठ'})).toBeDisabled();
+});

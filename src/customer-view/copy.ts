@@ -1,5 +1,12 @@
 import type { Language } from '../i18n';
 const copy = {
+    statement: ['হিসাবের স্টেটমেন্ট', 'खाते का विवरण', 'Account statement'],
+    serial: ['ক্রম', 'क्रम', 'No.'], dispatch: ['ডিসপ্যাচ', 'डिस्पैच', 'Dispatch'], unsold: ['মোট আনসোল্ড', 'कुल अनसोल्ड', 'Total unsold'],
+    last30: ['শেষ ৩০ দিন', 'पिछले ३० दिन', 'Last 30 days'], thisMonth: ['এই মাস', 'इस महीने', 'This month'], previousMonth: ['আগের মাস', 'पिछला महीना', 'Previous month'],
+    periodHint: ['নির্বাচিত তারিখের আগের লেনদেন আগের ব্যালেন্সে ধরা আছে। পুরোনো পেমেন্টের লাইন দেখতে শুরুর তারিখ বদলে দেখুন চাপুন।', 'चुनी तारीख से पहले का लेनदेन पिछले शेष में शामिल है। पुराने भुगतान की पंक्ति के लिए शुरू की तारीख बदलकर देखें दबाएँ।', 'Earlier transactions are included in the opening balance. To see an older payment row, change From and press Show.'],
+    checked: ['শেষ যাচাই', 'अंतिम जाँच', 'Last checked'], refreshHint: ['নতুন সেভ করা হিসাব আনতে আবার দেখুন চাপুন', 'नया सेव किया हिसाब देखने के लिए रीफ़्रेश दबाएँ', 'Refresh to fetch newly saved entries'],
+    scrollHint: ['আরও কলাম দেখতে টেবিলটি পাশে সরান।', 'बाकी कॉलम देखने के लिए तालिका को बगल में खिसकाएँ।', 'Swipe the table sideways for more columns.'],
+
     readonlyTitle: ['আপনার হিসাব — শুধু দেখুন', 'आपका खाता — केवल देखें', 'Your statement — read only'],
     ownHint: ['নিজের ব্যবসার পুরো হিসাব রাখতে চান? আপনার লটারি খাতা আলাদা থাকবে।', 'अपना पूरा व्यवसाय हिसाब रखना है? आपकी लॉटरी बही अलग रहेगी।', 'Want to keep your own business books? Your Lottery books remain separate.'],
     masterLink: ['Orbis ID দিয়ে লিঙ্ক করুন — ঐচ্ছিক', 'Orbis ID से लिंक करें — वैकल्पिक', 'Link with Orbis ID — optional'],

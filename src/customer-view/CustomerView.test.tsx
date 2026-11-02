@@ -35,3 +35,32 @@ it('does not submit twice while a request is pending or retain a response after 
 it('loads correctly under React StrictMode effect replay', async () => { render(<StrictMode><CustomerView language="en" onBack={() => { }} onBooks={() => { }}/></StrictMode>); await screen.findByText(/No links/); expect(screen.queryByRole('status')).not.toBeInTheDocument(); });
 
 it('shows only incoming personal statements and keeps owner management out of Customer view',async()=>{links=[incoming,outgoing];mount();await screen.findByText('Original books · Own party');expect(screen.queryByText(/Other party/)).not.toBeInTheDocument();expect(screen.queryByRole('button',{name:'Link account'})).not.toBeInTheDocument();expect(screen.queryByRole('heading',{name:'Accounts you shared'})).not.toBeInTheDocument();});
+
+it('refreshes the open statement from saved source data and returns to page one without changing dates',async()=>{
+ links=[{...incoming,status:'accepted'}];mount();fireEvent.click(await screen.findByRole('button',{name:'View statement'}));await screen.findByRole('table');
+ const initial=request.mock.calls.find(([,input])=>(input as {action:string}).action==='statement')![1];
+ fireEvent.click(screen.getByRole('button',{name:'Next page'}));await waitFor(()=>expect(request).toHaveBeenLastCalledWith('party-sharing',expect.objectContaining({offset:100})));
+ const updated=structuredClone(statement);updated.balance='123456';updated.rows[0].money='2500';request.mockImplementation(async(_op,input)=>(input as {action:string}).action==='list'?links:updated);
+ fireEvent.click(screen.getByRole('button',{name:'Refresh'}));await screen.findByText('₹25.00');expect(request).toHaveBeenLastCalledWith('party-sharing',{...initial as object,offset:0});expect(screen.getByText('₹1,234.56')).toBeVisible();expect(screen.getByRole('button',{name:'Previous page'})).toBeDisabled();expect(screen.getByText(/Last checked:/)).toBeVisible();
+});
+it('includes the previous month by default and supports explicit monthly and custom periods',async()=>{
+ vi.useFakeTimers({toFake:['Date']});vi.setSystemTime(new Date('2026-11-02T10:00:00Z'));
+ try{links=[{...incoming,status:'accepted'}];mount();fireEvent.click(await screen.findByRole('button',{name:'View statement'}));await screen.findByRole('table');
+ expect(request).toHaveBeenLastCalledWith('party-sharing',{action:'statement',id:'in',from:'2026-10-04',to:'2026-11-02',offset:0});
+ for(const [label,from,to] of [['This month','2026-11-01','2026-11-02'],['Previous month','2026-10-01','2026-10-31'],['Last 30 days','2026-10-04','2026-11-02']]){
+ fireEvent.click(screen.getByRole('button',{name:label}));expect(screen.queryByRole('table')).not.toBeInTheDocument();expect(screen.queryByText(/Last checked:/)).not.toBeInTheDocument();fireEvent.click(screen.getByRole('button',{name:'Show'}));await screen.findByRole('table');expect(request).toHaveBeenLastCalledWith('party-sharing',expect.objectContaining({from,to}));}
+ fireEvent.change(screen.getByLabelText('From'),{target:{value:'2026-10-30'}});fireEvent.change(screen.getByLabelText('To'),{target:{value:'2026-11-01'}});fireEvent.click(screen.getByRole('button',{name:'Show'}));await screen.findByRole('table');expect(request).toHaveBeenLastCalledWith('party-sharing',expect.objectContaining({from:'2026-10-30',to:'2026-11-01'}));
+ }finally{vi.useRealTimers();}
+});
+it('removes a revoked statement on refresh without requesting its financial data',async()=>{
+ links=[{...incoming,status:'accepted'}];mount();fireEvent.click(await screen.findByRole('button',{name:'View statement'}));await screen.findByRole('table');links=[{...incoming,status:'revoked'}];request.mockClear();fireEvent.click(screen.getByRole('button',{name:'Refresh'}));await screen.findByText(/Closed/);expect(screen.queryByRole('table')).not.toBeInTheDocument();expect(request).toHaveBeenCalledExactlyOnceWith('party-sharing',{action:'list'});
+});
+it('returns to account selection before leaving Customer view',async()=>{
+ links=[{...incoming,status:'accepted'}];const {onBack}=mount();fireEvent.click(await screen.findByRole('button',{name:'View statement'}));await screen.findByRole('table');fireEvent.click(screen.getByRole('button',{name:'Back'}));expect(screen.queryByRole('table')).not.toBeInTheDocument();expect(onBack).not.toHaveBeenCalled();expect(screen.getByRole('button',{name:'View statement'})).toBeVisible();
+});
+it('hides stale balances and checked time after a failed refresh',async()=>{
+ links=[{...incoming,status:'accepted'}];mount();fireEvent.click(await screen.findByRole('button',{name:'View statement'}));await screen.findByRole('table');request.mockImplementation(async(_op,input)=>{if((input as {action:string}).action==='list')return links;throw new Error('offline');});fireEvent.click(screen.getByRole('button',{name:'Refresh'}));await screen.findByRole('alert');expect(screen.queryByRole('table')).not.toBeInTheDocument();expect(screen.queryByText(/Last checked:/)).not.toBeInTheDocument();
+});
+it('does not fetch financial data after unmount during a refresh',async()=>{
+ links=[{...incoming,status:'accepted'}];mount();fireEvent.click(await screen.findByRole('button',{name:'View statement'}));await screen.findByRole('table');let resolve!:(value:unknown)=>void;request.mockReturnValueOnce(new Promise(done=>{resolve=done;}));request.mockClear();fireEvent.click(screen.getByRole('button',{name:'Refresh'}));expect(screen.getByRole('button',{name:'Refresh'})).toBeDisabled();cleanup();await act(async()=>resolve(links));expect(request).toHaveBeenCalledExactlyOnceWith('party-sharing',{action:'list'});
+});
