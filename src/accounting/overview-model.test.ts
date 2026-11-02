@@ -57,4 +57,8 @@ it('reads extra expense pages only when needed for three recent payments, keepin
  const row={id:'cost',kind:'charge' as const,effective_date:'2026-11-01',category:'Travel',payee:'Driver',amount:'100',method:'cash' as const,parent_id:null,reverses_id:null,reference:'E1',note:'',reversed:false};
  const paid=[1,2,3].map(n=>({...row,id:String(n)}));const load=vi.fn(async()=>({...expenses,entries:paid,count:101}));const first={...expenses,entries:[{...row,method:null}],count:101};const before=structuredClone(first);
  expect((await recentExpenseEntries(first,load)).map(e=>e.id)).toEqual(['3','2','1']);expect(load).toHaveBeenCalledExactlyOnceWith(50);expect(first).toEqual(before);load.mockClear();await recentExpenseEntries({...first,entries:paid},load);expect(load).not.toHaveBeenCalled();
+ const older=vi.fn(async(offset:number)=>({...expenses,entries:offset===50?[]:paid,count:151}));
+ expect((await recentExpenseEntries({...first,count:151},older)).map(e=>e.id)).toEqual(['3','2','1']);expect(older.mock.calls.map(([offset])=>offset)).toEqual([50,100]);expect(first).toEqual(before);
+ const empty=vi.fn(async()=>({...expenses,count:101}));expect(await recentExpenseEntries(first,empty)).toEqual([]);expect(empty).toHaveBeenCalledTimes(2);
+ const offline=vi.fn(async()=>{throw Error('offline');});await expect(recentExpenseEntries(first,offline)).rejects.toThrow('offline');expect(offline).toHaveBeenCalledOnce();
 });

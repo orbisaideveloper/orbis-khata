@@ -49,10 +49,11 @@ export function recentExpenses(expenses: ExpenseReport) {
 
 /** Backend pages are newest first. Fetch older pages only until three paid expenses are found. */
 export async function recentExpenseEntries(first: ExpenseReport, load: (offset: number) => Promise<ExpenseReport>) {
-  let source = first;
-  for (let offset = 50; offset < first.count && recentExpenses(source).length < 3; offset += 50) {
+  async function append(source: ExpenseReport, offset: number): Promise<ExpenseReport['entries']> {
+    const preview = recentExpenses(source);
+    if (offset >= first.count || preview.length === 3) return preview;
     const next = await load(offset);
-    source = { ...first, entries: [...source.entries, ...next.entries] };
+    return append({ ...first, entries: [...source.entries, ...next.entries] }, offset + 50);
   }
-  return recentExpenses(source);
+  return append(first, 50);
 }
