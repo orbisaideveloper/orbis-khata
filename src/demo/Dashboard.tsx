@@ -11,7 +11,7 @@ import type { BooksPage } from '../books-navigation';
 import type { BillKind } from './InvoicePage';
 const pageForModule: Record<string, BooksPage> = { accounts: 'ledger', ledger: 'all-ledgers' };
 const iconForEntry: Partial<Record<Kind, DesignIconName>> = { sale: 'sale', purchase: 'purchase' };
-export function Dashboard({ language, companyName: _companyName, report, failed, onRetry, onOpen, onBill, partyCount, itemCount, expenses, onOverview, periodLabel }: Readonly<{
+export function Dashboard({ language, companyName: _companyName, report, failed, onRetry, onOpen, onBill, partyCount, itemCount, expenses, onOverview, periodLabel, expensePreview }: Readonly<{
     language: Language;
     companyName: string;
     report: Report | null;
@@ -22,6 +22,7 @@ export function Dashboard({ language, companyName: _companyName, report, failed,
     partyCount: number;
     itemCount: number;
     expenses: ExpenseReport;
+    expensePreview?: ExpenseReport['entries'];
     onOverview: (kind: OverviewKind) => void;
     periodLabel?: string;
 }>) {
@@ -30,7 +31,7 @@ export function Dashboard({ language, companyName: _companyName, report, failed,
  <div className="kh-section-heading"><h2>{t.overview}</h2><span>{periodLabel ?? t.period}</span><button className="overview-refresh" type="button" onClick={onRetry}>{inLanguage(language,'হালনাগাদ','ताज़ा करें','Refresh balances')}</button></div>
  {failed && <output role="alert">{t.error} <button type="button" onClick={onRetry}>{t.retry}</button></output>}
  {!failed && !report && <output>{t.loading}</output>}
- {!failed && report && <DashboardMetrics report={report} expenses={expenses} language={language} onOverview={onOverview}/>}
+ {!failed && report && <DashboardMetrics expensePreview={expensePreview} report={report} expenses={expenses} language={language} onOverview={onOverview}/>}
 
  <button className="kh-report-shortcut" type="button" onClick={()=>onOpen('reports')}>{inLanguage(language,'দিনের হিসাব · বিল · লাভ','दिन का हिसाब · बिल · लाभ','Daily summary · bills · profit')} →</button>
  <div className="kh-section-heading"><h2>{t.actions}</h2></div><div className="kh-quick-actions">{(['sale', 'purchase', 'expense'] as const).map(kind => <button type="button" key={kind} onClick={() => onBill(kind)}><span><DesignIcon name={kind}/></span>{t[kind]}</button>)}</div>

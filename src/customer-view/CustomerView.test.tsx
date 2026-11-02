@@ -64,3 +64,6 @@ it('hides stale balances and checked time after a failed refresh',async()=>{
 it('does not fetch financial data after unmount during a refresh',async()=>{
  links=[{...incoming,status:'accepted'}];mount();fireEvent.click(await screen.findByRole('button',{name:'View statement'}));await screen.findByRole('table');let resolve!:(value:unknown)=>void;request.mockReturnValueOnce(new Promise(done=>{resolve=done;}));request.mockClear();fireEvent.click(screen.getByRole('button',{name:'Refresh'}));expect(screen.getByRole('button',{name:'Refresh'})).toBeDisabled();cleanup();await act(async()=>resolve(links));expect(request).toHaveBeenCalledExactlyOnceWith('party-sharing',{action:'list'});
 });
+it('offers the shared module picker in Customer view without loading financial workspaces',async()=>{
+ const select=vi.fn();render(<CustomerView language="en" onBack={vi.fn()} onBooks={vi.fn()} onSelect={select}/>);await screen.findByText(/No links/);fireEvent.click(screen.getByText('Modules'));fireEvent.click(screen.getByRole('button',{name:/Khata Boi/}));expect(select).toHaveBeenCalledWith('khata');expect(request).toHaveBeenCalledExactlyOnceWith('party-sharing',{action:'list'});
+});

@@ -1,13 +1,15 @@
+import {shareCopy} from "./customer-view/copy";
 import { inLanguage } from "./localize";
 import { translations, type Language } from "./i18n";
+export type ModuleTarget = "khata" | "lottery" | "customer";
 export function ModulePicker({
   language,
   active,
   onSelect,
 }: Readonly<{
   language: Language;
-  active: "khata" | "lottery";
-  onSelect: (module: "khata" | "lottery") => void;
+  active: ModuleTarget;
+  onSelect: (module: ModuleTarget) => void;
 }>) {
   const t = translations[language];
   return (
@@ -24,7 +26,7 @@ export function ModulePicker({
           "Choose module",
         )}
       >
-        {(["khata", "lottery"] as const).map((module) => (
+        {(["khata", "lottery", "customer"] as const).map((module) => (
           <button
             key={module}
             type="button"
@@ -34,7 +36,7 @@ export function ModulePicker({
               onSelect(module);
             }}
           >
-            {module === "khata" ? t.khata : t.lot}
+            {({khata:t.khata,lottery:t.lot,customer:shareCopy(language,"title")})[module]}
             <span aria-hidden="true">→</span>
           </button>
         ))}

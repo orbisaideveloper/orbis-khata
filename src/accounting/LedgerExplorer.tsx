@@ -1,3 +1,4 @@
+import {useBookServices} from '../books-services';
 import {expenseCategoryParts,isExpenseCategory} from "./expense-category";
 import { useBooksBack } from '../books-navigation';
 import { expenseLedgerReport } from './expense-ledger';
@@ -38,6 +39,7 @@ export function LedgerExplorer({ company, language, from, to, version, parties, 
     initialSelection?: LedgerEntity;
     onBack?: () => void;
 }>) {
+    const services=useBookServices();
     const t = copy[language], a = accountingCopy[language], e = expenseCopy[language];
     const [search, setSearch] = useState(''), [filter, setFilter] = useState('all'), [selected, setSelected] = useState<LedgerEntity | null>(initialSelection ?? null);
     useBooksBack(Boolean(selected), () => { if(onBack) onBack(); else setSelected(null); });
@@ -61,8 +63,10 @@ export function LedgerExplorer({ company, language, from, to, version, parties, 
                 const emptyInventory: InventoryReport = { items: [], warehouses: [], stocks: [], documents: [], count: 0 };
                 const skipExpenses = scopedType === 'party' || scopedType === 'item';
                 const skipInventory = Boolean(scopedType && scopedType !== 'item');
-                const [expenses, inventory] = await Promise.all([skipExpenses ? Promise.resolve(emptyExpenses) : expenseReport(company, from, to, 0), skipInventory ? Promise.resolve(emptyInventory) : inventoryReport(company, from, to, 0)]);
-                const [fullExpense, fullInventory] = await Promise.all([allPages(expenses, 'entries', offset => expenseReport(company, from, to, offset)), allPages(inventory, 'documents', offset => inventoryReport(company, from, to, offset))]);
+                const loadExpense=(offset:number)=>services?services.request<ExpenseReport>('expense-report',{company,from,to,offset}):expenseReport(company,from,to,offset);
+                const loadInventory=(offset:number)=>services?services.request<InventoryReport>('inventory-report',{company,from,to,offset}):inventoryReport(company,from,to,offset);
+                const [expenses, inventory] = await Promise.all([skipExpenses ? Promise.resolve(emptyExpenses) : loadExpense(0), skipInventory ? Promise.resolve(emptyInventory) : loadInventory(0)]);
+                const [fullExpense, fullInventory] = await Promise.all([allPages(expenses, 'entries', loadExpense), allPages(inventory, 'documents', loadInventory)]);
                 if (alive) {
                     setResult({ query, expenses: fullExpense, inventory: fullInventory });
                     setFailed('');
@@ -76,7 +80,7 @@ export function LedgerExplorer({ company, language, from, to, version, parties, 
         }
         void load();
         return () => { alive = false; };
-    }, [company, from, to, query, retry, scopedType]);
+    }, [company, from, to, query, retry, scopedType, services]);
     const data = result?.query === query ? result : null;
     const partyKey = query + selected?.id;
     useEffect(() => {
@@ -84,7 +88,8 @@ export function LedgerExplorer({ company, language, from, to, version, parties, 
         if (!selected || (selected.type !== 'party' && !(selected.type === 'expense' && selected.partyId))) {
             return;
         }
-        void report(company, from, to, selected.partyId ?? selected.id, 0).then(first => allPages(first, 'entries', offset => report(company, from, to, selected.partyId ?? selected.id, offset))).then(data => {
+        const loadParty=(offset:number)=>services?services.request<Report>('report',{company,from,to,party:selected.partyId??selected.id,offset}):report(company,from,to,selected.partyId??selected.id,offset);
+        void loadParty(0).then(first => allPages(first, 'entries', loadParty)).then(data => {
             if (alive) {
                 setPartyResult({ key: partyKey, data });
             }
@@ -94,7 +99,7 @@ export function LedgerExplorer({ company, language, from, to, version, parties, 
             }
         });
         return () => { alive = false; };
-    }, [company, from, to, selected, partyKey, retry]);
+    }, [company, from, to, selected, partyKey, retry, services]);
     if (failed === query) {
         return <output>{a.error}<button type="button" onClick={() => setRetry(n => n + 1)}>{a.retry}</button></output>;
     }

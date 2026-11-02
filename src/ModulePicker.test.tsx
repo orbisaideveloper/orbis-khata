@@ -18,3 +18,7 @@ it("switches directly between available modules and keeps Farming visibly unavai
   fireEvent.click(screen.getByRole("button", { name: /Khata/ }));
   expect(select).toHaveBeenCalledWith("khata");
 });
+it('opens Customer view directly and exposes the reverse module route with current-page state',()=>{
+ const select=vi.fn();const {rerender}=render(<ModulePicker language="en" active="khata" onSelect={select}/>);fireEvent.click(screen.getByText('Modules'));fireEvent.click(screen.getByRole('button',{name:/Customer view/}));expect(select).toHaveBeenLastCalledWith('customer');expect(screen.getByText('Modules').closest('details')).not.toHaveAttribute('open');
+ rerender(<ModulePicker language="hi" active="customer" onSelect={select}/>);expect(screen.getByRole('button',{name:/ग्राहक दृश्य/})).toHaveAttribute('aria-current','page');fireEvent.click(screen.getByText('मॉड्यूल'));fireEvent.click(screen.getByRole('button',{name:/लॉटरी/}));expect(select).toHaveBeenLastCalledWith('lottery');
+});

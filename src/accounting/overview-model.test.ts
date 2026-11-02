@@ -1,4 +1,4 @@
-import { expect, it } from 'vitest'
+import { expect, it, vi } from 'vitest'
 import { dueRows, moneyRows, overviewAmount } from './overview-model'
 import type { Report } from './model'
 import type { ExpenseReport } from './expense-model'
@@ -46,3 +46,15 @@ it('keeps the demo cash drill-down consistent with the journal after reversing a
   expect(moneyRows(r, e, 'cash').reduce((sum, row) => sum + BigInt(row.amount), 0n)).toBe(BigInt(r.balances.cash?.movement ?? '0'))
   resetDemo()
 })
+it('previews only the latest three effective expense money-outs without mutating the source or showing cancelled/unpaid rows', async()=>{
+ const {recentExpenses}=await import('./overview-model');
+ const row={id:'a',kind:'charge' as const,effective_date:'2026-11-01',category:'Travel',payee:'Driver',amount:'100',method:'cash' as const,parent_id:null,reverses_id:null,reference:'E1',note:'',reversed:false};
+ const entries=[{...row,id:'1',effective_date:'2026-10-28'},{...row,id:'2',effective_date:'2026-10-29'},{...row,id:'3',kind:'payment' as const,effective_date:'2026-10-30'},{...row,id:'4',effective_date:'2026-10-31'},row,{...row,id:'unpaid',method:null},{...row,id:'cancelled'},{...row,id:'undo',kind:'reversal' as const,reverses_id:'cancelled'}];
+ const before=structuredClone(entries);expect(recentExpenses({...expenses,entries}).map(e=>e.id)).toEqual(['a','4','3']);expect(entries).toEqual(before);
+});
+it('reads extra expense pages only when needed for three recent payments, keeping the original report page intact',async()=>{
+ const {recentExpenseEntries}=await import('./overview-model');
+ const row={id:'cost',kind:'charge' as const,effective_date:'2026-11-01',category:'Travel',payee:'Driver',amount:'100',method:'cash' as const,parent_id:null,reverses_id:null,reference:'E1',note:'',reversed:false};
+ const paid=[1,2,3].map(n=>({...row,id:String(n)}));const load=vi.fn(async()=>({...expenses,entries:paid,count:101}));const first={...expenses,entries:[{...row,method:null}],count:101};const before=structuredClone(first);
+ expect((await recentExpenseEntries(first,load)).map(e=>e.id)).toEqual(['3','2','1']);expect(load).toHaveBeenCalledExactlyOnceWith(50);expect(first).toEqual(before);load.mockClear();await recentExpenseEntries({...first,entries:paid},load);expect(load).not.toHaveBeenCalled();
+});

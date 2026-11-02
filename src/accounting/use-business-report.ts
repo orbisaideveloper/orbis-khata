@@ -6,7 +6,7 @@ import type {Report} from './model';
 import type {ExpenseReport} from './expense-model';
 import type {InventoryReport} from '../inventory/model';
 export function useBusinessReport(company:string,to:string,version:number){
- const {request}=useWorkspaceSettings(company,true),[retry,setRetry]=useState(0),[result,setResult]=useState<{key:string;data:ReportData}|null>(null),[failure,setFailure]=useState('');
+ const {request,settings,loaded}=useWorkspaceSettings(company,false,version),[retry,setRetry]=useState(0),[result,setResult]=useState<{key:string;data:ReportData}|null>(null),[failure,setFailure]=useState('');
  const key=JSON.stringify([company,to,version,retry]);
  useEffect(()=>{let alive=true;
   const input={company,from:'0001-01-01',to,offset:0};
@@ -19,5 +19,5 @@ export function useBusinessReport(company:string,to:string,version:number){
   }
   void load();return()=>{alive=false;};
  },[company,to,key,request]);
- return {data:result?.key===key?result.data:null,failed:failure===key,retry:()=>setRetry(n=>n+1)};
+ return {productionEnabled:loaded?Boolean(settings.production):null,data:result?.key===key?result.data:null,failed:failure===key,retry:()=>setRetry(n=>n+1)};
 }

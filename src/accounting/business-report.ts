@@ -60,7 +60,9 @@ export function costOfSales(inventory:InventoryReport,from:string,to:string){
   const sale=doc.kind==='sale'&&inPeriod(doc.date,from,to),cost=applyCostDocument(doc,sale,context);
   if(sale)costs.set(doc.id,cost);
  }
- return {costs,missing:[...missing].map(id=>inventory.items.find(item=>item.id===id)?.name??id)};
+ const output=inventory.items.find(item=>item.id===production.outputItem);
+ const productionSummary={inputCost:production.inputCost,outputQuantity:String(production.outputQuantity),unitCost:production.average,product:output?.name??'',unit:output?.unit??'',complete:production.missing.length===0&&production.outputQuantity>0n,hasHistory:production.inputs.length>0||production.outputs.length>0,asOf:to};
+ return {costs,missing:[...missing].map(id=>inventory.items.find(item=>item.id===id)?.name??id),production:productionSummary};
 }
 export function businessReport(data:ReportData,from:string,to:string){
  const trade=currentEntries(data.trade.entries),expenses=currentEntries(data.expenses.entries);
@@ -71,5 +73,5 @@ export function businessReport(data:ReportData,from:string,to:string){
  const expense=-[...moneyRows({...data.trade,entries:[]},data.expenses,'cash'),...moneyRows({...data.trade,entries:[]},data.expenses,'bank')].filter(row=>inPeriod(row.date,from,to)).reduce((total,row)=>total+BigInt(row.amount),0n);
  const movements=[...moneyRows(data.trade,data.expenses,'cash'),...moneyRows(data.trade,data.expenses,'bank')].filter(m=>inPeriod(m.date,from,to)).sort((a,b)=>b.date.localeCompare(a.date)||a.id.localeCompare(b.id));
  const received=movements.filter(m=>BigInt(m.amount)>0n).reduce((n,m)=>n+BigInt(m.amount),0n),paid=-movements.filter(m=>BigInt(m.amount)<0n).reduce((n,m)=>n+BigInt(m.amount),0n);
- return {bills,movements,sales,purchases,expense,cost,received,paid,cashChange:received-paid,tradeSurplus:sales-purchases-expense,profit:sales-cost-expense,missing:valuation.missing,complete:valuation.missing.length===0&&uncosted.length===0,uncosted:uncosted.length};
+ return {bills,movements,sales,purchases,expense,cost,received,paid,cashChange:received-paid,tradeSurplus:sales-purchases-expense,profit:sales-cost-expense,production:valuation.production,missing:valuation.missing,complete:valuation.missing.length===0&&uncosted.length===0,uncosted:uncosted.length};
 }

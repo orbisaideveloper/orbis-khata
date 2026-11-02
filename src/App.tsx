@@ -1,7 +1,7 @@
 import './design.css';
 import {shareCopy} from './customer-view/copy';
 import {Themes} from './theme';
-import {ModulePicker} from './ModulePicker';
+import {ModulePicker,type ModuleTarget} from './ModulePicker';
 import {lazy,Suspense,useEffect,useMemo,useRef,useState,type ReactNode} from 'react';
 const CustomerView=lazy(()=>import('./customer-view/CustomerView'));
 const LotteryPage=lazy(()=>import('./lottery/LotteryPage'));
@@ -45,7 +45,7 @@ function OrbitMark() {
     </svg>);
 }
 function mainClass(view: View, signedIn: boolean) { if(view==='lottery'){return 'phone lottery-shell';}return view === 'khata' && signedIn ? 'phone kh-app' : 'phone'; }
-function LotteryScene({view,owner,language,onSelect,controls}:Readonly<{view:View;owner:string|null;language:Language;onSelect:(module:'khata'|'lottery')=>void;controls:ReactNode}>){if(view!=='lottery'||!owner){return null;}return <Suspense fallback={<p>{accountCopy[language].network}</p>}><LotteryPage owner={owner} language={language} onSelect={onSelect} controls={controls}/></Suspense>;}
+function LotteryScene({view,owner,language,onSelect,controls}:Readonly<{view:View;owner:string|null;language:Language;onSelect:(module:ModuleTarget)=>void;controls:ReactNode}>){if(view!=='lottery'||!owner){return null;}return <Suspense fallback={<p>{accountCopy[language].network}</p>}><LotteryPage owner={owner} language={language} onSelect={onSelect} controls={controls}/></Suspense>;}
 function accountStateScreen(account: ReturnType<typeof useAccount>, language: Language, shellClass: string) {
     if (account.loading) {
         return <main className={shellClass}><PwaStatus language={language}/><output>{accountCopy[language].network}</output></main>;
@@ -214,7 +214,7 @@ function App() {
         </section>)}
 
       <LotteryScene view={view} owner={sessionId} language={language} onSelect={navigate} controls={<WorkspaceMenu onMainHome={mainHome} onAppearance={showAppearance} settings={<><label className="lottery-language-setting"><span>{languagePresentation[language].pickerLabel}</span>{languagePicker()}</label><Themes language={language}/></>} actions={<><button type="button" onClick={()=>navigate('customer')}>{shareCopy(language,'title')}</button>{(['tds','payments'] as const).map(section=><button type="button" key={section} onClick={event=>{event.currentTarget.closest('.workspace-menu')?.removeAttribute('open');window.dispatchEvent(new CustomEvent('lottery-settings',{detail:section}));}}>{section==='tds'?'TDS':{bn:'পেমেন্টের মাধ্যম',en:'Payment methods',hi:'भुगतान के तरीके'}[language]}</button>)}</>} language={language} signedIn={signedIn} tutorial={tutorial} onTutorial={enabled=>{setTutorial(enabled);saveTutorial(enabled);}} onProfile={()=>navigate('profile')} onLogout={()=>void logout()}/>}/>
-      {view==='customer'&&signedIn&&<Suspense fallback={<p>{accountCopy[language].network}</p>}><CustomerView key={sessionId} language={language} onBack={mainHome} onBooks={()=>navigate('lottery')}/></Suspense>}
+      {view==='customer'&&signedIn&&<Suspense fallback={<p>{accountCopy[language].network}</p>}><CustomerView key={sessionId} language={language} onSelect={navigate} onBack={mainHome} onBooks={()=>navigate('lottery')}/></Suspense>}
       {view === 'profile' && signedIn && <section className="scene light-scene active profile-page" aria-label={t('settings')}>
         {renderBar('workspace', 'choose', 'settings')}
         <p className="orbis-account-id">{account.session?.user.user_metadata?.orbis_display_id}</p>

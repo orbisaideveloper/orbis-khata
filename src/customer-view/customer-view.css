@@ -31,3 +31,5 @@
 @media(max-width:420px){.customer-heading h1{font-size:1.05rem}.customer-view button{padding:.6rem .75rem}.customer-statement .customer-balances{gap:.5rem;margin:.7rem;padding:.8rem}.statement-heading{padding:1rem}}
 .customer-view .customer-period label{min-width:150px}
 .customer-view .customer-period input{padding:.65rem .5rem}
+
+.customer-module-control{display:flex;justify-content:flex-end;margin:.5rem 0}

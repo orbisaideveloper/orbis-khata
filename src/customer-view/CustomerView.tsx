@@ -1,3 +1,4 @@
+import {ModulePicker,type ModuleTarget} from '../ModulePicker';
 import { useEffect, useRef, useState } from 'react';
 import type { Language } from '../i18n';
 import { requestKhata } from '../accounting/api';
@@ -8,8 +9,9 @@ import { StatementView } from './StatementView';
 import { ShareList } from './ShareList';
 import './customer-view.css';
 const request = <T,>(command: ShareCommand) => requestKhata<T>('party-sharing', command);
-export default function CustomerView({ language, onBack, onBooks }: Readonly<{
+export default function CustomerView({ language, onBack, onBooks, onSelect }: Readonly<{
     language: Language;
+    onSelect?: (module: ModuleTarget) => void;
     onBack: () => void;
     onBooks: () => void;
 }>) {
@@ -126,6 +128,7 @@ export default function CustomerView({ language, onBack, onBooks }: Readonly<{
     }
     return <section className="scene light-scene active customer-view" aria-label={t('title')}>
  <header className="customer-heading"><button type="button" onClick={active ? closeStatement : onBack}>{t('back')}</button><h1>{t('title')}</h1><button type="button" disabled={busy} onClick={() => void perform(refresh)}>{t('refresh')}</button></header>
+ {onSelect && <div className="customer-module-control"><ModulePicker language={language} active="customer" onSelect={onSelect}/></div>}
  <div className="customer-intro"><strong>{t('readonlyTitle')}</strong><p>{t('readonly')}</p></div>
  {busy && <output>{t('busy')}</output>}{error && <p role="alert">{t('error')}</p>}
  {!links.length && !busy && <p className="customer-empty">{t('empty')}</p>}

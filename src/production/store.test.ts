@@ -16,7 +16,10 @@ it('preserves ledgers and calculates date-selected profit from a continuous pool
  async function report(){return businessReport({trade:await demoRequest<Report>('report',{company,from:'0001-01-01',to:'2026-10-31',offset:0,party:null}),expenses:await demoRequest<ExpenseReport>('expense-report',{company,from:'0001-01-01',to:'2026-10-31',offset:0}),inventory:await inventory()},'2026-10-01','2026-10-31');}
  expect(await report()).toMatchObject({profit:100000n,cost:500000n,complete:true,purchases:2500000n});
  await demoRequest('workspace',{...entry('output',milk,'200000000'),date:'2026-10-02'});expect(await report()).toMatchObject({profit:242857n,cost:357143n,complete:true});
- await demoRequest('workspace',{company,action:'settings-save',settings:defaultSettings()});expect(await report()).toMatchObject({profit:242857n,complete:true});expect((await inventory()).documents).toHaveLength(5);
+ const savedInventory=await inventory(),before=structuredClone(savedInventory),valued=await report();
+ expect(valued.production).toMatchObject({inputCost:2500000n,outputQuantity:'700000000',unitCost:3571n,complete:true,hasHistory:true});
+ expect(savedInventory).toEqual(before);
+ await demoRequest('workspace',{company,action:'settings-save',settings:defaultSettings()});expect(await report()).toEqual(valued);expect(await inventory()).toEqual(before);expect(before.documents).toHaveLength(5);
 });
 it('rejects unsafe entries and conflicting retries, and allows retry of the exact original entry',async()=>{
  await demoRequest('workspace',invoice('purchase'));

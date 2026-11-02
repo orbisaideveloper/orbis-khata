@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 import { LotteryLanguage } from "./language";
-import { ModulePicker } from "../ModulePicker";
+import { ModulePicker, type ModuleTarget } from "../ModulePicker";
 import { LotteryAccountingWorkspace } from "../../vendor/foundation-lottery/src/admin/dashboard/sections/LotteryAccountingWorkspace";
 import type { Language } from "../i18n";
 import { inLanguage } from "../localize";
@@ -13,7 +13,7 @@ export default function LotteryPage({
 }: Readonly<{
   owner: string;
   language: Language;
-  onSelect: (module: "khata" | "lottery") => void;
+  onSelect: (module: ModuleTarget) => void;
   controls?: ReactNode;
 }>) {
   return (

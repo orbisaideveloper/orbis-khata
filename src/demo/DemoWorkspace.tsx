@@ -1,3 +1,4 @@
+import {recentExpenseEntries} from '../accounting/overview-model';
 import {Production} from '../production/Production';
 import {useWorkspaceSettings} from '../accounting/use-settings';
 import type {ReactNode} from 'react';
@@ -84,6 +85,7 @@ export function DemoWorkspace({ language, userId = 'demo-owner', moduleControl, 
         key: string;
         report: Report;
         expenses: ExpenseReport;
+        expensePreview: ExpenseReport['entries'];
         warehouses: {
             id: string;
             name: string;
@@ -148,12 +150,14 @@ export function DemoWorkspace({ language, userId = 'demo-owner', moduleControl, 
                     id: string;
                     name: string;
                 }[];
-            }>('inventory-report', { company, from, to, offset: 0 }), request<ExpenseReport>('expense-report', { company, from, to, offset: 0 })]).then(([r, i, e]) => {
+            }>('inventory-report', { company, from, to, offset: 0 }), request<ExpenseReport>('expense-report', { company, from, to, offset: 0 })]).then(async ([r, i, firstExpense]) => {
+            const e=firstExpense;
+            const expensePreview = await recentExpenseEntries(e, offset => request<ExpenseReport>('expense-report', { company, from, to, offset }));
             if (!e || !Array.isArray(e.bills) || !Array.isArray(e.categories)) {
                 throw new Error('EXPENSE_REPORT_INVALID');
             }
             if (alive) {
-                setResult({ key: requestKey, report: r, expenses: e, warehouses: i.warehouses });
+                setResult({ key: requestKey, report: r, expenses: e, expensePreview, warehouses: i.warehouses });
             }
         }).catch(() => {
             if (alive) {
@@ -171,7 +175,7 @@ export function DemoWorkspace({ language, userId = 'demo-owner', moduleControl, 
   <nav className="books-navigation" aria-label={labels.ledger}>{(['home', 'ledger', 'all-ledgers', 'parties', 'items', 'bills', 'expenses', 'reports', 'settings', ...(productionEnabled?['production' as const]:[])] as const).map(page => <button type="button" key={page} disabled={locked} aria-current={navigation.page === page ? 'page' : undefined} onClick={() => { setOverview(null); setBill(null); navigation.open(page); }}>{labels[page]}</button>)}</nav>
   <div className="kh-company-modules"><label>{inLanguage(language, 'কোম্পানি', 'कंपनी', 'Company')}<select value={company} disabled={locked} onChange={e => { setOverview(null); setCompany(e.target.value); setBill(null); }}>{companies.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}</select></label>{moduleControl}</div>
   {(navigation.page === 'production' || navigation.page === 'home' || navigation.page === 'reports' || navigation.page === 'bills' && !bill || navigation.page === 'all-ledgers' || navigation.page === 'expenses' || navigation.page === 'stock' || showingOverview) && <DateRange language={language} from={from} to={to} onChange={(start, end) => { setFrom(start); setTo(end); }}/>}
-  {(navigation.page === 'home' || navigation.page === 'overview' && !showingOverview) && <Dashboard language={language} companyName={companyName} report={report} failed={failed} onRetry={changed} onOpen={navigation.open} onBill={openBill} periodLabel={from + ' — ' + to} partyCount={masters.parties.length} itemCount={masters.items.length} expenses={result?.key === requestKey ? result.expenses : { balances: {}, categories: [], bills: [], entries: [], count: 0 }} onOverview={kind => { setOverview({ company, kind }); navigation.open('overview'); }}/>}
+  {(navigation.page === 'home' || navigation.page === 'overview' && !showingOverview) && <Dashboard expensePreview={result?.key===requestKey?result.expensePreview:undefined} language={language} companyName={companyName} report={report} failed={failed} onRetry={changed} onOpen={navigation.open} onBill={openBill} periodLabel={from + ' — ' + to} partyCount={masters.parties.length} itemCount={masters.items.length} expenses={result?.key === requestKey ? result.expenses : { balances: {}, categories: [], bills: [], entries: [], count: 0 }} onOverview={kind => { setOverview({ company, kind }); navigation.open('overview'); }}/>}
   {showingOverview && report && result?.key === requestKey && <OverviewDetails key={[company, overview.kind, from, to].join('/')} {...{ company, language, from, to, version, report }} expenses={result.expenses} kind={overview.kind} title={overview.kind==='liquidity'?designCopy[language].cash+' / '+designCopy[language].bank:designCopy[language][overviewLabels[overview.kind]]} onBack={closeOverview}/>}
   {showingOverview && !report && !failed && <output>{designCopy[language].loading}</output>}
   {showingOverview && failed && <output role="alert">{designCopy[language].error}<button type="button" onClick={changed}>{designCopy[language].retry}</button><button type="button" onClick={closeOverview}>{designCopy[language].home}</button></output>}

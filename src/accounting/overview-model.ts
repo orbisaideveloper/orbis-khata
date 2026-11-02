@@ -40,3 +40,19 @@ export function moneyRows(report: Report, expenses: ExpenseReport, account: 'cas
   }))
   return [...trades, ...costs].sort((a, b) => b.date.localeCompare(a.date) || a.id.localeCompare(b.id))
 }
+
+/** Latest effective money-out expense entries; unpaid charges and reversals are excluded. */
+export function recentExpenses(expenses: ExpenseReport) {
+  return currentEntries(expenses.entries).filter(row => (row.kind === 'charge' || row.kind === 'payment') && (row.method === 'cash' || row.method === 'bank'))
+    .sort((a, b) => b.effective_date.localeCompare(a.effective_date) || b.id.localeCompare(a.id)).slice(0, 3);
+}
+
+/** Backend pages are newest first. Fetch older pages only until three paid expenses are found. */
+export async function recentExpenseEntries(first: ExpenseReport, load: (offset: number) => Promise<ExpenseReport>) {
+  let source = first;
+  for (let offset = 50; offset < first.count && recentExpenses(source).length < 3; offset += 50) {
+    const next = await load(offset);
+    source = { ...first, entries: [...source.entries, ...next.entries] };
+  }
+  return recentExpenses(source);
+}
