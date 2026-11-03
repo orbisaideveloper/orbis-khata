@@ -1,3 +1,4 @@
+import { WorkspaceGreeting } from './WorkspaceGreeting';
 import './design.css';
 import {shareCopy} from './customer-view/copy';
 import {Themes} from './theme';
@@ -198,15 +199,15 @@ function App() {
           <div className="login-footer">{authClient ? '' : t('signup')}</div>
         </section>)}
 
-      {view === 'workspace' && (signedIn || guestUiEnabled) && (<section className="scene light-scene active" aria-label={t('choose')}>
+      {view === 'workspace' && (signedIn || guestUiEnabled) && (<section className="scene light-scene active workspace-scene" aria-label={t('choose')}>
           <header className="bar workspace-header">{renderBrand('workBrand')}{languagePicker(true)}{signedIn && menu()}</header>
-          <div className="workspace-title"><p className="orbis-account-id">{account.session?.user.user_metadata?.orbis_display_id}</p><span className="eyebrow l">{t('workBadge')}</span><h1>{t('hi')}</h1><p className="subtitle">{t('choose')}</p></div>
+          <div className="workspace-title"><p className="orbis-account-id">{account.session?.user.user_metadata?.orbis_display_id}</p><span className="eyebrow l">{t('workBadge')}</span><WorkspaceGreeting key={sessionId??'guest'} userId={sessionId} language={language}/><p className="subtitle">{t('choose')}</p></div>
           <div className="welcome-panel"><strong>{t('panel')}</strong>{tutorial && <p>{t('panelDesc')}</p>}</div>
           {appearance&&<Themes language={language}/>}
           <div className="modules">
             <button type="button" className="module" onClick={() => navigate('khata')}><span className="ic" aria-hidden="true">📘</span><span className="copy"><strong>{t('khata')}</strong><small>{t('khataDesc')}</small></span><span className="status">{t('open')}</span></button>
             {renderPlanned('🌱', 'farm', 'farm', 'farmDesc', 'later')}
-            {signedIn&&<button type="button" className="module" onClick={()=>navigate('customer')}><span className="copy"><strong>{shareCopy(language,'title')}</strong><small>{shareCopy(language,'readonly')}</small></span></button>}
+            {signedIn&&<button type="button" className="module" onClick={()=>navigate('customer')}><span className="ic customer" aria-hidden="true"><svg viewBox="0 0 48 48" fill="none"><rect x="9" y="7" width="30" height="35" rx="6" fill="currentColor" opacity=".12"/><circle cx="24" cy="19" r="6" stroke="currentColor" strokeWidth="2.5"/><path d="M14 35c0-10 20-10 20 0M17 3h14" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"/></svg></span><span className="copy"><strong>{shareCopy(language,'title')}</strong><small>{{bn:'লিঙ্ক করা হিসাব ও স্টেটমেন্ট',hi:'लिंक किए खाते और विवरण',en:'Linked accounts and statements'}[language]}</small></span><span className="status">{t('open')}</span></button>}
             <LotteryModule signedIn={signedIn} language={language} onOpen={()=>navigate('lottery')}/>
           </div>
           {!signedIn && <button type="button" className="exit" onClick={backToWelcome}>{t('exit')}</button>}

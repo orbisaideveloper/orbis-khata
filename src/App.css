@@ -18,3 +18,19 @@ input.input:focus-visible{outline:3px solid #8ba9ff;outline-offset:2px}
 .module-picker{position:relative;flex-shrink:0}.module-picker summary{cursor:pointer;list-style:none;font-size:12px;font-weight:650;padding:8px 12px;border:1px solid #a9bfcf;border-radius:12px;background:#ffffffd9;color:#234a63;white-space:nowrap}.module-picker summary::-webkit-details-marker{display:none}.module-picker nav{position:absolute;right:0;top:calc(100% + 8px);z-index:70;min-width:210px;padding:8px;border:1px solid #d9e3e7;border-radius:16px;background:#fff;box-shadow:0 12px 32px #12374a26}.module-picker nav button{display:flex;width:100%;justify-content:space-between;align-items:center;gap:16px;border:0;background:white;padding:13px;border-radius:10px;color:#244354;font-size:14px}.module-picker nav button[aria-current]{background:#fff1da}.module-picker nav button:disabled{opacity:.55}.module-switchbar{position:relative;z-index:35;display:flex;justify-content:space-between;align-items:center;padding:8px 14px;margin:0 12px;color:#506e78;font-size:12px}
 
 .kh-app .module-switchbar{position:sticky;top:66px;background:#f4f8f6ed;backdrop-filter:blur(12px);border-bottom:1px solid #dce7e280;margin:0;padding:6px 14px}.kh-app[data-theme=blue] .module-switchbar{background:#f4f7fbed}
+
+/* Compact module landing: the account identity stays visible above every module. */
+.workspace-scene .workspace-title{position:relative;isolation:isolate;overflow:hidden;margin-top:18px;padding:20px;border-radius:22px;color:#fff;background:linear-gradient(125deg,#193c78,#3265bb 70%,#5876cf)}
+.workspace-scene .workspace-title:after{content:'';position:absolute;z-index:-1;width:150px;height:150px;right:-65px;top:-40px;border:22px solid #ffffff12;border-radius:50%;box-shadow:0 0 0 22px #ffffff09;pointer-events:none}
+.workspace-scene .workspace-title .orbis-account-id{margin:0 0 12px;color:#e3edff;font-size:13px;overflow-wrap:anywhere}
+.workspace-scene .workspace-title .eyebrow{background:#ffffff17;border-color:#ffffff35;color:#eef4ff;padding:5px 10px}
+.workspace-scene .workspace-title h1{margin:13px 0 6px;font-size:25px;line-height:1.45;letter-spacing:normal;overflow-wrap:anywhere}
+.workspace-name{font-weight:850}
+.workspace-scene .workspace-title .subtitle{color:#e0eaff}
+.workspace-scene .welcome-panel{margin-top:14px;padding:12px 16px}
+.workspace-scene .modules{margin-top:14px;gap:10px}
+.workspace-scene .module{padding:13px;min-height:90px;border-radius:18px}
+.workspace-scene .module .copy{min-width:0}
+.workspace-scene .module .ic.customer{background:#e7f4ff;color:#25649a}
+.workspace-scene .module .ic svg{width:38px;height:38px}
+@media(max-width:380px){.workspace-scene .module{gap:9px}.workspace-scene .module .ic{width:45px;height:45px}.workspace-scene .workspace-title{padding:16px}.workspace-scene .workspace-title h1{font-size:23px}}
