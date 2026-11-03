@@ -26,13 +26,17 @@ function rawStock(docs:Doc[],rawItems:Set<string>,outputValues=new Map<string,bi
   if(doc.kind==='production-output')values=[outputValues.get(doc.id)??0n];
   for(let index=0;index<doc.lines.length;index++)rawLine(doc,index,raw,rawItems,values,outputKnown);
  }
+ accumulateInputCosts(docs,raw);
+ return raw;
+}
+function accumulateInputCosts(docs:Doc[],raw:RawCosts){
  for(const doc of docs.filter(d=>d.kind==='production-input')){
   for(const [index,line] of doc.lines.entries()){
    const used=raw.costs.get(doc.id+':'+index);if(!used){continue;}
-   raw.inputCost+=used.cost;if(!used.known){raw.missing.add(line.item);}
+   raw.inputCost+=used.cost;
+   if(!used.known){raw.missing.add(line.item);}
   }
  }
- return raw;
 }
 function outputAllocations(outputs:Doc[],cost:bigint,quantity:bigint){
  const values=new Map<string,bigint>();let allocated=0n;
