@@ -33,6 +33,12 @@ try {
  await rpc({...commit,operationId:crypto.randomUUID(),version:1,state:empty});
  await db.exec('rollback');
  assert.deepEqual((await rpc({company,action:'load'})).state,state);
+ const profileId=crypto.randomUUID(),categoryId=crypto.randomUUID(),billId=crypto.randomUUID(),nextOperation=crypto.randomUUID();
+ const profile={id:profileId,categoryId,name:'Utility fixture',subcategory:'Electricity',opening:'0',openingDate:'2026-10-01',schedule:{kind:'BILL',mode:'VARIABLE',start:'2026-10-01',end:'2027-10-01',amount:'0',changes:[]}};
+ const extended={...state,categories:[...state.categories,{id:categoryId,name:'Utilities'}],profiles:[profile],bills:[{id:billId,profileId,date:'2026-10-01',amount:'24000'}]};
+ const extendedRequest={company,action:'save',id:crypto.randomUUID(),operationId:nextOperation,profile};
+ await rpc({company,action:'commit',operationId:nextOperation,request:extendedRequest,state:extended,version:1});
+ assert.deepEqual((await rpc({company,action:'load'})).state,extended);assert.deepEqual(await rpc({company,action:'load',operationId:nextOperation,request:extendedRequest}),{replay:true,state:extended});
  assert.deepEqual(await fingerprint(),before);
  assert.equal((await db.query("select has_table_privilege('authenticated','public.khata_expense_profile_state','UPDATE') as ok")).rows[0].ok,false);
  assert.equal((await db.query("select has_table_privilege('authenticated','public.khata_expense_profile_operations','SELECT') as ok")).rows[0].ok,false);

@@ -6,6 +6,8 @@ export function ExpenseChoice({
   label,
   values,
   initial = "",
+  value: controlledValue,
+  manualSuggestions = false,
   required = false,
   readOnly = false,
   onValue,
@@ -17,6 +19,8 @@ export function ExpenseChoice({
   label: string;
   values: string[];
   initial?: string;
+  value?: string;
+  manualSuggestions?: boolean;
   required?: boolean;
   readOnly?: boolean;
   onValue?: (value: string) => void;
@@ -24,8 +28,9 @@ export function ExpenseChoice({
   language: Language;
   maxLength: number;
 }>) {
-  const [value, setValue] = useState(initial),
+  const [storedValue, setValue] = useState(initial),
     [open, setOpen] = useState(false);
+  const value=controlledValue??storedValue;
   const options = [...new Set(values)]
     .filter(Boolean)
     .sort((a, b) => a.localeCompare(b));
@@ -65,12 +70,13 @@ export function ExpenseChoice({
           maxLength={maxLength}
           readOnly={readOnly}
           onFocus={() => {
-            if (!readOnly) setOpen(true);
+            if (!readOnly && !manualSuggestions) setOpen(true);
           }}
           onChange={(e) => {
             change(e.target.value);
-            setOpen(true);
+            if (!manualSuggestions) setOpen(true);
           }}
+          onKeyDown={event=>{if(event.key==='Escape')setOpen(false);if(event.key==='ArrowDown'&&!readOnly)setOpen(true);}}
           autoComplete="off"
         />
       </label>

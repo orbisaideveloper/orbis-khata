@@ -1,7 +1,7 @@
 type WorkChange = { date: string; active: boolean };
 export type ExpenseSchedule = {
-  kind: 'SALARY' | 'BILL'; mode: 'ONCE' | 'CALENDAR' | 'ANNIVERSARY';
-  start: string; amount: string; changes: WorkChange[];
+  kind: 'SALARY' | 'BILL'; mode: 'ONCE' | 'CALENDAR' | 'ANNIVERSARY' | 'VARIABLE';
+  start: string; end?: string; amount: string; changes: WorkChange[];
 };
 export type SchedulePeriod = { from: string; to: string; days: number; worked: number; amount: string };
 const dayMs = 86400000;
@@ -16,8 +16,9 @@ function monthDay(year: number, month: number, day: number): string {
 export function validSchedule(value: unknown): value is ExpenseSchedule {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return false;
   const s=value as ExpenseSchedule;
-  if (!['SALARY','BILL'].includes(s.kind) || !['ONCE','CALENDAR','ANNIVERSARY'].includes(s.mode) || !validDay(s.start) || typeof s.amount !== 'string' || !/^\d{1,12}$/u.test(s.amount) || BigInt(s.amount)<=0n || !Array.isArray(s.changes) || s.changes.length>1000) return false;
-  if ((s.kind==='BILL' && s.changes.length) || (s.kind==='SALARY' && s.mode==='ONCE')) return false;
+  if (!['SALARY','BILL'].includes(s.kind) || !['ONCE','CALENDAR','ANNIVERSARY','VARIABLE'].includes(s.mode) || !validDay(s.start) || typeof s.amount !== 'string' || !/^\d{1,12}$/u.test(s.amount) || (s.mode==='VARIABLE'?s.amount!=='0':BigInt(s.amount)<=0n) || !Array.isArray(s.changes) || s.changes.length>1000) return false;
+  if (s.kind==='SALARY' && (s.mode==='ONCE'||s.mode==='VARIABLE')) return false;
+  if (s.end!==undefined && (!validDay(s.end)||s.end<s.start)) return false;
   let previous=s.start;
   let active=true;
   for (const change of s.changes) {
@@ -39,12 +40,14 @@ function activeDays(s: ExpenseSchedule, first: string, last: string): number {
 function accruedPeriod(s:ExpenseSchedule,from:string,next:string,through:string):SchedulePeriod {
  const to=shiftDay(next,-1),days=Math.round((Date.parse(next)-Date.parse(from))/dayMs);
  const worked=activeDays(s,from,to<through?to:through);
- const amount=s.kind==='BILL'?BigInt(s.amount):(BigInt(s.amount)*BigInt(worked)+BigInt(Math.floor(days/2)))/BigInt(days);
+ let amount=(BigInt(s.amount)*BigInt(worked)+BigInt(Math.floor(days/2)))/BigInt(days);
+ if(s.kind==='BILL')amount=worked>0?BigInt(s.amount):0n;
  return {from:from<s.start?s.start:from,to,days,worked,amount:amount.toString()};
 }
 export function schedulePeriods(s: ExpenseSchedule, through: string): SchedulePeriod[] {
   if (!validSchedule(s) || !validDay(through)) throw new Error('INVALID_EXPENSE_SCHEDULE');
-  if (through<s.start) return [];
+  if (s.end && through>s.end) through=s.end;
+  if (through<s.start || s.mode==='VARIABLE') return [];
   if(s.mode==='ONCE') return [{from:s.start,to:s.start,days:1,worked:1,amount:s.amount}];
   const date=new Date(s.start+'T00:00:00Z'), year=date.getUTCFullYear(), month=date.getUTCMonth(), anchor=s.mode==='CALENDAR'?1:date.getUTCDate();
   const periods:SchedulePeriod[]=[];
@@ -59,7 +62,7 @@ export function schedulePeriods(s: ExpenseSchedule, through: string): SchedulePe
 export function scheduledAmount(s: ExpenseSchedule, through: string): bigint { return schedulePeriods(s,through).reduce((sum,row)=>sum+BigInt(row.amount),0n); }
 /** Stop date is the last paid work day; resume date is the first paid work day. */
 export function changeWork(s: ExpenseSchedule, date: string, active: boolean): ExpenseSchedule {
-  if (s.kind!=='SALARY' || s.mode==='ONCE' || !validDay(date)) throw new Error('SALARY_SCHEDULE_REQUIRED');
+  if (s.mode==='ONCE' || !validDay(date)) throw new Error('SALARY_SCHEDULE_REQUIRED');
   const next={...s,changes:[...s.changes,{date:active?date:shiftDay(date,1),active}]};
   if(!validSchedule(next)) throw new Error('INVALID_WORK_DATE');
   return next;

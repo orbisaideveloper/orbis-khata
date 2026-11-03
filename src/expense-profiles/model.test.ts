@@ -18,7 +18,7 @@ it('guards category history, duplicate names and schedule rewrites after payment
  const state={...emptyProfiles(),categories:[{id,name:'Salary'}],profiles:[profile]},post=vi.fn();
  await expect(runProfiles(state,{company,action:'category-delete',id},post)).rejects.toThrow('IN_USE');
  await expect(runProfiles(state,{company,action:'category',id:company,name:' salary '},post)).rejects.toThrow('ALREADY_EXISTS');
- await expect(runProfiles(state,{company,action:'pay',payment:{id,profileId:id,date:'2026-11-10',amount:'999999',method:'cash'}},post)).rejects.toThrow('INVALID_PROFILE_PAYMENT');
+ await expect(runProfiles(state,{company,action:'pay',payment:{id,profileId:id,date:'2026-11-10',amount:'999999',method:'cash'}},post)).rejects.toThrow('ADVANCE_CONFIRM_REQUIRED');
  expect(post).not.toHaveBeenCalled();
 });
 it('validates command and tenant ID shapes before dispatch',()=>{
@@ -37,4 +37,14 @@ it('rejects duplicate journal IDs and leaves both balance and payment state unch
  const paid=await runProfiles(state,command,async()=>null),post=vi.fn();
  await expect(runProfiles(paid,command,post)).rejects.toThrow('ALREADY_EXISTS');
  expect(post).not.toHaveBeenCalled();
+});
+
+it('creates category and schedule atomically, guards history deletion, and accepts only explicit advances',async()=>{
+ const post=vi.fn().mockResolvedValue(null),command={company,operationId,action:'save' as const,id,categoryName:'Delivery',profile:{...profile,opening:'0',subcategory:'Milk'}};expect(profileCommand(command)).toBe(true);const state=await runProfiles(emptyProfiles(),command,post);expect(post).not.toHaveBeenCalled();expect((await runProfiles(state,{company,operationId,action:'delete',id},post)).profiles).toEqual([]);expect(state.profiles).toHaveLength(1);
+ const payment={id,profileId:id,date:'2026-11-30',amount:'400000',method:'bank' as const,allowAdvance:true as const};expect(profileCommand({company,operationId,action:'pay',payment})).toBe(true);const paid=await runProfiles(state,{company,operationId,action:'pay',payment},post);expect(profileBalance(paid,paid.profiles[0],'2026-11-30')).toBe(-100000n);expect(post).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({amount:'400000',category:'Delivery › Milk',method:'bank'}));await expect(runProfiles(paid,{company,operationId,action:'delete',id},post)).rejects.toThrow('PROFILE_HISTORY_RETAINED');expect(state.payments).toHaveLength(0);
+ expect(profileCommand({company,operationId,action:'pay',payment:{...payment,voided:true}})).toBe(false);
+});
+it('tracks actual bills without journal entries and preserves as-of balances on cancellation',async()=>{
+ const variable={...profile,opening:'0',schedule:{...profile.schedule,kind:'BILL' as const,mode:'VARIABLE' as const,amount:'0'}},state={...emptyProfiles(),categories:[{id,name:'Bills'}],profiles:[variable]},post=vi.fn();const command={company,operationId,action:'bill' as const,bill:{id,profileId:id,date:'2026-11-15',amount:'240000'}};expect(profileCommand(command)).toBe(true);const billed=await runProfiles(state,command,post);expect(profileBalance(billed,variable,'2026-11-30')).toBe(240000n);expect(profileBalance(billed,variable,'2026-11-14')).toBe(0n);expect(post).not.toHaveBeenCalled();await expect(runProfiles(billed,command,post)).rejects.toThrow('INVALID_PROFILE_BILL');
+ const cancel={company,operationId,action:'bill-void' as const,id,date:'2026-11-20'};expect(profileCommand(cancel)).toBe(true);const cancelled=await runProfiles(billed,cancel,post);expect(profileBalance(cancelled,variable,'2026-11-19')).toBe(240000n);expect(profileBalance(cancelled,variable,'2026-11-20')).toBe(0n);expect(billed.bills?.[0]).not.toHaveProperty('voided');expect(post).not.toHaveBeenCalled();await expect(runProfiles(billed,{company,operationId,action:'save',id,profile:{...variable,schedule:{...variable.schedule,mode:'CALENDAR',amount:'100'}}},post)).rejects.toThrow('SCHEDULE_HISTORY_LOCKED');
 });

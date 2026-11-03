@@ -18,11 +18,11 @@ describe('salary and bill schedules',()=>{
   const rows=schedulePeriods({...salary,mode:'ANNIVERSARY',start:'2024-01-31'},'2024-03-30');
   expect(rows.map(r=>[r.from,r.to,r.amount])).toEqual([['2024-01-31','2024-02-28','2000000'],['2024-02-29','2024-03-30','2000000']]);
  });
- it('bills charge in full and cannot be paused',()=>{
+ it('bills charge in full and pause future cycles',()=>{
   const bill={...salary,kind:'BILL' as const};
   expect(scheduledAmount(bill,'2026-11-01')).toBe(2000000n);
-  expect(()=>changeWork(bill,'2026-11-10',false)).toThrow();
-  expect(validSchedule({...bill,changes:[{date:'2026-11-11',active:false}]})).toBe(false);
+  expect(scheduledAmount(changeWork(bill,'2026-11-10',false),'2026-12-10')).toBe(2000000n);
+  expect(validSchedule({...bill,changes:[{date:'2026-11-11',active:false}]})).toBe(true);
  });
  it('rejects invalid dates, duplicate stop and backwards history',()=>{
   expect(validSchedule({...salary,start:'2026-02-30'})).toBe(false);
@@ -31,4 +31,8 @@ describe('salary and bill schedules',()=>{
   expect(()=>changeWork(s,'2026-11-01',true)).toThrow();
   expect(scheduledAmount(salary,'2026-10-31')).toBe(0n);
  });
+});
+
+it('caps accrual at the optional end and never invents variable bill amounts',()=>{
+ expect(scheduledAmount({...salary,end:'2026-11-15'},'2027-01-01')).toBe(1000000n);expect(validSchedule({...salary,end:'2026-10-31'})).toBe(false);expect(validSchedule({...salary,end:'wrong'})).toBe(false);expect(scheduledAmount({...salary,kind:'BILL',mode:'VARIABLE',amount:'0'},'2027-01-01')).toBe(0n);expect(validSchedule({...salary,mode:'VARIABLE',amount:'0'})).toBe(false);
 });

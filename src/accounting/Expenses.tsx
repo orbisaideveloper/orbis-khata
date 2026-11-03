@@ -53,6 +53,12 @@ function formText(form: FormData, name: string) {
   const value = form.get(name);
   return typeof value === "string" ? value : "";
 }
+function entryNames(draft:Draft|null,category:string,subcategory:string|null,payee:string|null){
+ const saved=expenseCategoryParts(draft?.category??'');
+ if(!draft)return {...saved,payee:''};
+ if(draft.kind!=='charge')return {...saved,payee:draft.payee};
+ return {category:category||saved.category,subcategory:subcategory??saved.subcategory,payee:payee??draft.payee};
+}
 export function Expenses({
   userId,
   company,
@@ -68,7 +74,8 @@ export function Expenses({
   startOpen = false,
   gateway,
 }: Readonly<Props>) {
-  const [profilesOpen,setProfilesOpen]=useState(false);
+  const [scheduled,setScheduled]=useState(false),[scheduleLocked,setScheduleLocked]=useState(false);
+  const [chosenSubcategory,setChosenSubcategory]=useState<string|null>(null),[chosenPayee,setChosenPayee]=useState<string|null>(null);
   const t = expenseCopy[language];
   const tutorial = useTutorial();
   const [catalog, setCatalog] = useState(() =>
@@ -313,12 +320,12 @@ export function Expenses({
   const terms=search.normalize('NFKC').toLocaleLowerCase().trim().split(/\s+/u).filter(Boolean);
   const entries=currentEntries(data?.entries??[]).filter(entry=>{const text=[entry.category,entry.payee,entry.note,entry.reference,entry.effective_date].join(' ').normalize('NFKC').toLocaleLowerCase();return terms.every(term=>text.includes(term));});
   const pageOffset=Math.min(offset,Math.max(0,Math.floor((entries.length-1)/50)*50));
-  if(profilesOpen)return <Suspense fallback={<p>{t.loading}</p>}><ExpenseProfiles userId={userId} company={company} language={language} gateway={gateway} onBack={()=>setProfilesOpen(false)} onChanged={onChanged} onLock={onLock} blocked={blocked}/></Suspense>;
+
+  const names=entryNames(draft,selectedCategory,chosenSubcategory,chosenPayee);
   return (
     <section className="books-card expense-page" aria-label={t.title}>
       <div className="books-section-title">
         <h2>{t.title}</h2>
-        <button type="button" disabled={Boolean(pending)||busy||blocked} onClick={()=>setProfilesOpen(true)}>{label("বেতন ও বিল","वेतन और बिल","Salary and bills")}</button>
         {!draft && (
           <button
             type="button"
@@ -332,6 +339,7 @@ export function Expenses({
                 amount: "",
                 date: today(),
               });
+              setScheduled(false);setScheduleLocked(false);setSelectedCategory("");setChosenSubcategory(null);setChosenPayee(null);
               setMessage("");
             }}
           >
@@ -351,9 +359,9 @@ export function Expenses({
       )}
       {message && <output aria-live="polite">{message}</output>}
       {draft && !pending && (
-        <form className="books-form expense-entry-form" onSubmit={review}>
+        <div className="books-form expense-entry-form">
           <h3>{draftTitle[draft.kind]}</h3>
-          <ExpenseChoice
+          <ExpenseChoice manualSuggestions
             key={`category-${draft.parent ?? "new"}`}
             name="category"
             label={{ bn: "ক্যাটাগরি", en: "Category", hi: "श्रेणी" }[language]}
@@ -361,7 +369,7 @@ export function Expenses({
             maxLength={80}
             required
             initial={expenseCategoryParts(draft.category).category}
-            readOnly={draft.kind !== "charge"}
+            readOnly={draft.kind !== "charge"||blocked||scheduleLocked}
             values={[
               ...t.suggestions,
               ...catalog.categories,
@@ -372,7 +380,7 @@ export function Expenses({
             onValue={setSelectedCategory}
             onAdd={(name) => addName("category", name)}
           />
-          <ExpenseChoice
+          <ExpenseChoice manualSuggestions
             key={`subcategory-${selectedCategory}-${draft.parent ?? "new"}`}
             name="subcategory"
             label={
@@ -383,7 +391,9 @@ export function Expenses({
             language={language}
             maxLength={60}
             initial={expenseCategoryParts(draft.category).subcategory}
-            readOnly={draft.kind !== "charge"}
+            value={chosenSubcategory??expenseCategoryParts(draft.category).subcategory}
+            onValue={setChosenSubcategory}
+            readOnly={draft.kind !== "charge"||blocked||scheduleLocked}
             values={[
               ...(Array.isArray(catalog.subcategories[selectedCategory])?catalog.subcategories[selectedCategory]:[]),
               ...(history?.categories ?? data?.categories ?? [])
@@ -395,14 +405,16 @@ export function Expenses({
             ]}
             onAdd={(name) => addName("subcategory", name)}
           />
-          <ExpenseChoice
+          <ExpenseChoice manualSuggestions
             key={`payee-${draft.parent ?? "new"}`}
             name="payee"
             label={t.payee}
             language={language}
             maxLength={120}
             initial={draft.payee}
-            readOnly={draft.kind !== "charge"}
+            value={chosenPayee??draft.payee}
+            onValue={setChosenPayee}
+            readOnly={draft.kind !== "charge"||blocked||scheduleLocked}
             values={[
               ...payees,
               ...catalog.payees,
@@ -411,6 +423,9 @@ export function Expenses({
             ]}
             onAdd={(name) => addName("payee", name)}
           />
+          {draft.kind==='charge'&&<label className="expense-schedule-toggle"><input type="checkbox" checked={scheduled} disabled={blocked||busy} onChange={e=>{setScheduled(e.target.checked);setScheduleLocked(false);}}/><span>{label('মাসিক / নির্ধারিত হিসাব রাখুন','मासिक / निर्धारित हिसाब रखें','Track monthly / scheduled payments')}</span></label>}
+          {scheduled&&draft.kind==='charge'?<div className="expense-schedule-content">{selectedCategory.trim()?<Suspense fallback={<output>{t.loading}</output>}><ExpenseProfiles key={company+selectedCategory.trim()} userId={userId} company={company} language={language} gateway={gateway} onBack={()=>{setScheduled(false);setScheduleLocked(false);}} onChanged={()=>{addName('category',selectedCategory.trim());if(names.subcategory)addName('subcategory',names.subcategory);if(names.payee)addName('payee',names.payee);onChanged();}} onLock={onLock} blocked={blocked} entry={{category:selectedCategory,subcategory:chosenSubcategory??expenseCategoryParts(draft.category).subcategory,payee:chosenPayee??draft.payee,onPick:(profile,editing)=>{if(profile){setChosenPayee(profile.name);setChosenSubcategory(profile.subcategory??'');setScheduleLocked(!editing);}else{if(scheduleLocked){setChosenPayee('');setChosenSubcategory('');}setScheduleLocked(false);}}}}/></Suspense>:<p>{label('আগে ক্যাটাগরি বাছুন।','पहले श्रेणी चुनें।','Choose a category first.')}</p>}</div>:<form className="books-form expense-ordinary-form" onSubmit={review}>
+          <input type="hidden" name="category" value={names.category}/><input type="hidden" name="subcategory" value={names.subcategory}/><input type="hidden" name="payee" value={names.payee}/>
           <label>
             {t.amount}
             <input
@@ -463,7 +478,8 @@ export function Expenses({
               {t.cancel}
             </button>
           </div>
-        </form>
+        </form>}
+        </div>
       )}
       {pending && (
         <div className="books-confirm" aria-label={t.review}>

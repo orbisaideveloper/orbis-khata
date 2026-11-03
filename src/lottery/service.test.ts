@@ -181,3 +181,8 @@ it('saves and corrects stockist returns independently of absent seller entries w
  await expect(run('saveDailyStockistEntry',{...input,organizationId:'foreign'})).rejects.toThrow();
  expect(JSON.stringify(state)).toBe(snapshot);
 });
+
+it('retains the legacy Lottery contract for new Khata-only schedule fields',async()=>{
+ const {saveExpenseSchedule}=await import('./expense-schedule');const base={kind:'BILL',mode:'CALENDAR',start:'2026-11-01',amount:'100',changes:[]};
+ for(const schedule of [{...base,mode:'VARIABLE',amount:'0'},{...base,end:'2026-11-30'},{...base,changes:[{date:'2026-11-10',active:false}]}])await expect(saveExpenseSchedule({},'fixture',{organizationId:'fixture',usualAmountPaise:schedule.amount,schedule},owner)).rejects.toThrow('INVALID_EXPENSE_SCHEDULE');
+});

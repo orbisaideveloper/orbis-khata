@@ -22,5 +22,5 @@ it('shows the last three paid expenses by date inside the existing expense summa
  const report:Report={balances:{expenses:{opening:'0',movement:'1000',closing:'1000'}},ledger_balances:{},parties:[],entries:[],count:0,as_of:'2026-10-24'};
  const expenses={balances:{},categories:[],bills:[],count:4,entries:[1,2,3,4].map(n=>({id:String(n),effective_date:'2026-10-2'+n,payee:'Payee '+n,category:'Travel',kind:'charge' as const,method:'cash' as const,amount:String(n*100),parent_id:null,reverses_id:null,reference:'E'+n,note:'',reversed:false}))};
  render(<Dashboard language="en" companyName="Shop" report={report} expenses={expenses} onOverview={vi.fn()} failed={false} onRetry={vi.fn()} onOpen={vi.fn()} onBill={vi.fn()} partyCount={0} itemCount={0}/>);
- const card=screen.getByRole('button',{name:'Expense details'});expect(card).toHaveTextContent('Payee 4');expect(card).toHaveTextContent('Payee 3');expect(card).toHaveTextContent('Payee 2');expect(card).not.toHaveTextContent('Payee 1');expect(card).toHaveTextContent('2026-10-24');
+ const card=screen.getByRole('button',{name:'Expense details'});expect(card).toHaveTextContent('Payee 4');expect(card).toHaveTextContent('Payee 3');expect(card).toHaveTextContent('Payee 2');expect(card).not.toHaveTextContent('Payee 1');expect(card).not.toHaveTextContent('2026-10-24');expect(card).not.toHaveTextContent('Travel');
 });
