@@ -1,9 +1,13 @@
 import { validSchedule, schedulePeriods } from '../expense-profiles/schedule.ts';
 import type { ExpenseSchedule } from '../expense-profiles/schedule.ts';
 type Client=Record<string,any>;
+function validLotterySchedule(value:unknown,amount:unknown):value is ExpenseSchedule {
+ if(!validSchedule(value)){return false;}
+ return value.mode!=='VARIABLE'&&value.end===undefined&&!(value.kind==='BILL'&&value.changes.length>0)&&value.amount===String(amount);
+}
 export async function saveExpenseSchedule(client:Client,id:string,input:Record<string,unknown>,actor:string) {
  if(input.schedule===undefined) return;
- if(!validSchedule(input.schedule)||input.schedule.mode==='VARIABLE'||input.schedule.end!==undefined||input.schedule.kind==='BILL'&&input.schedule.changes.length>0||input.schedule.amount!==String(input.usualAmountPaise)) throw new Error('INVALID_EXPENSE_SCHEDULE');
+ if(!validLotterySchedule(input.schedule,input.usualAmountPaise)) throw new Error('INVALID_EXPENSE_SCHEDULE');
  const profile=await client.foundationAccountingExpenseProfile.findUnique({where:{id}});
  if(!profile||profile.organizationId!==input.organizationId) throw new Error('EXPENSE_PROFILE_NOT_FOUND');
  const next=input.schedule, previous=profile.schedule as ExpenseSchedule|undefined;

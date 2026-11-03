@@ -64,7 +64,9 @@ export default function ExpenseProfiles({userId,company,language,gateway=request
  const current=data?.profiles.find(p=>p.id===selected);
  const visible=(data?.profiles??[]).filter(p=>!entry||data?.categories.some(c=>c.id===p.categoryId&&c.name.toLocaleLowerCase()===entry.category.trim().toLocaleLowerCase()));
  const net=current&&data?profileBalance(data,current,today()):0n;
- function actualBill(event:React.SubmitEvent<HTMLFormElement>){event.preventDefault();if(!current)return;const f=new FormData(event.currentTarget),amount=amountInput(textValue(f.get('amount')));if(amount&&window.confirm(l('আসল বিল সেভ করবেন? Payment-এর আগে খরচ বা cash কাটবে না।','वास्तविक बिल सहेजें? भुगतान से पहले खर्च या नकद नहीं कटेगा।','Save the actual bill? Expense and cash change only on payment.')))mutate({action:'bill',bill:{id:crypto.randomUUID(),profileId:current.id,date:textValue(f.get('date')),amount}});}
+ function actualBill(event:React.SubmitEvent<HTMLFormElement>){event.preventDefault();
+  if(!current){return;}
+  const f=new FormData(event.currentTarget),amount=amountInput(textValue(f.get('amount')));if(amount&&window.confirm(l('আসল বিল সেভ করবেন? Payment-এর আগে খরচ বা cash কাটবে না।','वास्तविक बिल सहेजें? भुगतान से पहले खर्च या नकद नहीं कटेगा।','Save the actual bill? Expense and cash change only on payment.')))mutate({action:'bill',bill:{id:crypto.randomUUID(),profileId:current.id,date:textValue(f.get('date')),amount}});}
  return <section className={entry?"expense-scheduled-inline":"books-card"} aria-label={l('বেতন ও বিল','वेतन और बिल','Salary and bills')}>
   {!entry&&<div className="expense-profile-toolbar"><button type="button" disabled={busy||Boolean(pending)} onClick={onBack}>← {l('ফিরুন','वापस','Back')}</button><h2>{l('বেতন ও বিল','वेतन और बिल','Salary and bills')}</h2></div>}
   {message&&<output aria-live="polite">{message}</output>}

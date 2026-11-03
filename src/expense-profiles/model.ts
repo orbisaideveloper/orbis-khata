@@ -85,13 +85,14 @@ function removeProfile(next:ProfileState,id:string){
 }
 function saveActualBill(next:ProfileState,bill:ProfileBill){
  const profile=next.profiles.find(p=>p.id===bill.profileId);
- if(!profile||profile.schedule.mode!=='VARIABLE'||bill.date<profile.schedule.start||profile.schedule.end&&bill.date>profile.schedule.end||(next.bills??[]).some(b=>b.id===bill.id))throw profileError('INVALID_PROFILE_BILL');
- if(profile.schedule.changes.filter(change=>change.date<=bill.date).at(-1)?.active===false)throw profileError('SCHEDULE_STOPPED');
+ if(profile?.schedule.mode!=='VARIABLE'||bill.date<profile.schedule.start||profile.schedule.end&&bill.date>profile.schedule.end||(next.bills??[]).some(b=>b.id===bill.id))throw profileError('INVALID_PROFILE_BILL');
+ if(profile.schedule.changes.findLast(change=>change.date<=bill.date)?.active===false)throw profileError('SCHEDULE_STOPPED');
  next.bills=[...(next.bills??[]),bill];
 }
 function cancelActualBill(next:ProfileState,command:ProfileCommand){
  const bill=next.bills?.find(b=>b.id===command.id&&!b.voided);
- if(!bill||command.date!<bill.date)throw profileError('PROFILE_BILL_NOT_FOUND');bill.voided=true;bill.voidDate=command.date;
+ if(!bill||command.date!<bill.date){throw profileError('PROFILE_BILL_NOT_FOUND');}
+ bill.voided=true;bill.voidDate=command.date;
 }
 export async function runProfiles(state:ProfileState,command:ProfileCommand,post:Post) {
  const next=structuredClone(state);

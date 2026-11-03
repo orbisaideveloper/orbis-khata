@@ -28,7 +28,7 @@ export function ExpenseChoice({
   language: Language;
   maxLength: number;
 }>) {
-  const [storedValue, setValue] = useState(initial),
+  const [storedValue, setStoredValue] = useState(initial),
     [open, setOpen] = useState(false);
   const value=controlledValue??storedValue;
   const options = [...new Set(values)]
@@ -38,7 +38,7 @@ export function ExpenseChoice({
     option.toLocaleLowerCase().includes(value.toLocaleLowerCase()),
   );
   function change(next: string) {
-    setValue(next);
+    setStoredValue(next);
     onValue?.(next);
   }
   function add() {
@@ -76,7 +76,10 @@ export function ExpenseChoice({
             change(e.target.value);
             if (!manualSuggestions) setOpen(true);
           }}
-          onKeyDown={event=>{if(event.key==='Escape')setOpen(false);if(event.key==='ArrowDown'&&!readOnly)setOpen(true);}}
+          onKeyDown={event=>{
+            if(event.key==='Escape'){setOpen(false);}
+            if(event.key==='ArrowDown'&&!readOnly){setOpen(true);}
+          }}
           autoComplete="off"
         />
       </label>
