@@ -20,10 +20,10 @@ it('explains cumulative input/output valuation without deducting purchases twice
  render(<ProfitSummary result={r} language="en" productionEnabled={true}/>);
  const production=screen.getByRole('region',{name:'Production cost'});expect(production).toHaveTextContent('Curd');expect(production).toHaveTextContent('Cumulative through: '+date);expect(within(production).getByText('Consumed input cost').closest('div')).toHaveTextContent('₹40.00');expect(within(production).getByText('Produced output').closest('div')).toHaveTextContent('4 kg');expect(within(production).getByText('Cost per unit').closest('div')).toHaveTextContent('₹10.00');expect(production).toHaveTextContent('deducted once');
 });
-it('withholds final profit and unknown production costs while always exposing the simple comparison',()=>{
+it('shows a clearly provisional amount while unknown costs remain',()=>{
  const r=result();r.complete=false;r.missing=['Milk'];r.uncosted=1;r.profit=-1000n;r.tradeSurplus=100n;r.production={...r.production,hasHistory:true,complete:false,unitCost:null};
  render(<TutorialContext.Provider value={false}><ProfitSummary result={r} language="en" productionEnabled={true}/></TutorialContext.Provider>);
- expect(screen.getByText('Net profit / loss').closest('div')).toHaveTextContent('—');expect(screen.getByRole('status')).toHaveTextContent('Milk');expect(screen.getByRole('status')).toHaveTextContent('Sales without item costs: 1');expect(screen.getByRole('status')).toHaveTextContent('not net profit');expect(screen.getByRole('region',{name:'Production cost'})).toHaveTextContent('Incomplete');expect(screen.queryByText(/Profit includes credit sales/)).toBeNull();expect(screen.getByRole('region',{name:'Simple purchase/sales comparison'})).toHaveTextContent('₹1.00');
+ expect(screen.getByText('Net profit / loss').closest('div')).toHaveTextContent('−₹10.00');expect(screen.getByText(/Provisional/)).toBeVisible();expect(screen.getByRole('status')).toHaveTextContent('Milk');expect(screen.getByRole('status')).toHaveTextContent('Sales without item costs: 1');expect(screen.getByRole('status')).toHaveTextContent('not final profit');expect(screen.getByRole('region',{name:'Production cost'})).toHaveTextContent('Incomplete');expect(screen.queryByText(/Profit includes credit sales/)).toBeNull();expect(screen.getByRole('region',{name:'Simple purchase/sales comparison'})).toHaveTextContent('₹1.00');
 });
 it('shows an empty production history and an unavailable setting explicitly',()=>{
  const {rerender}=render(<ProfitSummary result={result()} language="en" productionEnabled={true}/>);expect(screen.getByText(/No production inputs/)).toBeVisible();
@@ -31,5 +31,14 @@ it('shows an empty production history and an unavailable setting explicitly',()=
 });
 it.each(['bn','hi'] as const)('renders localized incomplete diagnostics in %s',language=>{
  const r=result();r.complete=false;r.uncosted=0;r.production={...r.production,complete:true,hasHistory:true,unitCost:null};
- render(<ProfitSummary result={r} language={language} productionEnabled={true}/>);expect(screen.getByRole('status')).toBeVisible();expect(screen.getAllByText(language==='bn'?'অসম্পূর্ণ':'अपूर्ण')).toHaveLength(2);
+ render(<ProfitSummary result={r} language={language} productionEnabled={true}/>);expect(screen.getByRole('status')).toBeVisible();expect(screen.getAllByText(language==='bn'?'অসম্পূর্ণ':'अपूर्ण')).toHaveLength(1);
+});
+it('shows negative stock, separately valued assets and production in progress',()=>{
+ const r=result();r.complete=false;r.stockComplete=false;r.stockValue=6000n;r.workInProgress=2000n;
+ r.closingStock=[{id:'feed',name:'Feed',unit:'kg',quantity:'1000000',value:6000n,complete:true},{id:'milk',name:'Milk',unit:'litre',quantity:'-500000',value:0n,complete:false}];
+ const {container}=render(<ProfitSummary result={r} language="en" productionEnabled={false}/>);
+ const assets=container.querySelector('.profit-inventory')!;
+ expect(assets.querySelector('summary')).toHaveTextContent('₹80.00');expect(assets).toHaveTextContent('known value');
+ expect(screen.getByText(/Negative stock:/)).toHaveTextContent('Milk -0.5 litre');
+ expect(assets).toHaveTextContent('Work in progress');expect(assets).toHaveTextContent('₹20.00');
 });

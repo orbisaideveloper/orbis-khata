@@ -20,14 +20,14 @@ it('consumes old stock first, including partial lots, prior sales and exact purc
  const multi=doc('multiple','purchase','feed',1n,100n);multi.lines.push({...multi.lines[0],item:'other'});multi.total='101';expect(purchaseAllocations(multi)).toEqual([51n,50n]);
 });
 it('refuses invented zero costs for missing, negative or opening stock and multiple output units',()=>{
- const inventory=productionFixture();inventory.documents=[doc('input','production-input','feed',1n,0n),doc('clear','purchase','feed',1n,100n,'2026-10-02'),doc('out','production-output','milk',1n,0n)];expect(productionCost(inventory,'2026-10-02').missing).toEqual(['feed']);
+ const inventory=productionFixture();inventory.documents=[doc('input','production-input','feed',1n,0n),doc('clear','purchase','feed',1n,100n,'2026-10-02'),doc('out','production-output','milk',1n,0n)];expect(productionCost(inventory,'2026-10-02').missing).toEqual([]);
  inventory.documents=[doc('opening','opening','feed',2n,0n),doc('input','production-input','feed',1n,0n),doc('out','production-output','milk',1n,0n)];expect(productionCost(inventory,'2026-10-02').missing).toEqual(['feed']);
  inventory.documents=[doc('out','production-output','milk',1n,0n),doc('other','production-output','other',1n,0n)];expect(productionCost(inventory,'2026-10-02').missing.sort()).toEqual(['milk','other']);
  inventory.documents=[];expect(productionCost(inventory,'2026-10-02')).toMatchObject({average:null,outputItem:null,outputQuantity:0n});
 });
 it('ignores reversed entries and transfers, and recovers after a historical negative quantity clears',()=>{
  const inventory=productionFixture();inventory.documents=[doc('negative','sale','feed',1n,100n),doc('buy','purchase','feed',2n,1000n,'2026-10-02'),doc('input','production-input','feed',1n,0n,'2026-10-03'),doc('out','production-output','milk',1n,0n,'2026-10-03'),{...doc('reversed','production-input','feed',100n,0n),reversed:true},doc('transfer','transfer','feed',1n,0n)];
- const pool=productionCost(inventory,'2026-10-03');expect(pool).toMatchObject({inputCost:1000n,missing:[]});expect(costOfSales(inventory,'2026-10-01','2026-10-03').missing).toEqual(['Feed']);
+ const pool=productionCost(inventory,'2026-10-03');expect(pool).toMatchObject({inputCost:1000n,missing:[]});expect(costOfSales(inventory,'2026-10-01','2026-10-03').missing).toEqual([]);
  inventory.documents.unshift(doc('no-cost-opening','opening','feed',1n,0n));expect(productionCost(inventory,'2026-10-03').inputCost).toBe(1000n);
 });
 

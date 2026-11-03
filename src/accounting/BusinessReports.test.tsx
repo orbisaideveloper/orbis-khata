@@ -25,5 +25,5 @@ it('drills summary cards into exact bill/payment filters and returns with Back w
  expect(screen.getByRole('button',{name:'Sales'})).toBeVisible();fireEvent.click(screen.getByRole('button',{name:'Purchases'}));expect(screen.getByLabelText('Type')).toHaveValue('purchase');expect(screen.getByText('No bills in this period.')).toBeVisible();
  fireEvent.click(screen.getByRole('button',{name:'Summary / profit'}));fireEvent.click(screen.getByRole('button',{name:'Money received'}));expect(screen.getByLabelText('Show')).toHaveValue('in');
  fireEvent.click(screen.getByRole('button',{name:'Summary / profit'}));fireEvent.click(screen.getByRole('button',{name:'Money paid'}));expect(screen.getByLabelText('Show')).toHaveValue('out');
- fireEvent.click(screen.getByRole('button',{name:'Summary / profit'}));expect(screen.getByText(/comparison below is not net profit/)).toBeVisible();
+ fireEvent.click(screen.getByRole('button',{name:'Summary / profit'}));expect(screen.getByText(/Unknown costs have not yet been deducted/)).toBeVisible();
 });
