@@ -20,6 +20,9 @@ try{
  try{
   await setup({exec:text=>bootstrap.unsafe(text),query:async(text,params=[])=>({rows:await bootstrap.unsafe(text,params)})});
   await bootstrap.unsafe(await readFile('supabase/migrations/20261104070825_report_revision_and_party_lookup.sql','utf8'));
+  // Match Supabase's auth.uid() schema visibility for authenticated callers.
+  // No access to auth.users or financial tables is added.
+  await bootstrap.unsafe('grant usage on schema auth to authenticated');
  }finally{
   try{await bootstrap.unsafe('rollback');}finally{bootstrap.release();}
  }
