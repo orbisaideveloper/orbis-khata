@@ -1,3 +1,4 @@
+import {TutorialNote} from '../tutorial';
 import {useBookServices} from '../books-services';
 import {expenseCategoryParts,isExpenseCategory} from "./expense-category";
 import { useBooksBack } from '../books-navigation';
@@ -119,7 +120,7 @@ export function LedgerExplorer({ company, language, from, to, version, parties, 
     const partyData = partyResult?.key === partyKey ? partyResult.data : null;
     return <section className="books-card ledger-explorer" aria-label={t.title}><h2>{t.title}</h2>
   {!initialSelection && <div className="ledger-search"><select aria-label={t.title} value={filter} onChange={event => { setFilter(event.target.value); setSelected(null); }}>{(['all', 'party', 'expense', 'item'] as const).map(type => <option value={type} key={type}>{t[type]}</option>)}</select><input aria-label={t.search} placeholder={t.search} type="search" value={search} onChange={event => { setSearch(event.target.value); setSelected(null); }}/></div>}
-  {!selected && <><p className="ledger-hint">{t.choose}</p><div className="ledger-results">{!matches.length && <p>{t.empty}</p>}{matches.map(row => <button type="button" className="books-entity ledger-row" key={row.id} onClick={() => setSelected(row)}><strong>{row.name}</strong>{' '}<span>{t[row.type]}</span><span aria-hidden="true">›</span></button>)}</div></>}
+  {!selected && <><TutorialNote><p className="ledger-hint">{t.choose}</p></TutorialNote><div className="ledger-results">{!matches.length && <p>{t.empty}</p>}{matches.map(row => <button type="button" className="books-entity ledger-row" key={row.id} onClick={() => setSelected(row)}><strong>{row.name}</strong>{' '}<span>{t[row.type]}</span><span aria-hidden="true">›</span></button>)}</div></>}
   {selected && <div className="ledger-detail"><button type="button" onClick={() => {
                 if (onBack) {
                     onBack();

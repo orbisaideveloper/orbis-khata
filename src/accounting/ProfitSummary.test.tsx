@@ -17,7 +17,7 @@ it('keeps purchase comparison and cash separate from costed profit with Producti
 });
 it('explains cumulative input/output valuation without deducting purchases twice',()=>{
  const r=result();r.production={inputCost:4000n,outputQuantity:'4000000',unitCost:1000n,product:'Curd',unit:'kg',complete:true,hasHistory:true,asOf:date};
- render(<ProfitSummary result={r} language="en" productionEnabled={true}/>);
+ render(<TutorialContext.Provider value={true}><ProfitSummary result={r} language="en" productionEnabled={true}/></TutorialContext.Provider>);
  const production=screen.getByRole('region',{name:'Production cost'});expect(production).toHaveTextContent('Curd');expect(production).toHaveTextContent('Cumulative through: '+date);expect(within(production).getByText('Consumed input cost').closest('div')).toHaveTextContent('₹40.00');expect(within(production).getByText('Produced output').closest('div')).toHaveTextContent('4 kg');expect(within(production).getByText('Cost per unit').closest('div')).toHaveTextContent('₹10.00');expect(production).toHaveTextContent('deducted once');
 });
 it('shows a clearly provisional amount while unknown costs remain',()=>{
@@ -41,4 +41,12 @@ it('shows negative stock, separately valued assets and production in progress',(
  expect(assets.querySelector('summary')).toHaveTextContent('₹80.00');expect(assets).toHaveTextContent('known value');
  expect(screen.getByText(/Negative stock:/)).toHaveTextContent('Milk -0.5 litre');
  expect(assets).toHaveTextContent('Work in progress');expect(assets).toHaveTextContent('₹20.00');
+});
+it.each(['bn','en','hi'] as const)('hides optional teaching but retains essential warnings with Tutorial off (%s)',language=>{
+ const r=result();r.complete=false;r.missing=['Milk'];r.closingStock=[{id:'milk',name:'Milk',unit:'litre',quantity:'-1000000',value:0n,complete:false}];
+ const view=render(<TutorialContext.Provider value={false}><ProfitSummary result={r} language={language} productionEnabled={true}/></TutorialContext.Provider>);
+ expect(screen.getByRole('status')).toHaveTextContent('Milk');expect(view.container.querySelector('.report-warning')).toBeInTheDocument();
+ expect(view.container.querySelector('.profit-simple p')).toBeNull();expect(view.container.querySelector('.profit-inventory > p')).toBeNull();
+ view.rerender(<TutorialContext.Provider value={true}><ProfitSummary result={r} language={language} productionEnabled={true}/></TutorialContext.Provider>);
+ expect(view.container.querySelector('.profit-simple p')).not.toBeNull();expect(view.container.querySelector('.profit-inventory > p')).not.toBeNull();
 });

@@ -7,6 +7,7 @@ export class CostPool {
   private readonly lots: Lot[] = [];
   private readonly pending: Withdrawal[] = [];
   private readonly average: boolean;
+  private pendingHead=0;
   constructor(average = false) { this.average = average; }
 
   private take(lot: Lot, quantity: bigint) {
@@ -19,15 +20,16 @@ export class CostPool {
 
   receive(quantity: bigint, value: bigint, known = true) {
     const incoming = {quantity, value, known};
-    while (incoming.quantity > 0n && this.pending.length) {
-      const request = this.pending[0];
+    while (incoming.quantity > 0n && this.pendingHead<this.pending.length) {
+      const request = this.pending[this.pendingHead];
       const part = this.take(incoming, request.missing);
       request.cost += part.value;
       request.missing -= part.used;
       if (!known) { request.unpriced += part.used; }
       request.known = request.missing === 0n && request.unpriced === 0n;
-      if (request.missing === 0n) { this.pending.shift(); }
+      if (request.missing === 0n) { this.pendingHead++; }
     }
+    this.compactPending();
     if (!incoming.quantity) { return; }
     const current = this.lots[0];
     if (this.average && current) {
@@ -52,8 +54,26 @@ export class CostPool {
     return result;
   }
 
+  fork(copies=new Map<Withdrawal,Withdrawal>()) {
+    const copy=new CostPool(this.average);
+    copy.lots.push(...this.lots.map(lot=>({...lot})));
+    for(const request of this.pending.slice(this.pendingHead)){
+      let cloned=copies.get(request);
+      if(!cloned){cloned={...request};copies.set(request,cloned);}
+      copy.pending.push(cloned);
+    }
+    return copy;
+  }
+
+  private compactPending(){
+    if(this.pendingHead===this.pending.length){this.pending.length=0;this.pendingHead=0;return;}
+    if(this.pendingHead>=1024&&this.pendingHead*2>=this.pending.length){
+      this.pending.splice(0,this.pendingHead);this.pendingHead=0;
+    }
+  }
+
   balance() {
-    const debt = this.pending.reduce((sum, request) => sum + request.missing, 0n);
+    const debt = this.pending.slice(this.pendingHead).reduce((sum, request) => sum + request.missing, 0n);
     return {
       quantity: this.lots.reduce((sum, lot) => sum + lot.quantity, 0n) - debt,
       value: this.lots.reduce((sum, lot) => sum + lot.value, 0n),

@@ -35,6 +35,7 @@ type Warehouse = {
     name: string;
 };
 export type InventoryReport = {
+  revision?:string;
     items: Item[];
     warehouses: Warehouse[];
     stocks: {

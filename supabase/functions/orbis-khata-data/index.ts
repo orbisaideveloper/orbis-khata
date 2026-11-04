@@ -1,3 +1,4 @@
+import {identicalParty} from '../../../src/demo/party-match.ts';
 import {readSharedStatement} from '../../../src/customer-view/read-statement.ts';
 import { runProfiles, type ProfileCommand, type ProfileState } from "../../../src/expense-profiles/model.ts";
 import {runLottery,type LotteryInput} from '../../../src/lottery/service.ts';
@@ -37,6 +38,8 @@ const handler = createKhataGateway({ origins: (env('KHATA_ORIGINS') || 'https://
         await tx `set local role authenticated`;
         await tx `select set_config('request.jwt.claims',${JSON.stringify({ sub: ledgerOwnerId, role: 'authenticated' })},true)`;
         const input = operation.input;
+        const pagedRead=['report','inventory-report','expense-report'].includes(operation.operation);
+        const reportRevision=pagedRead?(await tx`select public.khata_report_revision_v1(${String(input.company)}::uuid) as version`)[0].version:undefined;
         if(operation.operation==='party-sharing') {
             const rows=await tx`select orbis_khata.party_sharing_v1(${tx.json(input)}::jsonb) as data`;
             const shared=rows[0].data;
@@ -125,6 +128,13 @@ const handler = createKhataGateway({ origins: (env('KHATA_ORIGINS') || 'https://
             const result = await tx `select public.khata_masters_v2(${String(input.company)}::uuid) as data`;
             return result[0].data;
         }
+        if(operation.operation==='party-save'){
+            await tx`select pg_advisory_xact_lock(hashtextextended('master:'||${String(input.company)},0))`;
+            const normalizedName=String(input.name).normalize('NFKC').trim().replace(/\s+/gu,' ').toLocaleLowerCase();
+            const parties=await tx`select id,name,phone from public.khata_parties where company_id=${String(input.company)}::uuid and lower(btrim(regexp_replace(normalize(name,NFKC),'[[:space:]]+',' ','g')))=${normalizedName}`;
+            const candidate={id:String(input.id),name:String(input.name),phone:String(input.phone??'')};
+            if(identicalParty(parties.map(p=>({id:String(p.id),name:String(p.name),phone:String(p.phone)})),candidate))throw Object.assign(new Error('PARTY_ALREADY_EXISTS'),{code:'P0001'});
+        }
         if (operation.operation === 'party-save' || operation.operation === 'item-save') {
             const result = await tx `select public.khata_master_save_v2(${operation.operation === 'party-save' ? 'party' : 'item'},${tx.json(input)}::jsonb) as data`;
             return result[0].data;
@@ -147,7 +157,7 @@ const handler = createKhataGateway({ origins: (env('KHATA_ORIGINS') || 'https://
         }
         if (operation.operation === 'inventory-report') {
             const result = await tx `select public.khata_inventory_report_v1(${String(input.company)}::uuid,${String(input.from)}::date,${String(input.to)}::date,${Number(input.offset)}::integer) as data`;
-            return result[0].data;
+            return {...result[0].data,revision:reportRevision};
         }
         if (operation.operation === 'expense-post') {
             const result = await tx `select public.khata_expense_post_v2(${tx.json(input)}::jsonb) as data`;
@@ -155,11 +165,11 @@ const handler = createKhataGateway({ origins: (env('KHATA_ORIGINS') || 'https://
         }
         if (operation.operation === 'expense-report') {
             const result = await tx `select public.khata_expense_report_v2(${String(input.company)}::uuid,${String(input.from)}::date,${String(input.to)}::date,${Number(input.offset)}::integer) as data`;
-            return result[0].data;
+            return {...result[0].data,revision:reportRevision};
         }
         if (operation.operation === 'report') {
             const result = await tx `select public.khata_report_v1(${String(input.company)}::uuid,${String(input.from)}::date,${String(input.to)}::date,${input.party as string | null}::uuid,${Number(input.offset)}::integer) as data`;
-            return result[0].data;
+            return {...result[0].data,revision:reportRevision};
         }
         const result = await tx `select public.khata_post_v1(${String(input.id)}::uuid,${String(input.company)}::uuid,${String(input.party)}::uuid,${String(input.kind)},${String(input.date)}::date,${String(input.amount)},${String(input.method)},${String(input.reference)},${String(input.note)},${input.reverses as string | null}::uuid) as data`;
         return result[0].data;

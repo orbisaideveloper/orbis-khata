@@ -13,10 +13,10 @@ it('uses one continuous pool, selected date, all output and expenses-independent
  inventory.documents.push(doc('buy2','purchase','feed',100n,10000n,'2026-10-03'),doc('input2','production-input','feed',100n,0n,'2026-10-03'));
  expect(productionCost(inventory,'2026-10-03').inputCost).toBe(3500000n);expect(productionCost(inventory,'2026-10-03').outputQuantity).toBe(700000000n);
 });
-it('consumes old stock first, including partial lots, prior sales and exact purchase discounts',()=>{
+it('values raw inputs at moving average after prior sales and preserves exact purchase discounts',()=>{
  const inventory=productionFixture();inventory.documents=[doc('old','purchase','feed',10n,1000n),doc('prior','sale','feed',2n,2000n),doc('new','purchase','feed',10n,3000n,'2026-10-02'),doc('input','production-input','feed',10n,0n,'2026-10-02'),doc('out','production-output','milk',10n,0n,'2026-10-02'),doc('raw-sale','sale','feed',1n,5000n,'2026-10-03')];
- const pool=productionCost(inventory,'2026-10-03');expect(pool.inputCost).toBe(14000n);expect(pool.rawCosts.get('raw-sale:0')?.cost).toBe(3000n);
- expect(costOfSales(inventory,'2026-10-02','2026-10-03').costs.get('raw-sale')).toBe(3000n);
+ const pool=productionCost(inventory,'2026-10-03');expect(pool.inputCost).toBe(21111n);expect(pool.rawCosts.get('raw-sale:0')?.cost).toBe(2111n);
+ expect(costOfSales(inventory,'2026-10-02','2026-10-03').costs.get('raw-sale')).toBe(2111n);
  const multi=doc('multiple','purchase','feed',1n,100n);multi.lines.push({...multi.lines[0],item:'other'});multi.total='101';expect(purchaseAllocations(multi)).toEqual([51n,50n]);
 });
 it('refuses invented zero costs for missing, negative or opening stock and multiple output units',()=>{
@@ -31,8 +31,30 @@ it('ignores reversed entries and transfers, and recovers after a historical nega
  inventory.documents.unshift(doc('no-cost-opening','opening','feed',1n,0n));expect(productionCost(inventory,'2026-10-03').inputCost).toBe(1000n);
 });
 
-it('finishes old purchased milk before newly produced milk and keeps historical dates reproducible',()=>{
+it('averages purchased and produced finished stock while keeping date cutoffs reproducible',()=>{
  const inventory=productionFixture();inventory.documents.unshift(doc('old-milk','purchase','milk',100n,2000n,'2026-09-30'));
- expect(costOfSales(inventory,'2026-10-01','2026-10-01').costs.get('sale')).toBe(200000n);
- inventory.documents.push(doc('next-sale','sale','milk',10n,6000n,'2026-10-02'));expect(costOfSales(inventory,'2026-10-02','2026-10-02').costs.get('next-sale')).toBe(50000n);
+ expect(costOfSales(inventory,'2026-10-01','2026-10-01').costs.get('sale')).toBe(450000n);
+ inventory.documents.push(doc('next-sale','sale','milk',10n,6000n,'2026-10-02'));expect(costOfSales(inventory,'2026-10-02','2026-10-02').costs.get('next-sale')).toBe(45000n);
+});
+
+it('uses the common moving weighted average for raw inputs and recalculates corrected dates',()=>{
+ const inventory=productionFixture();inventory.documents=[doc('a','purchase','feed',10n,3000n),doc('b','purchase','feed',10n,3100n),doc('c','purchase','feed',10n,3200n),doc('input','production-input','feed',28n,0n)];
+ const first=productionCost(inventory,'2026-10-01');expect(first.inputCost).toBe(86800n);expect(first.rawPools.get('feed')?.balance()).toMatchObject({quantity:2000000n,value:6200n});
+ inventory.documents.push(doc('new','purchase','feed',10n,4000n,'2026-10-02'));
+ expect(productionCost(inventory,'2026-10-02').rawPools.get('feed')?.balance()).toMatchObject({quantity:12000000n,value:46200n});
+ expect(productionCost(inventory,'2026-10-01').inputCost).toBe(86800n);
+ inventory.documents[0]=doc('a','purchase','feed',10n,3300n);
+ expect(productionCost(inventory,'2026-10-01').inputCost).toBe(89600n);
+});
+it('checkpoint replay matches fresh valuation after historical edits without mutating previous results',()=>{
+ const inventory=productionFixture();inventory.documents=Array.from({length:260},(_,i)=>doc('buy'+String(i).padStart(4,'0'),'purchase','feed',1n,100n+BigInt(i)));
+ inventory.documents.push(doc('input','production-input','feed',200n,0n));
+ const before=productionCost(inventory,'2026-10-01'),cost=before.inputCost;
+ expect(productionCost(inventory,'2026-10-01').inputCost).toBe(cost);
+ inventory.documents[100]={...inventory.documents[100],total:'9000'};
+ const edited=productionCost(inventory,'2026-10-01');
+ const fresh={...inventory,documents:inventory.documents.map(row=>({...row,company:'fresh-tenant'}))};
+ expect(edited.inputCost).toBe(productionCost(fresh,'2026-10-01').inputCost);expect(edited.inputCost).not.toBe(cost);expect(before.inputCost).toBe(cost);
+ inventory.documents[100]={...inventory.documents[100],reversed:true};
+ expect(productionCost(inventory,'2026-10-01').inputCost).toBe(productionCost({...fresh,documents:inventory.documents.map(row=>({...row,company:'new-tenant'}))},'2026-10-01').inputCost);
 });

@@ -1,3 +1,4 @@
+import {TutorialNote} from '../tutorial';
 import {useEffect,useRef,useState} from 'react';
 import type {Language} from '../i18n';
 import {inLanguage} from '../localize';
@@ -73,7 +74,7 @@ export default function ExpenseProfiles({userId,company,language,gateway=request
   {!data&&!pending&&<button type="button" onClick={()=>setAttempt(n=>n+1)}>{l('আবার চেষ্টা','फिर कोशिश','Retry')}</button>}
   {pending&&<div><output>{l('আগের সেভটি আগে নিশ্চিত করুন।','पहले पिछला सहेजना पूरा करें।','Resolve the previous save first.')}</output><button type="button" disabled={busy} onClick={()=>void send(pending)}>{l('একই এন্ট্রি আবার পাঠান','यही प्रविष्टि फिर भेजें','Retry same entry')}</button></div>}
   {data&&!pending&&<>
-   {entry&&<small>{l('মাসিক amount বাকি/Advance রাখে। খরচ ও cash শুধু payment-এ বদলাবে।','मासिक राशि बकाया/अग्रिम रखती है। खर्च व नकद केवल भुगतान से बदलेंगे।','Monthly amounts track due/advance. Only payments change expense and cash.')}</small>}
+   {entry&&<TutorialNote><small>{l('মাসিক amount বাকি/Advance রাখে। খরচ ও cash শুধু payment-এ বদলাবে।','मासिक राशि बकाया/अग्रिम रखती है। खर्च व नकद केवल भुगतान से बदलेंगे।','Monthly amounts track due/advance. Only payments change expense and cash.')}</small></TutorialNote>}
    <div className="expense-profile-toolbar">
     {entry&&draft&&<button type="button" disabled={busy||blocked} onClick={()=>setDraft(null)}>{l('সংরক্ষিত হিসাব','सहेजे खाते','Saved schedules')}</button>}
     {!entry&&<button type="button" disabled={busy||blocked} onClick={()=>{const name=window.prompt(l('ক্যাটাগরির নাম','श्रेणी का नाम','Category name'));if(name?.trim())mutate({action:'category',id:crypto.randomUUID(),name:name.trim()});}}>＋ {l('ক্যাটাগরি','श्रेणी','Category')}</button>}

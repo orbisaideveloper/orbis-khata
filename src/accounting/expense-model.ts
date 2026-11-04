@@ -8,6 +8,7 @@ export type ExpenseEntry = Omit<ExpenseCommand, 'company' | 'parent' | 'date'> &
 }
 export type ExpenseBill = { id: string; effective_date: string; category: string; payee: string; amount: string; due: string }
 export type ExpenseReport = {
+  revision?:string;
   balances: Record<string, { opening: string; movement: string; closing: string }>;
   categories: { name: string; amount: string }[]; bills: ExpenseBill[]; entries: ExpenseEntry[]; count: number
 }

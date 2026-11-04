@@ -8,6 +8,7 @@ export type Voucher = {
   reference: string; note: string; reversed: boolean; reverses_id?: string | null; bill_id?: string | null; settled_minor?: string
 }
 export type Report = {
+  revision?:string;
   balances: Partial<Record<Account, { closing: string; opening: string; movement: string }>>
   opening_entries?: {id:string;party_id:string;date:string;side:'due'|'advance';amount:string}[]
   ledger_balances: Partial<Record<Account, { closing: string; opening: string }>>

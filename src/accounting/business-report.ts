@@ -26,7 +26,7 @@ function allocateDocument(doc:Document,sale:boolean,context:ValuationContext){
   if(sale&&withdrawal){sales.push({id:doc.id,item:line.item,withdrawal});}
  }
 }
-/** Ordinary stock uses moving average; production retains FIFO. Shortages are
+/** Ordinary stock uses moving average; production inputs/finished stock use the same average. Shortages are
  * reconciled by later receipts inside the same as-of snapshot, never by future data. */
 export function costOfSales(inventory:InventoryReport,from:string,to:string){
  const production=productionCost(inventory,to),missing=new Set(production.missing),costs=new Map<string,bigint>();

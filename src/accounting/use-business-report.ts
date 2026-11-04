@@ -1,6 +1,6 @@
 import {useEffect,useState} from 'react';
 import {useWorkspaceSettings} from './use-settings';
-import {allPages} from './report-pages';
+import {allPages,assertReportRevision} from './report-pages';
 import type {ReportData} from './business-report';
 import type {Report} from './model';
 import type {ExpenseReport} from './expense-model';
@@ -13,7 +13,9 @@ export function useBusinessReport(company:string,to:string,version:number){
   async function load(){
    try{
     const [trade,expenses,inventory]=await Promise.all([request<Report>('report',{...input,party:null}),request<ExpenseReport>('expense-report',input),request<InventoryReport>('inventory-report',input)]);
+    assertReportRevision(trade,expenses,inventory);
     const [r,e,i]=await Promise.all([allPages(trade,'entries',offset=>request<Report>('report',{...input,party:null,offset})),allPages(expenses,'entries',offset=>request<ExpenseReport>('expense-report',{...input,offset})),allPages(inventory,'documents',offset=>request<InventoryReport>('inventory-report',{...input,offset}))]);
+    assertReportRevision(r,e,i);
     if(alive)setResult({key,data:{trade:r,expenses:e,inventory:i}});
    }catch{if(alive)setFailure(key);}
   }

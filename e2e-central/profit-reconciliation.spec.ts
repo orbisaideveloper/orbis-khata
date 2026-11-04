@@ -1,3 +1,5 @@
+import {booksLabels} from '../src/books-navigation';
+import {accountingPolicyCopy} from '../src/accounting/policy/copy';
 import {translations} from '../src/i18n';
 import {test,expect} from '@playwright/test';
 import {defaultSettings} from '../src/accounting/workspace-contract';
@@ -43,5 +45,13 @@ for(const language of ['bn','en','hi'] as const){
   await reports.locator('.profit-inventory summary').click();await expect(reports.locator('.profit-inventory')).toContainText('₹60.00');await expect(reports.locator('.profit-stock-row')).toContainText('Feed');
   expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1)).toBe(true);
   await page.screenshot({path:test.info().outputPath(`reconciled-${language}.png`),fullPage:true});
+  await expect(reports.locator('.profit-simple p')).toHaveCount(0);
+  await page.getByRole('button',{name:booksLabels[language].settings,exact:true}).click();
+  await page.locator('.policy-open').click();const policy=page.locator('.accounting-policy'),copy=accountingPolicyCopy(language);
+  await expect(policy.getByRole('heading',{name:copy.title})).toBeVisible();
+  await policy.locator('summary').first().click();await expect(policy.getByText(copy.stock,{exact:true})).toBeVisible();
+  expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1)).toBe(true);
+  await page.screenshot({path:test.info().outputPath(`policy-${language}.png`),fullPage:true});
+  await policy.getByRole('button',{name:new RegExp(copy.back)}).click();await expect(page.locator('.policy-open')).toBeVisible();
  });
 }
