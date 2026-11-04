@@ -9,6 +9,17 @@ jobs:
   quality:
     runs-on: ubuntu-24.04
     timeout-minutes: 25
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_USER: khata_test
+          POSTGRES_PASSWORD: disposable-ci-only
+          POSTGRES_DB: khata_concurrency_test
+        ports: [5432:5432]
+        options: >-
+          --health-cmd "pg_isready -U khata_test -d khata_concurrency_test"
+          --health-interval 5s --health-timeout 5s --health-retries 10
     steps:
       - uses: actions/checkout@v6
         with:
@@ -41,6 +52,7 @@ jobs:
           npm run typecheck 2>&1 | tee quality-reports/typecheck.txt
           node --test scripts/check-sonar.test.mjs 2>&1 | tee quality-reports/sonar-report-tests.txt
           npm run test:sql 2>&1 | tee quality-reports/sql-acceptance.txt
+          KHATA_CONCURRENCY_DATABASE_URL=postgres://khata_test:disposable-ci-only@127.0.0.1:5432/khata_concurrency_test node scripts/verify-concurrency.mjs 2>&1 | tee quality-reports/database-concurrency.txt
           npm run test:coverage 2>&1 | tee quality-reports/coverage.txt
           npm run quality:knip 2>&1 | tee quality-reports/knip.txt
           npm run quality:jscpd 2>&1 | tee quality-reports/jscpd.txt

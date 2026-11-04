@@ -3,7 +3,8 @@ import { defineConfig, devices } from '@playwright/test'
 export default defineConfig({
   testDir: './e2e-central', fullyParallel: false, workers: 1, retries: 0,
   timeout: 30_000, reporter: [['list']],
-  use: { baseURL: 'http://127.0.0.1:4187', trace: 'retain-on-failure' },
+  use: { baseURL: 'http://127.0.0.1:4187', trace: 'retain-on-failure',
+    launchOptions: process.env.KHATA_CHROMIUM_EXECUTABLE ? { executablePath: process.env.KHATA_CHROMIUM_EXECUTABLE } : undefined },
   projects: [
     { name: 'central-mobile', use: { ...devices['Pixel 7'] } },
     { name: 'central-desktop', use: { ...devices['Desktop Chrome'], viewport: { width: 1366, height: 900 } } },

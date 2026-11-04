@@ -1,5 +1,5 @@
 import type { Language } from '../i18n';
-export const businessReasons = ['INVALID_PROFILE_PAYMENT','PROFILE_PAYMENT_ALREADY_EXISTS','EXPENSE_CATEGORY_IN_USE','CATEGORY_ALREADY_EXISTS','SCHEDULE_HISTORY_LOCKED','WORK_HISTORY_IMMUTABLE','USE_PROFILE_PAYMENT_CANCEL','PRODUCTION_DISABLED','INVALID_PRODUCTION','INSUFFICIENT_PRODUCTION_STOCK','ONE_PRODUCTION_OUTPUT_ITEM_REQUIRED','PRODUCTION_OUTPUT_CANNOT_BE_INPUT','STOCK_DATE_BEFORE_ACTIVITY', 'INSUFFICIENT_STOCK', 'INVALID_RATE', 'INVALID_AMOUNT', 'INVALID_TOTAL', 'IDEMPOTENCY_CONFLICT', 'PARTY_NOT_ACCESSIBLE', 'STOCK_MASTER_NOT_ACCESSIBLE', 'WRITES_DISABLED', 'FUTURE_DATE', 'COMPANY_NOT_ACCESSIBLE', 'RECORD_ALREADY_CORRECTED', 'PAYMENT_ACCOUNT_REQUIRED', 'SETTLEMENT_EXCEEDS_BILL', 'INVALID_DISCOUNT', 'BILL_NUMBER_REQUIRED', 'INVALID_INVOICE'] as const;
+export const businessReasons = ['PARTY_ALREADY_EXISTS','INVALID_PROFILE_PAYMENT','PROFILE_PAYMENT_ALREADY_EXISTS','EXPENSE_CATEGORY_IN_USE','CATEGORY_ALREADY_EXISTS','SCHEDULE_HISTORY_LOCKED','WORK_HISTORY_IMMUTABLE','USE_PROFILE_PAYMENT_CANCEL','PRODUCTION_DISABLED','INVALID_PRODUCTION','INSUFFICIENT_PRODUCTION_STOCK','ONE_PRODUCTION_OUTPUT_ITEM_REQUIRED','PRODUCTION_OUTPUT_CANNOT_BE_INPUT','STOCK_DATE_BEFORE_ACTIVITY', 'INSUFFICIENT_STOCK', 'INVALID_RATE', 'INVALID_AMOUNT', 'INVALID_TOTAL', 'IDEMPOTENCY_CONFLICT', 'PARTY_NOT_ACCESSIBLE', 'STOCK_MASTER_NOT_ACCESSIBLE', 'WRITES_DISABLED', 'FUTURE_DATE', 'COMPANY_NOT_ACCESSIBLE', 'RECORD_ALREADY_CORRECTED', 'PAYMENT_ACCOUNT_REQUIRED', 'SETTLEMENT_EXCEEDS_BILL', 'INVALID_DISCOUNT', 'BILL_NUMBER_REQUIRED', 'INVALID_INVOICE'] as const;
 export function safeBusinessReason(error: unknown): string | undefined {
     if (!error || typeof error !== 'object') {
         return undefined;
@@ -18,6 +18,7 @@ export function billError(error: unknown, language: Language, fallback: string) 
         string,
         string
     ]> = {
+        PARTY_ALREADY_EXISTS:['এই নাম ও ফোনের পার্টি আগে থেকেই আছে।','This name and phone already exist.','इस नाम और फोन का खाता पहले से है।'],
         INVALID_PROFILE_PAYMENT:['এই তারিখের বকেয়ার বেশি পেমেন্ট করা যাবে না।','Payment cannot exceed the balance due on this date.','इस तारीख के बकाये से अधिक भुगतान नहीं हो सकता।'],
         EXPENSE_CATEGORY_IN_USE:['আগে প্রোফাইল অন্য ক্যাটাগরিতে সরান।','Move the profiles to another category first.','पहले खाते दूसरी श्रेणी में ले जाएँ।'],
         CATEGORY_ALREADY_EXISTS:['এই ক্যাটাগরি আগে থেকেই আছে।','This category already exists.','यह श्रेणी पहले से है।'],

@@ -17,7 +17,7 @@ async function addParty(name: string, kind: 'supplier' | 'customer' | 'expense',
     if(kind!=='expense')fireEvent.click(screen.getByRole('button', { name: /Add party/ }));
     change('Name', name);
     change('Category', kind);
-    change('Phone number', '9876543210');
+    change('Phone number', {supplier:'5550123001',customer:'5550123002',expense:'5550123003'}[kind]);
     change('Opening balance', side);
     change('Amount', amount);
     change('Balance date', '2026-09-30');

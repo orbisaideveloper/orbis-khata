@@ -1,3 +1,4 @@
+import {identicalParty} from '../src/demo/party-match'
 import {runLottery} from '../src/lottery/service'
 import { readFileSync } from 'node:fs'
 import { runInNewContext } from 'node:vm'
@@ -15,13 +16,15 @@ function decodeJson(value: unknown) {
   if (value && typeof value === 'object' && 'jsonValue' in value) return JSON.parse(JSON.stringify((value as JsonParameter).jsonValue))
   return JSON.parse(JSON.stringify(value))
 }
-function edgeHarness() {
+function edgeHarness(existingParties: {id:string;name:string;phone:string}[] = []) {
   const received: unknown[] = []
   let lotteryState:Record<string,Record<string,unknown>[]>={},lotteryVersion=0;const lotteryOperations=new Map<string,unknown>();
   let handler: (request: Request) => Promise<Response> = async () => new Response(null, { status: 500 })
   const tx = Object.assign(async (parts: TemplateStringsArray, ...values: unknown[]) => {
     const query = parts.join('?')
     if (query.includes('resolve_ledger_owner')) return [{ id }]
+    if(query.includes('select id,name,phone from public.khata_parties'))return existingParties
+    if(query.includes('khata_report_revision_v1'))return [{version:'1'}]
     if (query.includes('::jsonb')) {
       const payloads = values.slice(query.includes('khata_master_save_v2') ? 1 : 0).map(decodeJson)
       if(query.includes('khata_lottery_store_v2')){
@@ -41,7 +44,7 @@ function edgeHarness() {
   const compiled = transpileModule(source, { compilerOptions: { module: ModuleKind.CommonJS } }).outputText
   runInNewContext(compiled, {
     exports: {}, URL, crypto, console: { info() {}, warn() {} },
-    require: (name: string) => name.includes('/lottery/service') ? {runLottery} : name.startsWith('npm:postgres') ? { __esModule: true, default: () => sql } : {
+    require: (name: string) => name.includes('/demo/party-match') ? {identicalParty} : name.includes('/lottery/service') ? {runLottery} : name.startsWith('npm:postgres') ? { __esModule: true, default: () => sql } : {
       createCentralVerifier: () => async () => principal, createKhataGateway,
     },
     Deno: { env: { get: (name: string) => name === 'KHATA_DATABASE_URL' ? 'postgres://postgres@db.gqyaxsczlmvppxuoqbox.supabase.co/postgres' : '' }, serve: (value: typeof handler) => { handler = value } },
@@ -63,6 +66,14 @@ it('preserves expense command objects and line arrays across the SQL boundary', 
   expect((await edge.request('expense-bill', { command, lines })).status).toBe(200)
   expect((await edge.request('expense-post', command)).status).toBe(200)
   expect(edge.received).toEqual([command, lines, command])
+})
+
+it('rejects an identical party through the authenticated Edge entrypoint without posting it', async () => {
+  const edge = edgeHarness([{ id: '22222222-2222-4222-8222-222222222222', name: 'Trader', phone: '5550123001' }])
+  const response = await edge.request('party-save', { id, company: id, name: 'Trader', kind: 'customer', receivable: '0', payable: '0', ...emptyPartyDetails, phone: '5550123001' })
+  expect(response.status).toBe(422)
+  expect(JSON.stringify(await response.json())).toContain('PARTY_ALREADY_EXISTS')
+  expect(edge.received).toEqual([])
 })
 
 it('runs independent lottery operations through the actual authenticated Edge entrypoint without touching ordinary tables',async()=>{

@@ -46,7 +46,8 @@ for(const language of ['bn','en','hi'] as const){
   expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1)).toBe(true);
   await page.screenshot({path:test.info().outputPath(`reconciled-${language}.png`),fullPage:true});
   await expect(reports.locator('.profit-simple p')).toHaveCount(0);
-  await page.getByRole('button',{name:booksLabels[language].settings,exact:true}).click();
+  await page.getByLabel(l('আরও বিকল্প','अन्य विकल्प','More options'),{exact:true}).click();
+  await page.locator('.workspace-menu-panel').getByRole('button',{name:booksLabels[language].settings,exact:true}).click();
   await page.locator('.policy-open').click();const policy=page.locator('.accounting-policy'),copy=accountingPolicyCopy(language);
   await expect(policy.getByRole('heading',{name:copy.title})).toBeVisible();
   await policy.locator('summary').first().click();await expect(policy.getByText(copy.stock,{exact:true})).toBeVisible();
