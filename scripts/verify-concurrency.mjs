@@ -14,8 +14,15 @@ const post=(id,amount)=>sql.begin(async tx=>{await authorize(tx);return tx.unsaf
 const revision=()=>sql.begin(async tx=>{await authorize(tx);return (await tx.unsafe('select public.khata_report_revision_v1($1::uuid) as value',[company]))[0].value;});
 try{
  assert.equal((await sql`select count(*)::int as n from information_schema.tables where table_schema='public'`)[0].n,0,'Test database must be empty');
- await setup({exec:text=>sql.unsafe(text),query:async(text,params=[])=>({rows:await sql.unsafe(text,params)})});
- await sql.unsafe(await readFile('supabase/migrations/20261104070825_report_revision_and_party_lookup.sql','utf8'));
+ // Schema files contain their own BEGIN/COMMIT. Keep every statement on one
+ // reserved connection; the pool below must stay multi-connection for the test.
+ const bootstrap=await sql.reserve();
+ try{
+  await setup({exec:text=>bootstrap.unsafe(text),query:async(text,params=[])=>({rows:await bootstrap.unsafe(text,params)})});
+  await bootstrap.unsafe(await readFile('supabase/migrations/20261104070825_report_revision_and_party_lookup.sql','utf8'));
+ }finally{
+  try{await bootstrap.unsafe('rollback');}finally{bootstrap.release();}
+ }
  await sql.unsafe('insert into auth.users values($1)',[owner]);
  await sql.unsafe('insert into orbis_khata.ledger_owners(id,legacy) values($1,false)',[owner]);
  await sql.unsafe("insert into public.khata_companies(id,owner_id,name) values($1,$2,'Concurrent fixture')",[company,owner]);
