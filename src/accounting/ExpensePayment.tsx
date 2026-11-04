@@ -24,14 +24,14 @@ export function ExpensePayment({company,userId,language,onChanged}:Readonly<{com
  const profile=data?.profiles.find(row=>row.id===selected),due=profile&&data?profileBalance(data,profile,date):null;
  function prepare():Pending|null{
    let next:Pending;
-    const value=minor(amount);if(date>today())throw Error('INVALID_DATE');
+    const value=minor(amount);if(date>today())throw new Error('INVALID_DATE');
     if(profile&&data){
      const advance=BigInt(value)>profileBalance(data,profile,date);
      if(advance&&!window.confirm(l('বাকির চেয়ে বেশি। Advance হিসেবে সেভ করবেন?','बकाया से अधिक है। अग्रिम सहेजें?','Exceeds the amount due. Save as advance?')))return null;
      next={operation:'expense-profiles',command:{company,action:'pay',operationId:crypto.randomUUID(),payment:{id:crypto.randomUUID(),profileId:profile.id,date,amount:value,method,...(advance?{allowAdvance:true}:{})}}};
     }else{
      const command=expenseCommand({id:crypto.randomUUID(),company,date,kind:'charge',amount:value,category:category.trim(),payee:name.trim(),method,parent:null,reference:'',note:''});
-     if(!command){throw Error('INVALID_EXPENSE');}
+     if(!command){throw new Error('INVALID_EXPENSE');}
      next={operation:'expense-post',command};
     }
     if(!window.confirm(l('খরচের পেমেন্ট সেভ করবেন?','खर्च भुगतान सहेजें?','Save expense payment?')+' '+money(value)))return null;

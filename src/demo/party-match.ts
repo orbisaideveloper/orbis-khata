@@ -1,7 +1,7 @@
 type PartyIdentity={id:string;company?:string;name:string;phone:string};
 const normalizedPartyName=(value:string)=>value.normalize('NFKC').trim().replace(/\s+/gu,' ').toLocaleLowerCase();
 function normalizedPartyPhone(value:string){
- const digits=value.normalize('NFKC').replace(/[^0-9]/gu,'');
+ const digits=value.normalize('NFKC').replace(/\D/gu,'');
  if(digits.length===12&&digits.startsWith('91'))return digits.slice(2);
  if(digits.length===11&&digits.startsWith('0'))return digits.slice(1);
  return digits;

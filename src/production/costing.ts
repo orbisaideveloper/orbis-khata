@@ -25,7 +25,7 @@ function cloneRaw(raw:RawCosts):RawCosts{
 }
 const rawCheckpoints=new ReplayCheckpoints(cloneRaw);
 function rawStock(docs:Doc[],rawItems:Set<string>,outputValues=new Map<string,bigint>(),outputKnown=true,average=true){
- const key=JSON.stringify(['average-v2',docs[0]?.company,[...rawItems].sort(),[...outputValues].map(([id,value])=>[id,String(value)]),outputKnown,average]);
+ const key=JSON.stringify(['average-v2',docs[0]?.company,[...rawItems].sort((a,b)=>a.localeCompare(b)),[...outputValues].map(([id,value])=>[id,String(value)]),outputKnown,average]);
  const raw=rawCheckpoints.run(key,docs,()=>({pools:new Map(),costs:new Map(),inputCost:0n,missing:new Set()}), (state,index)=>{
   const doc=docs[index];
   if(!['opening','purchase','sale','production-input','production-output'].includes(doc.kind)){return;}

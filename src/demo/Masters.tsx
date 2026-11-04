@@ -92,7 +92,7 @@ function partyOpeningLabels(customer: boolean, kind: DemoParty['kind'], t: typeo
     return { due: t.supplierDue, advance: t.supplierAdvance };
 }
 function approvePartySave(parties:DemoParty[],saved:DemoParty,language:Language){
-    if(identicalParty(parties,saved))throw Error('PARTY_ALREADY_EXISTS');
+    if(identicalParty(parties,saved))throw new Error('PARTY_ALREADY_EXISTS');
     if(!partyMatches(parties,saved).length)return true;
     return window.confirm(inLanguage(language,'একই নাম বা ফোনের পার্টি আছে। আলাদা ব্যক্তি হিসেবে সেভ করবেন?','मिलता नाम या फोन है। अलग व्यक्ति के रूप में सहेजें?','A matching name or phone exists. Save as a separate person?'));
 }

@@ -4,7 +4,7 @@ export async function allPages<T extends { count: number; revision?:string }, K 
     if (offset >= first.count) return
     const next = await load(offset)
     assertReportRevision(first,next);
-    if(next.count!==first.count)throw Error('REPORT_CHANGED_RETRY');
+    if(next.count!==first.count)throw new Error('REPORT_CHANGED_RETRY');
     values.push(...next[key] as unknown as unknown[])
     await append(offset + 50)
   }
@@ -16,5 +16,5 @@ export async function allPages<T extends { count: number; revision?:string }, K 
 export function assertReportRevision(...reports:{revision?:string}[]){
  const first=reports[0]?.revision;
  if(reports.every(report=>report.revision===undefined))return; // Older compatible fixtures/servers.
- if(typeof first!=='string'||!reports.every(report=>report.revision===first))throw Error('REPORT_CHANGED_RETRY');
+ if(typeof first!=='string'||!reports.every(report=>report.revision===first))throw new Error('REPORT_CHANGED_RETRY');
 }
