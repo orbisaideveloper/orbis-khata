@@ -20,13 +20,15 @@ try{
  // reserved connection; the pool below must stay multi-connection for the test.
  const bootstrap=await sql.reserve();
  try{
+  // Match Supabase's function-owner context; production purge guards require postgres.
+  await bootstrap.unsafe("do $$begin if not exists(select 1 from pg_roles where rolname='postgres') then create role postgres superuser;end if;end$$;set role postgres");
   await setup({exec:text=>bootstrap.unsafe(text),query:async(text,params=[])=>({rows:await bootstrap.unsafe(text,params)})});
   await bootstrap.unsafe(await readFile('supabase/migrations/20261104122849_report_revision_and_party_lookup.sql','utf8'));
   // Match Supabase's auth.uid() schema visibility for authenticated callers.
   // No access to auth.users or financial tables is added.
   await bootstrap.unsafe('grant usage on schema auth to authenticated');
  }finally{
-  try{await bootstrap.unsafe('rollback');}finally{bootstrap.release();}
+  try{await bootstrap.unsafe('rollback');await bootstrap.unsafe('reset role');}finally{bootstrap.release();}
  }
  await sql.unsafe('insert into auth.users values($1)',[owner]);
  await sql.unsafe('insert into orbis_khata.ledger_owners(id,legacy) values($1,false)',[owner]);
@@ -63,12 +65,12 @@ try{
  assert.equal((await sql`select count(*)::int as n from public.khata_vouchers`)[0].n,34);
  console.log('PASS: report read lock blocks concurrent save, release allows atomic completion');
  await warehouseTransferCases({owner,parallel:true,install:async()=>{const bootstrapGuard=await sql.reserve();try{await bootstrapGuard.unsafe(await readFile('supabase/migrations/20261105040047_warehouse_transfer_stock_guard.sql','utf8'));}finally{bootstrapGuard.release();}},query:async(q,p=[])=>({rows:await sql.unsafe(q,p)}),write:p=>sql.begin(async tx=>{await authorize(tx);return tx.unsafe('select public.khata_inventory_post_v1($1::jsonb)',[tx.json(p)]);})});
- await sql.unsafe(await readFile('supabase/migrations/20261105052854_gateway_request_admission.sql','utf8'));
  const phase2Connection=await sql.reserve();
  try{
-  for(const file of ['20261101144338_expense_profile_schedules.sql','20261105053009_safe_retired_company_purge.sql']) await phase2Connection.unsafe(await readFile('supabase/migrations/'+file,'utf8'));
+  await phase2Connection.unsafe('set role postgres');
+  for(const file of ['20261101144338_expense_profile_schedules.sql','20261105052854_gateway_request_admission.sql','20261105053009_safe_retired_company_purge.sql']) await phase2Connection.unsafe(await readFile('supabase/migrations/'+file,'utf8'));
   await phase2SafetyCases({exec:q=>phase2Connection.unsafe(q),query:async(q,p=[])=>({rows:await phase2Connection.unsafe(q,p)})});
- }finally{phase2Connection.release();}
+ }finally{await phase2Connection.unsafe('reset role');phase2Connection.release();}
  console.log('PASS: native quota permissions/reset and retired-company retention/atomic dependency isolation');
  let stableQuotaWindow=false;
  for(let attempt=0;attempt<2&&!stableQuotaWindow;attempt++){
