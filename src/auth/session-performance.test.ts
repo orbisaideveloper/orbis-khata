@@ -115,7 +115,7 @@ it('still rejects a remotely revoked session at the live gateway boundary before
   f.fetchImpl.mockResolvedValueOnce(reply())
   await client.authenticate('login', login)
   const execute = vi.fn(), verify = vi.fn().mockResolvedValue(null)
-  const handler = createKhataGateway({ origins: [], verify, execute })
+  const handler = createKhataGateway({admit:async()=>({allowed:true,retryAfter:0}), origins: [], verify, execute })
   const request = createKhataDataClient({ url: 'https://data.example/khata', token: () => client.accessToken(),
     fetchImpl: async (url, init) => handler(new Request(String(url), init)) })
   await expect(request('companies', {})).rejects.toMatchObject({ code: 'KHATA_LOGIN_REQUIRED' })

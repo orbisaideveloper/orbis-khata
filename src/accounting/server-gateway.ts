@@ -1,3 +1,4 @@
+import {boundedGatewayBody,createIngressGuard,GatewayRejection,type AdmissionDecision} from './gateway-admission.ts';
 import {shareCommand} from '../customer-view/contract.ts';
 import { profileCommand } from "../expense-profiles/model.ts";
 import {lotteryInput} from '../lottery/protocol.ts';
@@ -122,6 +123,10 @@ export function createCentralVerifier(options: {
         if (response.status === 401 || response.status === 403) {
             return null;
         }
+        if(response.status===429){
+            const delay=Number(response.headers.get('retry-after')??'1');
+            throw new GatewayRejection(429,'KHATA_RATE_LIMITED',Number.isFinite(delay)&&delay>0?delay:1);
+        }
         if (!response.ok) {
             throw new Error('CENTRAL_UNAVAILABLE');
         }
@@ -148,7 +153,10 @@ export function createKhataGateway(options: {
     origins: readonly string[];
     verify: (token: string) => Promise<KhataPrincipal | null>;
     execute: (principal: KhataPrincipal, operation: KhataOperation) => Promise<unknown>;
+    admit: (principal: KhataPrincipal) => Promise<AdmissionDecision>;
+    maximumConcurrent?: number;
 }) {
+    const acquire=createIngressGuard(options.maximumConcurrent);
     return async (request: Request): Promise<Response> => {
         const origin = request.headers.get('origin');
         const headers = new Headers({ 'cache-control': 'no-store', 'content-type': 'application/json', 'x-content-type-options': 'nosniff' });
@@ -172,9 +180,10 @@ export function createKhataGateway(options: {
         if (!token) {
             return reply(401, { code: 'KHATA_LOGIN_REQUIRED' });
         }
-        let stage = 'input';
+        let stage = 'input';let release:(()=>void)|undefined;
         try {
-            const text = await request.text();
+            release=acquire();
+            const text = await boundedGatewayBody(request);
             if (text.length > 16384) {
                 return reply(413, { code: 'KHATA_INPUT_TOO_LARGE' });
             }
@@ -194,11 +203,18 @@ export function createKhataGateway(options: {
             if (!principal || !identity.test(principal.orbisIdentityId)) {
                 return reply(401, { code: 'KHATA_LOGIN_REQUIRED' });
             }
+            stage='admission';
+            const admission=await options.admit(principal);
+            if(!admission.allowed){throw new GatewayRejection(429,'KHATA_RATE_LIMITED',admission.retryAfter);}
             stage = 'product-database';
             const data = await options.execute(principal, operation);
             return reply(200, { data });
         }
         catch (error) {
+            if(error instanceof GatewayRejection){
+                if(error.retryAfter!==undefined){headers.set('retry-after',String(Math.max(1,Math.ceil(error.retryAfter))));}
+                return reply(error.status,{code:error.code});
+            }
             // No tokens, request payloads, credentials or database messages in diagnostics.
             console.warn('KHATA_GATEWAY_FAILURE', { stage, errorName: error instanceof Error ? error.name : 'UnknownError' });
             const code = databaseErrorCode(error);
@@ -206,6 +222,6 @@ export function createKhataGateway(options: {
                 return reply(422, { code, reason: safeBusinessReason(error) });
             }
             return reply(503, { code: 'KHATA_DATA_UNAVAILABLE' });
-        }
+        }finally{release?.();}
     };
 }

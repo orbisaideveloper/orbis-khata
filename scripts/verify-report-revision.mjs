@@ -15,7 +15,7 @@ async function report(to){return (await db.query("select public.khata_report_v1(
 assert.equal((await report('2026-10-01')).entries.find(row=>row.id===sale).reversed,true,'Confirm the old future-reversal defect before correction');
 async function fingerprint(){return (await db.query("select md5(jsonb_build_object('companies',(select jsonb_agg(to_jsonb(t) order by id) from public.khata_companies t),'parties',(select jsonb_agg(to_jsonb(t) order by id) from public.khata_parties t),'vouchers',(select jsonb_agg(to_jsonb(t) order by id) from public.khata_vouchers t),'inventory',(select jsonb_agg(to_jsonb(t) order by id) from public.khata_inventory_documents t),'expenses',(select jsonb_agg(to_jsonb(t) order by id) from public.khata_expense_events t))::text) as hash")).rows[0].hash;}
 const before=await fingerprint();
-await db.exec(await readFile('supabase/migrations/20261104070825_report_revision_and_party_lookup.sql','utf8'));
+await db.exec(await readFile('supabase/migrations/20261104122849_report_revision_and_party_lookup.sql','utf8'));
 assert.equal(await fingerprint(),before,'Migration must not modify original entries or master rows');
 assert.equal((await report('2026-10-01')).entries.find(row=>row.id===sale).reversed,false);
 assert.equal((await report('2026-10-02')).entries.find(row=>row.id===sale).reversed,true);

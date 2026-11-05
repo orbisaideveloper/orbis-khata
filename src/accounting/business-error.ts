@@ -12,12 +12,15 @@ export function safeBusinessReason(error: unknown): string | undefined {
     return businessReasons.find(item => item === reason);
 }
 export function billError(error: unknown, language: Language, fallback: string) {
-    const reason = safeBusinessReason(error);
+    const reason = safeBusinessReason(error) ?? (error as {code?:string}|null)?.code;
     const messages: Record<string, [
         string,
         string,
         string
     ]> = {
+        KHATA_RATE_LIMITED:['অনেক অনুরোধ হয়েছে। একটু পরে একই এন্ট্রি আবার চেষ্টা করুন।','Too many requests. Wait briefly and retry the same entry.','बहुत अनुरोध हैं। थोड़ी देर बाद वही एंट्री फिर भेजें।'],
+        KHATA_BUSY:['সার্ভার ব্যস্ত। একটু পরে একই এন্ট্রি আবার চেষ্টা করুন।','Server busy. Wait briefly and retry the same entry.','सर्वर व्यस्त है। थोड़ी देर बाद वही एंट्री फिर भेजें।'],
+        KHATA_BODY_TIMEOUT:['অনুরোধ আসতে সময় লেগেছে। একই এন্ট্রি আবার চেষ্টা করুন।','Request upload timed out. Retry the same entry.','अनुरोध में देर हुई। वही एंट्री फिर भेजें।'],
         PARTY_ALREADY_EXISTS:['এই নাম ও ফোনের পার্টি আগে থেকেই আছে।','This name and phone already exist.','इस नाम और फोन का खाता पहले से है।'],
         INVALID_PROFILE_PAYMENT:['এই তারিখের বকেয়ার বেশি পেমেন্ট করা যাবে না।','Payment cannot exceed the balance due on this date.','इस तारीख के बकाये से अधिक भुगतान नहीं हो सकता।'],
         EXPENSE_CATEGORY_IN_USE:['আগে প্রোফাইল অন্য ক্যাটাগরিতে সরান।','Move the profiles to another category first.','पहले खाते दूसरी श्रेणी में ले जाएँ।'],
@@ -48,7 +51,7 @@ export function billError(error: unknown, language: Language, fallback: string) 
         WRITES_DISABLED: ['সাময়িকভাবে নতুন এন্ট্রি বন্ধ আছে।', 'New entries are temporarily disabled.', 'नई एंट्री अस्थायी रूप से बंद हैं।'],
         RECORD_ALREADY_CORRECTED: ['এন্ট্রিটি ইতিমধ্যে সংশোধিত বা মুছে দেওয়া হয়েছে। রিফ্রেশ করুন।', 'This entry was already corrected or deleted. Refresh the ledger.', 'यह एंट्री पहले ही बदली या हटाई गई है। रिफ्रेश करें।'],
     };
-    const translated = reason && messages[reason];
+    const translated = reason && Object.hasOwn(messages, reason) ? messages[reason] : undefined;
     const indexes = { bn: 0, en: 1, hi: 2 };
     if (translated) {
         return translated[indexes[language]];

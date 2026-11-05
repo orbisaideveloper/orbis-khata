@@ -9,7 +9,7 @@ try {
  await db.query('insert into khata_companies(id,owner_id,name) values($1,$2,$3)',[company,owner,'Historical company']);
  const fingerprint=async()=>(await db.query("select jsonb_build_object('companies',(select jsonb_agg(to_jsonb(t)) from khata_companies t),'vouchers',(select jsonb_agg(to_jsonb(t)) from khata_vouchers t),'expenses',(select jsonb_agg(to_jsonb(t)) from khata_expense_events t)) as state")).rows[0].state;
  const before=await fingerprint();
- await db.exec(await readFile('supabase/migrations/20261101110000_expense_profile_schedules.sql','utf8'));
+ await db.exec(await readFile('supabase/migrations/20261101144338_expense_profile_schedules.sql','utf8'));
  assert.deepEqual(await fingerprint(),before);
  const rpc=async p=>(await db.query('select public.khata_expense_profiles_v1($1::jsonb) as data',[JSON.stringify(p)])).rows[0].data;
  await db.query("select set_config('request.jwt.claims',$1,false)",[JSON.stringify({sub:owner,role:'authenticated'})]);

@@ -8,7 +8,7 @@ function request(body: unknown = envelope('companies', {}), extras: RequestInit 
 }
 function gateway(accepted = true) {
   const verify = vi.fn().mockResolvedValue(accepted ? principal : null), execute = vi.fn().mockResolvedValue([{ name: 'own company' }])
-  return { handle: createKhataGateway({ origins: ['https://khata.example.test'], verify, execute }), verify, execute }
+  return { handle: createKhataGateway({admit:async()=>({allowed:true,retryAfter:0}), origins: ['https://khata.example.test'], verify, execute }), verify, execute }
 }
 describe('product-owned Khata gateway', () => {
   it('derives ownership from the verified central session', async () => {
@@ -47,3 +47,20 @@ describe('product-owned Khata gateway', () => {
     await expect(verify('wrong.identity')).rejects.toThrow('CENTRAL_RESPONSE_INVALID')
   })
 })
+
+describe('shared gateway admission',()=>{
+ it('returns a retry hint and never posts while identity quota is exhausted',async()=>{
+  const execute=vi.fn(),admit=vi.fn().mockResolvedValue({allowed:false,retryAfter:12});
+  const handle=createKhataGateway({origins:['https://khata.example.test'],verify:async()=>principal,admit,execute});
+  const response=await handle(request());expect(response.status).toBe(429);expect(response.headers.get('retry-after')).toBe('12');expect(await response.json()).toEqual({code:'KHATA_RATE_LIMITED'});expect(execute).not.toHaveBeenCalled();expect(admit).toHaveBeenCalledWith(principal);
+ });
+ it('fails closed when quota storage is unavailable and releases the ingress slot',async()=>{
+  const execute=vi.fn(),admit=vi.fn().mockRejectedValueOnce(new Error('private quota database')).mockResolvedValue({allowed:true,retryAfter:0});
+  const handle=createKhataGateway({maximumConcurrent:1,origins:['https://khata.example.test'],verify:async()=>principal,admit,execute});
+  const response=await handle(request());expect(response.status).toBe(503);expect(await response.text()).not.toContain('private');expect(execute).not.toHaveBeenCalled();expect((await handle(request())).status).toBe(200);
+ });
+ it('preserves central authentication rate-limit responses',async()=>{
+  const verify=createCentralVerifier({baseUrl:'https://admin.example.test',fetchImpl:async()=>new Response('{}',{status:429,headers:{'retry-after':'15'}})});
+  await expect(verify('token')).rejects.toMatchObject({status:429,code:'KHATA_RATE_LIMITED',retryAfter:15});
+ });
+});

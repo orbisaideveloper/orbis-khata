@@ -39,7 +39,7 @@ it('rejects each malformed identity envelope from the central service', async ()
 })
 it('bounds inputs, rejects missing authorization and failed principals without database access', async () => {
   const verify = vi.fn().mockResolvedValue(null), execute = vi.fn()
-  const handle = createKhataGateway({ origins: [], verify, execute })
+  const handle = createKhataGateway({admit:async()=>({allowed:true,retryAfter:0}), origins: [], verify, execute })
   const request = (body: string, token?: string) => new Request('https://gateway.example', { method: 'POST', headers: token ? { authorization: 'Bearer ' + token } : {}, body })
   expect((await handle(request('{}'))).status).toBe(401)
   expect((await handle(request('x'.repeat(16385), 'token'))).status).toBe(413)
@@ -53,7 +53,7 @@ it('bounds inputs, rejects missing authorization and failed principals without d
 it('returns only permitted database error codes and conceals every other failure', async () => {
   for (const [error, status, code] of [[{ code: 'P0001', detail: 'private' }, 422, 'P0001'], [{ code: 3 }, 503, 'KHATA_DATA_UNAVAILABLE'], [{ code: 'XXXXX' }, 503, 'KHATA_DATA_UNAVAILABLE'], [null, 503, 'KHATA_DATA_UNAVAILABLE']] as const) {
     const execute = vi.fn().mockRejectedValue(error)
-    const handle = createKhataGateway({ origins: [], verify: vi.fn().mockResolvedValue(principal), execute })
+    const handle = createKhataGateway({admit:async()=>({allowed:true,retryAfter:0}), origins: [], verify: vi.fn().mockResolvedValue(principal), execute })
     const response = await handle(new Request('https://gateway.example', { method: 'POST', headers: { authorization: 'Bearer token' }, body: JSON.stringify(envelope('companies', {})) }))
     expect(response.status).toBe(status); expect(await response.json()).toEqual({ code })
   }

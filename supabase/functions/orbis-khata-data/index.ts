@@ -20,12 +20,18 @@ if (verificationKey && verificationKey.length < 32) {
 }
 // Both supported Admin endpoints verify the customer's live session and canonical ID.
 // Trial setup uses the existing public session endpoint; a configured service key
-// selects the service endpoint for its separate server-to-server rate limit.
+// selects server-to-server session verification. Khata enforces its own verified-identity quota.
 const verify = createCentralVerifier({
     baseUrl: env('ORBIS_CUSTOMER_API_URL') || 'https://orbis-admin-staging.onrender.com',
     ...(verificationKey ? { verificationKey } : {}),
 });
 const handler = createKhataGateway({ origins: (env('KHATA_ORIGINS') || 'https://orbis-khata.onrender.com,http://127.0.0.1:5173').split(',').map(value => value.trim()).filter(Boolean), verify,
+    admit:async principal=>{
+        const rows=await sql`select orbis_khata.admit_gateway_request(${principal.orbisIdentityId}::uuid) as decision`;
+        const decision=rows[0]?.decision;
+        if(typeof decision?.allowed!=='boolean'||typeof decision?.retryAfter!=='number'||!Number.isFinite(decision.retryAfter)||decision.retryAfter<0||decision.retryAfter>60){throw new Error('KHATA_ADMISSION_UNAVAILABLE');}
+        return decision;
+    },
     execute: async (principal, operation) => sql.begin(async (tx) => {
         // Central identity stays canonical; product-local ownership preserves historical rows.
         const owners = await tx `select orbis_khata.resolve_ledger_owner(${principal.orbisIdentityId}::uuid) as id`;

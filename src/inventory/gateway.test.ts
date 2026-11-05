@@ -13,7 +13,7 @@ it('accepts only exact, scoped inventory write and report contracts',()=>{
 })
 it('verifies the live Central session for every inventory request before execution',async()=>{
  const verify=vi.fn().mockResolvedValueOnce(principal).mockResolvedValueOnce(null),execute=vi.fn().mockResolvedValue({items:[]})
- const handler=createKhataGateway({origins:[],verify,execute})
+ const handler=createKhataGateway({admit:async()=>({allowed:true,retryAfter:0}),origins:[],verify,execute})
  const request=()=>new Request('https://gateway.example',{method:'POST',headers:{authorization:'Bearer central.token'},body:JSON.stringify(envelope('inventory-report',range))})
  expect((await handler(request())).status).toBe(200)
  expect((await handler(request())).status).toBe(401)
