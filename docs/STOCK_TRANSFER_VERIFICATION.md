@@ -24,3 +24,9 @@ and reports the actual environment. Full coverage is last. Local quality checks
 do not certify exact-SHA GitHub Actions, Sonar, real Android, production migration
 or deployment. These require their own evidence. No Render/Edge deployment or
 live financial write is part of this change.
+
+Native CI correction: run 41950973245 passed the existing concurrency checks,
+but the new fixture sent an already-stringified string into the driver's JSONB
+serializer. Use tx.json(command) so the server receives an object once. No
+production RPC, stock guard or financial calculation changes in this correction.
+The next exact-SHA CI result must certify the corrected native fixture.
