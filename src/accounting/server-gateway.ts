@@ -149,6 +149,37 @@ function databaseErrorCode(error: unknown) {
     }
     return /^(?:22|23|28|42|P0)[A-Z0-9]{3}$/u.test(error.code) ? error.code : null;
 }
+function gatewayJsonReply(headers: Headers, status: number, value: unknown) {
+    return new Response(JSON.stringify(value), { status, headers });
+}
+function gatewayFailure(error: unknown, headers: Headers, stage: string) {
+    if (error instanceof GatewayRejection) {
+        if (error.retryAfter !== undefined) {
+            headers.set('retry-after', String(Math.max(1, Math.ceil(error.retryAfter))));
+        }
+        return gatewayJsonReply(headers, error.status, { code: error.code });
+    }
+    // No tokens, request payloads, credentials or database messages in diagnostics.
+    console.warn('KHATA_GATEWAY_FAILURE', { stage, errorName: error instanceof Error ? error.name : 'UnknownError' });
+    const code = databaseErrorCode(error);
+    if (code) {
+        return gatewayJsonReply(headers, 422, { code, reason: safeBusinessReason(error) });
+    }
+    return gatewayJsonReply(headers, 503, { code: 'KHATA_DATA_UNAVAILABLE' });
+}
+function parseGatewayOperation(text: string) {
+    let value: unknown;
+    try {
+        value = JSON.parse(text);
+    } catch {
+        throw new GatewayRejection(400, 'KHATA_INPUT_INVALID');
+    }
+    const operation = khataOperation(value);
+    if (!operation) {
+        throw new GatewayRejection(400, 'KHATA_INPUT_INVALID');
+    }
+    return operation;
+}
 export function createKhataGateway(options: {
     origins: readonly string[];
     verify: (token: string) => Promise<KhataPrincipal | null>;
@@ -160,7 +191,7 @@ export function createKhataGateway(options: {
     return async (request: Request): Promise<Response> => {
         const origin = request.headers.get('origin');
         const headers = new Headers({ 'cache-control': 'no-store', 'content-type': 'application/json', 'x-content-type-options': 'nosniff' });
-        const reply = (status: number, value: unknown) => new Response(JSON.stringify(value), { status, headers });
+        const reply = (status: number, value: unknown) => gatewayJsonReply(headers, status, value);
         if (origin) {
             if (!options.origins.includes(origin)) {
                 return reply(403, { code: 'KHATA_ORIGIN_DENIED' });
@@ -183,21 +214,7 @@ export function createKhataGateway(options: {
         let stage = 'input';let release:(()=>void)|undefined;
         try {
             release=acquire();
-            const text = await boundedGatewayBody(request);
-            if (text.length > 16384) {
-                return reply(413, { code: 'KHATA_INPUT_TOO_LARGE' });
-            }
-            let value: unknown;
-            try {
-                value = JSON.parse(text);
-            }
-            catch {
-                return reply(400, { code: 'KHATA_INPUT_INVALID' });
-            }
-            const operation = khataOperation(value);
-            if (!operation) {
-                return reply(400, { code: 'KHATA_INPUT_INVALID' });
-            }
+            const operation = parseGatewayOperation(await boundedGatewayBody(request));
             stage = 'central-session';
             const principal = await options.verify(token);
             if (!principal || !identity.test(principal.orbisIdentityId)) {
@@ -211,17 +228,7 @@ export function createKhataGateway(options: {
             return reply(200, { data });
         }
         catch (error) {
-            if(error instanceof GatewayRejection){
-                if(error.retryAfter!==undefined){headers.set('retry-after',String(Math.max(1,Math.ceil(error.retryAfter))));}
-                return reply(error.status,{code:error.code});
-            }
-            // No tokens, request payloads, credentials or database messages in diagnostics.
-            console.warn('KHATA_GATEWAY_FAILURE', { stage, errorName: error instanceof Error ? error.name : 'UnknownError' });
-            const code = databaseErrorCode(error);
-            if (code) {
-                return reply(422, { code, reason: safeBusinessReason(error) });
-            }
-            return reply(503, { code: 'KHATA_DATA_UNAVAILABLE' });
+            return gatewayFailure(error, headers, stage);
         }finally{release?.();}
     };
 }
