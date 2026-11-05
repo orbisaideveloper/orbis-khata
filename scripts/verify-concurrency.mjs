@@ -68,7 +68,7 @@ try{
  const phase2Connection=await sql.reserve();
  try{
   await phase2Connection.unsafe('set role postgres');
-  for(const file of ['20261101144338_expense_profile_schedules.sql','20261105052854_gateway_request_admission.sql','20261105053009_safe_retired_company_purge.sql']) await phase2Connection.unsafe(await readFile('supabase/migrations/'+file,'utf8'));
+  for(const file of ['20261101144338_expense_profile_schedules.sql','20261105084705_gateway_request_admission.sql','20261105053009_safe_retired_company_purge.sql']) await phase2Connection.unsafe(await readFile('supabase/migrations/'+file,'utf8'));
   await phase2SafetyCases({exec:q=>phase2Connection.unsafe(q),query:async(q,p=[])=>({rows:await phase2Connection.unsafe(q,p)})});
  }finally{await phase2Connection.unsafe('reset role');phase2Connection.release();}
  console.log('PASS: native quota permissions/reset and retired-company retention/atomic dependency isolation');

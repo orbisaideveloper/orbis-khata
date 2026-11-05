@@ -34,7 +34,7 @@ Existing SQL bytes were preserved when reconciling these five filenames to live 
 
 These 22 historical migrations are already applied on the audited live project. Do not replay them or repair live history just because source filenames changed. Old documents retain their historical references. Test scripts now use canonical files rather than replaying SQL proposal documents.
 
-Only two new migrations are pending: 20261105052854 (admission) and 20261105053009 (safe retired-company purge). Review the target project and migration list again before any separately authorized live application. A clean disposable chain test is provided in scripts/verify-phase2.mjs; scheduling itself requires native pg_cron, deliberately excluded from PGlite fixtures.
+Admission was applied by the management API as version 20261105084705; its SQL is byte-identical to the formerly prepared 20261105052854 file. Source filenames and test references now follow the actual applied version; live migration history was not rewritten. The safe retired-company purge migration 20261105053009 remains pending because the connector confirmation expired. Review the target project and migration list again before any separately authorized live application. A clean disposable chain test is provided in scripts/verify-phase2.mjs; scheduling itself requires native pg_cron, deliberately excluded from PGlite fixtures.
 
 ## Retired company cleanup
 
