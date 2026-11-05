@@ -34,8 +34,18 @@ APPROVED_UNTRACKED.update({
 APPROVED_UNTRACKED.update({'src/inventory/copy.ts', 'src/inventory/api.ts', 'src/WorkspaceMenu.tsx', 'src/inventory/recovery.test.tsx', 'src/inventory/pending.ts', 'src/inventory/model.ts', 'src/WorkspaceMenu.test.tsx', 'docs/inventory-v1.review.sql', 'src/inventory/Inventory.test.tsx', 'src/tutorial.ts', 'docs/INVENTORY_ACTIVATION.md', 'src/inventory/Inventory.tsx', 'src/inventory/gateway.test.ts', 'src/inventory/model.test.ts'})
 APPROVED_UNTRACKED.update({'pwa/build.ts', 'pwa/worker-check.mjs', 'public/manifest.webmanifest', 'public/icon.svg', 'src/PwaStatus.tsx', 'src/PwaStatus.test.tsx', 'e2e-central/pwa.spec.ts', 'docs/PWA.md'})
 APPROVED_UNTRACKED.add('src/inventory/api.test.ts')
+APPROVED_UNTRACKED.update({
+    'e2e-central/stock-transfer.spec.ts', 'scripts/verify-warehouse-transfer.mjs',
+    'scripts/warehouse-transfer-cases.mjs', 'src/accounting/OutstandingPreview.tsx',
+    'src/accounting/OutstandingPreview.test.tsx', 'src/inventory/StockTransfer.tsx',
+    'src/inventory/StockTransfer.test.tsx', 'src/inventory/StockWorkspace.tsx',
+    'src/inventory/StockWorkspace.test.tsx', 'src/inventory/warehouse-value.ts',
+    'src/inventory/warehouse-value.test.ts',
+    'supabase/migrations/20261104190750_warehouse_transfer_stock_guard.sql',
+    'docs/STOCK_TRANSFER_VERIFICATION.md',
+})
 STAGES = ['ubuntu-preflight', 'knip', 'jscpd', 'playwright', 'npm-ls', 'npm-audit',
-          'lint', 'typecheck', 'build', 'coverage']
+          'lint', 'typecheck', 'build', 'sql', 'coverage']
 
 
 def cmd(args, cwd=ROOT, capture=True, **kwargs):
@@ -87,6 +97,10 @@ def env_versions():
     for command in (['node', '--version'], ['npm', '--version']):
         res = cmd(command)
         versions.append(res.stdout.strip() if res.returncode == 0 else 'UNAVAILABLE')
+    if not shutil.which('proot-distro'):
+        if 'ID=ubuntu' not in Path('/etc/os-release').read_text():
+            raise RuntimeError('Ubuntu runtime unavailable')
+        return versions + ['Ubuntu native; Android/Termux NOT VERIFIED']
     res = cmd(['proot-distro', 'login', 'ubuntu', '--', 'bash', '-lc', 'node --version && npm --version'])
     versions.append(res.stdout.strip() if res.returncode == 0 else 'UNAVAILABLE')
     return versions
@@ -169,7 +183,8 @@ def doctor():
 
 
 def run_ubuntu(script, out):
-    arg = ['proot-distro', 'login', 'ubuntu', '--', 'bash', '-lc', script]
+    arg = (['proot-distro', 'login', 'ubuntu', '--', 'bash', '-lc', script]
+           if shutil.which('proot-distro') else ['bash', '-c', script])
     return subprocess.run(arg, stdout=out, stderr=subprocess.STDOUT, cwd=ROOT).returncode
 
 
@@ -267,9 +282,9 @@ node -e "const p=require('oxc-parser'); if (!p.parseSync) process.exit(1); p.par
   npm ci --include=optional --no-fund --no-audit
   node -e "const p=require('oxc-parser'); p.parseSync('check.ts','const x=1')"
 }}
-node -e "const {{chromium}}=require('@playwright/test'); chromium.launch().then(b=>{{console.log('BROWSER_VERSION='+b.version());return b.close()}}).catch(e=>{{console.error(e);process.exit(1)}})" || {{
+node -e "const {{chromium}}=require('@playwright/test'); chromium.launch(process.env.KHATA_CHROMIUM_EXECUTABLE?{{executablePath:process.env.KHATA_CHROMIUM_EXECUTABLE}}:{{}}).then(b=>{{console.log('BROWSER_VERSION='+b.version());return b.close()}}).catch(e=>{{console.error(e);process.exit(1)}})" || {{
   ./node_modules/.bin/playwright install chromium --only-shell
-  node -e "const {{chromium}}=require('@playwright/test'); chromium.launch().then(b=>{{console.log('BROWSER_VERSION='+b.version());return b.close()}}).catch(e=>{{console.error(e);process.exit(1)}})"
+  node -e "const {{chromium}}=require('@playwright/test'); chromium.launch(process.env.KHATA_CHROMIUM_EXECUTABLE?{{executablePath:process.env.KHATA_CHROMIUM_EXECUTABLE}}:{{}}).then(b=>{{console.log('BROWSER_VERSION='+b.version());return b.close()}}).catch(e=>{{console.error(e);process.exit(1)}})"
 }}
 '''
         # Always preflight exact native binding + actual browser launch even on resume.
@@ -286,7 +301,7 @@ node -e "const {{chromium}}=require('@playwright/test'); chromium.launch().then(
         termux_commands = {'npm-ls': ['npm', 'ls', '--depth=0'],
                            'npm-audit': ['npm', 'audit', '--audit-level=low'],
                            'lint': ['npm', 'run', 'lint'], 'typecheck': ['npm', 'run', 'typecheck'],
-                           'build': ['npm', 'run', 'build'], 'coverage': ['npm', 'run', 'test:coverage']}
+                           'build': ['npm', 'run', 'build'], 'sql': ['npm', 'run', 'test:sql'], 'coverage': ['npm', 'run', 'test:coverage']}
         reuse_prefix = (mode == 'resume' and checkpoint.get('fingerprint') == source
                         and checkpoint.get('versions') == versions
                         and bool(current_browser) and current_browser == previous_browser)

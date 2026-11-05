@@ -1,3 +1,4 @@
+import {OutstandingPreview} from './OutstandingPreview';
 import {useEffect,useRef,useState} from 'react';
 import type {Language} from '../i18n';
 import {inLanguage} from '../localize';
@@ -56,7 +57,7 @@ export function ExpensePayment({company,userId,language,onChanged}:Readonly<{com
  return <section className="expense-payment"><h3>{l('খরচের পেমেন্ট','खर्च भुगतान','Expense payment')}</h3>{failed&&<output role="alert">{l('হিসাব পড়া যায়নি।','खाता उपलब्ध नहीं।','Accounts unavailable.')}<button type="button" onClick={()=>setReload(n=>n+1)}>{l('আবার চেষ্টা','पुनः प्रयास','Retry')}</button></output>}{!data&&!failed&&<output>{l('লোড হচ্ছে…','लोड हो रहा है…','Loading…')}</output>}
  <form onSubmit={event=>{event.preventDefault();void save();}}><fieldset disabled={busy||Boolean(pending)||!data}><label>{l('কাকে দেওয়া','किसे दिया','Paid to')}<select value={selected} onChange={event=>{setSelected(event.target.value);setName('');}}><option value="">{l('সাধারণ খরচ','सामान्य खर्च','Ordinary expense')}</option>{data?.profiles.map(p=><option key={p.id} value={p.id}>{p.name} · {data.categories.find(c=>c.id===p.categoryId)?.name}</option>)}</select></label>
  {!profile&&<><label>{l('নাম','नाम','Name')}<input value={name} onChange={e=>setName(e.target.value)} maxLength={120}/></label><label>{l('ক্যাটাগরি','श्रेणी','Category')}<input required value={category} onChange={e=>setCategory(e.target.value)} maxLength={80}/></label></>}
- {due!==null&&<output>{due<0n?l('Advance','अग्रिम','Advance'):l('বাকি','बकाया','Due')}: {money(due<0n?-due:due)}</output>}
+ {due!==null&&<><output>{due<0n?l('Advance','अग्रिम','Advance'):l('বাকি','बकाया','Due')}: {money(due<0n?-due:due)}</output><OutstandingPreview showCurrent={false} due={due} amount={amount} language={language}/></>}
  <label>{l('টাকা','रकम','Amount')}<input required inputMode="decimal" value={amount} onChange={e=>setAmount(e.target.value)}/></label><label>{l('তারিখ','तारीख','Date')}<input required type="date" max={today()} value={date} onChange={e=>setDate(e.target.value)}/></label><label>{l('পরিশোধ','भुगतान माध्यम','Settlement')}<select value={method} onChange={e=>setMethod(e.target.value as 'cash'|'bank')}><option value="cash">{l('নগদ','नकद','Cash')}</option><option value="bank">{l('ব্যাংক','बैंक','Bank')}</option></select></label></fieldset>
  <button type="submit" disabled={busy||!data}>{pending?l('একই পেমেন্ট আবার পাঠান','वही भुगतान फिर भेजें','Retry same payment'):l('যাচাই ও সেভ','जाँचें और सहेजें','Review & save')}</button></form>{message&&<output aria-live="polite">{message}</output>}</section>;
 }

@@ -41,7 +41,7 @@ export function billError(error: unknown, language: Language, fallback: string) 
         COMPANY_NOT_ACCESSIBLE:['এই কোম্পানির অ্যাক্সেস নেই। আবার লগইন করুন।','This company is unavailable. Sign in again.','कंपनी उपलब्ध नहीं है। फिर लॉगिन करें।'],
         FUTURE_DATE:['আজ বা তার আগের তারিখ দিন।','Choose today or an earlier date.','आज या पहले की तारीख भरें।'],
         STOCK_DATE_BEFORE_ACTIVITY: ['এই তারিখে স্টক এন্ট্রি সার্ভার আটকে দিয়েছে। সার্ভারের আপডেট প্রয়োজন।', 'Server blocked this historical stock date. A server update is required.', 'सर्वर ने पुरानी स्टॉक तारीख रोकी है। सर्वर अपडेट चाहिए।'],
-        INSUFFICIENT_STOCK: ['স্টক কম থাকায় সার্ভার আটকে দিয়েছে। সার্ভারের আপডেট প্রয়োজন।', 'Server blocked negative stock. A server update is required.', 'सर्वर ने ऋणात्मक स्टॉक रोका है। अपडेट चाहिए।'],
+        INSUFFICIENT_STOCK: ['এই তারিখ বা পরের হিসাবে পর্যাপ্ত স্টক নেই। পরিমাণ বা তারিখ পরীক্ষা করুন।', 'Insufficient stock on this date or in later history. Check quantity and date.', 'इस तारीख या बाद के हिसाब में पर्याप्त स्टॉक नहीं। मात्रा और तारीख जाँचें।'],
         IDEMPOTENCY_CONFLICT: ['এই এন্ট্রির আগের অনুরোধের সঙ্গে তথ্য মিলছে না। আগে সংরক্ষিত বিল যাচাই করুন।', 'This entry conflicts with an earlier save. Check the saved bill first.', 'यह एंट्री पिछले सेव से मेल नहीं खाती। सहेजा बिल जाँचें।'],
         PAYMENT_ACCOUNT_REQUIRED: ['নগদ বা ব্যাংক অ্যাকাউন্ট বেছে নিন।', 'Choose an active cash or bank account.', 'सक्रिय नकद या बैंक खाता चुनें।'],
         SETTLEMENT_EXCEEDS_BILL: ['সার্ভার অ্যাডভান্স পেমেন্ট আটকে দিয়েছে। সার্ভারের আপডেট প্রয়োজন।', 'The server rejected the advance payment. A server update is required.', 'सर्वर ने एडवांस रोका है। सर्वर अपडेट चाहिए।'],

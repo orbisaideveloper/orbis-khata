@@ -1,3 +1,4 @@
+import {warehouseTransferCases} from './warehouse-transfer-cases.mjs';
 // Native PostgreSQL only. Refuse remote/live targets; never substitute PGlite.
 import postgres from 'postgres';
 import assert from 'node:assert/strict';
@@ -60,5 +61,6 @@ try{
  }finally{await reader.unsafe('rollback');reader.release();}
  assert.equal((await sql`select count(*)::int as n from public.khata_vouchers`)[0].n,34);
  console.log('PASS: report read lock blocks concurrent save, release allows atomic completion');
+ await warehouseTransferCases({owner,parallel:true,install:async()=>{const bootstrapGuard=await sql.reserve();try{await bootstrapGuard.unsafe(await readFile('supabase/migrations/20261104190750_warehouse_transfer_stock_guard.sql','utf8'));}finally{bootstrapGuard.release();}},query:async(q,p=[])=>({rows:await sql.unsafe(q,p)}),write:p=>sql.begin(async tx=>{await authorize(tx);return tx.unsafe('select public.khata_inventory_post_v1($1::jsonb)',[JSON.stringify(p)]);})});
  console.log('FINAL: PASS — scoped native database concurrency fixtures; not production/million-user capacity certification');
 }finally{await sql.end({timeout:5});}

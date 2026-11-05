@@ -1,5 +1,5 @@
 /* Optional presentation only: original glass and blue styles remain untouched. */
-.phone[data-theme=smart]{--kh-brand:#2456a5;--kh-ink:#193454;--kh-muted:#62778f;--kh-edge:#d8e3f0;font-family:'Noto Sans Bengali',system-ui,sans-serif;color:#193454;background:#edf3fb}
+.phone[data-theme=smart]{--kh-brand:#2456a5;--kh-ink:#193454;--kh-muted:#62778f;--kh-edge:#d8e3f0;font-family:'Noto Sans Bengali','Noto Sans Devanagari',system-ui,sans-serif;color:#193454;background:#edf3fb}
 .phone[data-theme=smart] .light-scene,.phone[data-theme=smart] .lottery-module{background:linear-gradient(150deg,#f7faff,#eaf1fb);color:#193454;font-family:inherit}
 .phone[data-theme=smart] .kh-app-header,.phone[data-theme=smart] .workspace-header{background:linear-gradient(115deg,#173c75,#2a65ad);color:white}
 .phone[data-theme=smart] .books-card,.phone[data-theme=smart] .module,.phone[data-theme=smart] .welcome-panel,.phone[data-theme=smart] .lottery-metric{background:#fff;border:1px solid #d8e3f0;border-radius:16px;box-shadow:0 5px 18px #193b6a08}

@@ -5,7 +5,8 @@ import {accountingPolicyCopy,policyCopy} from './copy';
 afterEach(cleanup);
 it.each(['en','bn','hi'])('keeps all accounting policy sections localized and accessible in %s',language=>{
  const back=vi.fn(),t=accountingPolicyCopy(language);render(<AccountingPolicy language={language} onBack={back}/>);
- expect(screen.getByRole('heading',{name:t.title})).toBeVisible();expect(document.querySelectorAll('details')).toHaveLength(6);
+ expect(screen.getByRole('heading',{name:t.title})).toBeVisible();expect(document.querySelectorAll('details')).toHaveLength(8);
+ expect(screen.getByText(t.warehouseTitle)).toBeVisible();expect(screen.getByText(t.paymentTitle)).toBeVisible();
  fireEvent.click(screen.getByText(t.stockTitle));fireEvent.click(screen.getByRole('button',{name:new RegExp(t.back)}));expect(back).toHaveBeenCalledOnce();
  expect(Object.keys(policyCopy[language])).toEqual(Object.keys(policyCopy.en));
 });

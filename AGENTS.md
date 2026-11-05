@@ -161,3 +161,8 @@ actual browser launch. Termux runs unit tests, audit, lint, typecheck, build and
 `~/storage/downloads/ORBIS-KHATA-LATEST-REPORT.txt`; private logs and backups stay in
 `~/.cache/orbis-khata-quality/`. Termux command receipts are never certification.
 No unauthorized Git writes, deployment or financial data changes.
+
+The same runner also supports native Ubuntu (without proot), records that Android/Termux
+is not verified, and accepts KHATA_CHROMIUM_EXECUTABLE for an inspected local Chromium.
+SQL acceptance runs before coverage; real PostgreSQL concurrency and exact-SHA remote
+Actions/Sonar remain separate required evidence. A cloud report is not a phone report.

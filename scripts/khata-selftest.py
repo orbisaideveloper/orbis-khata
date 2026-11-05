@@ -17,7 +17,7 @@ spec = importlib.util.spec_from_file_location('khata_under_test', source)
 module = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(module)
 assert module.STAGES == ['ubuntu-preflight', 'knip', 'jscpd', 'playwright', 'npm-ls',
-                         'npm-audit', 'lint', 'typecheck', 'build', 'coverage']
+                         'npm-audit', 'lint', 'typecheck', 'build', 'sql', 'coverage']
 with tempfile.TemporaryDirectory() as td:
     work = Path(td)
     (work / 'src').mkdir()

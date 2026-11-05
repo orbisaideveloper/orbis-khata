@@ -18,6 +18,7 @@ async function verify(){
  const before=await fingerprint();
  await db.exec(await readFile('supabase/migrations/20261031075245_lottery_row_storage.sql','utf8'));
  await db.exec(await readFile('supabase/migrations/20261031081126_continuous_production.sql','utf8'));
+ await db.exec(await readFile('supabase/migrations/20261104190750_warehouse_transfer_stock_guard.sql','utf8'));
  assert.equal((await db.query("select has_table_privilege('authenticated','public.khata_production_posts','SELECT') as allowed")).rows[0].allowed,false);
  assert.equal((await db.query("select has_function_privilege('anon','public.khata_workspace_v3(jsonb)','EXECUTE') as allowed")).rows[0].allowed,false);
  assert.equal((await db.query("select has_function_privilege('authenticated','orbis_khata.production_post(jsonb)','EXECUTE') as allowed")).rows[0].allowed,false);

@@ -15,10 +15,11 @@
     "quality:jscpd": "jscpd src --config .jscpd.json --fail-on-empty --exit-code 1",
     "test:e2e": "playwright test --config playwright.central.config.ts",
     "check": "npm test -- --run && npx oxlint",
-    "test:sql": "node scripts/verify-lottery-rows.mjs && node scripts/verify-production.mjs && node scripts/verify-expense-profiles.mjs && node scripts/verify-party-sharing.mjs && node scripts/verify-report-revision.mjs"
+    "test:sql": "node scripts/verify-lottery-rows.mjs && node scripts/verify-production.mjs && node scripts/verify-expense-profiles.mjs && node scripts/verify-party-sharing.mjs && node scripts/verify-report-revision.mjs && node scripts/verify-warehouse-transfer.mjs"
   },
   "dependencies": {
     "@fontsource/noto-sans-bengali": "5.3.0",
+    "@fontsource/noto-sans-devanagari": "5.2.8",
     "@fontsource/noto-serif-bengali": "5.3.0",
     "@supabase/supabase-js": "2.116.0",
     "@tailwindcss/postcss": "4.1.18",

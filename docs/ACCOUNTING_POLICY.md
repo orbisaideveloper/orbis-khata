@@ -52,3 +52,12 @@ The owner explicitly authorizes source completion, required migrations/Edge chan
 A proven historical cutoff defect in the legacy trade report marked a sale reversed even when its reversal was dated after the report cutoff. The prepared migration guards and changes only that existing function predicate to include reversal.effective_date<=p_to. No voucher is changed. Before/after fixtures show the earlier cutoff retains the sale and the later cutoff sees the reversal.
 
 The browser environment remains blocked: official Chromium download fails; the separate browser cannot reach the canonical local preview (ERR_CONNECTION_REFUSED). These are failed preview attempts, not certification. Release transitions remain held until the requested checks are completed.
+
+
+## One godown by default; optional locations and one transfer entry point
+
+The existing default godown is sufficient. A second godown is optional, not an accounting requirement. Stock → Stock transfer routes material directly to Production Input (only when Production is enabled), or to another warehouse. Users can create another godown there without another accounting system. Actual Production Output stays in Production; purchase Send to Production remains available and must not double-post. Transfers preserve quantity/value and never create another purchase/expense. All locations retain one company-wide item cost policy.
+
+The stock view reads complete historical pages through its cutoff before deriving item values. It shows item quantity/value and a combined value; unknown costs stay explicit and cannot silently become zero. Payment forms show selected-date due and draft remaining/advance; typing does not mutate accounts. Only a successful save posts an entry.
+
+Server transfer guards are a separately prepared migration: aggregate repeated source-item lines, reject overdraft at the date and after later movements, use the company stock lock for concurrency, and retain atomic rollback and same-ID retry. No transfer guard blocks negative finished-goods sales. New migration protection is not live until separately authorized and applied. Existing entries and Average v2 formulas are unchanged.
