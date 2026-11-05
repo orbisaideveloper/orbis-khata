@@ -16,12 +16,14 @@ function decodeJson(value: unknown) {
   if (value && typeof value === 'object' && 'jsonValue' in value) return JSON.parse(JSON.stringify((value as JsonParameter).jsonValue))
   return JSON.parse(JSON.stringify(value))
 }
-function edgeHarness(existingParties: {id:string;name:string;phone:string}[] = []) {
+function edgeHarness(existingParties: {id:string;name:string;phone:string}[] = [], admissionDecision:unknown = {allowed:true,retryAfter:0}) {
   const received: unknown[] = []
+  let inTransaction=false;const admittedIdentities:unknown[]=[]
   let lotteryState:Record<string,Record<string,unknown>[]>={},lotteryVersion=0;const lotteryOperations=new Map<string,unknown>();
   let handler: (request: Request) => Promise<Response> = async () => new Response(null, { status: 500 })
   const tx = Object.assign(async (parts: TemplateStringsArray, ...values: unknown[]) => {
     const query = parts.join('?')
+    if(query.includes('admit_gateway_request')){expect(inTransaction).toBe(false);admittedIdentities.push(values[0]);return [{decision:admissionDecision}]}
     if (query.includes('resolve_ledger_owner')) return [{ id }]
     if(query.includes('select id,name,phone from public.khata_parties'))return existingParties
     if(query.includes('khata_report_revision_v1'))return [{version:'1'}]
@@ -39,7 +41,7 @@ function edgeHarness(existingParties: {id:string;name:string;phone:string}[] = [
     }
     return [{ ready: 1 }]
   }, { json: (jsonValue: unknown): JsonParameter => ({ jsonValue }) })
-  const sql = Object.assign(tx, { begin: async (callback: (transaction: typeof tx) => unknown) => callback(tx) })
+  const sql = Object.assign(tx, { begin: async (callback: (transaction: typeof tx) => unknown) => {inTransaction=true;try{return await callback(tx)}finally{inTransaction=false}} })
   const source = readFileSync('supabase/functions/orbis-khata-data/index.ts', 'utf8')
   const compiled = transpileModule(source, { compilerOptions: { module: ModuleKind.CommonJS } }).outputText
   runInNewContext(compiled, {
@@ -49,7 +51,7 @@ function edgeHarness(existingParties: {id:string;name:string;phone:string}[] = [
     },
     Deno: { env: { get: (name: string) => name === 'KHATA_DATABASE_URL' ? 'postgres://postgres@db.gqyaxsczlmvppxuoqbox.supabase.co/postgres' : '' }, serve: (value: typeof handler) => { handler = value } },
   })
-  return { received, request: (operation: string, input: unknown) => handler(new Request('https://example.test', { method: 'POST', headers: { authorization: 'Bearer test' }, body: JSON.stringify({ version: 'orbis.khata.data.v1', operation, input }) })) }
+  return { received, admittedIdentities, request: (operation: string, input: unknown) => handler(new Request('https://example.test', { method: 'POST', headers: { authorization: 'Bearer test' }, body: JSON.stringify({ version: 'orbis.khata.data.v1', operation, input }) })) }
 }
 it('passes optional item fields and party details through the actual Edge entrypoint as JSON objects', async () => {
   const edge = edgeHarness()
@@ -58,6 +60,7 @@ it('passes optional item fields and party details through the actual Edge entryp
   expect((await edge.request('item-save', item)).status).toBe(200)
   expect((await edge.request('party-save', party)).status).toBe(200)
   expect(edge.received).toEqual([item, party])
+  expect(edge.admittedIdentities).toEqual([principal.orbisIdentityId,principal.orbisIdentityId])
 })
 it('preserves expense command objects and line arrays across the SQL boundary', async () => {
   const edge = edgeHarness()
@@ -82,4 +85,15 @@ it('runs independent lottery operations through the actual authenticated Edge en
  expect(await (await edge.request('lottery',input)).json()).toEqual(body);
  const list=await (await edge.request('lottery',{method:'listOrganizations',payload:{}})).json();expect(list.data).toHaveLength(1);expect(edge.received).toEqual([]);
  expect((await edge.request('lottery',{method:'arbitrarySql',payload:{query:'drop table'}})).status).toBe(400);
+});
+
+it.each([
+ {decision:{allowed:false,retryAfter:10},status:429,code:'KHATA_RATE_LIMITED'},
+ {decision:null,status:503,code:'KHATA_DATA_UNAVAILABLE'},
+ {decision:{allowed:true,retryAfter:-1},status:503,code:'KHATA_DATA_UNAVAILABLE'},
+])('rejects posting through the actual Edge when admission is $decision',async({decision,status,code})=>{
+ const edge=edgeHarness([],decision);
+ const response=await edge.request('item-save',{id,company:id,name:'Milk',unit:'litre',code:'',default_rate:null});
+ expect(response.status).toBe(status);expect(await response.json()).toEqual({code});expect(edge.received).toEqual([]);
+ if(status===429){expect(response.headers.get('retry-after')).toBe('10');}
 });
