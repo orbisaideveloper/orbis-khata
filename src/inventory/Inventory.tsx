@@ -37,6 +37,9 @@ type DraftLine = {
 };
 function read(form: FormData, name: string) { const value = form.get(name); return typeof value === 'string' ? value.trim() : ''; }
 function freshLine(): DraftLine { return { key: crypto.randomUUID(), item: '', warehouse: '', to: '', amount: '', rate: '' }; }
+function inventoryPanelActions(initialPanel: 'items'|'stock') {
+    return { items: ['item'], stock: initialPanel==='stock'?['opening']:['warehouse', 'opening', 'transfer'], history: ['purchase', 'sale'] };
+}
 export function Inventory({ userId, company, companyName, language, from, to, version, parties, onLock, onChanged, blocked, simple = false, initialPanel = 'items' }: Readonly<Props>) {
     const t = inventoryCopy[language], tutorial = useTutorial();
     const [offset, setOffset] = useState(0), [reload, setReload] = useState(0), [search, setSearch] = useState('');
@@ -171,7 +174,7 @@ export function Inventory({ userId, company, companyName, language, from, to, ve
     }
     const [selectedItem,setSelectedItem]=useState<{id:string;name:string}|null>(null);
     const [panel, setPanel] = useState<'items' | 'stock' | 'history'>(initialPanel);
-    const panelActions = { items: ['item'], stock: initialPanel==='stock'?['opening']:['warehouse', 'opening', 'transfer'], history: ['purchase', 'sale'] };
+    const panelActions = inventoryPanelActions(initialPanel);
 
     if(selectedItem)return <LedgerExplorer {...{company,language,from,to,version,parties}} initialSelection={{...selectedItem,type:'item'}} onBack={()=>setSelectedItem(null)}/>;
     return <section className="books-card inventory" aria-label={t.title}>

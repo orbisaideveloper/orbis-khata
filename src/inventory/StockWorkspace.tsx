@@ -11,7 +11,18 @@ import type {InventoryReport} from './model';
 export function StockWorkspace({company,userId,language,to,version,onChanged,onSelect,blocked=false,onLock}:Readonly<{company:string;userId:string;language:Language;to:string;version:number;onChanged:()=>void;onSelect:(id:string,name:string)=>void;blocked?:boolean;onLock?:(locked:boolean)=>void}>){
  const {request,settings,loaded}=useWorkspaceSettings(company,false,version),[result,setResult]=useState<{key:string;data:InventoryReport}|null>(null),[failure,setFailure]=useState(''),[retry,setRetry]=useState(0),[search,setSearch]=useState(''),[warehouse,setWarehouse]=useState('');
  const key=JSON.stringify([company,to,version,retry]);
- useEffect(()=>{let active=true;const read=(offset:number)=>request<InventoryReport>('inventory-report',{company,from:'0001-01-01',to,offset});void read(0).then(first=>allPages(first,'documents',read)).then(data=>{if(data.documents.length!==data.count){if(active)setFailure(key);return;}if(active)setResult({key,data});},()=>{if(active)setFailure(key);});return()=>{active=false;};},[company,to,key,request]);
+ useEffect(() => {
+  let active = true;
+  const read = (offset:number) => request<InventoryReport>('inventory-report', {company,from:'0001-01-01',to,offset});
+  void read(0).then(first => allPages(first,'documents',read)).then(data => {
+   if (data.documents.length !== data.count) {
+    if (active) { setFailure(key); }
+    return;
+   }
+   if (active) { setResult({key,data}); }
+  }, () => { if (active) { setFailure(key); } });
+  return () => { active = false; };
+ }, [company,to,key,request]);
  const l=(bn:string,hi:string,en:string)=>inLanguage(language,bn,hi,en);
  if(failure===key)return <output role="alert">{l('সম্পূর্ণ স্টক পড়া যায়নি।','पूरा स्टॉक उपलब्ध नहीं।','Complete stock unavailable.')} <button onClick={()=>setRetry(n=>n+1)}>{l('আবার চেষ্টা','फिर कोशिश','Retry')}</button></output>;
  if(result?.key!==key)return <output>{l('স্টক আসছে…','स्टॉक लोड हो रहा है…','Loading stock…')}</output>;

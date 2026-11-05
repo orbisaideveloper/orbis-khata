@@ -30,3 +30,11 @@ but the new fixture sent an already-stringified string into the driver's JSONB
 serializer. Use tx.json(command) so the server receives an object once. No
 production RPC, stock guard or financial calculation changes in this correction.
 The next exact-SHA CI result must certify the corrected native fixture.
+
+Run 41951338771 verified native parallel transfers, 890 unit tests and 58 browser
+cases. The Sonar gate passed but strict zero-open-issues rejected 16 findings.
+The scoped correction merges a duplicate import, uses explicit conditional blocks,
+renames a state setter, uses SyntheticEvent and narrows FormData values, and moves
+the existing panel-action expression into a helper. Calculations and posting
+commands are unchanged. Four related suites / 21 tests and typecheck passed.
+The final corrected source requires its own full runner and exact-SHA CI results.

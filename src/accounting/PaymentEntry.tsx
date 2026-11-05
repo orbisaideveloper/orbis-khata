@@ -1,10 +1,9 @@
 import {OutstandingPreview} from './OutstandingPreview';
-import {useEffect} from 'react';
 import {ExpensePayment} from './ExpensePayment';
 import {TutorialNote} from '../tutorial';
 import { readWorkspacePending, saveWorkspacePending, clearWorkspacePending } from './workspace-pending';
 import { rejected } from './api';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import type { Language } from '../i18n';
 import { inLanguage } from '../localize';
 import { money, minor, today, type Report } from './model';
@@ -21,7 +20,15 @@ export function PaymentEntry({ company, language, report, onChanged, userId = 'd
     const l = (bn: string, hi: string, en: string) => inLanguage(language, bn, hi, en);
     const [balance,setBalance]=useState<{key:string;due:bigint}|null>(null),[balanceRefresh,setBalanceRefresh]=useState(0);
     const balanceKey=JSON.stringify([company,party,date,kind,balanceRefresh]);
-    useEffect(()=>{let active=true;if(!party||kind==='expense')return;void request<string>('party-balance',{company,party,date,kind:kind==='receipt'?'sale':'purchase'}).then(value=>{if(typeof value!=='string'||! /^-?\d+$/u.test(value))return;if(active)setBalance({key:balanceKey,due:BigInt(value)});},()=>{});return()=>{active=false;};},[company,party,date,kind,balanceKey,request]);
+    useEffect(() => {
+        let active = true;
+        if (!party || kind === 'expense') { return; }
+        void request<string>('party-balance', {company, party, date, kind: kind === 'receipt' ? 'sale' : 'purchase'}).then(value => {
+            if (typeof value !== 'string' || !/^-?\d+$/u.test(value)) { return; }
+            if (active) { setBalance({key: balanceKey, due: BigInt(value)}); }
+        }, () => {});
+        return () => { active = false; };
+    }, [company, party, date, kind, balanceKey, request]);
     async function save() {
         setBusy(true);
         try {
