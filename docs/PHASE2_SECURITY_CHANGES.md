@@ -34,7 +34,7 @@ Existing SQL bytes were preserved when reconciling these five filenames to live 
 
 These 22 historical migrations are already applied on the audited live project. Do not replay them or repair live history just because source filenames changed. Old documents retain their historical references. Test scripts now use canonical files rather than replaying SQL proposal documents.
 
-Admission was applied by the management API as version 20261105084705; its SQL is byte-identical to the formerly prepared 20261105052854 file. Source filenames and test references now follow the actual applied version; live migration history was not rewritten. The safe retired-company purge migration 20261105053009 remains pending because the connector confirmation expired. Review the target project and migration list again before any separately authorized live application. A clean disposable chain test is provided in scripts/verify-phase2.mjs; scheduling itself requires native pg_cron, deliberately excluded from PGlite fixtures.
+Admission was applied by the management API as version 20261105084705; its SQL is byte-identical to the formerly prepared 20261105052854 file. Source filenames and test references now follow the actual applied version; live migration history was not rewritten. The safe retired-company purge was subsequently applied successfully through the connector as version 20261105101338; its SQL is byte-identical to the former prepared 20261105053009 file. Both live migrations now match source filenames without rewriting live history. Review the target project and migration list again before any separately authorized live application. A clean disposable chain test is provided in scripts/verify-phase2.mjs; scheduling itself requires native pg_cron, deliberately excluded from PGlite fixtures.
 
 ## Retired company cleanup
 
@@ -48,3 +48,6 @@ Authorized release order after review: apply only the two new migrations, then d
 
 
 Local follow-up evidence (5 November 2026): browser preflight recovered, canonical BN/HI/EN mobile/desktop preview6/6 and related Playwright18/18 PASS. Preview emoji fonts restored outside source dependencies; updated screenshots inspected. New native PostgreSQL CI results remain pending until this source is pushed through the owner-approved workflow. Re-running the old main commit does not test these local changes.
+
+
+Live verification: admission version20261105084705 and cleanup version20261105101338 applied; both statement hashes match the reviewed SQL. Cleanup is postgres-owned, unavailable to anon/authenticated, and was not invoked manually. All7 companies remain (6 active), with0 currently eligible for purge. Edgev23 is ACTIVE and all35 deployed files match the verified application source; five live negative/CORS checks passed. Existing Render deployment is LIVE at16967b6 withHTTP200. Metadata-alignment commit04c8bbf CI#113 passed; the next filename-only commit requires its own CI result. No real financial records were deleted or rewritten by this release.
