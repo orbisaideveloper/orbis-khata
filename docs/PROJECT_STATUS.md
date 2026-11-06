@@ -1808,3 +1808,23 @@ See [SONAR-CORRECTIONS-20261017.md](SONAR-CORRECTIONS-20261017.md) for every rep
   or Play publication. Exact-SHA CI and real signed AAB remain NOT VERIFIED.
 - NEXT: owner-controlled Git transition, exact-SHA quality/Android run, manual
   signed workflow version1/1.0.0, signature/artifact proof, Internal phone testing.
+
+### 2026-11-07 — Internal phone feedback: Android insets and page scroll (local)
+- Inspected remote main and clean local HEAD 74f57b14b42b6372b39f883865bf6d8c2e3a760d.
+- Owner screenshots prove Play internal installation; owner reports existing login
+  works. They also show status/gesture-bar overlap. This is not full financial QA.
+- MainActivity now applies system-bar/cutout and keyboard insets at the content
+  boundary. App resets scroll on view/book-page changes. Existing App label and
+  Capacitor name already equal Khata Boi; package is unchanged.
+- Changed MainActivity.java, PackageSafetyTest.java, App.tsx and App.test.tsx.
+  Device assertions now check WebView bounds and installed application label.
+- Targeted App tests 14/14, TypeScript, focused lint, build/PWA worker, runner
+  selftest and diff whitespace checks PASS. Repository lint exits zero with
+  pre-existing warnings; not a zero-warning claim.
+- Native verification BLOCKED locally: runner reports Downloads unavailable;
+  host has JDK17 and no /opt/android-sdk. No emulator/phone safe-area fix PASS,
+  preview approval, final certification, version2 AAB or exact-new-SHA CI claimed.
+- NEXT: actual Android emulator preview and owner review, final certification,
+  separately owner-controlled commit/push, then signed versionCode2 build and
+  internal phone update. No Git write, migration, deployment, financial write or
+  public rollout performed.

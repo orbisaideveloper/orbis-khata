@@ -5,6 +5,10 @@ import android.content.pm.ApplicationInfo;
 import android.content.Intent;
 import android.app.Instrumentation;
 import android.os.SystemClock;
+import android.view.View;
+import androidx.core.graphics.Insets;
+import androidx.core.view.ViewCompat;
+import androidx.core.view.WindowInsetsCompat;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -44,6 +48,19 @@ public class PackageSafetyTest {
                 if (!rendered.get()) Thread.sleep(250);
             }
             assertTrue("Bundled React screen did not render on the local origin within 60 seconds", rendered.get());
+            instrumentation.runOnMainSync(() -> {
+                View content = activity.findViewById(android.R.id.content);
+                WindowInsetsCompat insets = ViewCompat.getRootWindowInsets(content);
+                assertNotNull(insets);
+                Insets safe = insets.getInsets(
+                    WindowInsetsCompat.Type.systemBars() | WindowInsetsCompat.Type.displayCutout());
+                int[] position = new int[2];
+                activity.getBridge().getWebView().getLocationOnScreen(position);
+                assertTrue("Header overlaps status bar", position[1] >= safe.top);
+                assertTrue("Content overlaps navigation bar",
+                    position[1] + activity.getBridge().getWebView().getHeight()
+                    <= content.getRootView().getHeight() - safe.bottom);
+            });
         } finally {
             instrumentation.runOnMainSync(activity::finish);
         }
@@ -54,6 +71,7 @@ public class PackageSafetyTest {
         Context context = InstrumentationRegistry.getInstrumentation().getTargetContext();
         assertEquals("com.orbisaideveloper.khata", context.getPackageName());
         ApplicationInfo info = context.getApplicationInfo();
+        assertEquals("Khata Boi", context.getPackageManager().getApplicationLabel(info).toString());
         assertEquals(0, info.flags & ApplicationInfo.FLAG_ALLOW_BACKUP);
         assertEquals(0, info.flags & ApplicationInfo.FLAG_USES_CLEARTEXT_TRAFFIC);
     }

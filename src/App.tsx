@@ -72,6 +72,9 @@ function App() {
     const [tutorial, setTutorial] = useState(readTutorial);
     const [view, setView] = useState<View>(() => authClient && account.session ? readLocation(account.session.user.id).view : 'welcome');
     const [language, setLanguage] = useState<Language>(readLanguage);
+    useEffect(() => {
+        window.scrollTo?.({ top: 0, left: 0, behavior: 'instant' });
+    }, [view, booksPage]);
     const sessionId = account.session?.user.id ?? null;
     const [knownSession, setKnownSession] = useState(sessionId);
     if (authClient && !account.loading && sessionId !== knownSession) {

@@ -10,11 +10,12 @@ vi.mock('./auth/client', () => {
 })
 
 beforeEach(() => {
+  vi.spyOn(window, 'scrollTo').mockImplementation(() => {})
   window.localStorage.clear()
   window.history.replaceState(null, '', '/')
   document.documentElement.lang = 'en'
 })
-afterEach(() => cleanup())
+afterEach(() => { cleanup(); vi.restoreAllMocks() })
 
 function setLanguage(next: 'bn' | 'hi' | 'en') {
   const labels = { bn: 'ভাষা নির্বাচন', hi: 'भाषा चुनें', en: 'Choose language' }
@@ -29,6 +30,14 @@ function openKhata() {
 }
 
 describe('owner-approved final UI: Welcome → Login → Workspace → Khata Boi', () => {
+  it('starts each changed screen at the top', () => {
+    render(<App />)
+    expect(window.scrollTo).toHaveBeenLastCalledWith({ top: 0, left: 0, behavior: 'instant' })
+    vi.mocked(window.scrollTo).mockClear()
+    fireEvent.click(screen.getByRole('button', { name: /শুরু করুন/ }))
+    expect(window.scrollTo).toHaveBeenCalledOnce()
+  })
+
   it('keeps approved three-line welcome, orbit, layout and no fabricated money', () => {
     render(<App />)
     const title = screen.getByRole('heading', { level: 1 })
