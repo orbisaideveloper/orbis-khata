@@ -35,13 +35,18 @@ jobs:
         with:
           distribution: temurin
           java-version: '21'
+          cache: gradle
+          cache-dependency-path: |
+            android/**/*.gradle
+            android/gradle/wrapper/gradle-wrapper.properties
+            package-lock.json
       - name: Check existing runner Android SDK
         run: test -f "$ANDROID_HOME/platforms/android-36/android.jar"
       - name: Prepare runner report directory
         run: mkdir -p "$HOME/storage/downloads"
       - run: npm ci --include=optional
       - run: python3 scripts/khata-selftest.py
-      - run: npm test -- src/native src/PwaStatus.test.tsx src/auth/AccountForm.test.tsx src/billing/BillShare.test.tsx src/accounting/ledger-export.test.ts
+      - run: npm test -- src/native src/PwaStatus.test.tsx src/auth/AccountForm.test.tsx src/billing/BillShare.test.tsx src/accounting/ledger-export.test.ts src/accounting/ledger-download.test.ts
       - run: python3 scripts/khata.py test android
       - name: Preserve Android diagnostics
         if: always()

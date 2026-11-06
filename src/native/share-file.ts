@@ -26,6 +26,7 @@ export async function shareFile(file: File, title: string) {
 }
 
 export function shareCancelled(error: unknown) {
-  return (error instanceof DOMException && error.name === 'AbortError') ||
-    (error instanceof Error && error.message === 'Share canceled')
+  if (!error || typeof error !== 'object') return false
+  return ('name' in error && error.name === 'AbortError') ||
+    ('message' in error && error.message === 'Share canceled')
 }

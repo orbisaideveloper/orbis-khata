@@ -14,6 +14,8 @@ it('preserves the web file-sharing API and unsupported fallback', async () => {
   expect(share).toHaveBeenCalledWith({ files: [file], title: 'Bill' })
   vi.stubGlobal('navigator', {})
   expect(canShareFile(file)).toBe(false)
+  vi.stubGlobal('navigator', { share })
+  expect(canShareFile(file)).toBe(false)
   expect(mocks.write).not.toHaveBeenCalled()
 })
 it('shares exact bytes from isolated private cache without browser APIs', async () => {
@@ -34,7 +36,28 @@ it('propagates storage failures without opening a share chooser', async () => {
 })
 it('distinguishes cancellation from a real share error', () => {
   expect(shareCancelled(new DOMException('', 'AbortError'))).toBe(true)
+  expect(shareCancelled(Object.assign(new Error('cancel'), { name: 'AbortError' }))).toBe(true)
+  expect(shareCancelled({ name: 'AbortError' })).toBe(true)
   expect(shareCancelled(new Error('Share canceled'))).toBe(true)
   expect(shareCancelled(new Error('No target'))).toBe(false)
   expect(shareCancelled(null)).toBe(false)
+  expect(shareCancelled({})).toBe(false)
+  expect(shareCancelled('AbortError')).toBe(false)
+})
+it('reports file-reader failure before storing or sharing', async () => {
+  mocks.native.mockReturnValue(true)
+  vi.stubGlobal('FileReader', class {
+    onerror: (() => void) | null = null
+    readAsDataURL() { this.onerror?.() }
+  })
+  await expect(shareFile(new File(['x'], 'x.pdf'), 'Bill')).rejects.toThrow('FILE_READ_FAILED')
+  expect(mocks.write).not.toHaveBeenCalled()
+  expect(mocks.share).not.toHaveBeenCalled()
+})
+it('keeps native sharing errors visible and handles an empty file name safely', async () => {
+  mocks.native.mockReturnValue(true)
+  mocks.write.mockResolvedValueOnce({ uri: 'file:///cache/shares/document' })
+  mocks.share.mockRejectedValueOnce(new Error('No share target'))
+  await expect(shareFile(new File(['x'], ''), 'Bill')).rejects.toThrow('No share target')
+  expect(mocks.write.mock.calls[0][0].path).toMatch(/\/document$/u)
 })

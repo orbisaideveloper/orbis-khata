@@ -1716,3 +1716,16 @@ See [SONAR-CORRECTIONS-20261017.md](SONAR-CORRECTIONS-20261017.md) for every rep
   URL; no suffix/prefix matching or branch relaxation. Added runner selftest for all
   canonical forms and two foreign/lookalike rejection cases. No Android source,
   financial behavior, live origin, signing or deployment changes. Corrective CI pending.
+
+### 2026-11-06 — Preserve ledger share-cancellation compatibility
+- First exact-SHA Quality run42178971130 exposed one regression among909 tests:
+  ledger-download uses a standard Error named AbortError, not DOMException. Restore
+  cancellation recognition by non-secret structural name/message; still propagate
+  genuine errors. Covers cross-realm-like AbortError, reader failure, private-cache
+  failure, missing browser canShare, empty filename and native chooser failure.
+- Targeted26 tests/7 files PASS; typecheck PASS. New native platform/share helpers
+  have scoped100% statements20/20, branches18/18, functions8/8 and lines15/15.
+  This is not full-repository coverage. Android CI now includes ledger-download
+  regression and Gradle dependency caching. No financial mutation or deployment.
+- Corrective3423cc5 Android run passed setup/SDK/targeted tests and is still compiling;
+  no native PASS claimed yet. Latest correction requires its own exact-SHA CI.
