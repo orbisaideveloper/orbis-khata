@@ -1778,3 +1778,15 @@ See [SONAR-CORRECTIONS-20261017.md](SONAR-CORRECTIONS-20261017.md) for every rep
   capture. This changes evidence collection only, not app code or test assertions.
 - Parsed workflow command order verifies test -> install built APK -> start -> capture.
   Complete new exact-SHA Android/Quality/Sonar jobs still pending; no release claim.
+
+### 2026-11-06 — Bound startup synchronization without a flaky callback deadline
+- 4b032fa Quality run42182267048 is SUCCESS, including browser and strict Sonar.
+  Android debug compilation passed, but emulator startup failed when a single
+  WebView JavaScript callback missed the test's2-second deadline; the identical
+  rendered-origin condition passed earlier app test runs.
+- Replace per-callback immediate failure with one monotonic60-second deadline for
+  the actual local-origin/rendered-main condition. Late callbacks cannot reset a
+  previously successful state. JUnit has an outer90-second bound. No test retries,
+  assertion removal, remote-content allowance or app runtime change.
+- Real Android compilation/instrumentation for this test-only correction requires
+  a new exact-SHA runner result. Existing Quality PASS is not relabeled as new SHA.

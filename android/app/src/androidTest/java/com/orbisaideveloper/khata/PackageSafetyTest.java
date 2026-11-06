@@ -4,6 +4,7 @@ import android.content.Context;
 import android.content.pm.ApplicationInfo;
 import android.content.Intent;
 import android.app.Instrumentation;
+import android.os.SystemClock;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -16,7 +17,7 @@ import static org.junit.Assert.*;
 /** Runs on a device/emulator, not a JVM mock. No customer or backend writes. */
 @RunWith(AndroidJUnit4.class)
 public class PackageSafetyTest {
-    @Test
+    @Test(timeout = 90000)
     public void launchesBundledReactWithoutRemoteNavigation() throws Exception {
         Instrumentation instrumentation = InstrumentationRegistry.getInstrumentation();
         Context context = instrumentation.getTargetContext();
@@ -24,18 +25,25 @@ public class PackageSafetyTest {
             new Intent(context, MainActivity.class).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK));
         try {
             AtomicBoolean rendered = new AtomicBoolean(false);
-            for (int attempt = 0; attempt < 60 && !rendered.get(); attempt++) {
+            long deadline = SystemClock.elapsedRealtime() + 60000;
+            while (!rendered.get() && SystemClock.elapsedRealtime() < deadline) {
                 CountDownLatch checked = new CountDownLatch(1);
                 instrumentation.runOnMainSync(() -> {
                     assertNotNull(activity.getBridge());
                     activity.getBridge().getWebView().evaluateJavascript(
                         "location.origin === 'https://localhost' && !!document.querySelector('#root main')",
-                        value -> { rendered.set("true".equals(value)); checked.countDown(); });
+                        value -> {
+                            if ("true".equals(value)) rendered.set(true);
+                            checked.countDown();
+                        });
                 });
-                assertTrue("WebView script callback timed out", checked.await(2, TimeUnit.SECONDS));
+                // Cold emulator WebView initialization can delay the first callback.
+                // Wait for the actual rendered state, not a single 2-second callback.
+                long remaining = Math.max(1, deadline - SystemClock.elapsedRealtime());
+                checked.await(Math.min(5000, remaining), TimeUnit.MILLISECONDS);
                 if (!rendered.get()) Thread.sleep(250);
             }
-            assertTrue("Bundled React screen did not render on the local origin", rendered.get());
+            assertTrue("Bundled React screen did not render on the local origin within 60 seconds", rendered.get());
         } finally {
             instrumentation.runOnMainSync(activity::finish);
         }
