@@ -1,8 +1,12 @@
 import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, expect, it, vi } from 'vitest'
 import { BillShare } from './BillShare'
+import { Capacitor } from '@capacitor/core'
 const create = vi.hoisted(() => vi.fn())
+const nativeShare = vi.hoisted(() => vi.fn().mockResolvedValue({}))
 vi.mock('./bill-pdf', () => ({ createBillPdf: create }))
+vi.mock('@capacitor/share', () => ({ Share: { share: nativeShare } }))
+vi.mock('@capacitor/filesystem', () => ({ Directory: { Cache: 'CACHE' }, Filesystem: { writeFile: vi.fn().mockResolvedValue({ uri: 'file:///cache/shares/bill.pdf' }) } }))
 afterEach(() => { cleanup(); vi.unstubAllGlobals(); vi.restoreAllMocks(); create.mockReset() })
 function mount() { return render(<section className="bill-review"><article className="bill-sheet">Bill</article><BillShare language="en" name="Shop-1"/></section>) }
 it('prepares a PDF only on request, then shares the file through the device chooser', async () => {
@@ -38,4 +42,15 @@ it('reports PDF errors without losing the bill', async () => {
   mount(); fireEvent.click(screen.getByRole('button', { name: 'Prepare bill PDF' }))
   expect(await screen.findByRole('alert')).toHaveTextContent('Retry')
   expect(screen.getByText('Bill')).toBeInTheDocument()
+})
+it('offers one native file chooser without relying on browser download support', async () => {
+  vi.spyOn(Capacitor, 'isNativePlatform').mockReturnValue(true)
+  create.mockResolvedValue(new File(['PDF'], 'bill.pdf', { type: 'application/pdf' }))
+  mount()
+  fireEvent.click(screen.getByRole('button', { name: 'Prepare bill PDF' }))
+  fireEvent.click(await screen.findByRole('button', { name: 'Save / share PDF' }))
+  const { waitFor } = await import('@testing-library/react')
+  await waitFor(() => expect(nativeShare).toHaveBeenCalledWith({ title: 'Shop-1', files: ['file:///cache/shares/bill.pdf'] }))
+  expect(screen.queryByRole('button', { name: 'Download PDF' })).not.toBeInTheDocument()
+  expect(screen.queryByRole('button', { name: 'Share bill' })).not.toBeInTheDocument()
 })

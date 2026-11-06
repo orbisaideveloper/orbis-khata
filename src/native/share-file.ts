@@ -1,0 +1,31 @@
+import { isNativeApp } from './platform'
+
+export function canShareFile(file: File | null) {
+  return Boolean(file && (isNativeApp() || (typeof navigator.share === 'function' && navigator.canShare?.({ files: [file] }))))
+}
+
+export async function shareFile(file: File, title: string) {
+  if (!isNativeApp()) return navigator.share({ files: [file], title })
+  const [{ Filesystem, Directory }, { Share }] = await Promise.all([
+    import('@capacitor/filesystem'), import('@capacitor/share'),
+  ])
+  const data = await new Promise<string>((resolve, reject) => {
+    const reader = new FileReader()
+    reader.onerror = () => reject(new Error('FILE_READ_FAILED'))
+    reader.onload = () => resolve(String(reader.result).split(',')[1])
+    reader.readAsDataURL(file)
+  })
+  const safeName = file.name.replace(/[^\p{L}\p{M}\p{N}._-]/gu, '-').slice(0, 110) || 'document'
+  // Cache is private and excluded from backup. Keep the file after chooser return:
+  // the receiving application may still be reading the granted content URI.
+  const { uri } = await Filesystem.writeFile({
+    path: 'shares/' + crypto.randomUUID() + '/' + safeName,
+    data, directory: Directory.Cache, recursive: true,
+  })
+  await Share.share({ title, files: [uri] })
+}
+
+export function shareCancelled(error: unknown) {
+  return (error instanceof DOMException && error.name === 'AbortError') ||
+    (error instanceof Error && error.message === 'Share canceled')
+}

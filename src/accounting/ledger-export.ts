@@ -1,4 +1,6 @@
 import { strToU8, zipSync } from 'fflate';
+import { canShareFile, shareCancelled, shareFile } from '../native/share-file';
+import { isNativeApp } from '../native/platform';
 export type LedgerExport = {
     name: string;
     from: string;
@@ -66,12 +68,12 @@ async function ledgerPdf(data: LedgerExport) {
 export async function exportLedger(data: LedgerExport, kind: 'pdf' | 'xlsx' | 'share') {
     const name = data.name.replace(/[^\p{L}\p{M}\p{N}._-]/gu, '-').slice(0, 80) || 'ledger';
     const file = kind === 'xlsx' ? new File([ledgerWorkbook(data) as Uint8Array<ArrayBuffer>], name + '.xlsx', { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }) : await ledgerPdf(data);
-    if (kind === 'share' && navigator.canShare?.({ files: [file] })) {
+    if (isNativeApp() || (kind === 'share' && canShareFile(file))) {
         try {
-            await navigator.share({ files: [file], title: data.name });
+            await shareFile(file, data.name);
         }
         catch (error) {
-            if ((error as Error).name !== 'AbortError') {
+            if (!shareCancelled(error)) {
                 throw error;
             }
         }

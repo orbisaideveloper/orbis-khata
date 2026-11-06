@@ -27,3 +27,8 @@ dist-ssr
 coverage/
 playwright-report/
 test-results/
+
+# Android upload keys and signing credentials must stay outside source control.
+*.jks
+*.keystore
+keystore.properties

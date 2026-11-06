@@ -1,7 +1,18 @@
 import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, expect, it, vi } from 'vitest'
 import { PwaStatus } from './PwaStatus'
-afterEach(() => { cleanup(); vi.unstubAllGlobals(); vi.unstubAllEnvs() })
+const native = vi.hoisted(() => vi.fn(() => false))
+vi.mock('./native/platform', () => ({ isNativeApp: native }))
+afterEach(() => { cleanup(); vi.unstubAllGlobals(); vi.unstubAllEnvs(); native.mockReturnValue(false) })
+it('does not install a web worker over the native plugin bridge', () => {
+  vi.stubEnv('PROD', true)
+  native.mockReturnValue(true)
+  const register = vi.fn()
+  vi.stubGlobal('navigator', { onLine: false, serviceWorker: { register } })
+  render(<PwaStatus language="en" />)
+  expect(register).not.toHaveBeenCalled()
+  expect(screen.getByRole('status')).toHaveTextContent('Offline')
+})
 it('shows offline guidance in the selected language and removes it on reconnect', () => {
   vi.stubGlobal('navigator', { onLine: false })
   const view = render(<PwaStatus language="bn" />)

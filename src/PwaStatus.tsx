@@ -1,6 +1,7 @@
 import { inLanguage } from './localize'
 import { useEffect, useState } from 'react'
 import type { Language } from './i18n'
+import { isNativeApp } from './native/platform'
 
 const copy = {
   bn: { offline: 'ইন্টারনেট নেই। লগইন যাচাই ও নতুন হিসাবের জন্য কানেকশন দরকার।', update: 'নতুন সংস্করণ প্রস্তুত। অসমাপ্ত কাজ শেষ করে অ্যাপের সব উইন্ডো বন্ধ করে আবার খুলুন।', failed: 'অফলাইনে খোলার ব্যবস্থা চালু হয়নি। ইন্টারনেট এলে আবার অ্যাপ খুলুন।' },
@@ -27,7 +28,7 @@ export function PwaStatus({ language }: Readonly<{ language: Language }>) {
       worker = registration?.installing ?? null
       worker?.addEventListener('statechange', changed)
     }
-    if (import.meta.env.PROD && 'serviceWorker' in navigator) {
+    if (import.meta.env.PROD && !isNativeApp() && 'serviceWorker' in navigator) {
       void navigator.serviceWorker.register('/sw.js', { scope: '/', updateViaCache: 'none' }).then(value => {
         if (!alive) return
         registration = value

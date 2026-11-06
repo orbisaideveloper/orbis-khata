@@ -1,0 +1,14 @@
+{
+  "appId": "com.orbisaideveloper.khata",
+  "appName": "Khata Boi",
+  "webDir": "dist",
+  "server": {
+    "hostname": "localhost",
+    "androidScheme": "https",
+    "cleartext": false
+  },
+  "android": {
+    "allowMixedContent": false,
+    "webContentsDebuggingEnabled": false
+  }
+}

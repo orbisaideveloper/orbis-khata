@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Khata Boi</string>
+    <string name="title_activity_main">Khata Boi</string>
+    <string name="package_name">com.orbisaideveloper.khata</string>
+    <string name="custom_url_scheme">com.orbisaideveloper.khata</string>
+</resources>

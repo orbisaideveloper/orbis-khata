@@ -3,6 +3,7 @@ import { useTutorial } from '../tutorial'
 import type { Language } from '../i18n'
 import { authClient } from './client'
 import { accountCopy, accountError } from './copy'
+import { recoveryRedirect } from '../native/platform'
 
 type Mode = 'login' | 'signup' | 'recover' | 'reset'
 
@@ -28,7 +29,7 @@ export function AccountForm({ language, recovery = false, onRecovered }: Readonl
   async function processAuth(currentMode: Mode, email: string, pass: string, data: FormData) {
     if (!authClient) return
     if (currentMode === 'recover') {
-      const { error } = await authClient.auth.resetPasswordForEmail(email, { redirectTo: window.location.origin + '/' })
+      const { error } = await authClient.auth.resetPasswordForEmail(email, { redirectTo: recoveryRedirect() })
       setMessage(error ? accountError(error.code, language) : t.sent)
     } else if (currentMode === 'reset') {
       const { error } = await authClient.auth.updateUser({ password: pass })

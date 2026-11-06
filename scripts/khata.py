@@ -12,6 +12,7 @@ import subprocess
 import sys
 import tarfile
 import time
+from urllib.parse import urlparse
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -44,6 +45,10 @@ APPROVED_UNTRACKED.update({
     'supabase/migrations/20261105040047_warehouse_transfer_stock_guard.sql',
     'docs/STOCK_TRANSFER_VERIFICATION.md',
 })
+APPROVED_UNTRACKED.update({'android/capacitor.settings.gradle', 'android/app/src/main/res/mipmap-xxhdpi/ic_launcher.png', 'android/app/src/main/res/mipmap-xhdpi/ic_launcher_foreground.png', 'android/build.gradle', 'android/gradle.properties', 'android/app/src/main/res/mipmap-xhdpi/ic_launcher_round.png', 'android/app/src/main/res/mipmap-xxxhdpi/ic_launcher_foreground.png', 'android/app/src/main/res/drawable-land-hdpi/splash.png', 'android/app/src/main/res/drawable-port-xhdpi/splash.png', 'android/app/src/main/res/drawable-port-hdpi/splash.png', 'android/app/src/main/res/drawable-land-xxhdpi/splash.png', 'android/app/proguard-rules.pro', 'android/app/src/androidTest/java/com/orbisaideveloper/khata/PackageSafetyTest.java', 'android/app/src/main/res/mipmap-hdpi/ic_launcher.png', 'src/native/platform.ts', 'android/app/src/main/res/drawable/splash.png', 'android/app/src/main/res/layout/activity_main.xml', 'android/app/src/main/res/drawable-port-xxhdpi/splash.png', 'android/app/src/main/res/xml/file_paths.xml', 'android/gradlew.bat', 'android/app/src/main/res/mipmap-xxhdpi/ic_launcher_foreground.png', 'android/app/src/main/res/drawable-port-xxxhdpi/splash.png', 'android/app/src/main/res/mipmap-anydpi-v26/ic_launcher.xml', 'android/app/src/main/res/mipmap-xxxhdpi/ic_launcher_round.png', 'src/native/platform.test.ts', 'android/app/.gitignore', 'android/app/src/main/AndroidManifest.xml', 'android/app/src/main/res/mipmap-mdpi/ic_launcher_round.png', 'android/app/src/main/res/values/styles.xml', 'android/app/src/main/res/drawable-land-mdpi/splash.png', 'android/app/src/main/res/mipmap-mdpi/ic_launcher_foreground.png', 'android/gradlew', 'android/app/src/main/res/mipmap-xhdpi/ic_launcher.png', 'android/app/src/main/res/values/strings.xml', 'android/app/src/main/res/mipmap-xxxhdpi/ic_launcher.png', 'android/settings.gradle', 'android/app/src/main/res/drawable-port-mdpi/splash.png', 'android/app/capacitor.build.gradle', 'android/app/src/main/res/drawable/ic_launcher_background.xml', 'android/variables.gradle', 'src/native/share-file.test.ts', 'capacitor.config.json', 'android/app/src/main/res/drawable-land-xhdpi/splash.png', 'android/app/src/main/res/drawable-land-xxxhdpi/splash.png', 'android/gradle/wrapper/gradle-wrapper.properties', 'android/app/src/main/res/drawable-v24/ic_launcher_foreground.xml', 'android/app/src/main/res/mipmap-mdpi/ic_launcher.png', 'android/app/src/main/res/xml/data_extraction_rules.xml', 'android/.gitignore', 'android/app/build.gradle', 'android/app/src/main/res/values/ic_launcher_background.xml', '.github/workflows/android.yml', 'android/app/src/main/res/mipmap-anydpi-v26/ic_launcher_round.xml', 'android/app/src/main/java/com/orbisaideveloper/khata/MainActivity.java', 'android/app/src/main/res/mipmap-hdpi/ic_launcher_foreground.png', 'android/app/src/main/res/mipmap-hdpi/ic_launcher_round.png', 'android/gradle/wrapper/gradle-wrapper.jar', 'android/app/src/main/res/mipmap-xxhdpi/ic_launcher_round.png', 'src/native/share-file.ts'})
+
+APPROVED_UNTRACKED.add('docs/ANDROID_RELEASE.md')
+
 STAGES = ['ubuntu-preflight', 'knip', 'jscpd', 'playwright', 'npm-ls', 'npm-audit',
           'lint', 'typecheck', 'build', 'sql', 'coverage']
 
@@ -454,6 +459,103 @@ def start(mode):
     return 0 if passed and shared else 1
 
 
+def android_preflight(environ=None):
+    env = os.environ if environ is None else environ
+    for key in ('VITE_KHATA_DEMO', 'VITE_KHATA_GUEST_UI', 'VITE_KHATA_PREVIEW'):
+        if env.get(key) not in (None, '', 'false'):
+            raise RuntimeError('Android build rejects demo/guest/preview modes')
+    for key in ('VITE_ORBIS_CUSTOMER_API_URL', 'VITE_KHATA_DATA_URL'):
+        value = env.get(key, '')
+        url = urlparse(value)
+        if (url.scheme != 'https' or not url.hostname or url.hostname in ('localhost', '127.0.0.1')
+                or url.username or url.password or url.query or url.fragment):
+            raise RuntimeError('Missing/invalid public HTTPS build variable: ' + key)
+    config = json.loads((ROOT / 'capacitor.config.json').read_text())
+    if (config.get('appId') != 'com.orbisaideveloper.khata' or config.get('webDir') != 'dist'
+            or config.get('server') != {'hostname': 'localhost', 'androidScheme': 'https', 'cleartext': False}):
+        raise RuntimeError('Android app identity/local-content configuration changed; review first')
+
+
+def android_build(release=False):
+    baseline()
+    android_preflight()
+    source = fingerprint(safe_files())
+    before = git('status', '--porcelain=v1', '-z', '--untracked-files=all')
+    java = cmd(['java', '-version'])
+    match = re.search(r'version "(\d+)', java.stderr + java.stdout)
+    if java.returncode or not match or int(match.group(1)) < 21:
+        raise RuntimeError('ENV BLOCKED: Android needs JDK 21 or newer')
+    sdk = Path(os.environ.get('ANDROID_HOME') or os.environ.get('ANDROID_SDK_ROOT') or '/nonexistent')
+    if not (sdk / 'platforms/android-36/android.jar').is_file():
+        raise RuntimeError('ENV BLOCKED: Android SDK platform 36 unavailable')
+    if release:
+        required = ('KHATA_UPLOAD_STORE_FILE', 'KHATA_UPLOAD_STORE_PASSWORD', 'KHATA_UPLOAD_KEY_ALIAS',
+                    'KHATA_UPLOAD_KEY_PASSWORD', 'KHATA_ANDROID_VERSION_CODE', 'KHATA_ANDROID_VERSION_NAME')
+        if any(not os.environ.get(key) for key in required):
+            raise RuntimeError('Release blocked: owner signing/version environment required')
+    steps = [(['npm', 'run', 'build'], ROOT), (['npx', '--no-install', 'cap', 'sync', 'android'], ROOT),
+             (['./gradlew', '--no-daemon', 'lintDebug', 'testDebugUnitTest',
+               'bundleRelease' if release else 'assembleDebug'], ROOT / 'android')]
+    for args, cwd in steps:
+        print('ANDROID:', ' '.join(args), flush=True)
+        process = subprocess.Popen(args, cwd=cwd, stdout=subprocess.PIPE,
+                                   stderr=subprocess.STDOUT, text=True)
+        for line in process.stdout:
+            print(line, end='', flush=True)
+        if process.wait():
+            raise RuntimeError('Android build step failed: ' + args[0])
+    if fingerprint(safe_files()) != source or git('status', '--porcelain=v1', '-z', '--untracked-files=all') != before:
+        raise RuntimeError('Android build changed tracked/reviewable source; inspect and repeat targeted build')
+    print('Android compilation PASS; device, backend, Play approval and full certification NOT VERIFIED')
+
+
+def android_job(release=False):
+    CACHE.mkdir(parents=True, exist_ok=True)
+    with (CACHE / 'verify.lock').open('a') as lock:
+        try:
+            fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except BlockingIOError:
+            raise RuntimeError('Another verification/build is already running')
+        report = downloads() / REPORT_NAME
+        run_id = 'android-' + time.strftime('%Y%m%dT%H%M%SZ', time.gmtime())
+        log_path = CACHE / (run_id + '.log')
+        if report.is_file():
+            shutil.copy2(report, CACHE / (run_id + '-previous-report.txt'))
+        print('RUN:', run_id, '| targeted Android build, not final certification', flush=True)
+        # Stream output while retaining one private log; final report is atomic.
+        import contextlib
+        class Output:
+            def __init__(self, console, log):
+                self.console, self.log = console, log
+            def write(self, value):
+                self.console.write(value)
+                self.log.write(value)
+            def flush(self):
+                self.console.flush()
+                self.log.flush()
+        result, error = 'FAIL', ''
+        try:
+            with log_path.open('w') as log, contextlib.redirect_stdout(Output(sys.stdout, log)):
+                android_build(release)
+            result = 'PASS'
+        except (OSError, RuntimeError, subprocess.SubprocessError) as exc:
+            error = str(exc)
+        finally:
+            atomic(report, '\n'.join([
+                'ORBIS KHATA — TARGETED ANDROID BUILD', 'Run ID: ' + run_id,
+                'UTC: ' + time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime()),
+                'HEAD: ' + git('rev-parse', 'HEAD'),
+                'Source fingerprint: ' + fingerprint(safe_files()),
+                'Compilation: ' + result, 'Error: ' + (error or 'none'),
+                'Native device / backend / Play publication: NOT VERIFIED',
+                'Full certification: NOT RUN', 'Git writes / deployment / DB writes: NONE',
+                'Private log: ' + str(log_path), 'FINAL: ' + result, '',
+            ]))
+            print('REPORT:', report, '| FINAL:', result, flush=True)
+        if result != 'PASS':
+            raise RuntimeError(error)
+
+
 def main():
     if len(sys.argv) < 2:
         raise RuntimeError('Usage: khata doctor|test|preview|verify|status|resume')
@@ -463,6 +565,9 @@ def main():
     elif action == 'doctor':
         doctor()
     elif action == 'test':
+        if sys.argv[2:] in (['android'], ['android-release']):
+            android_job(sys.argv[2] == 'android-release')
+            return
         baseline()
         tests = sys.argv[2:] or ['src/App.test.tsx', 'src/WorkspaceMenu.test.tsx', 'src/auth', 'src/accounting', 'src/inventory']
         if any(t.startswith('-') or '..' in Path(t).parts for t in tests):

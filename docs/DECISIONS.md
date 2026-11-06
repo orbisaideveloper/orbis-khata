@@ -425,3 +425,20 @@ Owner confirms one common per-item company cost pool, moving weighted average fo
 
 ### 2026-11-04 — Conditional release authorization and additive consistency optimization
 Owner explicitly authorizes finishing required optimization/testing, necessary migration/Edge deployment and commit/push after all requested verification succeeds; do not ask for the same permission again. Original financial entries remain authoritative and immutable. Add derived per-company report revisions and normalized party lookup index without rewriting source rows; reject page/family revision mismatches. Fix the proven future-reversal cutoff flag, preserving all other function text. Synthetic fixture capacity is not concurrent-user certification. Browser download/local-preview connectivity remain environmental blockers, so no conditional release transition has been performed.
+
+### 2026-11-06 — First Android preparation, web retained
+Owner approves starting Android packaging for the existing Play draft Khata Boi,
+application ID com.orbisaideveloper.khata. Use Capacitor with local bundled React
+assets in this same repo; retain web/Render, central identity, backend and existing
+accounting documents. No public rollout, signing-key generation, migration, backend
+origin change or deployment is implied. Keep one scripts/khata.py runner. Native
+sharing uses cache-only content grants; recovery finishes on the web. Release needs
+separate origin compatibility, actual Android build/device tests, owner signing,
+Play declarations and final certification. See docs/ANDROID_RELEASE.md.
+
+### 2026-11-06 — Owner authorizes Android CI publication
+Owner explicitly authorizes assistant commit/push and GitHub-runner testing of this
+Android candidate despite the documented local JDK/SDK/preview blockers. Run real
+Android compilation and exact-SHA existing quality CI, repair proven failures.
+This is a CI candidate transition, not an Android/public-release certification or
+permission to publish to Play. Keep existing live backend and financial data intact.

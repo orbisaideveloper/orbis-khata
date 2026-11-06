@@ -166,3 +166,8 @@ The same runner also supports native Ubuntu (without proot), records that Androi
 is not verified, and accepts KHATA_CHROMIUM_EXECUTABLE for an inspected local Chromium.
 SQL acceptance runs before coverage; real PostgreSQL concurrency and exact-SHA remote
 Actions/Sonar remain separate required evidence. A cloud report is not a phone report.
+
+Android uses this same runner: `khata test android` (debug candidate) or
+`khata test android-release` (owner signing/version environment required).
+See docs/ANDROID_RELEASE.md. Compilation is separate from device testing and final
+certification. Never publish a debug APK or claim an AAB without artifact/signature proof.

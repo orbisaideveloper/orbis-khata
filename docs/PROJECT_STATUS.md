@@ -1662,3 +1662,48 @@ See [SONAR-CORRECTIONS-20261017.md](SONAR-CORRECTIONS-20261017.md) for every rep
 - Native CI suite now invokes the SAME shared phase2-safety-cases.mjs on one reserved PostgreSQL connection (role state cannot leak through pool use), plus64 parallel admission requests with stable-window validation. Existing .github/workflows/quality.yml already provisions PostgreSQL17; no new workflow/provider or production credentials required. NOT EXECUTED at this source revision: new native CI cases. An old main re-run would not verify unpushed source.
 - Changed scope: gateway admission/helper/error-copy tests, matching Edge call, two pending additive migrations, six historical baselines restored, five byte-identical migration renames, SQL/native acceptance fixture references, existing runner allowlist and scoped documentation. Accounting Policy v2 unchanged. Details: docs/PHASE2_SECURITY_CHANGES.md.
 - Runner self-test, script syntax and git diff --check PASS. No new full certification or exact-SHA Sonar result claimed. NEXT: owner-approved Git transition per project rule (owner Termux push; assistant push needs explicit exception), then inspect native PostgreSQL/Actions/Sonar results for the exact new SHA. Live release remains separate authorization.
+
+### 2026-11-06 — First Android candidate prepared, NOT release certified
+- Owner authorizes Android preparation for Khata Boi, com.orbisaideveloper.khata;
+  web remains. Base/main HEAD d26981d389f3f5ca727a56eb769e1bda70f0b150.
+- Added pinned Capacitor8.6 core/Android/CLI, official filesystem8.1.5/share8.0.3,
+  local bundled-assets config, SDK36/min24 Android template, existing notebook icon
+  and splash assets, native Back history/minimize handling. No runtime server.url.
+- Disabled cleartext/mixed-content/debug WebView, Android backup/device-transfer;
+  restricted FileProvider to shares/ cache. Native PDF/XLSX chooser adapter preserves
+  browser export behavior. Android skips Service Worker; recovery returns to web.
+  Release tasks reject missing owner signing/version environment. No upload key made.
+- Added manual-only GitHub Android debug-candidate workflow (no publication/deploy),
+  same scripts/khata.py targeted Android build modes, environment/identity/source
+  guards, exclusive lock, streaming log and atomic single targeted-build report.
+  Runner selftest passed; Android XML/Python/YAML parsing passed. Template fake
+  2+2 test removed; real device package-safety instrumentation prepared, NOT RUN.
+- Final targeted21 tests/6 files PASS. Typecheck/lint PASS (existing warnings),
+  production web build/PWA PASS (existing chunk warning), cap sync PASS, KNIP PASS
+  (existing2 hints), JSCPD0 clones, npm audit0 vulnerabilities. Icon visually checked.
+  These are development checks, not full coverage/final certification.
+- Confirmed live read-only OPTIONS origin gap: https://localhost returns403
+  CUSTOMER_ORIGIN_DENIED on Central Admin and403 KHATA_ORIGIN_DENIED on Khata Edge.
+  No backend configuration or security policy changed; exact-origin approval/release
+  and negative authorization retests needed before native login/save works.
+- Android compile ENV BLOCKED: JDK17 installed, needs21; SDK36/emulator unavailable.
+  Runner rejected before compilation. No APK/AAB produced. Official Playwright
+  browser archives were truncated; apt snapshot package indexes unavailable503.
+  Canonical Vite5173 started, but separate cloud browser ERR_CONNECTION_REFUSED.
+  Mobile/desktop visual preview is BLOCKED; native phone/instrumentation NOT RUN.
+- Added docs/ANDROID_RELEASE.md with build/signing/testing/Console/update guide and
+  remaining Play/security/backup/device gates. Pending: public endpoint build variables,
+  owner upload-key custody/signature verification, accurate policy/deletion/reviewer
+  declarations, Internal/Closed testing, full certification after preview approval.
+- No original financial record, formula, migration, live DB/Auth/Edge/Render setting,
+  remote Git branch or Play listing changed. No commit/push. Prepared source is local
+  main only; exact-SHA CI/Sonar/new Android workflow NOT RUN. Do not reuse old PASS.
+
+### 2026-11-06 — Android CI candidate transition authorized
+- Owner explicitly approves assistant commit/push and real GitHub runner checks.
+  Prepared workflow now runs on relevant main pushes, with manual dispatch retained;
+  public existing API defaults prevent an unconfigured endpoint build. Added runner
+  report-directory preparation and always-preserved Android diagnostics. No key,
+  service credential, production write or Play publication is added.
+- Local source/targeted evidence above remains development evidence only. Exact-SHA
+  Android/Quality/Sonar results will be inspected after the authorized push.

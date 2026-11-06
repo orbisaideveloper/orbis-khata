@@ -1,0 +1,63 @@
+name: Khata Android candidate
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'android/**'
+      - 'src/**'
+      - 'public/**'
+      - 'pwa/**'
+      - 'capacitor.config.json'
+      - 'package*.json'
+      - 'scripts/khata*.py'
+      - '.github/workflows/android.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: khata-android-${{ github.ref }}
+  cancel-in-progress: false
+jobs:
+  debug-candidate:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    env:
+      VITE_ORBIS_CUSTOMER_API_URL: ${{ vars.VITE_ORBIS_CUSTOMER_API_URL || 'https://orbis-admin-staging.onrender.com' }}
+      VITE_KHATA_DATA_URL: ${{ vars.VITE_KHATA_DATA_URL || 'https://gqyaxsczlmvppxuoqbox.supabase.co/functions/v1/orbis-khata-data' }}
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '24'
+          cache: npm
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '21'
+      - name: Check existing runner Android SDK
+        run: test -f "$ANDROID_HOME/platforms/android-36/android.jar"
+      - name: Prepare runner report directory
+        run: mkdir -p "$HOME/storage/downloads"
+      - run: npm ci --include=optional
+      - run: python3 scripts/khata-selftest.py
+      - run: npm test -- src/native src/PwaStatus.test.tsx src/auth/AccountForm.test.tsx src/billing/BillShare.test.tsx src/accounting/ledger-export.test.ts
+      - run: python3 scripts/khata.py test android
+      - name: Preserve Android diagnostics
+        if: always()
+        uses: actions/upload-artifact@v5
+        with:
+          name: khata-android-report-${{ github.sha }}
+          path: |
+            ~/storage/downloads/ORBIS-KHATA-LATEST-REPORT.txt
+            ~/.cache/orbis-khata-quality/android-*.log
+            android/app/build/reports/
+          if-no-files-found: warn
+          retention-days: 7
+      - uses: actions/upload-artifact@v5
+        with:
+          name: khata-debug-${{ github.sha }}
+          path: android/app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error
+          retention-days: 7
+      # No upload key, Play publishing, migration or deployment in this workflow.

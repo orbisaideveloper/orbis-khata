@@ -58,6 +58,20 @@ assert module.final_ok('r',0,s,lines,'fp',5)
 assert not module.final_ok('old',0,s,lines,'fp',5)
 assert not module.final_ok('r',1,s,lines,'fp',5)
 assert not module.final_ok('r',0,s,lines[:-1],'fp',5)
+android_env = {
+    'VITE_ORBIS_CUSTOMER_API_URL': 'https://identity.example.com',
+    'VITE_KHATA_DATA_URL': 'https://data.example.com/functions/v1/orbis-khata-data',
+}
+module.android_preflight(android_env)
+for invalid in ({}, {**android_env, 'VITE_KHATA_DEMO': 'true'},
+                {**android_env, 'VITE_KHATA_DATA_URL': 'http://localhost'},
+                {**android_env, 'VITE_ORBIS_CUSTOMER_API_URL': 'https://user:secret@example.com'}):
+    try:
+        module.android_preflight(invalid)
+    except RuntimeError:
+        pass
+    else:
+        raise AssertionError('Unsafe Android configuration accepted')
 with tempfile.TemporaryDirectory() as td:
     p = Path(td) / module.REPORT_NAME
     p.write_text('Run ID: r\nFINAL: PASS\n')
