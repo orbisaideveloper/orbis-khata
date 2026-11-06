@@ -1769,3 +1769,12 @@ See [SONAR-CORRECTIONS-20261017.md](SONAR-CORRECTIONS-20261017.md) for every rep
 - Latest local29 targeted tests/7 files, typecheck, lint, KNIP and JSCPD0 clones PASS.
   Production helper and Android runtime unchanged by this test-only correction.
   New exact-SHA Quality/Sonar and Android/emulator evidence still required after push.
+
+### 2026-11-06 — Reinstall tested APK before native preview capture
+- 9f260b8 Android run42181239217 job127771125041 completed real compilation/lint
+  and both :app instrumented tests successfully (BUILD SUCCESSFUL). The connected
+  test provider then removed the installed target; subsequent screenshot am-start
+  failed Activity does not exist. Reinstall the SAME built debug APK before preview
+  capture. This changes evidence collection only, not app code or test assertions.
+- Parsed workflow command order verifies test -> install built APK -> start -> capture.
+  Complete new exact-SHA Android/Quality/Sonar jobs still pending; no release claim.
