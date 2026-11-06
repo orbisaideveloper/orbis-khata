@@ -497,7 +497,7 @@ def android_build(release=False, device=False):
             raise RuntimeError('Release blocked: owner signing/version environment required')
     tasks = ['lintDebug', 'testDebugUnitTest', 'bundleRelease' if release else 'assembleDebug']
     if device:
-        tasks.append('connectedDebugAndroidTest')
+        tasks.append(':app:connectedDebugAndroidTest')
     steps = [(['npm', 'run', 'build'], ROOT), (['npx', '--no-install', 'cap', 'sync', 'android'], ROOT),
              (['./gradlew', '--no-daemon', *tasks], ROOT / 'android')]
     for args, cwd in steps:

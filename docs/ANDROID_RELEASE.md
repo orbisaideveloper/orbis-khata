@@ -41,7 +41,7 @@ or false. Missing endpoints/guest flags fail closed in the runner.
 
 Builds web, syncs plugins/assets, runs Android lint and creates a debug APK.
 Template 2+2 JVM tests were removed. No JVM-test PASS is claimed for NO-SOURCE.
-The real PackageSafetyTest needs an emulator/device: connectedDebugAndroidTest.
+The real PackageSafetyTest needs an emulator/device: :app:connectedDebugAndroidTest.
 
 GitHub workflow: Khata Android candidate runs on relevant main pushes or manual
 dispatch. It uses the reviewed existing public API addresses, with repository
@@ -99,7 +99,7 @@ Record current exact outcomes in PROJECT_STATUS.md and the single latest report.
 ## Connected emulator checks
 
 The same runner also supports `python3 scripts/khata.py test android-device`.
-It repeats the guarded build and runs connectedDebugAndroidTest against an already
+It repeats the guarded build and runs :app:connectedDebugAndroidTest against an already
 running emulator/device. CI uses a commit-pinned emulator action on API35 x86_64,
 restricted access to the disposable runner's KVM node, two real instrumented tests
 (package backup/cleartext flags and bundled React startup), plus a welcome screenshot.

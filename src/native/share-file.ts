@@ -12,7 +12,16 @@ export async function shareFile(file: File, title: string) {
   const data = await new Promise<string>((resolve, reject) => {
     const reader = new FileReader()
     reader.onerror = () => reject(new Error('FILE_READ_FAILED'))
-    reader.onload = () => resolve(String(reader.result).split(',')[1])
+    reader.onload = () => {
+      const result = reader.result
+      if (typeof result !== 'string' || !result.startsWith('data:')) {
+        reject(new Error('FILE_READ_FAILED'))
+        return
+      }
+      const comma = result.indexOf(',')
+      if (comma < 0) { reject(new Error('FILE_READ_FAILED')); return }
+      resolve(result.slice(comma + 1))
+    }
     reader.readAsDataURL(file)
   })
   const safeName = file.name.replace(/[^\p{L}\p{M}\p{N}._-]/gu, '-').slice(0, 110) || 'document'

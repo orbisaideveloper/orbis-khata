@@ -1743,3 +1743,20 @@ See [SONAR-CORRECTIONS-20261017.md](SONAR-CORRECTIONS-20261017.md) for every rep
 - Runner selftest/diff checks PASS; connected test Java compilation/execution awaits
   new exact-SHA GitHub runner. No signing key, backend setting, migration/deployment
   or Play publication. Owner's existing commit/push/testing authorization continues.
+
+### 2026-11-06 — Correct reader validation and target app instrumentation
+- b68d161 Quality passed151 test files, SQL/native concurrency,58 browser tests and
+  Sonar Quality Gate, but strict zero-issues rejected typescript:S6551 reader.result
+  stringification. Replace implicit String coercion with explicit string/data-URL
+  validation; reject malformed results before storage/share. Added three malformed
+  reader fixtures. Targeted29 tests/7 files and typecheck PASS. New-helper scoped
+  coverage100%: statements28/28, branches24/24, functions8/8, lines22/22.
+- e209242 emulator booted API35 and ran both app instrumented tests; the root Gradle
+  task then unnecessarily built an EMPTY generated Cordova library test APK, whose
+  Kotlin stdlib-jdk7/8 test dependencies conflicted (1.6.21 vs1.8.22). App debug and
+  app test classpaths had passed; conflict is in that generated library test APK,
+  not the shipped app. Target :app:connectedDebugAndroidTest explicitly. Keep app
+  tests, lint, dependency checks and runtime behavior intact; do not edit generated
+  plugin files, exclude classes or weaken assertions. New whole Android job pending.
+- Read-only live Edge23 source confirms KHATA_ORIGINS environment/default controls
+  origin admission. No live environment, financial data or deployment changed.

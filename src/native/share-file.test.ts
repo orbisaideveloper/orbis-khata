@@ -61,3 +61,14 @@ it('keeps native sharing errors visible and handles an empty file name safely', 
   await expect(shareFile(new File(['x'], ''), 'Bill')).rejects.toThrow('No share target')
   expect(mocks.write.mock.calls[0][0].path).toMatch(/\/document$/u)
 })
+it.each([null, 'not-a-data-url', 'data:application/pdf;base64'])('rejects a malformed reader result %s without sharing', async result => {
+  mocks.native.mockReturnValue(true)
+  vi.stubGlobal('FileReader', class {
+    result = result
+    onload: (() => void) | null = null
+    readAsDataURL() { this.onload?.() }
+  })
+  await expect(shareFile(new File(['x'], 'x.pdf'), 'Bill')).rejects.toThrow('FILE_READ_FAILED')
+  expect(mocks.write).not.toHaveBeenCalled()
+  expect(mocks.share).not.toHaveBeenCalled()
+})
