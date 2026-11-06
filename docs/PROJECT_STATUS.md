@@ -1790,3 +1790,21 @@ See [SONAR-CORRECTIONS-20261017.md](SONAR-CORRECTIONS-20261017.md) for every rep
   assertion removal, remote-content allowance or app runtime change.
 - Real Android compilation/instrumentation for this test-only correction requires
   a new exact-SHA runner result. Existing Quality PASS is not relabeled as new SHA.
+
+### 2026-11-06 — Manual signed AAB preparation (uncommitted)
+- Inspected main2eca917ab35cedb244eb80011502a30d1c3ad567, canonical remote and clean
+  starting checkout. Owner Termux has the same HEAD plus existing untracked fix.js;
+  that phone file is untouched by this cloud work.
+- Changed existing android.yml, scripts/khata.py, scripts/khata-selftest.py,
+  .gitignore and Android release/decision/status docs only. No application changes.
+- Added manual signed build after existing emulator checks; step-only secrets;
+  private temporary key cleanup; signature/owner certificate and bundle manifest
+  package/version/safety checks; pinned bundletool checksum; explicit AAB artifact.
+- Python runner self-test including release failure cleanup and negative manifest
+  cases PASS; git diff whitespace check PASS. No local JDK21/SDK/device build claim.
+- Original signing key remains on owner phone; encrypted verified backup was stored
+  in private Drive folder. No passwords retrieved. This is not a database backup.
+- Local implementation only: no commit/push, DB write/migration, Edge/Render deploy
+  or Play publication. Exact-SHA CI and real signed AAB remain NOT VERIFIED.
+- NEXT: owner-controlled Git transition, exact-SHA quality/Android run, manual
+  signed workflow version1/1.0.0, signature/artifact proof, Internal phone testing.

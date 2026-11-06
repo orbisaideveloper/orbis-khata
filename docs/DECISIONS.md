@@ -442,3 +442,12 @@ Android candidate despite the documented local JDK/SDK/preview blockers. Run rea
 Android compilation and exact-SHA existing quality CI, repair proven failures.
 This is a CI candidate transition, not an Android/public-release certification or
 permission to publish to Play. Keep existing live backend and financial data intact.
+
+### 2026-11-06 — Owner-controlled first Android upload key
+Owner authorizes first key creation, private encrypted Drive backup, GitHub Actions
+Secrets and signed AAB preparation. Keep Google Play app signing separate from
+the owner upload key. No financial backup is implied by a signing backup. Manual
+signed build only after emulator tests; no push-triggered signing or Play publish.
+Secrets are step-scoped; one existing runner owns temporary key cleanup and bundle
+verification. Verify the exact owner certificate and actual manifest/version before
+uploading the AAB artifact. No accounting, schema, live data or deploy changes.

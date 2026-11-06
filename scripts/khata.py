@@ -2,6 +2,11 @@
 """ORBIS Khata: one report, exact local source, guarded resumable quality runner."""
 from __future__ import annotations
 import fcntl
+import base64
+import contextlib
+import tempfile
+import xml.etree.ElementTree as ET
+from urllib.request import urlopen
 import hashlib
 import json
 import os
@@ -478,6 +483,81 @@ def android_preflight(environ=None):
         raise RuntimeError('Android app identity/local-content configuration changed; review first')
 
 
+@contextlib.contextmanager
+def android_signing_material(release):
+    encoded = os.environ.get('KHATA_UPLOAD_KEYSTORE_BASE64') if release else None
+    if not encoded:
+        yield
+        return
+    previous = os.environ.get('KHATA_UPLOAD_STORE_FILE')
+    with tempfile.TemporaryDirectory(prefix='khata-signing-') as directory:
+        key = Path(directory) / 'upload.p12'
+        try:
+            try:
+                raw = base64.b64decode(encoded, validate=True)
+            except ValueError:
+                raise RuntimeError('Invalid upload keystore encoding') from None
+            if not raw or len(raw) > 32768:
+                raise RuntimeError('Invalid upload keystore size')
+            with key.open('xb') as output:
+                os.chmod(key, 0o600)
+                output.write(raw)
+            os.environ['KHATA_UPLOAD_STORE_FILE'] = str(key)
+            yield
+        finally:
+            if previous is None:
+                os.environ.pop('KHATA_UPLOAD_STORE_FILE', None)
+            else:
+                os.environ['KHATA_UPLOAD_STORE_FILE'] = previous
+
+
+ANDROID_UPLOAD_CERT = '64899AF7336772B762E6A5177A077E7193741F0B532EB395499C7F705205091D'
+BUNDLETOOL_SHA = '378b5434cd1378bef6b2bc527b8c7f0ff2584b273830335bce54d6d0813c8584'
+
+
+def android_bundle_manifest(xml, version_code, version_name):
+    root = ET.fromstring(xml)
+    ns = '{http://schemas.android.com/apk/res/android}'
+    app = root.find('application')
+    if (root.get('package') != 'com.orbisaideveloper.khata'
+            or root.get(ns + 'versionCode') != version_code
+            or root.get(ns + 'versionName') != version_name
+            or app is None or app.get(ns + 'debuggable', 'false') != 'false'
+            or app.get(ns + 'allowBackup') != 'false'
+            or app.get(ns + 'usesCleartextTraffic') != 'false'):
+        raise RuntimeError('Release bundle manifest identity/version/safety mismatch')
+
+
+def android_verify_bundle():
+    bundle = ROOT / 'android/app/build/outputs/bundle/release/app-release.aab'
+    if not bundle.is_file():
+        raise RuntimeError('Release bundle missing')
+    signature = cmd(['jarsigner', '-J-Duser.language=en', '-verify', str(bundle)])
+    message = signature.stdout + signature.stderr
+    if signature.returncode or 'jar verified.' not in message or 'unsigned entries' in message.lower():
+        raise RuntimeError('Release bundle signature verification failed')
+    cert = cmd(['keytool', '-J-Duser.language=en', '-printcert', '-jarfile', str(bundle)])
+    actual = re.findall(r'SHA256:\s*([0-9A-Fa-f:]+)', cert.stdout)
+    if cert.returncode or {value.replace(':', '').upper() for value in actual} != {ANDROID_UPLOAD_CERT}:
+        raise RuntimeError('Release bundle signer does not match owner upload certificate')
+    tool = CACHE / 'bundletool-all-1.18.2.jar'
+    if not tool.is_file() or hashlib.sha256(tool.read_bytes()).hexdigest() != BUNDLETOOL_SHA:
+        with urlopen('https://github.com/google/bundletool/releases/download/1.18.2/bundletool-all-1.18.2.jar', timeout=60) as response:
+            raw = response.read(40000001)
+        if hashlib.sha256(raw).hexdigest() != BUNDLETOOL_SHA:
+            raise RuntimeError('Bundletool download checksum mismatch')
+        tool.write_bytes(raw)
+    for args in (['validate', '--bundle=' + str(bundle)], ['dump', 'manifest', '--bundle=' + str(bundle)]):
+        result = cmd(['java', '-jar', str(tool), *args])
+        if result.returncode:
+            raise RuntimeError('Bundletool ' + args[0] + ' failed')
+    android_bundle_manifest(result.stdout, os.environ['KHATA_ANDROID_VERSION_CODE'],
+                            os.environ['KHATA_ANDROID_VERSION_NAME'])
+    digest = hashlib.sha256(bundle.read_bytes()).hexdigest()
+    print('SIGNED AAB VERIFIED: package/version/safety, signature, owner certificate; SHA256=' + digest)
+    return digest
+
+
 def android_build(release=False, device=False):
     baseline()
     android_preflight()
@@ -495,7 +575,8 @@ def android_build(release=False, device=False):
                     'KHATA_UPLOAD_KEY_PASSWORD', 'KHATA_ANDROID_VERSION_CODE', 'KHATA_ANDROID_VERSION_NAME')
         if any(not os.environ.get(key) for key in required):
             raise RuntimeError('Release blocked: owner signing/version environment required')
-    tasks = ['lintDebug', 'testDebugUnitTest', 'bundleRelease' if release else 'assembleDebug']
+    tasks = ['lintRelease' if release else 'lintDebug', 'testDebugUnitTest',
+             'bundleRelease' if release else 'assembleDebug']
     if device:
         tasks.append(':app:connectedDebugAndroidTest')
     steps = [(['npm', 'run', 'build'], ROOT), (['npx', '--no-install', 'cap', 'sync', 'android'], ROOT),
@@ -510,6 +591,8 @@ def android_build(release=False, device=False):
             raise RuntimeError('Android build step failed: ' + args[0])
     if fingerprint(safe_files()) != source or git('status', '--porcelain=v1', '-z', '--untracked-files=all') != before:
         raise RuntimeError('Android build changed tracked/reviewable source; inspect and repeat targeted build')
+    if release:
+        android_verify_bundle()
     print('Android compilation PASS; instrumentation:', 'PASS' if device else 'NOT RUN')
     print('Physical phone, backend, Play approval and full certification NOT VERIFIED')
 
@@ -540,7 +623,7 @@ def android_job(release=False, device=False):
                 self.log.flush()
         result, error = 'FAIL', ''
         try:
-            with log_path.open('w') as log, contextlib.redirect_stdout(Output(sys.stdout, log)):
+            with log_path.open('w') as log, contextlib.redirect_stdout(Output(sys.stdout, log)), android_signing_material(release):
                 android_build(release, device)
             result = 'PASS'
         except (OSError, RuntimeError, subprocess.SubprocessError) as exc:
@@ -551,8 +634,9 @@ def android_job(release=False, device=False):
                 'UTC: ' + time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime()),
                 'HEAD: ' + git('rev-parse', 'HEAD'),
                 'Source fingerprint: ' + fingerprint(safe_files()),
-                'Compilation: ' + result, 'Error: ' + (error or 'none'),
+                'Compilation and required release checks: ' + result, 'Error: ' + (error or 'none'),
                 'Instrumentation: ' + ('PASS' if device and result == 'PASS' else 'NOT VERIFIED'),
+                'Signed AAB: ' + ('PASS (signature/certificate/manifest)' if release and result == 'PASS' else 'NOT VERIFIED'),
                 'Native device / backend / Play publication: NOT VERIFIED',
                 'Full certification: NOT RUN', 'Git writes / deployment / DB writes: NONE',
                 'Private log: ' + str(log_path), 'FINAL: ' + result, '',

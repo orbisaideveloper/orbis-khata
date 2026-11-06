@@ -32,3 +32,8 @@ test-results/
 *.jks
 *.keystore
 keystore.properties
+
+# Owner signing keys and encrypted backups are never source.
+*.p12
+*.p12.gpg
+*.pfx

@@ -92,4 +92,38 @@ with tempfile.TemporaryDirectory() as td:
     with patch.object(module.shutil, 'which', return_value='/bin/true'), patch.object(module.subprocess, 'run', return_value=SimpleNamespace(returncode=0)):
         assert module.share_report(p, 'r')
         assert not module.share_report(p, 'stale')
+# Release material must never survive a failed build or enter a report.
+import base64
+with patch.dict(os.environ, {'KHATA_UPLOAD_KEYSTORE_BASE64': base64.b64encode(b'private-test-key').decode()}, clear=True):
+    created = None
+    try:
+        with module.android_signing_material(True):
+            created = Path(os.environ['KHATA_UPLOAD_STORE_FILE'])
+            assert created.read_bytes() == b'private-test-key'
+            assert created.stat().st_mode & 0o777 == 0o600
+            raise RuntimeError('simulated build failure')
+    except RuntimeError:
+        pass
+    assert created is not None and not created.exists()
+    assert 'KHATA_UPLOAD_STORE_FILE' not in os.environ
+with patch.dict(os.environ, {'KHATA_UPLOAD_KEYSTORE_BASE64': 'invalid!'}, clear=True):
+    try:
+        with module.android_signing_material(True):
+            raise AssertionError('Invalid encoding accepted')
+    except RuntimeError:
+        pass
+manifest = '<manifest xmlns:android="http://schemas.android.com/apk/res/android" package="com.orbisaideveloper.khata" android:versionCode="1" android:versionName="1.0.0"><application android:allowBackup="false" android:usesCleartextTraffic="false"/></manifest>'
+module.android_bundle_manifest(manifest, '1', '1.0.0')
+for invalid in (manifest.replace('com.orbisaideveloper.khata', 'other.app'),
+                manifest.replace('versionCode="1"', 'versionCode="2"'),
+                manifest.replace('versionName="1.0.0"', 'versionName="2.0.0"'),
+                manifest.replace('allowBackup="false"', 'allowBackup="true"'),
+                manifest.replace('usesCleartextTraffic="false"', 'usesCleartextTraffic="true"'),
+                manifest.replace('<application ', '<application android:debuggable="true" ')):
+    try:
+        module.android_bundle_manifest(invalid, '1', '1.0.0')
+    except RuntimeError:
+        pass
+    else:
+        raise AssertionError('Unsafe signed bundle manifest accepted')
 print('SELFTEST: PASS | stage order, fingerprint invalidation, atomic state, read-only status')

@@ -12,6 +12,19 @@ on:
       - 'scripts/khata*.py'
       - '.github/workflows/android.yml'
   workflow_dispatch:
+    inputs:
+      signed_release:
+        description: Build signed AAB for owner Internal testing; no publication
+        type: boolean
+        default: false
+      version_code:
+        description: Increasing Play version code
+        type: string
+        default: '1'
+      version_name:
+        description: User-visible release version
+        type: string
+        default: '1.0.0'
 permissions:
   contents: read
 concurrency:
@@ -86,4 +99,33 @@ jobs:
           path: android/app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
           retention-days: 7
-      # No upload key, Play publishing, migration or deployment in this workflow.
+      - name: Build and verify owner signed bundle
+        if: github.event_name == 'workflow_dispatch' && inputs.signed_release
+        env:
+          KHATA_UPLOAD_KEYSTORE_BASE64: ${{ secrets.KHATA_UPLOAD_KEYSTORE_BASE64 }}
+          KHATA_UPLOAD_STORE_PASSWORD: ${{ secrets.KHATA_UPLOAD_STORE_PASSWORD }}
+          KHATA_UPLOAD_KEY_ALIAS: ${{ secrets.KHATA_UPLOAD_KEY_ALIAS }}
+          KHATA_UPLOAD_KEY_PASSWORD: ${{ secrets.KHATA_UPLOAD_KEY_PASSWORD }}
+          KHATA_ANDROID_VERSION_CODE: ${{ inputs.version_code }}
+          KHATA_ANDROID_VERSION_NAME: ${{ inputs.version_name }}
+        run: |
+          test -n "$KHATA_UPLOAD_KEYSTORE_BASE64"
+          python3 scripts/khata.py test android-release
+      - name: Preserve verified signed AAB
+        if: success() && github.event_name == 'workflow_dispatch' && inputs.signed_release
+        uses: actions/upload-artifact@v5
+        with:
+          name: khata-signed-aab-${{ github.sha }}-${{ inputs.version_code }}
+          path: android/app/build/outputs/bundle/release/app-release.aab
+          if-no-files-found: error
+          retention-days: 7
+      - name: Preserve signed build result
+        if: always() && github.event_name == 'workflow_dispatch' && inputs.signed_release
+        uses: actions/upload-artifact@v5
+        with:
+          name: khata-signed-report-${{ github.sha }}
+          path: ~/storage/downloads/ORBIS-KHATA-LATEST-REPORT.txt
+          if-no-files-found: warn
+          retention-days: 7
+      # Signing material exists only in the runner temporary directory during release.
+      # No Play publishing, migration, deployment or upload-key artifacts.

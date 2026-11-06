@@ -111,3 +111,28 @@ NO-SOURCE and are not counted as executed unit tests. First source56e97c7 was
 blocked by canonical GitHub remote formatting; corrected without loosening repo
 identity. Quality exposed ledger AbortError compatibility, corrected with26 focused
 tests and100% new-helper scoped coverage. New instrumentation needs its own CI proof.
+
+## Owner first upload signing setup — 6 November 2026
+
+Owner generated and reopened the private PKCS12 upload key on their Termux phone.
+The certificate SHA256 is
+64899AF7336772B762E6A5177A077E7193741F0B532EB395499C7F705205091D.
+The owner verified a GPG AES256 backup against the original bytes; only that
+ciphertext was copied into the private Drive signing-backup folder. This is NOT
+a financial/database backup. Passwords and original private key were not shared.
+Owner CLI receipts confirm the four repository Actions Secrets: upload keystore
+base64, store password, alias, and key password. Secret values were not read.
+
+Manual Khata Android candidate dispatch can opt into signed_release, version_code
+and version_name. Push runs remain debug-only. Emulator checks precede signing.
+The same runner decodes key material into a mode0600 temporary file, removes it
+on success/failure, builds the bundle and rejects an unverified/wrong certificate.
+Pinned checksum-verified bundletool1.18.2 validates the actual AAB and checks its
+manifest package, requested versions, no debug, no backup and no cleartext flags.
+Artifacts contain only the verified signed AAB and public report, never a key.
+No Play credentials or publishing operation are included. Increase version code
+for every later Console upload; automatic first-release publication is forbidden.
+
+Pending evidence: owner-approved corrective commit/push, exact-SHA quality and
+Android runs, manual signed run and artifact verification, real phone workflows,
+Play declarations/Internal testing. Local runner self-test does not certify AAB.
