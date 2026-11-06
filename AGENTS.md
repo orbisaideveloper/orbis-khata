@@ -169,5 +169,6 @@ Actions/Sonar remain separate required evidence. A cloud report is not a phone r
 
 Android uses this same runner: `khata test android` (debug candidate) or
 `khata test android-release` (owner signing/version environment required).
+`khata test android-device` adds connected instrumentation on a running emulator/device.
 See docs/ANDROID_RELEASE.md. Compilation is separate from device testing and final
 certification. Never publish a debug APK or claim an AAB without artifact/signature proof.

@@ -95,3 +95,19 @@ Local JDK17 does not meet JDK21; no Android SDK/emulator or signed AAB verified.
 Playwright official browser download returned truncated archives; web preview is
 not certified. Targeted adapter tests are separate from native-device evidence.
 Record current exact outcomes in PROJECT_STATUS.md and the single latest report.
+
+## Connected emulator checks
+
+The same runner also supports `python3 scripts/khata.py test android-device`.
+It repeats the guarded build and runs connectedDebugAndroidTest against an already
+running emulator/device. CI uses a commit-pinned emulator action on API35 x86_64,
+restricted access to the disposable runner's KVM node, two real instrumented tests
+(package backup/cleartext flags and bundled React startup), plus a welcome screenshot.
+No customer account is used and no financial posting occurs. A passing emulator is
+not real-phone, native-login, recovery, PDF target-app or signing certification.
+
+Observed CI:3423cc5 and b68d161 Android debug compile/lint passed; JVM tests were
+NO-SOURCE and are not counted as executed unit tests. First source56e97c7 was
+blocked by canonical GitHub remote formatting; corrected without loosening repo
+identity. Quality exposed ledger AbortError compatibility, corrected with26 focused
+tests and100% new-helper scoped coverage. New instrumentation needs its own CI proof.

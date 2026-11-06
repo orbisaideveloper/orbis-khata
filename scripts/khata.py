@@ -478,7 +478,7 @@ def android_preflight(environ=None):
         raise RuntimeError('Android app identity/local-content configuration changed; review first')
 
 
-def android_build(release=False):
+def android_build(release=False, device=False):
     baseline()
     android_preflight()
     source = fingerprint(safe_files())
@@ -495,9 +495,11 @@ def android_build(release=False):
                     'KHATA_UPLOAD_KEY_PASSWORD', 'KHATA_ANDROID_VERSION_CODE', 'KHATA_ANDROID_VERSION_NAME')
         if any(not os.environ.get(key) for key in required):
             raise RuntimeError('Release blocked: owner signing/version environment required')
+    tasks = ['lintDebug', 'testDebugUnitTest', 'bundleRelease' if release else 'assembleDebug']
+    if device:
+        tasks.append('connectedDebugAndroidTest')
     steps = [(['npm', 'run', 'build'], ROOT), (['npx', '--no-install', 'cap', 'sync', 'android'], ROOT),
-             (['./gradlew', '--no-daemon', 'lintDebug', 'testDebugUnitTest',
-               'bundleRelease' if release else 'assembleDebug'], ROOT / 'android')]
+             (['./gradlew', '--no-daemon', *tasks], ROOT / 'android')]
     for args, cwd in steps:
         print('ANDROID:', ' '.join(args), flush=True)
         process = subprocess.Popen(args, cwd=cwd, stdout=subprocess.PIPE,
@@ -508,10 +510,11 @@ def android_build(release=False):
             raise RuntimeError('Android build step failed: ' + args[0])
     if fingerprint(safe_files()) != source or git('status', '--porcelain=v1', '-z', '--untracked-files=all') != before:
         raise RuntimeError('Android build changed tracked/reviewable source; inspect and repeat targeted build')
-    print('Android compilation PASS; device, backend, Play approval and full certification NOT VERIFIED')
+    print('Android compilation PASS; instrumentation:', 'PASS' if device else 'NOT RUN')
+    print('Physical phone, backend, Play approval and full certification NOT VERIFIED')
 
 
-def android_job(release=False):
+def android_job(release=False, device=False):
     CACHE.mkdir(parents=True, exist_ok=True)
     with (CACHE / 'verify.lock').open('a') as lock:
         try:
@@ -538,7 +541,7 @@ def android_job(release=False):
         result, error = 'FAIL', ''
         try:
             with log_path.open('w') as log, contextlib.redirect_stdout(Output(sys.stdout, log)):
-                android_build(release)
+                android_build(release, device)
             result = 'PASS'
         except (OSError, RuntimeError, subprocess.SubprocessError) as exc:
             error = str(exc)
@@ -549,6 +552,7 @@ def android_job(release=False):
                 'HEAD: ' + git('rev-parse', 'HEAD'),
                 'Source fingerprint: ' + fingerprint(safe_files()),
                 'Compilation: ' + result, 'Error: ' + (error or 'none'),
+                'Instrumentation: ' + ('PASS' if device and result == 'PASS' else 'NOT VERIFIED'),
                 'Native device / backend / Play publication: NOT VERIFIED',
                 'Full certification: NOT RUN', 'Git writes / deployment / DB writes: NONE',
                 'Private log: ' + str(log_path), 'FINAL: ' + result, '',
@@ -567,8 +571,8 @@ def main():
     elif action == 'doctor':
         doctor()
     elif action == 'test':
-        if sys.argv[2:] in (['android'], ['android-release']):
-            android_job(sys.argv[2] == 'android-release')
+        if sys.argv[2:] in (['android'], ['android-release'], ['android-device']):
+            android_job(sys.argv[2] == 'android-release', sys.argv[2] == 'android-device')
             return
         baseline()
         tests = sys.argv[2:] or ['src/App.test.tsx', 'src/WorkspaceMenu.test.tsx', 'src/auth', 'src/accounting', 'src/inventory']

@@ -1729,3 +1729,17 @@ See [SONAR-CORRECTIONS-20261017.md](SONAR-CORRECTIONS-20261017.md) for every rep
   regression and Gradle dependency caching. No financial mutation or deployment.
 - Corrective3423cc5 Android run passed setup/SDK/targeted tests and is still compiling;
   no native PASS claimed yet. Latest correction requires its own exact-SHA CI.
+
+### 2026-11-06 — Real Android compilation passed; connected checks prepared
+- Android run42179309865 at3423cc5 and42179795739 atb68d161 completed SUCCESS:
+  JDK21/SDK36, real Java/Kotlin compilation, Android lint, source integrity and debug
+  APK artifact. Gradle JVM test tasks NO-SOURCE, not an executed unit-test PASS.
+- Latest b68d161 Quality has passed unit/SQL/native-PostgreSQL/coverage/build gates
+  and is running browser checks; final exact-SHA Quality/Sonar not yet claimed.
+- Add connected emulator path to the SAME runner (test android-device), two real
+  instrumented checks for package safety and local React startup, commit-pinned
+  emulator action API35 x86_64 and native welcome screenshot/XML evidence. Tests
+  use no customer or financial write. Real-phone QA remains distinct and pending.
+- Runner selftest/diff checks PASS; connected test Java compilation/execution awaits
+  new exact-SHA GitHub runner. No signing key, backend setting, migration/deployment
+  or Play publication. Owner's existing commit/push/testing authorization continues.

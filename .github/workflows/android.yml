@@ -48,6 +48,26 @@ jobs:
       - run: python3 scripts/khata-selftest.py
       - run: npm test -- src/native src/PwaStatus.test.tsx src/auth/AccountForm.test.tsx src/billing/BillShare.test.tsx src/accounting/ledger-export.test.ts src/accounting/ledger-download.test.ts
       - run: python3 scripts/khata.py test android
+      - name: Allow this disposable runner to use KVM
+        run: |
+          test -c /dev/kvm
+          sudo chown "$(id -un)" /dev/kvm
+          test -r /dev/kvm && test -w /dev/kvm
+      - name: Android emulator package and startup tests
+        uses: reactivecircus/android-emulator-runner@a421e43855164a8197daf9d8d40fe71c6996bb0d # v2
+        with:
+          api-level: 35
+          arch: x86_64
+          target: google_apis
+          disable-animations: true
+          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
+          script: |
+            python3 scripts/khata.py test android-device
+            adb shell am start -W -n com.orbisaideveloper.khata/.MainActivity
+            adb shell uiautomator dump /sdcard/khata-window.xml
+            mkdir -p android/app/build/reports/native-preview
+            adb pull /sdcard/khata-window.xml android/app/build/reports/native-preview/
+            adb exec-out screencap -p > android/app/build/reports/native-preview/welcome.png
       - name: Preserve Android diagnostics
         if: always()
         uses: actions/upload-artifact@v5
