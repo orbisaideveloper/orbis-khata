@@ -1760,3 +1760,12 @@ See [SONAR-CORRECTIONS-20261017.md](SONAR-CORRECTIONS-20261017.md) for every rep
   plugin files, exclude classes or weaken assertions. New whole Android job pending.
 - Read-only live Edge23 source confirms KHATA_ORIGINS environment/default controls
   origin admission. No live environment, financial data or deployment changed.
+
+### 2026-11-06 — Deduplicate reader failure fixtures without weakening gates
+- 9f260b8 Quality passed all151 unit files (914 tests), SQL/native concurrency and
+  coverage, then zero-clone JSCPD rejected duplicate reader-failure test setup.
+  Consolidate read-error and malformed-data outcomes into one parameterized fixture;
+  retain every rejection/storage/share assertion and all4 outcome cases.
+- Latest local29 targeted tests/7 files, typecheck, lint, KNIP and JSCPD0 clones PASS.
+  Production helper and Android runtime unchanged by this test-only correction.
+  New exact-SHA Quality/Sonar and Android/emulator evidence still required after push.
