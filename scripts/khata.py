@@ -119,8 +119,10 @@ def baseline():
     branch = git('branch', '--show-current')
     head = git('rev-parse', 'HEAD')
     remote = git('remote', 'get-url', 'origin')
-    if branch != 'main' or not (remote == 'https://github.com/' + EXPECTED_REMOTE + '.git'
-                                or remote == 'git@github.com:' + EXPECTED_REMOTE + '.git'):
+    if branch != 'main' or remote not in (
+            'https://github.com/' + EXPECTED_REMOTE,
+            'https://github.com/' + EXPECTED_REMOTE + '.git',
+            'git@github.com:' + EXPECTED_REMOTE + '.git'):
         raise RuntimeError('Unexpected branch/remote; no run: ' + branch + ' / ' + remote)
     for arg in (['diff', '--check'], ['diff', '--cached', '--check']):
         res = cmd(['git', *arg])

@@ -1707,3 +1707,12 @@ See [SONAR-CORRECTIONS-20261017.md](SONAR-CORRECTIONS-20261017.md) for every rep
   service credential, production write or Play publication is added.
 - Local source/targeted evidence above remains development evidence only. Exact-SHA
   Android/Quality/Sonar results will be inspected after the authorized push.
+
+### 2026-11-06 — Correct exact repository remote guard for Android CI
+- Authorized candidate56e97c7 published; Android run42178971074 job127763884129
+  passed setup/JDK21/SDK36/dependencies/21 targeted tests, then STOPPED before build:
+  checkout origin was the canonical HTTPS URL without .git, rejected by old guard.
+- Accept only this exact repository's HTTPS URL with/without .git and existing SSH
+  URL; no suffix/prefix matching or branch relaxation. Added runner selftest for all
+  canonical forms and two foreign/lookalike rejection cases. No Android source,
+  financial behavior, live origin, signing or deployment changes. Corrective CI pending.

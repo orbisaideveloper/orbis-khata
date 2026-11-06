@@ -18,6 +18,20 @@ module = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(module)
 assert module.STAGES == ['ubuntu-preflight', 'knip', 'jscpd', 'playwright', 'npm-ls',
                          'npm-audit', 'lint', 'typecheck', 'build', 'sql', 'coverage']
+for remote in ('https://github.com/orbisaideveloper/orbis-khata',
+               'https://github.com/orbisaideveloper/orbis-khata.git',
+               'git@github.com:orbisaideveloper/orbis-khata.git'):
+    with patch.object(module, 'git', side_effect=['main', 'a'*40, remote]), patch.object(module, 'cmd', return_value=SimpleNamespace(returncode=0)):
+        assert module.baseline() == ('main', 'a'*40, remote)
+for remote in ('https://github.com/other/orbis-khata',
+               'https://github.com/orbisaideveloper/orbis-khata.evil'):
+    with patch.object(module, 'git', side_effect=['main', 'a'*40, remote]):
+        try:
+            module.baseline()
+        except RuntimeError:
+            pass
+        else:
+            raise AssertionError('Wrong repository accepted')
 with tempfile.TemporaryDirectory() as td:
     work = Path(td)
     (work / 'src').mkdir()
