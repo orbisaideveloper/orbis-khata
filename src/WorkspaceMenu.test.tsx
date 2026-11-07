@@ -1,3 +1,4 @@
+import { Capacitor } from '@capacitor/core'
 import { fireEvent, render, screen } from '@testing-library/react'
 import { expect, it, vi } from 'vitest'
 import { WorkspaceMenu } from './WorkspaceMenu'
@@ -47,3 +48,13 @@ it('offers production only for the enabled company and closes after navigation',
  const view=render(<WorkspaceMenu {...props}/>);const menu=view.container.querySelector('details')!;menu.setAttribute('open','');expect(screen.queryByRole('button',{name:'Production'})).not.toBeInTheDocument();view.rerender(<WorkspaceMenu {...props} production/>);fireEvent.click(screen.getByRole('button',{name:'Production'}));expect(open).toHaveBeenCalledWith('production');expect(menu).not.toHaveAttribute('open');view.unmount();
 });
 it('offers main home and appearance without invoking logout',()=>{const home=vi.fn(),appearance=vi.fn(),logout=vi.fn();const view=render(<WorkspaceMenu language="en" signedIn tutorial={false} onTutorial={()=>{}} onProfile={()=>{}} onLogout={logout} onMainHome={home} onAppearance={appearance}/>);const details=view.container.querySelector('details')!;details.open=true;fireEvent.click(screen.getByRole('button',{name:'Main home'}));expect(home).toHaveBeenCalledOnce();expect(details).not.toHaveAttribute('open');details.open=true;fireEvent.click(screen.getByRole('button',{name:'Appearance'}));expect(appearance).toHaveBeenCalledOnce();expect(logout).not.toHaveBeenCalled();view.unmount();});
+
+it('shows Android release metadata and distinguishes web builds',()=>{
+ vi.stubEnv('VITE_KHATA_ANDROID_RELEASE','1.0.2 (3)')
+ const native=vi.spyOn(Capacitor,'isNativePlatform').mockReturnValue(true)
+ const view=render(<WorkspaceMenu language="en" signedIn tutorial={false} onTutorial={()=>{}} onProfile={()=>{}} onLogout={()=>{}}/>)
+ expect(screen.getByText('Version: 1.0.2 (3)')).toBeInTheDocument()
+ native.mockReturnValue(false);view.rerender(<WorkspaceMenu language="en" signedIn tutorial={false} onTutorial={()=>{}} onProfile={()=>{}} onLogout={()=>{}}/>)
+ expect(screen.getByText('Version: Web · local')).toBeInTheDocument()
+ view.unmount();native.mockRestore();vi.unstubAllEnvs()
+})

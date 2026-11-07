@@ -1828,3 +1828,20 @@ See [SONAR-CORRECTIONS-20261017.md](SONAR-CORRECTIONS-20261017.md) for every rep
   separately owner-controlled commit/push, then signed versionCode2 build and
   internal phone update. No Git write, migration, deployment, financial write or
   public rollout performed.
+
+### 2026-11-07 — Rebuilt missing privacy publication slice
+- Previous local source/cache/report missing; clean canonical main restored at
+  7b8f381bf24d5b2a7d9779db0442595a3404fac7. Old PASS does not certify rebuilt files.
+- Recreated trilingual public policy/deletion instructions and in-app links at
+  Welcome/Login/menu/profile, support mail composer, local CSS and focused tests.
+- Existing runner exact allowlist extended; no wrapper or threshold relaxation.
+- Owner permits commit/push/manual Render publication; reviewer credentials and
+  remaining Console declarations are separate. Initial privacy targeted tests 27/27 and browser checks 4/4 passed; old certification interrupted at audit, not PASS.
+- No Git write, deployment, migration, production data write or Play submission.
+
+### 2026-11-07 — Privacy, release display and cold-start completion candidate
+- Added public health-only scheduled GET in Khata workflow (same customer origin as Android), no credentials/accounting writes. Inspected Admin health source read-only. Schedule is best-effort and not active before main publication.
+- Menu release metadata uses Android build version settings; web is clearly labelled. Auth timeout 75s, restore fallback 90s, BN/EN/HI wait message; no automatic credential/financial replay.
+- Privacy policy includes health-check operational logs; bundled existing licensed BN/HI fonts make static pages readable without installed fonts or external trackers.
+- Related tests 56/56 PASS; typecheck PASS; npm audit zero vulnerabilities; KNIP PASS with 2 existing hints; runner selftest PASS. Actual canonical React/Vite mobile preview inspected, Bengali policy readable.
+- Owner requested completion and commit/push. Final current-source certification and exact-SHA remote QA pending. No commit/push/deploy, DB mutation, migration or Play submission yet.

@@ -3,6 +3,7 @@ import { useTutorial } from '../tutorial'
 import type { Language } from '../i18n'
 import { authClient } from './client'
 import { accountCopy, accountError } from './copy'
+import { inLanguage } from '../localize'
 import { recoveryRedirect } from '../native/platform'
 
 type Mode = 'login' | 'signup' | 'recover' | 'reset'
@@ -76,6 +77,7 @@ export function AccountForm({ language, recovery = false, onRecovered }: Readonl
 
   return <div className="form">
     <form key={mode} onSubmit={submit} aria-label={title}>
+      {busy && <p role="status">{inLanguage(language,'সার্ভার চালু হতে প্রায় এক মিনিট লাগতে পারে। অপেক্ষা করুন; আবার Submit করবেন না।','सर्वर शुरू होने में लगभग एक मिनट लग सकता है। प्रतीक्षा करें; दोबारा Submit न करें।','The server may take about a minute to start. Please wait; do not submit again.')}</p>}
       <fieldset disabled={busy || !authClient} style={{ border: 0, padding: 0, margin: 0 }}>
         {mode === 'signup' && <>
           <label className="field">{t.first}<input className="input" name="first" autoComplete="given-name" required maxLength={80} pattern=".*\S.*" /></label>

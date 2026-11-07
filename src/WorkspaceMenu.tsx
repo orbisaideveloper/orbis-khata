@@ -1,3 +1,5 @@
+import { Capacitor } from '@capacitor/core';
+import { PrivacyLinks } from './privacy/PrivacyLinks';
 import {useEffect,useRef,type ReactNode} from 'react';
 import {inLanguage} from './localize';
 import { booksLabels, type BooksPage } from './books-navigation';
@@ -40,6 +42,8 @@ export function WorkspaceMenu({ language, tutorial, onTutorial, onProfile, onLog
       {signedIn && <button type="button" onClick={event => { event.currentTarget.closest('details')?.removeAttribute('open'); onProfile(); }}>{t.profile}</button>}
       {actions}
       {settings&&<details className="workspace-settings"><summary>{inLanguage(language,'সেটিংস','सेटिंग्स','Settings')}</summary><div>{settings}</div></details>}
+      {!demo && <PrivacyLinks language={language}/>}
+      <small>{inLanguage(language,'ভার্সন','वर्ज़न','Version')}: {Capacitor.isNativePlatform() ? (import.meta.env.VITE_KHATA_ANDROID_RELEASE || 'Unavailable') : `Web · ${import.meta.env.VITE_KHATA_WEB_RELEASE || 'local'}`}</small>
       <label className="tutorial-menu-row"><span>{t.tutorial}</span><input type="checkbox" checked={tutorial} onChange={event => onTutorial(event.target.checked)}/></label>
       {!demo && <button type="button" onClick={onLogout}>{t.logout}</button>}
     </div>

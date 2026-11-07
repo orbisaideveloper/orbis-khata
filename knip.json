@@ -1,7 +1,8 @@
 {
   "entry": [
     "supabase/functions/orbis-khata-data/index.ts",
-    "vendor/foundation-lottery/runtime/lottery-accounting-service.d.ts"
+    "vendor/foundation-lottery/runtime/lottery-accounting-service.d.ts",
+    "public/legal.css"
   ],
   "playwright": {
     "config": [

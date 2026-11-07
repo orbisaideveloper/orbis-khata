@@ -46,7 +46,7 @@ export function createCustomerSessionClient(options: {
     const response = await (options.fetchImpl ?? fetch)(endpoint.origin + '/api/v1/customer/' + path, {
       method: body === undefined ? 'GET' : 'POST', credentials: 'omit', redirect: 'error',
       headers: { 'content-type': 'application/json', ...(token ? { authorization: 'Bearer ' + token } : {}) },
-      body: body === undefined ? undefined : JSON.stringify(body), signal: AbortSignal.timeout(15_000),
+      body: body === undefined ? undefined : JSON.stringify(body), signal: AbortSignal.timeout(75_000),
     })
     if (!response.ok) throw new CustomerSessionError(response.status === 401 ? 'CUSTOMER_LOGIN_REQUIRED' : 'CUSTOMER_SERVICE_UNAVAILABLE')
     const text = await response.text()

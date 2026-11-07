@@ -1,3 +1,4 @@
+import { PrivacyLinks } from './privacy/PrivacyLinks';
 import { WorkspaceGreeting } from './WorkspaceGreeting';
 import './design.css';
 import {shareCopy} from './customer-view/copy';
@@ -183,7 +184,7 @@ function App() {
           <div className="actions">
             <button type="button" className="primary" onClick={() => navigate('login')}>{t('start')}</button>
             <button type="button" className="secondary" onClick={() => navigate('login')}>{t('existing')}</button>
-            <p className="welcome-foot">{t('foot')}</p>
+            <p className="welcome-foot">{t('foot')}</p><PrivacyLinks language={language}/>
           </div>
         </section>)}
 
@@ -199,7 +200,7 @@ function App() {
             {guestUiEnabled && <button type="button" className="gradient" onClick={() => navigate('workspace')}>{t('skip')}</button>}
             {tutorial && <div className="note" role="note">{t('authGuard')}</div>}
           </div>)}
-          <div className="login-footer">{authClient ? '' : t('signup')}</div>
+          <div className="login-footer">{authClient ? '' : t('signup')}</div><PrivacyLinks language={language}/>
         </section>)}
 
       {view === 'workspace' && (signedIn || guestUiEnabled) && (<section className="scene light-scene active workspace-scene" aria-label={t('choose')}>
@@ -222,7 +223,7 @@ function App() {
       {view === 'profile' && signedIn && <section className="scene light-scene active profile-page" aria-label={t('settings')}>
         {renderBar('workspace', 'choose', 'settings')}
         <p className="orbis-account-id">{account.session?.user.user_metadata?.orbis_display_id}</p>
-        <CommonAccountProfile key={account.session!.user.id} userId={account.session!.user.id} language={language}/>
+        <CommonAccountProfile key={account.session!.user.id} userId={account.session!.user.id} language={language}/><PrivacyLinks language={language} detailed/>
         {tutorial && <p className="books-hint">{accountCopy[language].lock} — {accountCopy[language].lockInfo}</p>}
       </section>}
 

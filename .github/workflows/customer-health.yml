@@ -1,0 +1,28 @@
+name: Customer service health
+on:
+  schedule:
+    - cron: '7,17,27,37,47,57 * * * *'
+  workflow_dispatch:
+permissions: {}
+concurrency:
+  group: customer-health
+  cancel-in-progress: false
+jobs:
+  health:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 3
+    steps:
+      - name: Read public health endpoint without credentials or data writes
+        env:
+          CUSTOMER_ORIGIN: ${{ vars.VITE_ORBIS_CUSTOMER_API_URL || 'https://orbis-admin-staging.onrender.com' }}
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import os, urllib.parse
+          u = urllib.parse.urlsplit(os.environ['CUSTOMER_ORIGIN'])
+          if (u.scheme != 'https' or not u.hostname or u.username or u.password
+              or u.path not in ('', '/') or u.query or u.fragment or u.port not in (None, 443)):
+              raise SystemExit('Invalid public customer origin')
+          PY
+          curl --fail --silent --show-error --proto '=https' --connect-timeout 15 --max-time 100 --output /dev/null "${CUSTOMER_ORIGIN%/}/health"

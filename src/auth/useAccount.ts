@@ -13,7 +13,7 @@ export function useAccount() {
     let observed = false
     const timeout = window.setTimeout(() => {
       if (alive && !observed) { setUnavailable(true); setLoading(false) }
-    }, 15000)
+    }, 90000)
     const { data } = authClient.auth.onAuthStateChange((event, next) => {
       if (!alive) return
       observed = true

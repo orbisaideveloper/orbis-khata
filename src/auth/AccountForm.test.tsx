@@ -28,6 +28,7 @@ describe('account flows', () => {
     const form = screen.getByRole('form', { name: 'Log in' })
     fireEvent.submit(form); fireEvent.submit(form)
     expect(auth.signInWithPassword).toHaveBeenCalledTimes(1)
+    expect(screen.getByRole('status')).toHaveTextContent('The server may take about a minute')
     finish({ error: { code: 'invalid_credentials' } })
     expect(await screen.findByText('Email or password is incorrect.')).toBeDefined()
     expect(screen.getByLabelText('Password')).toHaveValue('')
