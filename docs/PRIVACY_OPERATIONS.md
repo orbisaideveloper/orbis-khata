@@ -53,3 +53,9 @@ remain owner-deferred update items. No DB write, migration or Play submission.
 - Khata GitHub scheduled workflow GETs the configured public customer origin `/health` at minutes 7/17/27/37/47/57, without auth/body/checkout. It falls back to the same origin as Android CI. Check repository variable matches deployed app configuration. GitHub schedule delays, quotas, inactivity disablement and Render limits mean best-effort only, not guaranteed uptime.
 - No client background timer, credential replay, automatic POST retries or financial mutations. Auth requests allow 75 seconds; restoration fallback waits 90 seconds. Busy forms explain cold start in BN/EN/HI and block duplicate submit.
 - Menu Android version uses build environment KHATA_ANDROID_VERSION_NAME/CODE with the same defaults as Gradle. Web shows Web plus deployment SHA (or local). Build frontend and APK with the same environment; existing installed AAB is unchanged.
+
+## Corrective checkpoint: accessible cold-start status
+- Owner requested correction and commit/push, then no wait for new Actions.
+- Remote 05988f3: Android candidate PASS; Quality tests/build/browser and Sonar gate OK, but strict zero-issue check failed on typescript:S6819, AccountForm.tsx line80.
+- Replace paragraph role=status with native output; preserve all three messages, form lock and request behavior. Focused AccountForm tests 5/5, typecheck, lint and whitespace checks PASS.
+- Only AccountForm.tsx and this checkpoint differ from remote parent. Current-source final verification pending; no deploy, DB mutation or migration.
