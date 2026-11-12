@@ -44,7 +44,10 @@ export function createPwaCryptoVault(factory: IDBFactory, cryptoProvider: Pick<C
       if (!/^[\w-]{1,128}$/u.test(actorId)) throw new Error('PWA_ACCOUNT_INVALID')
       const keyId = `actor:${actorId}`
       const old = await read(keyId)
-      if (old !== undefined) { if (!validPwaKey(old)) throw new Error('PWA_VAULT_KEY_INVALID'); return old }
+      if (old !== undefined) {
+        if (!validPwaKey(old)) throw new Error('PWA_VAULT_KEY_INVALID')
+        return old
+      }
       const newKey = await cryptoProvider.subtle.generateKey({ name: 'AES-GCM', length: 256 }, false, ['encrypt', 'decrypt'])
       if (!validPwaKey(newKey)) throw new Error('PWA_VAULT_KEY_INVALID')
       const db = await open()

@@ -35,7 +35,7 @@ function validKey(key: CryptoKey): boolean {
 function toBase64(bytes: Uint8Array): string {
   let encoded = ''
   for (let offset = 0; offset < bytes.length; offset += 8192) {
-    encoded += String.fromCharCode(...bytes.subarray(offset, offset + 8192))
+    encoded += String.fromCodePoint(...bytes.subarray(offset, offset + 8192))
   }
   return btoa(encoded)
 }
@@ -44,7 +44,7 @@ function fromBase64(text: string, max: number): Uint8Array {
       !/^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/u.test(text)) {
     throw new Error('QUEUE_CIPHERTEXT_INVALID')
   }
-  return Uint8Array.from(atob(text), char => char.charCodeAt(0))
+  return Uint8Array.from(atob(text), char => char.codePointAt(0)!)
 }
 function associatedData(actorId: string, companyId: string, operationId: string): Uint8Array {
   return encoder.encode(JSON.stringify(['orbis.khata.encrypted-outbox.v1', actorId, companyId, operationId]))
@@ -66,7 +66,7 @@ export async function unsealQueueItem(
   value: SealedQueueItem, key: CryptoKey, provider: CryptoProvider,
   expectedActorId: string, expectedCompanyId: string,
 ): Promise<QueueItem> {
-  if (!validKey(key) || !value || value.encryptionVersion !== 1 ||
+  if (!validKey(key) || value?.encryptionVersion !== 1 ||
       value.actorId !== expectedActorId || value.companyId !== expectedCompanyId ||
       typeof value.operationId !== 'string' || value.operationId.length > 128) {
     throw new Error('QUEUE_SCOPE_OR_KEY_INVALID')

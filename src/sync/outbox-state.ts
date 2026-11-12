@@ -29,7 +29,7 @@ export function validQueueItem(value: unknown): value is QueueItem {
     (item.serverCursor === null || (typeof item.serverCursor === 'string' && item.serverCursor.length <= 128)) &&
     (item.state !== 'synced' || item.serverCursor !== null) &&
     (!['conflict', 'rejected'].includes(String(item.state)) || item.lastReason !== null) &&
-    Object.keys(item).sort().join(',') === 'attempts,envelope,lastReason,serverCursor,state'
+    Object.keys(item).sort((a, b) => a.localeCompare(b, 'en')).join(',') === 'attempts,envelope,lastReason,serverCursor,state'
 }
 
 export function queueNew(value: unknown): QueueItem {
@@ -61,7 +61,7 @@ export function finishAttempt(item: QueueItem, response: unknown): QueueItem {
   if (item.state !== 'queued') return item
   const attempts = item.attempts + 1
   const receipt = parseSyncReceipt(response)
-  if (!receipt || receipt.operationId !== item.envelope.operationId ||
+  if (receipt?.operationId !== item.envelope.operationId ||
       receipt.companyId !== item.envelope.companyId) {
     return { ...item, attempts, lastReason: 'UNKNOWN_OUTCOME' }
   }

@@ -28,14 +28,14 @@ export function createCombinedLocalFlow(config: {
       const current = ++revision
       verified = null
       const info = await config.verifyOnlineGrant()
-      if (revision !== current) throw Error('LOCAL_FLOW_AUTH_SUPERSEDED')
+      if (revision !== current) throw new Error('LOCAL_FLOW_AUTH_SUPERSEDED')
       const clock = now()
       if (!info || !/^[\w-]{1,128}$/u.test(info.actorId) || !Array.isArray(info.companyIds) ||
           info.companyIds.length < 1 || info.companyIds.length > 128 ||
           !info.companyIds.every(id => /^[\w-]{1,128}$/u.test(id)) ||
           new Set(info.companyIds).size !== info.companyIds.length || info.revoked ||
           !Number.isSafeInteger(info.verifiedAtMs) || !Number.isSafeInteger(info.expiresAtMs) ||
-          info.verifiedAtMs > clock || info.expiresAtMs <= clock) throw Error('LOCAL_FLOW_GRANT_INVALID')
+          info.verifiedAtMs > clock || info.expiresAtMs <= clock) throw new Error('LOCAL_FLOW_GRANT_INVALID')
       verified = { actorId: info.actorId, allowedCompanyIds: [...info.companyIds],
         verifiedOnline: true, localUnlockVerified: false, revoked: false,
         validFromMs: info.verifiedAtMs, validUntilMs: info.expiresAtMs }
@@ -43,10 +43,10 @@ export function createCombinedLocalFlow(config: {
     },
     async unlock() {
       const current = revision
-      if (!verified) throw Error('LOCAL_FLOW_GRANT_MISSING')
+      if (!verified) throw new Error('LOCAL_FLOW_GRANT_MISSING')
       const allowed = await config.verifyDeviceCredential()
-      if (revision !== current) throw Error('LOCAL_FLOW_AUTH_SUPERSEDED')
-      if (allowed !== true) throw Error('LOCAL_FLOW_UNLOCK_FAILED')
+      if (revision !== current) throw new Error('LOCAL_FLOW_AUTH_SUPERSEDED')
+      if (allowed !== true) throw new Error('LOCAL_FLOW_UNLOCK_FAILED')
       verified = { ...verified, localUnlockVerified: true }
     },
     lock() { revision++; if (verified) verified = { ...verified, localUnlockVerified: false } },
@@ -64,8 +64,8 @@ export function createCombinedLocalFlow(config: {
       authorize(actorId, companyId, 'sync')
       const expected = revision
       const online = await config.verifyOnlineSession()
-      if (expected !== revision) throw Error('LOCAL_FLOW_AUTH_SUPERSEDED')
-      if (online !== true) throw Error('SYNC_ONLINE_AUTH_REQUIRED')
+      if (expected !== revision) throw new Error('LOCAL_FLOW_AUTH_SUPERSEDED')
+      if (online !== true) throw new Error('SYNC_ONLINE_AUTH_REQUIRED')
       return syncCompanyOnce({ grant: verified, actorId, companyId, nowMs: now(),
         store: config.store, network: config.network, onlineSessionVerified: true })
     },

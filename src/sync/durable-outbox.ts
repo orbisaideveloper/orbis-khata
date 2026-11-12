@@ -22,11 +22,12 @@ const opaque = (value: string): boolean => /^[\w-]{1,128}$/u.test(value)
 const scopeKey = (actorId: string, companyId: string) => JSON.stringify([actorId, companyId])
 const itemKey = (actorId: string, companyId: string, operationId: string) => JSON.stringify([actorId, companyId, operationId])
 
+function checkScope(actorId: string, companyId: string) {
+  if (!opaque(actorId) || !opaque(companyId)) throw new Error('OUTBOX_INVALID_SCOPE')
+}
+
 /** No deletion/compaction yet: never discard uncertain financial commands. */
 export function createDurableEncryptedOutbox(port: SealedQueuePort, key: CryptoKey, cryptoProvider: Provider) {
-  function checkScope(actorId: string, companyId: string) {
-    if (!opaque(actorId) || !opaque(companyId)) throw new Error('OUTBOX_INVALID_SCOPE')
-  }
   async function openRow(row: StoredQueueRow, actorId: string, companyId: string): Promise<QueueItem> {
     if (row.scope !== scopeKey(actorId, companyId) ||
         row.id !== itemKey(row.sealed.actorId, row.sealed.companyId, row.sealed.operationId)) {

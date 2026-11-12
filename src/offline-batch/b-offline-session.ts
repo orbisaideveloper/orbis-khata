@@ -27,14 +27,14 @@ export function createIsolatedOfflineSession() {
       const current = ++generation
       grant = null
       const response = await verifyOnline()
-      if (generation !== current) throw Error('OFFLINE_SESSION_SUPERSEDED')
+      if (generation !== current) throw new Error('OFFLINE_SESSION_SUPERSEDED')
       if (!valid(response.actorId) || !Array.isArray(response.companyIds) ||
           response.companyIds.length < 1 || response.companyIds.length > 128 ||
           !response.companyIds.every(valid) || new Set(response.companyIds).size !== response.companyIds.length ||
           !Number.isSafeInteger(nowMs) || !Number.isSafeInteger(response.verifiedAtMs) ||
           !Number.isSafeInteger(response.expiresAtMs) ||
           response.verifiedAtMs > nowMs || response.expiresAtMs <= nowMs || response.revoked) {
-        throw Error('OFFLINE_CENTRAL_GRANT_INVALID')
+        throw new Error('OFFLINE_CENTRAL_GRANT_INVALID')
       }
       grant = { actorId: response.actorId, allowedCompanyIds: [...response.companyIds],
         verifiedOnline: true, localUnlockVerified: false, revoked: false,
@@ -44,10 +44,10 @@ export function createIsolatedOfflineSession() {
     /** Must be wired to actual OS-backed verifier before any release. */
     async localUnlock(verifyDevice: () => Promise<boolean>) {
       const current = generation
-      if (!grant) throw Error('OFFLINE_GRANT_MISSING')
+      if (!grant) throw new Error('OFFLINE_GRANT_MISSING')
       const ok = await verifyDevice()
-      if (generation !== current) throw Error('OFFLINE_SESSION_SUPERSEDED')
-      if (ok !== true) throw Error('OFFLINE_DEVICE_UNLOCK_FAILED')
+      if (generation !== current) throw new Error('OFFLINE_SESSION_SUPERSEDED')
+      if (ok !== true) throw new Error('OFFLINE_DEVICE_UNLOCK_FAILED')
       grant = { ...grant, localUnlockVerified: true }
     },
     authorize(actorId: string, companyId: string, nowMs: number, action: OfflineAction) {

@@ -45,7 +45,7 @@ export function parseContiguousFeed(value: unknown, companyId: string, fromCurso
   if (!object(value) || value.companyId !== companyId ||
       !numberCursor(fromCursor) || value.fromCursor !== fromCursor ||
       !numberCursor(value.nextCursor) || !Array.isArray(value.events) || value.events.length > 500) {
-    throw Error('SYNC_FEED_INVALID')
+    throw new Error('SYNC_FEED_INVALID')
   }
   const events: FeedEvent[] = []
   const ids = new Set<string>()
@@ -55,15 +55,15 @@ export function parseContiguousFeed(value: unknown, companyId: string, fromCurso
         raw.serverSeq !== fromCursor + events.length + 1 ||
         !opaque(raw.entityType) || !opaque(raw.entityId) ||
         typeof raw.tombstone !== 'boolean' || !object(raw.change)) {
-      throw Error('SYNC_FEED_GAP_OR_SCOPE')
+      throw new Error('SYNC_FEED_GAP_OR_SCOPE')
     }
     let encoded: string | undefined
-    try { encoded = JSON.stringify(raw.change) } catch { throw Error('SYNC_FEED_INVALID') }
-    if (!encoded || encoded.length > 131072) throw Error('SYNC_FEED_TOO_LARGE')
+    try { encoded = JSON.stringify(raw.change) } catch { throw new Error('SYNC_FEED_INVALID') }
+    if (!encoded || encoded.length > 131072) throw new Error('SYNC_FEED_TOO_LARGE')
     ids.add(raw.eventId)
     events.push(raw as FeedEvent)
   }
-  if (value.nextCursor !== fromCursor + events.length) throw Error('SYNC_FEED_CURSOR_MISMATCH')
+  if (value.nextCursor !== fromCursor + events.length) throw new Error('SYNC_FEED_CURSOR_MISMATCH')
   return { companyId, fromCursor, nextCursor: value.nextCursor as number, events }
 }
 
@@ -87,7 +87,7 @@ export async function syncCompanyOnce(args: {
 }): Promise<SyncOutcome> {
   const { grant, actorId, companyId, nowMs, store, network } = args
   assertOfflineAuthority(grant, actorId, companyId, nowMs, 'sync')
-  if (args.onlineSessionVerified !== true) throw Error('SYNC_ONLINE_AUTH_REQUIRED')
+  if (args.onlineSessionVerified !== true) throw new Error('SYNC_ONLINE_AUTH_REQUIRED')
   const rows = await store.pending(actorId, companyId)
   let accepted = 0, conflict = 0, rejected = 0, uncertain = 0, processed = 0
   const known = new Set<string>()
@@ -95,10 +95,11 @@ export async function syncCompanyOnce(args: {
   for (const row of rows) {
     if (row.state !== 'queued' || !parseSyncEnvelope(row.envelope) ||
         row.envelope.actorId !== actorId || row.envelope.companyId !== companyId ||
-        known.has(row.envelope.operationId)) throw Error('SYNC_STORE_SCOPE_OR_DUPLICATE')
+        known.has(row.envelope.operationId)) throw new Error('SYNC_STORE_SCOPE_OR_DUPLICATE')
     known.add(row.envelope.operationId)
   }
-  for (const row of rows) {
+  await rows.reduce(async (previous, row) => {
+    await previous
     let receipt: unknown = null
     try { receipt = await network.send(row.envelope) } catch { /* unknown server outcome */ }
     const next = finishAttempt(row, receipt)
@@ -110,11 +111,11 @@ export async function syncCompanyOnce(args: {
     else if (next.state === 'conflict') conflict += 1
     else if (next.state === 'rejected') rejected += 1
     else uncertain += 1
-  }
+  }, Promise.resolve())
   // An unknown server outcome must not be silently described as finished sync.
   if (uncertain > 0) return { processed, accepted, conflict, rejected, uncertain, imported: 0, nextCursor: null }
   const before = await store.cursor(actorId, companyId)
-  if (!numberCursor(before)) throw Error('SYNC_STORED_CURSOR_INVALID')
+  if (!numberCursor(before)) throw new Error('SYNC_STORED_CURSOR_INVALID')
   const raw = await network.pull(companyId, before)
   const page = parseContiguousFeed(raw, companyId, before)
   await store.commitFeedPage(actorId, companyId, page)

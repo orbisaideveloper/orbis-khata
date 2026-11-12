@@ -39,7 +39,10 @@ export async function ensureLocalSchema(db: SqlitePort): Promise<void> {
   }
   if (current.user_version === KHATA_LOCAL_SQLITE_VERSION) return
   await db.transaction(async () => {
-    for (const sql of KHATA_LOCAL_SQLITE_V1) await db.run(sql)
+    await KHATA_LOCAL_SQLITE_V1.reduce(async (previous, sql) => {
+      await previous
+      await db.run(sql)
+    }, Promise.resolve())
     await db.run('PRAGMA user_version = 1')
   })
 }

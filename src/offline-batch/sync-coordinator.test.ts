@@ -78,7 +78,7 @@ describe('Step04 safe sync contracts and retries (synthetic, no live network)', 
   })
   it('duplicate operation entries never sent', async () => {
     const row = queueNew(op); const { run, calls } = env({ pending: [row, row] })
-    await expect(run()).rejects.toThrow('SYNC_STORE_SCOPE_OR_DUPLICATE'); expect(calls.sendIds.length).toBe(0)
+    await expect(run()).rejects.toThrow('SYNC_STORE_SCOPE_OR_DUPLICATE'); expect(calls.sendIds).toHaveLength(0)
   })
   it('requires real online authentication before networking', async () => {
     const { store, network } = env(); await expect(syncCompanyOnce({ grant, actorId: op.actorId,

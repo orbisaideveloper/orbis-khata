@@ -50,7 +50,7 @@ const sha256 = async (text: string): Promise<string> => {
 const actorScope = (actor: string, kind: string) => `orbis:${LOCAL_SCOPE}:${actor}:${kind}`
 function hexToBytes(value: string) {
   if (typeof value !== 'string' || value.length < 58 || value.length > 2_000_100 || value.length % 2 !== 0 || !/^[0-9a-f]+$/iu.test(value)) {
-    throw Error('ANDROID_LOCAL_CORRUPTED_ENCRYPTED_STATE')
+    throw new Error('ANDROID_LOCAL_CORRUPTED_ENCRYPTED_STATE')
   }
   return Uint8Array.from({length:value.length/2}, (_,i) => Number.parseInt(value.slice(i*2,i*2+2),16))
 }
@@ -62,12 +62,12 @@ let storeGeneration = 0
 let serial: Promise<unknown> = Promise.resolve()
 let identity: StoredIdentity | null = null
 function assertActive(): {actor:string;db:SqlitePort;generation:number} {
-  if (!active || !db || !identity || identity.actorId !== active || identity.expiresAtMs <= Date.now()) {
-    throw Error('ANDROID_LOCAL_UNLOCK_REQUIRED')
+  if (!active || !db || identity?.actorId !== active || identity.expiresAtMs <= Date.now()) {
+    throw new Error('ANDROID_LOCAL_UNLOCK_REQUIRED')
   }
   return {actor:active,db,generation:storeGeneration}
 }
-function ordered<T>(task:()=>Promise<T>):Promise<T> {
+function ordered<T>(task:()=>T | Promise<T>):Promise<T> {
   const result=serial.then(task)
   serial=result.catch(()=>undefined)
   return result
@@ -77,31 +77,31 @@ async function atNativeStage<T>(stage:string,work:()=>Promise<T>):Promise<T> {
   try{return await work()}
   catch(error){
     if(error instanceof Error && /^(?:ANDROID|NATIVE|LOCAL|OFFLINE|KEYSTORE)_[A-Z0-9_]{3,70}$/u.test(error.message))throw error
-    throw Error(stage)
+    throw new Error(stage)
   }
 }
 async function openDatabase() {
   const sql = new SQLiteConnection(CapacitorSQLite)
-  if (!(await sql.isInConfigEncryption()).result) throw Error('ANDROID_SQLCIPHER_NOT_CONFIGURED')
+  if (!(await sql.isInConfigEncryption()).result) throw new Error('ANDROID_SQLCIPHER_NOT_CONFIGURED')
   const status = await keyBridge.status()
-  if (status.nativePlatform !== 'android') throw Error('ANDROID_PLATFORM_REQUIRED')
+  if (status.nativePlatform !== 'android') throw new Error('ANDROID_PLATFORM_REQUIRED')
   const existingSecret = (await sql.isSecretStored()).result === true
   if (!existingSecret) {
-    if (status.secretPresent || (await sql.isDatabase(DATABASE)).result) throw Error('ANDROID_LOCAL_CIPHER_KEY_MISSING')
+    if (status.secretPresent || (await sql.isDatabase(DATABASE)).result) throw new Error('ANDROID_LOCAL_CIPHER_KEY_MISSING')
     const key = await keyBridge.getOrCreatePassphrase()
     try {
-      if (!key.hardwareBacked || key.passphrase.length < 48) throw Error('ANDROID_KEYSTORE_NOT_HARDWARE_BACKED')
+      if (!key.hardwareBacked || key.passphrase.length < 48) throw new Error('ANDROID_KEYSTORE_NOT_HARDWARE_BACKED')
       await sql.setEncryptionSecret(key.passphrase)
     } finally { key.passphrase='' }
   } else if (!(status.secretPresent && status.hardwareBacked)) {
-    throw Error('ANDROID_LOCAL_HARDWARE_KEY_MISSING')
+    throw new Error('ANDROID_LOCAL_HARDWARE_KEY_MISSING')
   }
   const opened = await openVerifiedAndroidSqlcipher(bridge,DATABASE)
   await ensureLocalSchema(opened)
   return opened
 }
 async function requireDatabase() {
-  if (!db) db = await openDatabase()
+  db ??= await openDatabase()
   return db
 }
 async function encryptedRead(conn:SqlitePort,actor:string,name:string):Promise<string|null> {
@@ -112,7 +112,7 @@ async function encryptedRead(conn:SqlitePort,actor:string,name:string):Promise<s
   return codec.unseal(hexToBytes(row.sealed_hex),actorScope(actor,name))
 }
 async function encryptedWrite(conn:SqlitePort,actor:string,name:string,text:string) {
-  if (encoder.encode(text).byteLength > MAX_LOCAL_BYTES) throw Error('ANDROID_LOCAL_STORAGE_CAPACITY_REACHED')
+  if (encoder.encode(text).byteLength > MAX_LOCAL_BYTES) throw new Error('ANDROID_LOCAL_STORAGE_CAPACITY_REACHED')
   const sealed=await codec.seal(text,actorScope(actor,name))
   await conn.transaction(async()=>{
     await conn.run(`INSERT INTO local_snapshots(actor_id,company_id,object_type,object_id,server_version,sealed_record,is_deleted)
@@ -123,14 +123,14 @@ async function encryptedWrite(conn:SqlitePort,actor:string,name:string,text:stri
 }
 function parseIdentity(raw:string,actor:string):StoredIdentity {
   const parsed:unknown=JSON.parse(raw)
-  if (!parsed || typeof parsed!=='object' || Array.isArray(parsed)) throw Error('ANDROID_LOCAL_IDENTITY_INVALID')
+  if (!parsed || typeof parsed!=='object' || Array.isArray(parsed)) throw new Error('ANDROID_LOCAL_IDENTITY_INVALID')
   const p=parsed as Partial<StoredIdentity>
   if (p.version!==1 || p.actorId!==actor || typeof p.displayId!=='string' ||
       !/^ORB-U-[23456789ABCDEFGHJKLMNPQRSTUVWXYZ]{8}$/u.test(p.displayId) ||
       typeof p.enrolledAtMs!=='number' || typeof p.expiresAtMs!=='number' ||
       !Number.isSafeInteger(p.enrolledAtMs) || !Number.isSafeInteger(p.expiresAtMs) ||
       (p.expiresAtMs ?? 0)<=(p.enrolledAtMs??0) || (p.expiresAtMs ?? 0)<=Date.now()) {
-    throw Error('ANDROID_LOCAL_IDENTITY_EXPIRED_OR_INVALID')
+    throw new Error('ANDROID_LOCAL_IDENTITY_EXPIRED_OR_INVALID')
   }
   return p as StoredIdentity
 }
@@ -144,23 +144,25 @@ async function readState(conn:SqlitePort,actor:string,allowInitialEmpty=false):P
   const head:unknown=JSON.parse(raw)
   if (!head || typeof head!=='object' || Array.isArray(head) || !('kind' in head)) {
     // Initial release has only v2 manifests, not a plaintext fallback.
-    throw Error('ANDROID_LOCAL_STATE_MANIFEST_MISSING')
+    throw new Error('ANDROID_LOCAL_STATE_MANIFEST_MISSING')
   }
   const manifest=head as {kind?:unknown;count?:unknown;digest?:unknown;bytes?:unknown}
   if (manifest.kind!=='orbis.local.state.v2' || typeof manifest.count!=='number' ||
       !Number.isSafeInteger(manifest.count) || manifest.count<1 || manifest.count>1024 ||
       typeof manifest.digest!=='string' || !/^[0-9a-f]{64}$/u.test(manifest.digest) ||
       typeof manifest.bytes!=='number' || !Number.isSafeInteger(manifest.bytes) ||
-      manifest.bytes<2 || manifest.bytes>MAX_LOCAL_BYTES) throw Error('ANDROID_LOCAL_STATE_MANIFEST_INVALID')
-  const chunks:string[]=[]
-  for(let i=0;i<manifest.count;i++){
-    const part=await encryptedRead(conn,actor,`state-part-${i}`)
-    if(part===null) throw Error('ANDROID_LOCAL_STATE_CHUNK_MISSING')
+      manifest.bytes<2 || manifest.bytes>MAX_LOCAL_BYTES) throw new Error('ANDROID_LOCAL_STATE_MANIFEST_INVALID')
+  const chunks: string[] = []
+  const indexes = Array.from({ length: manifest.count }, (_, index) => index)
+  await indexes.reduce(async (previous, index) => {
+    await previous
+    const part = await encryptedRead(conn, actor, `state-part-${index}`)
+    if (part === null) throw new Error('ANDROID_LOCAL_STATE_CHUNK_MISSING')
     chunks.push(part)
-  }
+  }, Promise.resolve())
   const text=chunks.join('')
   if(encoder.encode(text).byteLength!==manifest.bytes || await sha256(text)!==manifest.digest) {
-    throw Error('ANDROID_LOCAL_STATE_DIGEST_MISMATCH')
+    throw new Error('ANDROID_LOCAL_STATE_DIGEST_MISMATCH')
   }
   return JSON.parse(text) as DeviceLocalSnapshot
 }
@@ -168,14 +170,14 @@ type JournalInput = { operation:string; input:unknown; companyId:string }
 async function persistState(conn:SqlitePort,actor:string,state:DeviceLocalSnapshot,journal?:JournalInput):Promise<void> {
   const text=JSON.stringify(state)
   const bytes=encoder.encode(text).byteLength
-  if (bytes>MAX_LOCAL_BYTES) throw Error('ANDROID_LOCAL_STORAGE_CAPACITY_REACHED')
+  if (bytes>MAX_LOCAL_BYTES) throw new Error('ANDROID_LOCAL_STORAGE_CAPACITY_REACHED')
   const parts:string[]=[]
   for(let i=0;i<text.length;){
     let end=Math.min(text.length,i+MAX_CHUNK_CHARS)
     if(end<text.length && /[\uD800-\uDBFF]/u.test(text[end-1])) end--
     parts.push(text.slice(i,end));i=end
   }
-  if(parts.length<1 || parts.length>1024) throw Error('ANDROID_LOCAL_STATE_TOO_MANY_CHUNKS')
+  if(parts.length<1 || parts.length>1024) throw new Error('ANDROID_LOCAL_STATE_TOO_MANY_CHUNKS')
   const sealedParts=await Promise.all(parts.map((part,i)=>codec.seal(part,actorScope(actor,`state-part-${i}`))))
   const header=JSON.stringify({kind:'orbis.local.state.v2',count:parts.length,bytes,digest:await sha256(text)})
   const sealedHeader=await codec.seal(header,actorScope(actor,STATE))
@@ -185,7 +187,7 @@ async function persistState(conn:SqlitePort,actor:string,state:DeviceLocalSnapsh
   let operationCompany=''
   let eventAt=''
   if(journal){
-    if(!idPattern.test(journal.companyId))throw Error('ANDROID_LOCAL_OPERATION_COMPANY_INVALID')
+    if(!idPattern.test(journal.companyId))throw new Error('ANDROID_LOCAL_OPERATION_COMPANY_INVALID')
     operationCompany=journal.companyId
     operationId=crypto.randomUUID()
     eventAt=new Date().toISOString()
@@ -199,10 +201,11 @@ async function persistState(conn:SqlitePort,actor:string,state:DeviceLocalSnapsh
     // Atomic replacement: old encrypted parts and manifest either ALL survive or ALL change.
     await conn.run(`DELETE FROM local_snapshots WHERE actor_id=? AND company_id=? AND object_type=? AND object_id LIKE 'state-part-%'`,
       [actor,actor,LOCAL_SCOPE])
-    for(let i=0;i<sealedParts.length;i++){
+    await sealedParts.reduce(async (previous, part, index) => {
+      await previous
       await conn.run(`INSERT INTO local_snapshots(actor_id,company_id,object_type,object_id,server_version,sealed_record,is_deleted)
-        VALUES(?,?,?,?,?,?,0)`,[actor,actor,LOCAL_SCOPE,`state-part-${i}`,'2',sealedParts[i]])
-    }
+        VALUES(?,?,?,?,?,?,0)`, [actor, actor, LOCAL_SCOPE, `state-part-${index}`, '2', part])
+    }, Promise.resolve())
     await conn.run(`INSERT INTO local_snapshots(actor_id,company_id,object_type,object_id,server_version,sealed_record,is_deleted)
       VALUES(?,?,?,?,?,?,0) ON CONFLICT(actor_id,company_id,object_type,object_id)
       DO UPDATE SET sealed_record=excluded.sealed_record, server_version=excluded.server_version,is_deleted=0`,
@@ -212,7 +215,7 @@ async function persistState(conn:SqlitePort,actor:string,state:DeviceLocalSnapsh
       const written=await conn.run(`INSERT INTO local_outbox(actor_id,company_id,operation_id,command_type,payload_digest,sealed_record,created_at)
         VALUES(?,?,?,?,?,?,?)`,[actor,operationCompany,operationId,'android-local-draft',
           await sha256(eventJson),sealedOperation,eventAt])
-      if(written.changes!==1)throw Error('ANDROID_LOCAL_JOURNAL_NOT_DURABLE')
+      if(written.changes!==1)throw new Error('ANDROID_LOCAL_JOURNAL_NOT_DURABLE')
     }
   })
 }
@@ -224,19 +227,19 @@ export function nativeLocalDisplayId(): string | null { return identity?.display
 /** Use this after successful central sign-in. No caller-supplied identity is trusted here. */
 export async function enrollVerifiedCentralIdentity(actor:string,displayId:string):Promise<void> {
   if (!actorPattern.test(actor) || !/^ORB-U-[23456789ABCDEFGHJKLMNPQRSTUVWXYZ]{8}$/u.test(displayId)) {
-    throw Error('ANDROID_LOCAL_CENTRAL_IDENTITY_INVALID')
+    throw new Error('ANDROID_LOCAL_CENTRAL_IDENTITY_INVALID')
   }
   const now=Date.now()
   // OS credential check is mandatory on enrollment and every later cold-start.
-  if (!(await codec.verifyDeviceCredential())) throw Error('ANDROID_DEVICE_CREDENTIAL_REQUIRED')
+  if (!(await codec.verifyDeviceCredential())) throw new Error('ANDROID_DEVICE_CREDENTIAL_REQUIRED')
   await ordered(async()=>{
     const conn=await atNativeStage('ANDROID_ENROLL_DB_OPEN_FAILED',()=>requireDatabase())
     await atNativeStage('ANDROID_ENROLL_SCOPE_FAILED',()=>createLocalSqliteRepository(conn).registerScope(actor,actor,new Date(now).toISOString()))
-    const next:StoredIdentity={version:1,actorId:actor,displayId,enrolledAtMs:now,expiresAtMs:now+GRANT_DAYS*86400_000}
+    const next:StoredIdentity={version:1,actorId:actor,displayId,enrolledAtMs:now,expiresAtMs:now+GRANT_DAYS*86_400_000}
     const old=await atNativeStage('ANDROID_ENROLL_IDENTITY_READ_FAILED',()=>encryptedRead(conn,actor,IDENTITY))
     if (old) {
       const existing=JSON.parse(old) as Partial<StoredIdentity>
-      if(existing.actorId!==actor || existing.version!==1) throw Error('ANDROID_LOCAL_EXISTING_IDENTITY_INVALID')
+      if(existing.actorId!==actor || existing.version!==1) throw new Error('ANDROID_LOCAL_EXISTING_IDENTITY_INVALID')
     }
     await atNativeStage('ANDROID_ENROLL_SNAPSHOT_READ_FAILED',()=>hydrateForActor(actor,conn,!old))
     if (!old) await atNativeStage('ANDROID_ENROLL_SNAPSHOT_CREATE_FAILED',()=>persistState(conn,actor,readDeviceLocalSnapshot()))
@@ -249,12 +252,12 @@ export async function enrollVerifiedCentralIdentity(actor:string,displayId:strin
 export async function restoreNativeOfflineIdentity():Promise<{actorId:string;displayId:string}|null> {
   const hint=localStorage.getItem(HINT)
   if (!hint) return null
-  if (!actorPattern.test(hint)) throw Error('ANDROID_LOCAL_IDENTITY_HINT_INVALID')
-  if (!(await codec.verifyDeviceCredential())) throw Error('ANDROID_DEVICE_CREDENTIAL_REQUIRED')
+  if (!actorPattern.test(hint)) throw new Error('ANDROID_LOCAL_IDENTITY_HINT_INVALID')
+  if (!(await codec.verifyDeviceCredential())) throw new Error('ANDROID_DEVICE_CREDENTIAL_REQUIRED')
   return ordered(async()=>{
     const conn=await atNativeStage('ANDROID_RESTORE_DB_OPEN_FAILED',()=>requireDatabase())
     const raw=await atNativeStage('ANDROID_RESTORE_IDENTITY_READ_FAILED',()=>encryptedRead(conn,hint,IDENTITY))
-    if (!raw) throw Error('ANDROID_LOCAL_IDENTITY_NOT_ENROLLED')
+    if (!raw) throw new Error('ANDROID_LOCAL_IDENTITY_NOT_ENROLLED')
     const profile=parseIdentity(raw,hint)
     await atNativeStage('ANDROID_RESTORE_SNAPSHOT_READ_FAILED',()=>hydrateForActor(hint,conn))
     active=hint;identity=profile;storeGeneration++
@@ -267,16 +270,16 @@ export function lockNativeOfflineIdentity():void {
   active=null;identity=null;storeGeneration++
   restoreDeviceLocalSnapshot(emptyDeviceLocalSnapshot())
 }
-async function commit<T>(callback:()=>Promise<T>,journal?:JournalInput):Promise<T> {
+async function commit<T>(callback:()=>T | Promise<T>,journal?:JournalInput):Promise<T> {
   const expected=storeGeneration
   return ordered(async()=>{
     const sc=assertActive()
-    if (expected!==sc.generation) throw Error('ANDROID_LOCAL_ACTOR_CHANGED')
+    if (expected!==sc.generation) throw new Error('ANDROID_LOCAL_ACTOR_CHANGED')
     const prior=readDeviceLocalSnapshot()
     let attemptedCommit=false
     try {
       const output=await callback()
-      if (expected!==storeGeneration) throw Error('ANDROID_LOCAL_ACTOR_CHANGED')
+      if (expected!==storeGeneration) throw new Error('ANDROID_LOCAL_ACTOR_CHANGED')
       // Never tell the screen that a finance mutation succeeded before its SQL commit.
       if(journal)await createLocalSqliteRepository(sc.db).registerScope(sc.actor,journal.companyId,new Date().toISOString())
       attemptedCommit=true
@@ -294,7 +297,7 @@ async function commit<T>(callback:()=>Promise<T>,journal?:JournalInput):Promise<
             active=null;identity=null;storeGeneration++
             restoreDeviceLocalSnapshot(emptyDeviceLocalSnapshot())
           }
-          throw Error('ANDROID_LOCAL_SAVE_UNCERTAIN_REVIEW_LEDGER')
+          throw new Error('ANDROID_LOCAL_SAVE_UNCERTAIN_REVIEW_LEDGER')
         }
         restoreDeviceLocalSnapshot(prior)
       }
@@ -303,12 +306,15 @@ async function commit<T>(callback:()=>Promise<T>,journal?:JournalInput):Promise<
   })
 }
 function localOperationCompany(operation:string,input:unknown):string {
-  if(!input || typeof input!=='object' || Array.isArray(input))throw Error('ANDROID_LOCAL_OPERATION_INPUT_INVALID')
+  if(!input || typeof input!=='object' || Array.isArray(input))throw new Error('ANDROID_LOCAL_OPERATION_INPUT_INVALID')
   const p=input as Record<string,unknown>
   const row=p.row && typeof p.row==='object' && !Array.isArray(p.row) ? p.row as Record<string,unknown> : null
-  const company=operation==='create' && p.table==='khata_companies' ? row?.id :
-    operation==='create' && p.table==='khata_parties' ? row?.company_id : p.company
-  if(typeof company!=='string'||!idPattern.test(company))throw Error('ANDROID_LOCAL_OPERATION_COMPANY_INVALID')
+  let company = p.company
+  if (operation === 'create') {
+    if (p.table === 'khata_companies') company = row?.id
+    else if (p.table === 'khata_parties') company = row?.company_id
+  }
+  if(typeof company!=='string'||!idPattern.test(company))throw new Error('ANDROID_LOCAL_OPERATION_COMPANY_INVALID')
   return company
 }
 const readingOperation=(operation:string,input:unknown):boolean => {
@@ -319,11 +325,11 @@ const readingOperation=(operation:string,input:unknown):boolean => {
   return false
 }
 export async function nativeLocalRequest<T>(operation:string,input:unknown):Promise<T> {
-  if (!/^[a-z][a-z0-9-]{0,63}$/u.test(operation)) throw Error('ANDROID_LOCAL_OPERATION_INVALID')
+  if (!/^[a-z][a-z0-9-]{0,63}$/u.test(operation)) throw new Error('ANDROID_LOCAL_OPERATION_INVALID')
   if (operation==='masters') {
     const p=input as {company?:unknown}|null
-    if (!p || typeof p.company!=='string' || !idPattern.test(p.company)) throw Error('ANDROID_LOCAL_COMPANY_REQUIRED')
-    return ordered(async()=>{ assertActive();return demoMasters(p.company as string) as T })
+    if (!p || typeof p.company!=='string' || !idPattern.test(p.company)) throw new Error('ANDROID_LOCAL_COMPANY_REQUIRED')
+    return ordered(()=>{ assertActive();return demoMasters(p.company as string) as T })
   }
   // Read requests never rewrite the encrypted finance snapshot. This is critical
   // for fast startup and for still allowing reads when storage is almost full.
@@ -335,13 +341,19 @@ export async function nativeLocalRequest<T>(operation:string,input:unknown):Prom
 }
 export const nativeLocalBooksServices = {
   request: nativeLocalRequest,
-  saveParty:(party:DemoParty)=>commit(async()=>{saveDemoParty(party)},{operation:'party-save',input:party,companyId:party.company}),
-  saveItem:(item:DemoItem)=>commit(async()=>{saveDemoItem(item)},{operation:'item-save',input:item,companyId:item.company}),
-  deleteParty:(company:string,id:string)=>commit(async()=>{if(!idPattern.test(company)||!idPattern.test(id))throw Error('ANDROID_LOCAL_SCOPE_INVALID');deleteDemoParty(company,id)},{operation:'party-delete',input:{company,id},companyId:company}),
-  deleteItem:(company:string,id:string)=>commit(async()=>{if(!idPattern.test(company)||!idPattern.test(id))throw Error('ANDROID_LOCAL_SCOPE_INVALID');deleteDemoItem(company,id)},{operation:'item-delete',input:{company,id},companyId:company}),
-  previous:(company:string,party:string,date:string,kind:string)=>ordered(async()=>{
+  saveParty:(party:DemoParty)=>commit(()=>{saveDemoParty(party)},{operation:'party-save',input:party,companyId:party.company}),
+  saveItem:(item:DemoItem)=>commit(()=>{saveDemoItem(item)},{operation:'item-save',input:item,companyId:item.company}),
+  deleteParty:(company:string,id:string)=>commit(()=>{
+    if(!idPattern.test(company)||!idPattern.test(id)) throw new Error('ANDROID_LOCAL_SCOPE_INVALID')
+    deleteDemoParty(company,id)
+  },{operation:'party-delete',input:{company,id},companyId:company}),
+  deleteItem:(company:string,id:string)=>commit(()=>{
+    if(!idPattern.test(company)||!idPattern.test(id)) throw new Error('ANDROID_LOCAL_SCOPE_INVALID')
+    deleteDemoItem(company,id)
+  },{operation:'item-delete',input:{company,id},companyId:company}),
+  previous:(company:string,party:string,date:string,kind:string)=>ordered(()=>{
     assertActive()
-    if (!idPattern.test(company)||!idPattern.test(party)||!['sale','purchase','expense'].includes(kind))throw Error('ANDROID_LOCAL_PREVIOUS_INVALID')
+    if (!idPattern.test(company)||!idPattern.test(party)||!['sale','purchase','expense'].includes(kind))throw new Error('ANDROID_LOCAL_PREVIOUS_INVALID')
     return demoPreviousBalance(company,party,date,kind as 'sale'|'purchase'|'expense')
   }),
   expenseBill:(command:ExpenseCommand,lines:Parameters<typeof saveDemoExpenseBill>[1])=>commit(()=>saveDemoExpenseBill(command,lines),{operation:'expense-bill',input:{command,lines},companyId:command.company}),

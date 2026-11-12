@@ -49,6 +49,11 @@ function OrbitMark() {
 }
 function mainClass(view: View, signedIn: boolean) { if(view==='lottery'){return 'phone lottery-shell';}return view === 'khata' && signedIn ? 'phone kh-app' : 'phone'; }
 function LotteryScene({view,owner,language,onSelect,controls}:Readonly<{view:View;owner:string|null;language:Language;onSelect:(module:ModuleTarget)=>void;controls:ReactNode}>){if(view!=='lottery'||!owner){return null;}return <Suspense fallback={<p>{accountCopy[language].network}</p>}><LotteryPage owner={owner} language={language} onSelect={onSelect} controls={controls}/></Suspense>;}
+const nativeLoginCopy = {
+    bn: { signInLabel: 'অনলাইনে আবার লগইন করুন', localError: 'Android লগইন অথবা Offline Storage খোলা যায়নি। নিচের Error Code দেখুন।' },
+    hi: { signInLabel: 'ऑनलाइन फिर लॉग इन करें', localError: 'Android लॉगिन या ऑफ़लाइन स्टोरेज नहीं खुला। नीचे त्रुटि कोड देखें।' },
+    en: { signInLabel: 'Sign in again online', localError: 'Android sign-in or offline storage did not open. See the error code below.' },
+};
 function accountStateScreen(account: ReturnType<typeof useAccount>, language: Language, shellClass: string) {
     if (account.loading) {
         return <main className={shellClass}><PwaStatus language={language}/><output>{accountCopy[language].network}</output></main>;
@@ -56,11 +61,10 @@ function accountStateScreen(account: ReturnType<typeof useAccount>, language: La
     if (account.unavailable) {
         // Offline storage errors must never be disguised as ordinary network errors.
         const native = androidLocalFirst();
-        const signInLabel = language === 'bn' ? 'অনলাইনে আবার লগইন করুন' : language === 'hi' ? 'ऑनलाइन फिर लॉग इन करें' : 'Sign in again online';
-        const localError = language === 'bn' ? 'Android লগইন অথবা Offline Storage খোলা যায়নি। নিচের Error Code দেখুন।' : language === 'hi' ? 'Android लॉगिन या ऑफ़लाइन स्टोरेज नहीं खुला। नीचे त्रुटि कोड देखें।' : 'Android sign-in or offline storage did not open. See the error code below.';
+        const { signInLabel, localError } = nativeLoginCopy[language];
         return <main className={shellClass}><PwaStatus language={language}/>
           <p role='alert'>{native ? localError : accountCopy[language].error}</p>
-          {native && account.diagnosticCode && <p role='status' data-testid='native-auth-diagnostic'>Error code: {account.diagnosticCode}</p>}
+          {native && account.diagnosticCode && <output data-testid='native-auth-diagnostic'>Error code: {account.diagnosticCode}</output>}
           <button type='button' onClick={() => window.location.reload()}>{accountCopy[language].retry}</button>
           {native && <button type='button' onClick={account.tryOnlineLogin}>{signInLabel}</button>}
         </main>;

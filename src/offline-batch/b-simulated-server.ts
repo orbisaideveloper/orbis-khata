@@ -26,13 +26,13 @@ export function createSimulatedKhataServer() {
   }
   function forIdentity(actorId: string, allowedCompanyIds: readonly string[]): SyncNetwork {
     if (!validId(actorId) || allowedCompanyIds.length > 128 || !allowedCompanyIds.every(validId)) {
-      throw Error('SIMULATED_SESSION_INVALID')
+      throw new Error('SIMULATED_SESSION_INVALID')
     }
     const grants = new Set(allowedCompanyIds)
     return {
       async send(value) {
         const e = parseSyncEnvelope(value)
-        if (!e) throw Error('SIMULATED_ENVELOPE_INVALID')
+        if (!e) throw new Error('SIMULATED_ENVELOPE_INVALID')
         if (e.actorId !== actorId || !grants.has(e.companyId)) {
           return receipt(e, 'rejected', null, 'SCOPE_DENIED')
         }
@@ -58,7 +58,7 @@ export function createSimulatedKhataServer() {
         const state = ensure(e.companyId)
         const current = state.versions.get(entityId)
         if ((current ?? null) !== e.baseVersion) return receipt(e, 'conflict', null, 'BASE_VERSION_MISMATCH')
-        if (state.seq >= Number.MAX_SAFE_INTEGER) throw Error('SIMULATED_CURSOR_OVERFLOW')
+        if (state.seq >= Number.MAX_SAFE_INTEGER) throw new Error('SIMULATED_CURSOR_OVERFLOW')
         state.seq += 1
         const version = `v-${state.seq}`
         const event: FeedEvent = {
@@ -73,10 +73,10 @@ export function createSimulatedKhataServer() {
         return saved
       },
       async pull(companyId: string, fromCursor: number): Promise<FeedPage> {
-        if (!validId(companyId) || !grants.has(companyId)) throw Error('SIMULATED_FEED_SCOPE_DENIED')
-        if (!Number.isSafeInteger(fromCursor) || fromCursor < 0) throw Error('SIMULATED_CURSOR_INVALID')
+        if (!validId(companyId) || !grants.has(companyId)) throw new Error('SIMULATED_FEED_SCOPE_DENIED')
+        if (!Number.isSafeInteger(fromCursor) || fromCursor < 0) throw new Error('SIMULATED_CURSOR_INVALID')
         const state = ensure(companyId)
-        if (fromCursor > state.seq) throw Error('SIMULATED_CURSOR_AHEAD')
+        if (fromCursor > state.seq) throw new Error('SIMULATED_CURSOR_AHEAD')
         const events = state.events.slice(fromCursor, fromCursor + 500)
         return { companyId, fromCursor, nextCursor: fromCursor + events.length, events }
       },

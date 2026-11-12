@@ -26,9 +26,9 @@ const safeId = (v: unknown): v is string => typeof v === 'string' && /^[\w-]{1,1
 function encode(bytes: Uint8Array): string {
   let text = ''
   for (let i = 0; i < bytes.length; i += 8192) {
-    text += String.fromCharCode(...bytes.subarray(i, i + 8192))
+    text += String.fromCodePoint(...bytes.subarray(i, i + 8192))
   }
-  return btoa(text).replace(/\+/gu, '-').replace(/\//gu, '_').replace(/=+$/u, '')
+  return btoa(text).split('=', 1)[0].replaceAll('+', '-').replaceAll('/', '_')
 }
 function decode(text: unknown, maxChars: number): Uint8Array {
   if (typeof text !== 'string' || !text || text.length > maxChars ||
@@ -37,8 +37,8 @@ function decode(text: unknown, maxChars: number): Uint8Array {
   }
   let bytes: Uint8Array
   try {
-    const raw = atob(text.replace(/-/gu, '+').replace(/_/gu, '/') + '='.repeat((4 - text.length % 4) % 4))
-    bytes = Uint8Array.from(raw, c => c.charCodeAt(0))
+    const raw = atob(text.replaceAll('-', '+').replaceAll('_', '/') + '='.repeat((4 - text.length % 4) % 4))
+    bytes = Uint8Array.from(raw, c => c.codePointAt(0)!)
   } catch { throw new Error('PORTABLE_BACKUP_BASE64_INVALID') }
   if (encode(bytes) !== text) throw new Error('PORTABLE_BACKUP_BASE64_INVALID')
   return bytes
@@ -65,7 +65,7 @@ function validateBody(value: unknown, expectedOwner: string): value is { version
   const obj = value as Record<string, unknown>
   if (obj.version !== 1 || obj.actorId !== expectedOwner ||
       !Array.isArray(obj.items) || obj.items.length > MAX_ITEMS ||
-      Object.keys(obj).sort().join(',') !== 'actorId,items,version') return false
+      Object.keys(obj).sort((a, b) => a.localeCompare(b, 'en')).join(',') !== 'actorId,items,version') return false
   const ids = new Set<string>()
   for (const item of obj.items) {
     if (!validQueueItem(item) || item.envelope.actorId !== expectedOwner) return false
@@ -103,7 +103,7 @@ export async function decryptPortableQueueBackup(
     throw new Error('PORTABLE_BACKUP_ARCHIVE_INVALID')
   }
   const data = archive as Record<string, unknown>
-  if (data.format !== FORMAT || Object.keys(data).sort().join(',') !== 'ciphertext,format,nonce') {
+  if (data.format !== FORMAT || Object.keys(data).sort((a, b) => a.localeCompare(b, 'en')).join(',') !== 'ciphertext,format,nonce') {
     throw new Error('PORTABLE_BACKUP_ARCHIVE_INVALID')
   }
   const iv = decode(data.nonce, 16)

@@ -25,16 +25,16 @@ export function assertOfflineAuthority(
   action: OfflineAction,
 ): void {
   if (!grant || !opaque(actorId) || !opaque(companyId) ||
-      !['read', 'draft', 'queue', 'sync'].includes(action)) throw Error('OFFLINE_ACCESS_INVALID')
+      !['read', 'draft', 'queue', 'sync'].includes(action)) throw new Error('OFFLINE_ACCESS_INVALID')
   if (!grant.verifiedOnline || grant.revoked ||
       grant.actorId !== actorId || !grant.allowedCompanyIds.includes(companyId)) {
-    throw Error('OFFLINE_ACCESS_DENIED')
+    throw new Error('OFFLINE_ACCESS_DENIED')
   }
-  if (!grant.localUnlockVerified) throw Error('OFFLINE_UNLOCK_REQUIRED')
+  if (!grant.localUnlockVerified) throw new Error('OFFLINE_UNLOCK_REQUIRED')
   if (!Number.isSafeInteger(nowMs) || !Number.isSafeInteger(grant.validFromMs) ||
       !Number.isSafeInteger(grant.validUntilMs) || grant.validUntilMs <= grant.validFromMs ||
       nowMs < grant.validFromMs || nowMs >= grant.validUntilMs) {
-    throw Error('OFFLINE_GRANT_EXPIRED')
+    throw new Error('OFFLINE_GRANT_EXPIRED')
   }
   // This is a local-only decision. Server must revalidate auth, company and
   // idempotency for *every* queued operation and reject revoked credentials.

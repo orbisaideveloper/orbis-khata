@@ -44,7 +44,7 @@ const version = (value: unknown): value is string | null =>
 export function parseSyncEnvelope(value: unknown): SyncEnvelope | null {
   if (!object(value)) return null
   const expected = ['actorId', 'baseVersion', 'commandType', 'companyId', 'createdAt', 'operationId', 'payload', 'protocolVersion']
-  if (Object.keys(value).sort().join(',') !== expected.join(',')) return null
+  if (Object.keys(value).sort((a, b) => a.localeCompare(b, 'en')).join(',') !== expected.join(',')) return null
   if (value.protocolVersion !== SYNC_PROTOCOL_VERSION || !uuid(value.operationId)) return null
   if (!opaqueId(value.actorId) || !opaqueId(value.companyId)) return null
   if (typeof value.commandType !== 'string' || !/^[a-z][a-z0-9-]{0,63}$/u.test(value.commandType)) return null

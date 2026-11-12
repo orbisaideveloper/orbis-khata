@@ -61,6 +61,6 @@ describe('Android offline auth recovery screen state',()=>{
     await act(async()=>{for(const event of [...mocks.listeners])event('SIGNED_IN',session)})
     await waitFor(()=>expect(hook.result.current.unavailable).toBe(true))
     expect(hook.result.current.diagnosticCode).toBe('ENROLL_SIGNIN / ANDROID_ENROLL_DB_OPEN_FAILED')
-    expect(hook.result.current.session).toBe(null)
+    expect(hook.result.current.session).toBeNull()
   })
 })

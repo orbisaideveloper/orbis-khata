@@ -37,33 +37,41 @@ const add = (a: SyntheticBalances, b: SyntheticBalances, multiplier = 1): Synthe
     cashPaise: a.cashPaise + b.cashPaise * multiplier,
     customerAdvancePaise: a.customerAdvancePaise + b.customerAdvancePaise * multiplier,
   }
-  if (Object.values(next).some(n => !Number.isSafeInteger(n))) throw Error('ACCOUNTING_AMOUNT_OVERFLOW')
+  if (Object.values(next).some(n => !Number.isSafeInteger(n))) throw new Error('ACCOUNTING_AMOUNT_OVERFLOW')
   return next
 }
+function reversePosting(
+  item: SyntheticPosting,
+  seen: ReadonlyMap<string, { original: SyntheticPosting; effect: SyntheticBalances }>,
+  reversed: Set<string>,
+): SyntheticBalances {
+  const prior = item.reversesId && seen.get(item.reversesId)
+  if (!prior || prior.original.kind === 'reversal' || reversed.has(prior.original.id) ||
+      item.amountPaise !== prior.original.amountPaise) throw new Error('ACCOUNTING_REVERSAL_INVALID')
+  reversed.add(prior.original.id)
+  return add(zero(), prior.effect, -1)
+}
+
 export function reconcileSyntheticPostings(companyId: string, postings: readonly SyntheticPosting[]): SyntheticBalances {
-  if (!name(companyId)) throw Error('ACCOUNTING_COMPANY_INVALID')
+  if (!name(companyId)) throw new Error('ACCOUNTING_COMPANY_INVALID')
   const seen = new Map<string, { original: SyntheticPosting; effect: SyntheticBalances }>()
   const reversed = new Set<string>()
   let balances = zero()
   for (const item of postings) {
     if (!name(item.id) || item.companyId !== companyId || seen.has(item.id) ||
-        !valid(item.amountPaise) || item.amountPaise === 0) throw Error('ACCOUNTING_INVALID_OR_DUPLICATE')
+        !valid(item.amountPaise) || item.amountPaise === 0) throw new Error('ACCOUNTING_INVALID_OR_DUPLICATE')
     let effect: SyntheticBalances
     if (item.kind === 'reversal') {
-      const prior = item.reversesId && seen.get(item.reversesId)
-      if (!prior || prior.original.kind === 'reversal' || reversed.has(prior.original.id) ||
-          item.amountPaise !== prior.original.amountPaise) throw Error('ACCOUNTING_REVERSAL_INVALID')
-      reversed.add(prior.original.id)
-      effect = add(zero(), prior.effect, -1)
+      effect = reversePosting(item, seen, reversed)
     } else {
       if (item.reversesId !== undefined || !['sale','customer-payment','purchase','supplier-payment','customer-advance','advance-apply'].includes(item.kind)) {
-        throw Error('ACCOUNTING_KIND_INVALID')
+        throw new Error('ACCOUNTING_KIND_INVALID')
       }
       effect = delta(item.kind, item.amountPaise)
     }
     const next = add(balances, effect)
     if (next.receivablePaise < 0 || next.payablePaise < 0 || next.customerAdvancePaise < 0) {
-      throw Error('ACCOUNTING_BALANCE_UNDERFLOW')
+      throw new Error('ACCOUNTING_BALANCE_UNDERFLOW')
     }
     seen.set(item.id, { original: item, effect })
     balances = next

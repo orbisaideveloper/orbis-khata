@@ -45,7 +45,7 @@ export function useAccount() {
       if(!androidLocalFirst())return
       const actorId=next.user?.id
       const displayId=next.user?.user_metadata?.orbis_display_id as unknown
-      if(typeof actorId!=='string'||typeof displayId!=='string')throw Error('ANDROID_ACCOUNT_NOT_CENTRAL_VERIFIED')
+      if(typeof actorId!=='string'||typeof displayId!=='string')throw new Error('ANDROID_ACCOUNT_NOT_CENTRAL_VERIFIED')
       const local=await import('../native-local/runtime')
       await local.enrollVerifiedCentralIdentity(actorId,displayId)
     }
@@ -80,7 +80,10 @@ export function useAccount() {
         if(error){failed('CENTRAL_RESTORE',error);return}
         if(initial.session&&androidLocalFirst()){
           try{await enroll(initial.session)}
-          catch(error){if(alive&&!observed)failed('ENROLL_RESTORE',error);return}
+          catch(error){
+            if(alive&&!observed) failed('ENROLL_RESTORE',error)
+            return
+          }
         }
         if(alive&&!observed)update(initial.session)
       }).catch(error=>{stopTimer();if(alive&&!observed)failed('CENTRAL_RESTORE',error)})

@@ -20,15 +20,15 @@ export function createIsolatedAccountingDraft(args: {
   nowMs: number
 }): QueueItem {
   assertOfflineAuthority(args.verifiedGrant, args.actorId, args.companyId, args.nowMs, 'queue')
-  if (!uuid(args.operationId)) throw Error('ACCOUNTING_OPERATION_ID_INVALID')
+  if (!uuid(args.operationId)) throw new Error('ACCOUNTING_OPERATION_ID_INVALID')
   const command = pendingCommand(args.rawCommand)
-  if (!command) throw Error('ACCOUNTING_COMMAND_INVALID')
-  if (command.company !== args.companyId) throw Error('ACCOUNTING_COMPANY_MISMATCH')
-  if (command.kind === 'reversal' && !command.reverses) throw Error('ACCOUNTING_REVERSAL_TARGET_REQUIRED')
-  if (command.kind !== 'reversal' && command.reverses !== null) throw Error('ACCOUNTING_REVERSAL_ONLY')
+  if (!command) throw new Error('ACCOUNTING_COMMAND_INVALID')
+  if (command.company !== args.companyId) throw new Error('ACCOUNTING_COMPANY_MISMATCH')
+  if (command.kind === 'reversal' && !command.reverses) throw new Error('ACCOUNTING_REVERSAL_TARGET_REQUIRED')
+  if (command.kind !== 'reversal' && command.reverses !== null) throw new Error('ACCOUNTING_REVERSAL_ONLY')
   // Existing accounting API expects amount in minor units, not a decimal rupee value.
   const amount = BigInt(command.amount)
-  if (amount <= 0n || amount > 999999999999n) throw Error('ACCOUNTING_AMOUNT_INVALID')
+  if (amount <= 0n || amount > 999999999999n) throw new Error('ACCOUNTING_AMOUNT_INVALID')
   // The legacy API remains the sole live writer until a versioned, server-verified
   // sync endpoint accepts these envelopes. Never silently send this to /post.
   return queueNew({
