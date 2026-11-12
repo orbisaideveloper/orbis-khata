@@ -24,6 +24,7 @@ import { WorkspaceMenu } from './WorkspaceMenu';
 import { TutorialContext, readTutorial, saveTutorial } from './tutorial';
 import { authClient } from './auth/client';
 import { useAccount } from './auth/useAccount';
+import { androidLocalFirst } from './native-local/route';
 import { AccountForm } from './auth/AccountForm';
 import { accountCopy } from './auth/copy';
 import { CompanyGate } from './auth/CompanyGate';
@@ -53,10 +54,23 @@ function accountStateScreen(account: ReturnType<typeof useAccount>, language: La
         return <main className={shellClass}><PwaStatus language={language}/><output>{accountCopy[language].network}</output></main>;
     }
     if (account.unavailable) {
-        return <main className={shellClass}><PwaStatus language={language}/><p role='alert'>{accountCopy[language].error}</p><button type='button' onClick={() => window.location.reload()}>{accountCopy[language].retry}</button></main>;
+        // Offline storage errors must never be disguised as ordinary network errors.
+        const native = androidLocalFirst();
+        const signInLabel = language === 'bn' ? 'অনলাইনে আবার লগইন করুন' : language === 'hi' ? 'ऑनलाइन फिर लॉग इन करें' : 'Sign in again online';
+        const localError = language === 'bn' ? 'Android লগইন অথবা Offline Storage খোলা যায়নি। নিচের Error Code দেখুন।' : language === 'hi' ? 'Android लॉगिन या ऑफ़लाइन स्टोरेज नहीं खुला। नीचे त्रुटि कोड देखें।' : 'Android sign-in or offline storage did not open. See the error code below.';
+        return <main className={shellClass}><PwaStatus language={language}/>
+          <p role='alert'>{native ? localError : accountCopy[language].error}</p>
+          {native && account.diagnosticCode && <p role='status' data-testid='native-auth-diagnostic'>Error code: {account.diagnosticCode}</p>}
+          <button type='button' onClick={() => window.location.reload()}>{accountCopy[language].retry}</button>
+          {native && <button type='button' onClick={account.tryOnlineLogin}>{signInLabel}</button>}
+        </main>;
     }
     if (account.recovery) {
         return <main className='phone'><AccountForm key='recovery' language={language} recovery onRecovered={() => account.setRecovery(false)}/></main>;
+    }
+    if (androidLocalFirst() && account.manualLogin) {
+        // Do not clear the stored account hint or encrypted database to retry login.
+        return <main className='phone'><AccountForm key='manual-android-login' language={language} onRecovered={() => account.setRecovery(false)}/></main>;
     }
     return null;
 }

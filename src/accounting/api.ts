@@ -1,4 +1,5 @@
 import { authClient } from '../auth/client';
+import { androidLocalFirst } from '../native-local/route';
 import type { Command, Company, Report } from './model';
 export function createKhataDataClient(options: {
     url: string;
@@ -54,6 +55,10 @@ let liveUrl='';
 function invalidateKhataReads(){liveClient?.invalidate();}
 if(typeof window!=='undefined'){window.addEventListener('khata-refresh',invalidateKhataReads);}
 export async function requestKhata<T>(operation: string, input: unknown): Promise<T> {
+    if (androidLocalFirst()) {
+        // Android local-first never silently falls back to a remote financial POST.
+        return (await import('../native-local/runtime')).nativeLocalRequest<T>(operation, input);
+    }
     if (import.meta.env.DEV && import.meta.env.VITE_KHATA_DEMO === 'true') {
         return (await import('../demo/store')).demoRequest<T>(operation, input);
     }

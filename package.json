@@ -19,6 +19,7 @@
     "test:sql": "node scripts/verify-lottery-rows.mjs && node scripts/verify-production.mjs && node scripts/verify-expense-profiles.mjs && node scripts/verify-party-sharing.mjs && node scripts/verify-report-revision.mjs && node scripts/verify-warehouse-transfer.mjs && node scripts/verify-phase2.mjs"
   },
   "dependencies": {
+    "@capacitor-community/sqlite": "8.1.1",
     "@capacitor/android": "8.6.0",
     "@capacitor/core": "8.6.0",
     "@capacitor/filesystem": "8.1.5",

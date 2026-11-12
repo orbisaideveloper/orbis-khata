@@ -324,6 +324,30 @@ function validateExpenseReversal(command: ExpenseCommand) {
         fail('REVERSE_PAYMENTS_FIRST');
     }
 }
+/**
+ * Fail-closed idempotency for direct Android local accounting operations.
+ * New retries with the same ID + same payload do not double-post. Reusing that
+ * ID with a different amount, company, payee, or command is a hard conflict.
+ * A pre-existing record without a known original fingerprint also fails
+ * closed, rather than silently treating a potentially different write as OK.
+ */
+function postDirectOnce(operation:'post'|'expense-post'|'inventory-post',value:unknown,action:()=>void):void {
+    if (!value || typeof value!=='object' || Array.isArray(value)) fail('INVALID_IDEMPOTENCY_INPUT');
+    const input=value as Record<string,unknown>;
+    if (typeof input.id!=='string' || !/^[A-Za-z0-9_-]{1,128}$/u.test(input.id)) fail('INVALID_IDEMPOTENCY_ID');
+    const key='android-direct:'+operation+':'+input.id;
+    const payload=JSON.stringify(value);
+    const prior=workspaceEvents[key];
+    if (prior) {
+        if (prior.payload!==payload) fail('IDEMPOTENCY_CONFLICT');
+        return;
+    }
+    const existing=entries.some(e=>e.id===input.id)||expenses.some(e=>e.id===input.id)||
+        documents.some(d=>d.id===input.id)||items.some(i=>i.id===input.id)||warehouses.some(w=>w.id===input.id);
+    if (existing) fail('IDEMPOTENCY_CONFLICT');
+    action();
+    workspaceEvents[key]={payload,result:null};
+}
 function postDemoExpense(value: unknown) {
     const command = expenseCommand(value);
     if (!command) {
@@ -427,13 +451,13 @@ function dispatchDemoRequest<T>(operation: string, value: unknown): T {
             result = inventory(company, from, to, offset);
             break;
         case 'expense-post':
-            postDemoExpense(value);
+            postDirectOnce('expense-post',value,()=>postDemoExpense(value));
             break;
         case 'inventory-post':
-            postDemoInventory(value as InventoryCommand, company);
+            postDirectOnce('inventory-post',value,()=>postDemoInventory(value as InventoryCommand,company));
             break;
         case 'post':
-            postTrade(value as Command);
+            postDirectOnce('post',value,()=>postTrade(value as Command));
             break;
         default: fail('DEMO_OPERATION_UNSUPPORTED');
     }
@@ -711,4 +735,50 @@ function demoWorkspaceTransaction(p: Record<string, unknown>, company: string, s
         }
         throw error;
     }
+}
+
+/** Local-only snapshot for the already-tested accounting calculation engine.
+ * This is never sent to ORBIS Admin, Supabase or a PWA runtime.
+ */
+export type DeviceLocalSnapshot = {
+  version: 1
+  workspaceSettings: typeof workspaceSettings
+  fiscalCounters: typeof fiscalCounters
+  workspaceEvents: typeof workspaceEvents
+  paymentLinks: typeof paymentLinks
+  retired: typeof retired
+  companies: typeof companies
+  parties: typeof parties
+  entries: typeof entries
+  expenses: typeof expenses
+  expenseBillLines: typeof expenseBillLines
+  documents: typeof documents
+  reversals: [string,string][]
+  items: typeof items
+  warehouses: typeof warehouses
+}
+export function readDeviceLocalSnapshot():DeviceLocalSnapshot {
+  return structuredClone({ version:1 as const,workspaceSettings,fiscalCounters,workspaceEvents,paymentLinks,retired,
+    companies,parties,entries,expenses,expenseBillLines,documents,reversals:[...inventoryReversals],items,warehouses })
+}
+export function emptyDeviceLocalSnapshot():DeviceLocalSnapshot {
+  return {version:1,workspaceSettings:{},fiscalCounters:{},workspaceEvents:{},paymentLinks:{},retired:{},
+    companies:[],parties:[],entries:[],expenses:[],expenseBillLines:{},documents:[],reversals:[],items:[],warehouses:[]}
+}
+export function restoreDeviceLocalSnapshot(candidate:unknown):void {
+  if (!candidate || typeof candidate!=='object' || Array.isArray(candidate)) throw Error('ANDROID_LOCAL_SNAPSHOT_INVALID')
+  const value=candidate as DeviceLocalSnapshot
+  const objects=[value.workspaceSettings,value.fiscalCounters,value.workspaceEvents,value.paymentLinks,value.retired,value.expenseBillLines]
+  const arrays=[value.companies,value.parties,value.entries,value.expenses,value.documents,value.reversals,value.items,value.warehouses]
+  if (value.version!==1 || objects.some(obj=>!obj || typeof obj!=='object' || Array.isArray(obj)) ||
+      arrays.some(array=>!Array.isArray(array)) ||
+      value.reversals.some(pair=>!Array.isArray(pair) || pair.length!==2 || pair.some(str=>typeof str!=='string'))) {
+    throw Error('ANDROID_LOCAL_SNAPSHOT_INVALID')
+  }
+  const next=structuredClone(value)
+  workspaceSettings=next.workspaceSettings;fiscalCounters=next.fiscalCounters;workspaceEvents=next.workspaceEvents
+  paymentLinks=next.paymentLinks;retired=next.retired;companies=next.companies;parties=next.parties
+  entries=next.entries;expenses=next.expenses;expenseBillLines=next.expenseBillLines;documents=next.documents
+  items=next.items;warehouses=next.warehouses;inventoryReversals.clear()
+  for(const [id,day] of next.reversals)inventoryReversals.set(id,day)
 }

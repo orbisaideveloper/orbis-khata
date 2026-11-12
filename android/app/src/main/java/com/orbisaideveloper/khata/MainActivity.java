@@ -11,6 +11,8 @@ import androidx.activity.OnBackPressedCallback;
 public class MainActivity extends BridgeActivity {
     @Override
     public void onCreate(Bundle savedInstanceState) {
+        registerPlugin(OrbisKhataKeyBridge.class);
+        registerPlugin(OrbisKhataOfflineBridge.class);
         super.onCreate(savedInstanceState);
         // Android edge-to-edge must leave controls outside system bars and the IME.
         View content = findViewById(android.R.id.content);
