@@ -319,6 +319,7 @@ function localOperationCompany(operation:string,input:unknown):string {
 }
 const readingOperation=(operation:string,input:unknown):boolean => {
   if(['companies','masters','report','inventory-report','expense-report','retired-companies','party-balance'].includes(operation))return true
+  if(operation==='expense-profiles') return (input as {action?:unknown} | null)?.action === 'list'
   if(operation==='workspace' && input && typeof input==='object'){
     return ['settings','accounts','detail','number-preview'].includes(String((input as {action?:unknown}).action))
   }

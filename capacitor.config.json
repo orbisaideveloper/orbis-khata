@@ -12,6 +12,9 @@
     "webContentsDebuggingEnabled": false
   },
   "plugins": {
+    "SystemBars": {
+      "insetsHandling": "disable"
+    },
     "CapacitorSQLite": {
       "androidIsEncryption": true
     }

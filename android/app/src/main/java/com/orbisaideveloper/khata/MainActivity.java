@@ -14,7 +14,7 @@ public class MainActivity extends BridgeActivity {
         registerPlugin(OrbisKhataKeyBridge.class);
         registerPlugin(OrbisKhataOfflineBridge.class);
         super.onCreate(savedInstanceState);
-        // Android edge-to-edge must leave controls outside system bars and the IME.
+        // This listener owns system-bar and IME insets. Capacitor SystemBars inset handling is disabled.
         View content = findViewById(android.R.id.content);
         ViewCompat.setOnApplyWindowInsetsListener(content, (view, windowInsets) -> {
             Insets safe = windowInsets.getInsets(

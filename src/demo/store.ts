@@ -1,3 +1,4 @@
+import { emptyProfiles, profileCommand, runProfiles, type ProfileState } from '../expense-profiles/model';
 import {productionDocument,validProduction,type ProductionCommand} from '../production/model';
 import {financialYear} from '../accounting/numbering';
 import { defaultSettings, type WorkspaceSettings } from '../accounting/workspace-contract';
@@ -297,12 +298,37 @@ export function editDemoItem(id: string, values: {
     Object.assign(item, values);
 }
 export function demoRequest<T>(operation: string, value: unknown): Promise<T> {
+    if (operation === 'expense-profiles') return demoExpenseProfiles(value) as Promise<T>;
     try {
         return Promise.resolve(dispatchDemoRequest<T>(operation, value));
     }
     catch (error) {
         return Promise.reject(error);
     }
+}
+async function demoExpenseProfiles(value: unknown): Promise<ProfileState> {
+    const input = value as Record<string, unknown> | null;
+    if (!input || !profileCommand(input)) fail('INVALID_EXPENSE_PROFILE');
+    const company = input.company;
+    if (retired[company] || !companies.some(row => row.id === company)) fail('COMPANY_NOT_ACCESSIBLE');
+
+    const stateKey = `expense-profiles:${company}`;
+    const state = workspaceEvents[stateKey]?.result as ProfileState | undefined;
+    if (input.action === 'list') return structuredClone(state ?? emptyProfiles());
+
+    const operationKey = `${stateKey}:${input.operationId}`;
+    const payload = JSON.stringify(input);
+    const existing = workspaceEvents[operationKey];
+    if (existing) {
+        if (existing.payload !== payload) fail('IDEMPOTENCY_CONFLICT');
+        return structuredClone(existing.result) as ProfileState;
+    }
+
+    const result = await runProfiles(state ?? emptyProfiles(), input, async command =>
+        demoRequest('expense-post', command));
+    workspaceEvents[stateKey] = { payload: '', result };
+    workspaceEvents[operationKey] = { payload, result };
+    return structuredClone(result);
 }
 function validateExpensePayment(command: ExpenseCommand) {
     const parent = expenses.find(e => e.id === command.parent && e.company === command.company && e.kind === 'charge' && !e.method && !expenses.some(r => r.company === command.company && r.kind === 'reversal' && r.parent === e.id));
@@ -441,6 +467,14 @@ function dispatchDemoRequest<T>(operation: string, value: unknown): T {
             result = { id: row.id, name: row.name };
             break;
         }
+        case 'party-balance': {
+            const { party, date, kind } = p;
+            if (typeof party !== 'string' || typeof date !== 'string' ||
+                (kind !== 'sale' && kind !== 'purchase' && kind !== 'expense')) fail('INVALID_PARTY_BALANCE');
+            if (!parties.some(row => row.id === party && row.company === company)) fail('PARTY_NOT_ACCESSIBLE');
+            result = demoPreviousBalance(company, party, date, kind);
+            break;
+        }
         case 'report':
             result = report(company, from, to, p.party as string | null, offset);
             break;
@@ -519,8 +553,15 @@ export function deleteDemoItem(company: string, id: string) {
     }
     items = items.filter(i => !(i.id === id && i.company === company));
 }
-function demoAccountBalances(company: string, settings: WorkspaceSettings) {
-    return settings.accounts.map(account => ({ ...account, entry_ids: entries.filter(e => e.company === company && (e.debit_account === account.kind || e.credit_account === account.kind) && (paymentLinks[e.id]?.account ?? account.kind) === account.id).map(e => e.id), balance: String(entries.filter(e => e.company === company && (e.debit_account === account.kind || e.credit_account === account.kind) && (paymentLinks[e.id]?.account ?? account.kind) === account.id).reduce((sum, e) => sum + BigInt(e.amount_minor) * (e.debit_account === account.kind ? 1n : -1n), 0n)) }));
+function demoAccountBalances(company: string, settings: WorkspaceSettings, to: string) {
+    return settings.accounts.map(account => {
+        const matched = entries.filter(entry => entry.company === company &&
+            (entry.debit_account === account.kind || entry.credit_account === account.kind) &&
+            (paymentLinks[entry.reverses_id ?? entry.id]?.account ?? account.kind) === account.id);
+        const balance = matched.filter(entry => entry.effective_date <= to).reduce((sum, entry) =>
+            sum + BigInt(entry.amount_minor) * (entry.debit_account === account.kind ? 1n : -1n), 0n);
+        return { ...account, entry_ids: matched.map(entry => entry.id), balance: String(balance) };
+    });
 }
 function demoRecordDetail(company: string, id: unknown) {
     return { voucher: entries.find(e => e.id === id && e.company === company), bill: documents.find(d => d.id === id && d.company === company), expense: expenses.find(e => e.id === id && e.company === company), payments: entries.filter(e => paymentLinks[e.id]?.bill === id && !e.reversed), lines: expenseBillLines[String(id)], company_name: companies.find(c => c.id === company)?.name, item_names: Object.fromEntries(items.filter(i => i.company === company).map(i => [i.id, i.name])), account: paymentLinks[String(id)]?.account };
@@ -702,7 +743,7 @@ function demoWorkspace(p: Record<string, unknown>): unknown {
         return { ok: true };
     }
     if (action === 'accounts') {
-        return demoAccountBalances(company, settings);
+        return demoAccountBalances(company, settings, textValue(p.to) || today());
     }
     if (action === 'detail') {
         return demoRecordDetail(company, p.id);
