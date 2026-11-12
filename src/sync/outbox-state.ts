@@ -7,7 +7,7 @@
 import { confirmedReceipt, parseSyncEnvelope, parseSyncReceipt } from './protocol'
 import type { SyncEnvelope } from './protocol'
 
-export type QueueState = 'queued' | 'synced' | 'conflict' | 'rejected'
+type QueueState = 'queued' | 'synced' | 'conflict' | 'rejected'
 export type QueueItem = Readonly<{
   envelope: SyncEnvelope
   state: QueueState
@@ -17,6 +17,21 @@ export type QueueItem = Readonly<{
 }>
 
 /** Reject unsafe or malformed messages before they reach a future local store. */
+export function validQueueItem(value: unknown): value is QueueItem {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return false
+  const item = value as Record<string, unknown>
+  const envelope = parseSyncEnvelope(item.envelope)
+  return envelope !== null &&
+    ['queued', 'synced', 'conflict', 'rejected'].includes(String(item.state)) &&
+    typeof item.attempts === 'number' && Number.isSafeInteger(item.attempts) &&
+    item.attempts >= 0 && item.attempts <= 1000000 &&
+    (item.lastReason === null || (typeof item.lastReason === 'string' && item.lastReason.length <= 128)) &&
+    (item.serverCursor === null || (typeof item.serverCursor === 'string' && item.serverCursor.length <= 128)) &&
+    (item.state !== 'synced' || item.serverCursor !== null) &&
+    (!['conflict', 'rejected'].includes(String(item.state)) || item.lastReason !== null) &&
+    Object.keys(item).sort().join(',') === 'attempts,envelope,lastReason,serverCursor,state'
+}
+
 export function queueNew(value: unknown): QueueItem {
   const envelope = parseSyncEnvelope(value)
   if (!envelope) throw new Error('INVALID_SYNC_ENVELOPE')

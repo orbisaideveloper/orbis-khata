@@ -5,8 +5,7 @@
  */
 export const SYNC_PROTOCOL_VERSION = 1 as const
 
-export type SyncDisposition = 'accepted' | 'already-applied' | 'conflict' | 'rejected'
-export type LocalSyncStatus = 'queued' | 'sending' | 'synced' | 'conflict' | 'rejected'
+type SyncDisposition = 'accepted' | 'already-applied' | 'conflict' | 'rejected'
 
 /** Values are opaque identifiers; authorization MUST be checked on the server. */
 export type SyncEnvelope = Readonly<{

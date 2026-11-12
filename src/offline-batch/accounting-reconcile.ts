@@ -4,7 +4,7 @@
  * A correction is represented as an immutable reversal + replacement, never
  * by overwriting a previously acknowledged voucher.
  */
-export type AccountingKind = 'sale' | 'customer-payment' | 'purchase' | 'supplier-payment' |
+type AccountingKind = 'sale' | 'customer-payment' | 'purchase' | 'supplier-payment' |
   'customer-advance' | 'advance-apply' | 'reversal'
 export type SyntheticPosting = Readonly<{
   id: string

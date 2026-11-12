@@ -1,7 +1,7 @@
 /** Step 03 / Part 1: injected SQLite port, no driver or live-app integration. */
 import { KHATA_LOCAL_SQLITE_V1, KHATA_LOCAL_SQLITE_VERSION } from './sqlite-schema'
 
-export type SqlValue = string | number | Uint8Array | null
+type SqlValue = string | number | Uint8Array | null
 export type SqlParams = readonly SqlValue[]
 export interface SqlitePort {
   run(sql: string, params?: SqlParams): Promise<{ changes: number }>

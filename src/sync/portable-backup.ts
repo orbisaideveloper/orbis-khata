@@ -6,8 +6,7 @@
  * user password. The code must be saved independently from the encrypted file.
  * This does NOT back up the authoritative financial ledger or Android Keystore.
  */
-import { parseSyncEnvelope } from './protocol'
-import type { QueueItem } from './outbox-state'
+import { validQueueItem, type QueueItem } from './outbox-state'
 
 export type PortableQueueBackup = Readonly<{
   format: 'orbis.khata.outbox.backup.v1'
@@ -61,20 +60,6 @@ function recoverKey(code: string, provider: CryptoProvider): Promise<CryptoKey> 
   if (bytes.length !== 32) throw new Error('PORTABLE_BACKUP_RECOVERY_CODE_INVALID')
   return provider.subtle.importKey('raw', stableBuffer(bytes), { name: 'AES-GCM' }, false, ['encrypt', 'decrypt'])
 }
-function validateQueue(value: unknown, ownerId: string): value is QueueItem {
-  if (!value || typeof value !== 'object' || Array.isArray(value)) return false
-  const item = value as Record<string, unknown>
-  const e = parseSyncEnvelope(item.envelope)
-  return Boolean(e && e.actorId === ownerId) &&
-    ['queued', 'synced', 'conflict', 'rejected'].includes(String(item.state)) &&
-    Number.isSafeInteger(item.attempts) && typeof item.attempts === 'number' &&
-    item.attempts >= 0 && item.attempts <= 1000000 &&
-    (item.lastReason === null || (typeof item.lastReason === 'string' && item.lastReason.length <= 128)) &&
-    (item.serverCursor === null || (typeof item.serverCursor === 'string' && item.serverCursor.length <= 128)) &&
-    (item.state !== 'synced' || item.serverCursor !== null) &&
-    (!['conflict', 'rejected'].includes(String(item.state)) || item.lastReason !== null) &&
-    Object.keys(item).sort().join(',') === 'attempts,envelope,lastReason,serverCursor,state'
-}
 function validateBody(value: unknown, expectedOwner: string): value is { version: 1; actorId: string; items: QueueItem[] } {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return false
   const obj = value as Record<string, unknown>
@@ -83,7 +68,7 @@ function validateBody(value: unknown, expectedOwner: string): value is { version
       Object.keys(obj).sort().join(',') !== 'actorId,items,version') return false
   const ids = new Set<string>()
   for (const item of obj.items) {
-    if (!validateQueue(item, expectedOwner)) return false
+    if (!validQueueItem(item) || item.envelope.actorId !== expectedOwner) return false
     const k = JSON.stringify([item.envelope.companyId, item.envelope.operationId])
     if (ids.has(k)) return false
     ids.add(k)

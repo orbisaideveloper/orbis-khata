@@ -7,7 +7,7 @@
 const STORE = 'keys'
 const VERSION = 1
 const DEFAULT_DB = 'orbis-khata-offline-key-v1'
-export function validPwaKey(key: CryptoKey): boolean {
+function validPwaKey(key: CryptoKey): boolean {
   return Boolean(key) && key.type === 'secret' && key.algorithm?.name === 'AES-GCM' &&
     key.extractable === false && key.usages.includes('encrypt') && key.usages.includes('decrypt')
 }
