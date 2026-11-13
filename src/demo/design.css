@@ -138,11 +138,11 @@
 }
 
 @media screen and (pointer: coarse) {
-  .kh-app:has(input:focus-visible, textarea:focus-visible) .kh-bottom-nav {
+  .kh-app[data-android-local]:has(input:focus-visible, textarea:focus-visible) .kh-bottom-nav {
     visibility: hidden;
   }
 
-  .kh-app :is(input, textarea) {
+  .kh-app[data-android-local] :is(input, textarea) {
     scroll-margin-block: 76px 16px;
   }
 }

@@ -177,7 +177,7 @@ function App() {
     if (accountScreen) {
         return accountScreen;
     }
-    return (<BooksNavigation.Provider value={navigation}><TutorialContext.Provider value={tutorial}><main className={shellClass} data-theme={theme} onFocusCapture={selectNumeric} onClickCapture={selectNumeric}><PwaStatus language={language}/>
+    return (<BooksNavigation.Provider value={navigation}><TutorialContext.Provider value={tutorial}><main className={shellClass} data-theme={theme} data-android-local={androidLocalFirst() || undefined} onFocusCapture={selectNumeric} onClickCapture={selectNumeric}><PwaStatus language={language}/>
       {logoutError && <p role="alert">{accountCopy[language].error}</p>}
       {view === 'welcome' && (<section className="scene welcome active" aria-label={t('h1a')}>
           <header className="top">
