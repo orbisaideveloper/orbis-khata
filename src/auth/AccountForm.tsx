@@ -17,7 +17,10 @@ interface Props {
 
 export function AccountForm({ language, recovery = false, recoveryLinkFailed = false, onRecovered }: Readonly<Props>) {
   const tutorial = useTutorial()
-  const [mode, setMode] = useState<Mode>(recovery ? 'reset' : recoveryLinkFailed ? 'recover' : 'login')
+  const [mode, setMode] = useState<Mode>(() => {
+    if (recovery) return 'reset'
+    return recoveryLinkFailed ? 'recover' : 'login'
+  })
   const [busy, setBusy] = useState(false)
   const inFlight = useRef(false)
   const [message, setMessage] = useState(() => recoveryLinkFailed ? inLanguage(language,
