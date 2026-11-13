@@ -1,5 +1,5 @@
 "use strict";
-import { createHash, randomUUID } from "node:crypto";
+import { sha256Hex, randomUUID } from "./lottery-crypto.js";
 import { businessDateKey, businessDayRange } from "./accounting-business-date.js";
 const MODELS = {
   SELLER_SALE: "foundationLotterySale", STOCKIST_ENTRY: "foundationLotteryStockistEntry",
@@ -21,7 +21,7 @@ function canonical(value) {
   if (value && typeof value === "object") return Object.fromEntries(Object.keys(value).sort().map((key) => [key, canonical(value[key])]));
   return value;
 }
-function hash(value) { return createHash("sha256").update(JSON.stringify(canonical(serialize(value)))).digest("hex"); }
+function hash(value) { return sha256Hex(JSON.stringify(canonical(serialize(value)))); }
 function scope(input) {
   const organizationId = text(input?.organizationId, "organizationId");
   const entityType = text(input?.entityType, "entityType").toUpperCase();
@@ -138,7 +138,7 @@ async function buildPlan(client, request) {
   }
   const ledger = await client.foundationLotteryLedgerEntry.findMany({ where: { organizationId, sourceId: { in: [...sources] } }, orderBy: { id: "asc" } });
   validateJournals(ledger);
-  return { request, root, entities: ordered, adjustments, ledger, token: hash({ request, entities: ordered, adjustments, ledger }) };
+  return { request, root, entities: ordered, adjustments, ledger, token: await hash({ request, entities: ordered, adjustments, ledger }) };
 }
 function preview(plan) {
   return { organizationId: plan.request.organizationId, entityType: plan.request.entityType, entityId: plan.request.entityId,
@@ -159,7 +159,7 @@ function createAccountingVoidService({ prisma }) {
     const previewToken = text(input?.previewToken, "previewToken");
     const actor = text(actorAdminId, "actorAdminId");
     const reason = typeof input?.reason === "string" ? input.reason.trim().slice(0, 500) : null;
-    const requestHash = hash({ request, operationId, previewToken, reason });
+    const requestHash = await hash({ request, operationId, previewToken, reason });
     return prisma.$transaction(async (client) => {
       const replay = await client.foundationAccountingCorrection.findFirst({ where: { organizationId: request.organizationId, operationId } });
       if (replay) {

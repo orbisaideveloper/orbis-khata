@@ -12,7 +12,7 @@ import {
   summarizeLotteryAccounting,
   validatePayment,
 } from "./lottery-accounting-core.js";
-import { createHash, randomUUID } from "node:crypto";
+import { sha256Hex, randomUUID } from "./lottery-crypto.js";
 import {
   normalizePartyEmail,
   normalizePartyPhone,
@@ -224,7 +224,7 @@ function sellerSyncRequestHash(input, saleId = null) {
     commissionPaise: input?.commissionPaise ?? null,
     expectedVersion: input?.expectedVersion ?? null,
   };
-  return createHash("sha256").update(JSON.stringify(stable)).digest("hex");
+  return sha256Hex(JSON.stringify(stable));
 }
 
 function sellerDraftConflict(currentVersion) {
@@ -1706,7 +1706,7 @@ function createLotteryAccountingService({ prisma, now = () => new Date() }) {
         const version = priorCorrection.version + 1;
         await client.foundationAccountingCorrection.create({ data: {
           id: correctionId, organizationId, entityType: "STOCKIST_ENTRY", entityId: entry.id,
-          version, operationId, requestHash: createHash("sha256").update(JSON.stringify(serialize(entryData))).digest("hex"),
+          version, operationId, requestHash: await sha256Hex(JSON.stringify(serialize(entryData))),
           previousSnapshot: priorSnapshot, replacement: serialize(entryData),
           acknowledgement: { correctionId, entityType: "STOCKIST_ENTRY", entityId: entry.id, version, operationId },
           reason: "Daily stockist entry updated", actorAdminId,
@@ -1972,7 +1972,7 @@ function createLotteryAccountingService({ prisma, now = () => new Date() }) {
     { existing, context, input, actorAdminId, eventType, sync, requestHash },
   ) {
     const effectiveRequestHash =
-      requestHash || sellerSyncRequestHash(input, existing.id);
+      requestHash || await sellerSyncRequestHash(input, existing.id);
     const replay = await replaySellerSyncOperation(client, {
       organizationId: context.organizationId,
       operationId: sync.operationId,
@@ -2032,7 +2032,7 @@ function createLotteryAccountingService({ prisma, now = () => new Date() }) {
     return prisma.$transaction(async (client) => {
       const context = postingContext(input);
       const sync = sellerSyncMetadata(input);
-      const requestHash = sellerSyncRequestHash(input);
+      const requestHash = await sellerSyncRequestHash(input);
       const replay = await replaySellerSyncOperation(client, {
         organizationId: context.organizationId,
         operationId: sync.operationId,
@@ -2119,7 +2119,7 @@ function createLotteryAccountingService({ prisma, now = () => new Date() }) {
     const saleId = requiredText(input?.saleId, "saleId");
     const sync = sellerSyncMetadata(input);
     return prisma.$transaction(async (client) => {
-      const requestHash = sellerSyncRequestHash(input, saleId);
+      const requestHash = await sellerSyncRequestHash(input, saleId);
       const replay = await replaySellerSyncOperation(client, {
         organizationId: context.organizationId,
         operationId: sync.operationId,

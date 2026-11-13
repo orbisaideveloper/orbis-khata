@@ -1845,3 +1845,20 @@ See [SONAR-CORRECTIONS-20261017.md](SONAR-CORRECTIONS-20261017.md) for every rep
 - Privacy policy includes health-check operational logs; bundled existing licensed BN/HI fonts make static pages readable without installed fonts or external trackers.
 - Related tests 56/56 PASS; typecheck PASS; npm audit zero vulnerabilities; KNIP PASS with 2 existing hints; runner selftest PASS. Actual canonical React/Vite mobile preview inspected, Bengali policy readable.
 - Owner requested completion and commit/push. Final current-source certification and exact-SHA remote QA pending. No commit/push/deploy, DB mutation, migration or Play submission yet.
+
+### Closed testing follow-up — login, native Lottery and wide layout
+- Base main e52eefd. Android with a device credential keeps offline unlock.
+  Without one, a fresh central sign-in is required on cold launch; existing
+  encrypted accounting records are reopened under the same central identity.
+- Password visibility and distinct rejected-credential feedback are shared UI.
+  Native Lottery uses the existing calculation engine and commits its state and
+  retry receipt in one encrypted snapshot. Browser-compatible SHA-256 preserves
+  the existing digest format. Shared customer statements remain on the PWA.
+- Desktop Khata adds wide grids and top navigation. Coarse-pointer entry fields
+  reserve scroll space and hide bottom navigation while keyboard focus is visible.
+- Focused auth, snapshot, accounting, Lottery correction/void and UI unit tests
+  passed. Local Playwright could not start Chromium (socket permission). Full
+  coverage/Sonar, native build and real-phone acceptance remain pending.
+- No Render, Supabase, Play release or live financial data changes. Next check
+  GitHub Actions, then exercise a candidate APK on locked and lockless phones,
+  including offline Lottery, payment keyboard and existing data after upgrade.

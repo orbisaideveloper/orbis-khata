@@ -1,3 +1,5 @@
+import { androidLocalFirst } from '../native-local/route';
+import { inLanguage } from '../localize';
 import {ModulePicker,type ModuleTarget} from '../ModulePicker';
 import { useEffect, useRef, useState } from 'react';
 import type { Language } from '../i18n';
@@ -9,7 +11,16 @@ import { StatementView } from './StatementView';
 import { ShareList } from './ShareList';
 import './customer-view.css';
 const request = <T,>(command: ShareCommand) => requestKhata<T>('party-sharing', command);
-export default function CustomerView({ language, onBack, onBooks, onSelect }: Readonly<{
+export default function CustomerView(props: Parameters<typeof SharedCustomerView>[0]) {
+    if (!androidLocalFirst()) return <SharedCustomerView {...props}/>;
+    return <section className="scene light-scene active">
+        <h1>{shareCopy(props.language, 'title')}</h1>
+        <p>{inLanguage(props.language, 'শেয়ার করা স্টেটমেন্ট দেখতে খাতাবই ওয়েব খুলুন।', 'साझा विवरण देखने के लिए खाताबही वेब खोलें।', 'Open Khata Boi on the web to view shared statements.')}</p>
+        <a href="https://orbis-khata.onrender.com/" target="_blank" rel="noreferrer">Khata Boi</a>
+        <button type="button" onClick={props.onBack}>{inLanguage(props.language, 'ফিরুন', 'वापस', 'Back')}</button>
+    </section>;
+}
+function SharedCustomerView({ language, onBack, onBooks, onSelect }: Readonly<{
     language: Language;
     onSelect?: (module: ModuleTarget) => void;
     onBack: () => void;

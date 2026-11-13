@@ -1,7 +1,7 @@
 /**
  * Android offline-first product adapter for fresh, device-local Khata accounts.
  * - The first trust enrollment comes ONLY from a live, verified ORBIS Admin session.
- * - Every subsequent app cold-start requires Android screen-lock verification.
+ * - Cold starts require Android screen lock or fresh central sign-in.
  * - SQLCipher is mandatory; hardware-keystore AES-GCM authenticates identity and state.
  * - Every change is persisted before caller sees success; unsupported calls fail closed.
  * - No production sync, remote POST or implicit migration. PWA uses its existing gateway.
@@ -15,10 +15,11 @@ import { createAndroidSqlcipherRuntime } from '../local-db/android-sqlcipher-run
 import { openVerifiedAndroidSqlcipher } from '../local-db/native-cipher-gate'
 import { createLocalSqliteRepository, ensureLocalSchema, type SqlitePort } from '../local-db/sqlite-repository'
 import { createAndroidHardwareRecordCodec } from '../offline-integration/android-hardware-codec'
+import { isLotteryRead, lotteryInput } from '../lottery/protocol'
 import { queueNew } from '../sync/outbox-state'
 import { failClosedIfMissingSnapshot } from './snapshot-policy'
 import {
-  demoRequest, demoMasters, demoPreviousBalance, saveDemoParty, saveDemoItem,
+  deviceLottery, demoRequest, demoMasters, demoPreviousBalance, saveDemoParty, saveDemoItem,
   deleteDemoParty, deleteDemoItem, saveDemoExpenseBill,
   readDeviceLocalSnapshot, restoreDeviceLocalSnapshot, emptyDeviceLocalSnapshot,
   type DeviceLocalSnapshot,
@@ -35,6 +36,12 @@ const MAX_LOCAL_BYTES = 32 * 1024 * 1024 // Guard against runaway state; chunked
 const GRANT_DAYS = 45
 const codec = createAndroidHardwareRecordCodec()
 const bridge = createAndroidSqlcipherRuntime()
+const deviceLock = registerPlugin<{ deviceLockStatus(): Promise<{ secure: boolean }> }>('OrbisKhataOfflineBridge')
+async function nativeHasDeviceLock(): Promise<boolean> {
+  const { secure } = await deviceLock.deviceLockStatus()
+  if (typeof secure !== 'boolean') throw new Error('ANDROID_DEVICE_LOCK_STATUS_INVALID')
+  return secure
+}
 const keyBridge = registerPlugin<{
   status(): Promise<{nativePlatform:string;hardwareBacked:boolean;secretPresent:boolean}>
   getOrCreatePassphrase(): Promise<{passphrase:string;hardwareBacked:boolean}>
@@ -230,8 +237,7 @@ export async function enrollVerifiedCentralIdentity(actor:string,displayId:strin
     throw new Error('ANDROID_LOCAL_CENTRAL_IDENTITY_INVALID')
   }
   const now=Date.now()
-  // OS credential check is mandatory on enrollment and every later cold-start.
-  if (!(await codec.verifyDeviceCredential())) throw new Error('ANDROID_DEVICE_CREDENTIAL_REQUIRED')
+  if (await nativeHasDeviceLock() && !(await codec.verifyDeviceCredential())) throw new Error('ANDROID_DEVICE_CREDENTIAL_REQUIRED')
   await ordered(async()=>{
     const conn=await atNativeStage('ANDROID_ENROLL_DB_OPEN_FAILED',()=>requireDatabase())
     await atNativeStage('ANDROID_ENROLL_SCOPE_FAILED',()=>createLocalSqliteRepository(conn).registerScope(actor,actor,new Date(now).toISOString()))
@@ -250,6 +256,7 @@ export async function enrollVerifiedCentralIdentity(actor:string,displayId:strin
 }
 /** An unlocked offline session is UI identity only; never an API bearer token. */
 export async function restoreNativeOfflineIdentity():Promise<{actorId:string;displayId:string}|null> {
+  if (!(await nativeHasDeviceLock())) throw new Error('ANDROID_DEVICE_LOCK_ONLINE_SIGNIN_REQUIRED')
   const hint=localStorage.getItem(HINT)
   if (!hint) return null
   if (!actorPattern.test(hint)) throw new Error('ANDROID_LOCAL_IDENTITY_HINT_INVALID')
@@ -279,7 +286,10 @@ async function commit<T>(callback:()=>T | Promise<T>,journal?:JournalInput):Prom
     let attemptedCommit=false
     try {
       const output=await callback()
-      if (expected!==storeGeneration) throw new Error('ANDROID_LOCAL_ACTOR_CHANGED')
+      if (expected!==storeGeneration) {
+        restoreDeviceLocalSnapshot(emptyDeviceLocalSnapshot())
+        throw new Error('ANDROID_LOCAL_ACTOR_CHANGED')
+      }
       // Never tell the screen that a finance mutation succeeded before its SQL commit.
       if(journal)await createLocalSqliteRepository(sc.db).registerScope(sc.actor,journal.companyId,new Date().toISOString())
       attemptedCommit=true
@@ -327,6 +337,19 @@ const readingOperation=(operation:string,input:unknown):boolean => {
 }
 export async function nativeLocalRequest<T>(operation:string,input:unknown):Promise<T> {
   if (!/^[a-z][a-z0-9-]{0,63}$/u.test(operation)) throw new Error('ANDROID_LOCAL_OPERATION_INVALID')
+  if (operation==='lottery') {
+    if (!lotteryInput(input)) throw new Error('LOTTERY_INPUT_INVALID')
+    const { actor, generation } = assertActive()
+    if (isLotteryRead(input.method)) {
+      return ordered(async () => {
+        const output = await deviceLottery(input, actor)
+        if (generation !== storeGeneration) throw new Error('ANDROID_LOCAL_ACTOR_CHANGED')
+        return output as T
+      })
+    }
+    // The receipt and Lottery state live in the same encrypted snapshot transaction.
+    return commit(async () => await deviceLottery(input, actor) as T)
+  }
   if (operation==='masters') {
     const p=input as {company?:unknown}|null
     if (!p || typeof p.company!=='string' || !idPattern.test(p.company)) throw new Error('ANDROID_LOCAL_COMPANY_REQUIRED')

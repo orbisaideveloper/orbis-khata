@@ -248,6 +248,7 @@ function App() {
       {view === 'khata' && (signedIn || guestUiEnabled) && (<section className="scene light-scene active" aria-label={t('khata')}>
           {signedIn ? <header className="kh-app-header"><button className="kh-brand" type="button" aria-label={language==='bn'?'হোম':'Home'} onClick={homeBooks}><span className="kh-logo">O</span><span><small>ORBIS</small><strong>{t('khata')}</strong></span></button><div className="kh-header-actions">{languagePicker(true)}{menu()}<button type="button" className="kh-profile-button" onClick={homeBooks} aria-label={{bn:'ফিরুন',hi:'वापस',en:'Back'}[language]}>←</button></div></header> : renderBar('workspace', 'choose', 'khata')}
           
+          {signedIn && <BooksBottomNav language={language} page={booksPage} onOpen={openBooks}/>}
           {!signedIn && <div className="khata-title"><div className="bar"><span className="eyebrow l">{t('dashboard')}</span><span className="period">{t('month')}</span></div><h1>{t('khata')}</h1><p>{t('khataHead')}</p></div>}
           <CompanyGate key={account.session?.user.id ?? 'guest'} userId={account.session?.user.id} language={language} workspace={<div className="kh-workspace"><BookServicesContext.Provider value={liveBookServices}><DemoWorkspace onProductionChange={setProduction} userId={account.session?.user.id} language={language} moduleControl={<ModulePicker language={language} active="khata" onSelect={navigate}/>}/></BookServicesContext.Provider></div>}>
           <div className="metrics">
@@ -257,7 +258,6 @@ function App() {
           <div className="actions-row">{(['sale', 'purchase', 'receipt', 'payment'] as const).map((key) => <button type="button" className="action-chip" disabled key={key}>{t(key)}</button>)}</div>
           {tutorial && <p className="screen-foot">{t('noFake')}</p>}
           </CompanyGate>
-          {signedIn && <BooksBottomNav language={language} page={booksPage} onOpen={openBooks}/>}
         </section>)}
     </main></TutorialContext.Provider></BooksNavigation.Provider>);
 }

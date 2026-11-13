@@ -1,4 +1,6 @@
-import React, { useRef, useState } from 'react'
+import { Eye, EyeOff } from 'lucide-react'
+import './account-password.css'
+import React, { useId, useRef, useState } from 'react'
 import { useTutorial } from '../tutorial'
 import type { Language } from '../i18n'
 import { authClient } from './client'
@@ -17,10 +19,12 @@ interface Props {
 
 export function AccountForm({ language, recovery = false, recoveryLinkFailed = false, onRecovered }: Readonly<Props>) {
   const tutorial = useTutorial()
+  const passwordId = useId()
   const [mode, setMode] = useState<Mode>(() => {
     if (recovery) return 'reset'
     return recoveryLinkFailed ? 'recover' : 'login'
   })
+  const [passwordVisible, setPasswordVisible] = useState(false)
   const [busy, setBusy] = useState(false)
   const inFlight = useRef(false)
   const [message, setMessage] = useState(() => recoveryLinkFailed ? inLanguage(language,
@@ -74,13 +78,18 @@ export function AccountForm({ language, recovery = false, recoveryLinkFailed = f
     } finally {
       const field = form.elements.namedItem('password')
       if (field instanceof HTMLInputElement) field.value = ''
+      setPasswordVisible(false)
       inFlight.current = false; setBusy(false)
     }
   }
 
+  const PasswordIcon = passwordVisible ? EyeOff : Eye
+  const passwordToggleLabel = passwordVisible
+    ? inLanguage(language, 'পাসওয়ার্ড ঢাকুন', 'पासवर्ड छिपाएँ', 'Hide password')
+    : inLanguage(language, 'পাসওয়ার্ড দেখুন', 'पासवर्ड दिखाएँ', 'Show password')
   const identifierPlaceholder = { bn: 'ইমেইল বা মোবাইল নম্বর', hi: 'ईमेल या मोबाइल नंबर', en: 'Email or mobile number' }[language]
   const title = { login: t.login, signup: t.signup, recover: t.recover, reset: t.save }[mode]
-  function change(next: Mode) { setMode(next); setMessage('') }
+  function change(next: Mode) { setMode(next); setMessage(''); setPasswordVisible(false) }
 
   return <div className="form">
     <form key={mode} onSubmit={submit} aria-label={title}>
@@ -92,7 +101,15 @@ export function AccountForm({ language, recovery = false, recoveryLinkFailed = f
           <label className="field">{t.phone}<input className="input" name="phone" type="tel" autoComplete="tel" minLength={6} maxLength={25} pattern={String.raw`\+?[0-9][0-9 \(\)\-]{4,23}[0-9]`} /></label>
         </>}
         {mode !== 'reset' && <label className="field">{t.email}<input className="input" name="email" type={mode === 'recover' ? 'email' : 'text'} autoComplete="username" placeholder={identifierPlaceholder} required maxLength={254} /></label>}
-        {mode !== 'recover' && <label className="field">{mode === 'reset' ? t.newPassword : t.password}<input className="input" name="password" type="password" autoComplete={mode === 'login' ? 'current-password' : 'new-password'} required minLength={mode === 'login' ? 1 : 8} maxLength={128} /></label>}
+        {mode !== 'recover' && <div className="field">
+          <label htmlFor={passwordId}>{mode === 'reset' ? t.newPassword : t.password}</label>
+          <div className="account-password">
+            <input id={passwordId} className="input" name="password" type={passwordVisible ? 'text' : 'password'} autoComplete={mode === 'login' ? 'current-password' : 'new-password'} required minLength={mode === 'login' ? 1 : 8} maxLength={128} />
+            <button type="button" aria-controls={passwordId} aria-label={passwordToggleLabel} onClick={() => setPasswordVisible(visible => !visible)}>
+              <PasswordIcon size={20} aria-hidden="true" />
+            </button>
+          </div>
+        </div>}
         <button className="gradient" type="submit">{busy ? t.waiting : title}</button>
       </fieldset>
     </form>

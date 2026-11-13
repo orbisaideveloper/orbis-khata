@@ -106,6 +106,43 @@
   }
 
   .kh-app .kh-bottom-nav {
-    width: calc(var(--kh-desktop-width) - 2 * var(--kh-desktop-frame));
+    position: sticky;
+    top: 66px;
+    width: 100%;
+    grid-template-columns: repeat(4, minmax(0, 12rem));
+    padding: 6px 16px;
+  }
+
+  .kh-app .kh-bottom-nav button {
+    flex-direction: row;
+    justify-content: center;
+    min-height: 40px;
+    font-size: 14px;
+  }
+
+  .kh-app .kh-workspace {
+    padding: 20px !important;
+  }
+
+  .kh-app .kh-dashboard .kh-summary-grid {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+
+  .kh-app .kh-dashboard .kh-module-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .kh-app .kh-report-shortcut {
+    text-align: start;
+  }
+}
+
+@media screen and (pointer: coarse) {
+  .kh-app:has(input:focus-visible, textarea:focus-visible) .kh-bottom-nav {
+    visibility: hidden;
+  }
+
+  .kh-app :is(input, textarea) {
+    scroll-margin-block: 76px 16px;
   }
 }

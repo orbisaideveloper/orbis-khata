@@ -156,6 +156,15 @@ public class OrbisKhataOfflineBridge extends Plugin {
     }
 
     @PluginMethod
+    public void deviceLockStatus(PluginCall call) {
+        KeyguardManager manager = (KeyguardManager) getContext().getSystemService(Context.KEYGUARD_SERVICE);
+        if (manager == null) { call.reject("OFFLINE_DEVICE_PROMPT_UNAVAILABLE"); return; }
+        JSObject result = new JSObject();
+        result.put("secure", manager.isDeviceSecure());
+        call.resolve(result);
+    }
+
+    @PluginMethod
     public void unlock(PluginCall call) {
         try {
             KeyguardManager manager = (KeyguardManager) getContext().getSystemService(Context.KEYGUARD_SERVICE);

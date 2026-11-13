@@ -120,6 +120,11 @@ export function useAccount() {
           if(error instanceof Error && error.message==='ANDROID_LOCAL_IDENTITY_EXPIRED_OR_INVALID'){
             startOnline();return
           }
+          if(error instanceof Error && error.message==='ANDROID_DEVICE_LOCK_ONLINE_SIGNIN_REQUIRED'){
+            observeOnline()
+            update(null)
+            return
+          }
           // Keep an explicit sign-in route available, but NEVER clear local records.
           observeOnline()
           failed('OFFLINE_RESTORE',error)

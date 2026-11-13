@@ -38,7 +38,7 @@ describe('central-only Khata customer account', () => {
   })
   it('fails closed on rejected login and does not use product Auth recovery', async () => {
     const { account } = setup([new Response('{}', { status: 401 })])
-    expect((await account.auth.signInWithPassword({ email: 'a@example.test', password: 'bad' })).error).not.toBeNull()
+    expect((await account.auth.signInWithPassword({ email: 'a@example.test', password: 'bad' })).error?.code).toBe('invalid_credentials')
     expect((await account.auth.resetPasswordForEmail('a@example.test', { redirectTo: 'https://khata.example.test' })).error?.code).toBe('CENTRAL_ACCOUNT_UNAVAILABLE')
   })
 })

@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 const fixture = vi.hoisted(() => ({
   rows: new Map<string, Uint8Array>(),
   credential: vi.fn(),
+  deviceLockStatus: vi.fn(),
   request: vi.fn(),
   masters: vi.fn(),
   restore: vi.fn(),
@@ -20,6 +21,7 @@ vi.mock('@capacitor-community/sqlite', () => ({
 }))
 vi.mock('@capacitor/core', () => ({
   registerPlugin: () => ({
+    deviceLockStatus: fixture.deviceLockStatus,
     status: async () => ({ nativePlatform: 'android', hardwareBacked: true, secretPresent: true }),
   }),
 }))
@@ -78,6 +80,7 @@ beforeEach(() => {
   localStorage.clear()
   fixture.rows.clear()
   fixture.state = { companies: [] }
+  fixture.deviceLockStatus.mockResolvedValue({ secure: true })
   fixture.credential.mockResolvedValue(true)
   fixture.journal.mockResolvedValue({ changes: 1 })
 })
@@ -149,4 +152,14 @@ describe('Android local accounting runtime', () => {
     await expect(restarted.restoreNativeOfflineIdentity()).rejects.toThrow('ANDROID_LOCAL_STATE_CHUNK_MISSING')
     expect(restarted.nativeLocalActor()).toBeNull()
   })
+})
+
+it('enrolls without a screen lock after central sign-in and keeps existing encrypted data behind login', async () => {
+  fixture.deviceLockStatus.mockResolvedValue({ secure: false })
+  const runtime = await import('./runtime')
+  await runtime.enrollVerifiedCentralIdentity(actor, displayId)
+  await expect(runtime.restoreNativeOfflineIdentity()).rejects.toThrow('ANDROID_DEVICE_LOCK_ONLINE_SIGNIN_REQUIRED')
+  expect(fixture.credential).not.toHaveBeenCalled()
+  await runtime.enrollVerifiedCentralIdentity(actor, displayId)
+  expect(runtime.nativeLocalActor()).toBe(actor)
 })

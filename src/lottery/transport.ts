@@ -1,5 +1,11 @@
 import {requestKhata} from '../accounting/api';
 import {authClient} from '../auth/client';
+import {androidLocalFirst} from '../native-local/route';
+import {isLotteryRead} from './protocol';
+async function lotteryOwner() {
+ if (androidLocalFirst()) return (await import('../native-local/runtime')).nativeLocalActor();
+ return (await authClient?.auth.getSession())?.data.session?.user.id;
+}
 type Route={method:string;payload:Record<string,unknown>};
 function resolveRoute(path:string,init:RequestInit):Route{
  const url=new URL(path,'https://lottery.internal'),suffix=url.pathname.split('/lottery')[1]??'';
@@ -31,16 +37,15 @@ function dynamicRoute(path:string,verb:string,payload:Record<string,unknown>):Ro
  }
  throw new Error('LOTTERY_ROUTE_NOT_SUPPORTED');
 }
-const readMethods=new Set(['listOrganizations','getWorkspace','previewSale','getVerifiedSummary','analyzeVerifiedAccounting','previewAccountingVoid']);
 const responseKey:Record<string,string>={listOrganizations:'organizations',getWorkspace:'workspace',createOrganization:'organization',saveDailyStockistEntry:'entry',previewAccountingVoid:'preview',voidAccountingTransaction:'deletion',correctAccountingTransaction:'correction'};
 function lotteryResponse(method:string,result:unknown){
  if(result&&typeof result==='object'&&'lotteryError' in result)return Response.json({error:{code:result.lotteryError,...('currentVersion' in result?{currentVersion:result.currentVersion}:{})}},{status:422});
  const wrapped=responseKey[method];return Response.json(wrapped?{[wrapped]:result}:result??{});
 }
 export async function lotteryFetch(path:string,init:RequestInit={}):Promise<Response>{
- const route=resolveRoute(path,init);const session=await authClient?.auth.getSession();const owner=session?.data.session?.user.id;
+ const route=resolveRoute(path,init);const owner=await lotteryOwner();
  if(!owner)return Response.json({error:{code:'LOTTERY_LOGIN_REQUIRED'}},{status:401});
- const read=readMethods.has(route.method);const digest=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(JSON.stringify(route.payload)));const signatureKey=Array.from(new Uint8Array(digest),v=>v.toString(16).padStart(2,'0')).join('');const key='orbis.lottery.pending.v1:'+owner+':'+route.method+':'+signatureKey;
+ const read=isLotteryRead(route.method);const digest=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(JSON.stringify(route.payload)));const signatureKey=Array.from(new Uint8Array(digest),v=>v.toString(16).padStart(2,'0')).join('');const key='orbis.lottery.pending.v1:'+owner+':'+route.method+':'+signatureKey;
  let operationId:string|undefined;
  if(!read){const signature=JSON.stringify(route.payload);let pending;try{pending=JSON.parse(sessionStorage.getItem(key)??'null');}catch{/* Use a fresh operation if storage is unavailable. */}operationId=pending?.signature===signature?pending.id:crypto.randomUUID();sessionStorage.setItem(key,JSON.stringify({id:operationId,signature}));}
  try{
@@ -49,7 +54,9 @@ export async function lotteryFetch(path:string,init:RequestInit={}):Promise<Resp
   if(response.ok&&!read)sessionStorage.removeItem(key);
   return response;
  }catch(error){
-  const reason=error&&typeof error==='object'&&'reason' in error?String(error.reason):'LOTTERY_UNAVAILABLE';
+  let reason='LOTTERY_UNAVAILABLE';
+  if(error&&typeof error==='object'&&'reason' in error) reason=String(error.reason);
+  else if(androidLocalFirst() && error instanceof Error && /^[A-Z][A-Z0-9_]{2,79}$/u.test(error.message)) reason=error.message;
   return Response.json({error:{code:reason}},{status:422});
  }
 }

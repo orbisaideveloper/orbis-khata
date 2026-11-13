@@ -3,7 +3,7 @@
 import { paymentMethodBalance, visiblePaymentRows, nonnegativePwt } from "./accounting-money-balances.js";
 import { businessDateKey, businessDayRange } from "./accounting-business-date.js";
 
-import { createHash, randomUUID } from "node:crypto";
+import { sha256Hex, randomUUID } from "./lottery-crypto.js";
 
 const CORRECTION_ENTITY_TYPES = new Set([
   "STOCKIST_ENTRY",
@@ -84,9 +84,7 @@ function canonical(value) {
 }
 
 function requestHash(value) {
-  return createHash("sha256")
-    .update(JSON.stringify(canonical(value)))
-    .digest("hex");
+  return sha256Hex(JSON.stringify(canonical(value)));
 }
 
 function serialize(value) {
@@ -617,7 +615,7 @@ function createAccountingCorrectionService({ prisma }) {
       typeof input?.reason === "string" && input.reason.trim()
         ? input.reason.trim().slice(0, 500)
         : null;
-    const hash = requestHash({
+    const hash = await requestHash({
       organizationId,
       type,
       entityId,

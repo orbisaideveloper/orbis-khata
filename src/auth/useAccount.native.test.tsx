@@ -64,3 +64,14 @@ describe('Android offline auth recovery screen state',()=>{
     expect(hook.result.current.session).toBeNull()
   })
 })
+
+it('requires a fresh central sign-in on a phone without screen lock', async () => {
+  mocks.restore.mockRejectedValueOnce(new Error('ANDROID_DEVICE_LOCK_ONLINE_SIGNIN_REQUIRED'))
+  const hook = renderHook(useAccount)
+  await waitFor(() => expect(hook.result.current.loading).toBe(false))
+  expect(hook.result.current.session).toBeNull()
+  expect(mocks.getSession).not.toHaveBeenCalled()
+  act(() => mocks.listeners[0]('SIGNED_IN', session))
+  await waitFor(() => expect(hook.result.current.session).toEqual(session))
+  expect(mocks.enroll).toHaveBeenCalledOnce()
+})

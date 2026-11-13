@@ -1,6 +1,9 @@
 const reads=new Set(['listOrganizations','getWorkspace','previewSale','getVerifiedSummary','analyzeVerifiedAccounting','previewAccountingVoid']);
 const writes=new Set(['createOrganization','createParty','updatePartyProfile','updateOrganizationTdsRate','updateOrganizationPreferences','updateUserLedgerStorage','createPeriod','createFinancialYearPeriod','recordStockMovement','saveDailyStockistEntry','clearDailyEntries','recordSale','createDailySellerDraft','updateDailySellerDraft','deleteDailySellerDraft','postDailySellerDraft','correctPostedSale','correctAccountingTransaction','voidAccountingTransaction','recordPayment','recordSettlement','createExpenseCategory','updateExpenseCategory','deleteExpenseCategory','createExpenseProfile','updateExpenseProfile','recordExpenseBill','recordExpensePayment','recordCustomerBill']);
+export const isLotteryRead = (method:string) => reads.has(method);
 export type LotteryInput={method:string;payload:Record<string,unknown>;operationId?:string};
-export function lotteryInput(value:Record<string,unknown>):boolean{
+export function lotteryInput(input:unknown):input is LotteryInput{
+ if (!input || typeof input !== 'object' || Array.isArray(input)) return false;
+ const value = input as Record<string,unknown>;
  return Object.keys(value).every(k=>['method','payload','operationId'].includes(k))&&typeof value.method==='string'&&(reads.has(value.method)||writes.has(value.method))&&Boolean(value.payload&&typeof value.payload==='object'&&!Array.isArray(value.payload))&&(reads.has(value.method)||typeof value.operationId==='string'&&/^[0-9a-f-]{36}$/iu.test(value.operationId));
 }

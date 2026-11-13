@@ -1,3 +1,4 @@
+import { isLotteryRead, type LotteryInput } from '../lottery/protocol';
 import { emptyProfiles, profileCommand, runProfiles, type ProfileState } from '../expense-profiles/model';
 import {productionDocument,validProduction,type ProductionCommand} from '../production/model';
 import {financialYear} from '../accounting/numbering';
@@ -822,4 +823,24 @@ export function restoreDeviceLocalSnapshot(candidate:unknown):void {
   entries=next.entries;expenses=next.expenses;expenseBillLines=next.expenseBillLines;documents=next.documents
   items=next.items;warehouses=next.warehouses;inventoryReversals.clear()
   for(const [id,day] of next.reversals)inventoryReversals.set(id,day)
+}
+
+/** The Android runtime serializes calls and saves this projection with its receipt. */
+export async function deviceLottery(input: LotteryInput, actor: string): Promise<unknown> {
+  const { runLottery } = await import('../lottery/service');
+  const stateKey = 'android-lottery:state';
+  const state = workspaceEvents[stateKey]?.result;
+  if (isLotteryRead(input.method)) return (await runLottery(state, input, actor)).result;
+
+  const receiptKey = 'android-lottery:receipt:' + input.operationId;
+  const payload = JSON.stringify(input);
+  const receipt = workspaceEvents[receiptKey];
+  if (receipt) {
+    if (receipt.payload !== payload) throw Object.assign(new Error('IDEMPOTENCY_CONFLICT'), { reason: 'IDEMPOTENCY_CONFLICT' });
+    return structuredClone(receipt.result);
+  }
+  const next = await runLottery(state, input, actor);
+  workspaceEvents[stateKey] = { payload: '', result: next.state };
+  workspaceEvents[receiptKey] = { payload, result: structuredClone(next.result) };
+  return next.result;
 }

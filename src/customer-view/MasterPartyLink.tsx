@@ -1,3 +1,4 @@
+import { androidLocalFirst } from '../native-local/route';
 import type { Language } from '../i18n';
 import { shareCopy, type ShareText } from './copy';
 import type { MasterLink } from './useMasterPartyLink';
@@ -6,6 +7,7 @@ export function MasterPartyLink({ link, language }: Readonly<{
     link: MasterLink;
     language: Language;
 }>) {
+    if (androidLocalFirst()) return null;
     const t = (key: ShareText) => shareCopy(language, key);
     return <fieldset className="master-party-link"><legend>{t('masterLink')}</legend>
  <p>{t('masterHint')}</p>

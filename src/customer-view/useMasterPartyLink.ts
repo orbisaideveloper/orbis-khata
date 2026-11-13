@@ -1,3 +1,4 @@
+import { androidLocalFirst } from '../native-local/route';
 import { useRef, useState, useCallback } from 'react';
 import { requestKhata } from '../accounting/api';
 import { displayIdentity, type Share } from './contract';
@@ -20,7 +21,7 @@ export function useMasterPartyLink(organization: string) {
         }
     }, []);
     const select = useCallback(async (id: string) => {
-        if (!organization) {
+        if (androidLocalFirst() || !organization) {
             return;
         }
         const version = ++generation.current;

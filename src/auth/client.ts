@@ -1,5 +1,5 @@
 import type { AuthChangeEvent, Session, User } from '@supabase/supabase-js'
-import { createCustomerSessionClient, type CentralSession } from './customer-session'
+import { createCustomerSessionClient, CustomerSessionError, type CentralSession } from './customer-session'
 import { takeRecoveryLink } from './recovery-link'
 
 class CentralAccountError extends Error { readonly code = 'CENTRAL_ACCOUNT_UNAVAILABLE' }
@@ -64,7 +64,12 @@ export function createCentralAccount(options: Parameters<typeof createCustomerSe
       if (expected !== revision) return failure()
       publish('SIGNED_IN', next)
       return { data: { session: next, user: next?.user ?? null }, error: null }
-    } catch { return failure() }
+    } catch (error) {
+      if (mode === 'login' && error instanceof CustomerSessionError && error.code === 'CUSTOMER_LOGIN_REQUIRED') {
+        return { data: { session: null, user: null }, error: new CustomerSessionError('invalid_credentials') }
+      }
+      return failure()
+    }
   }
   return {
     central,
