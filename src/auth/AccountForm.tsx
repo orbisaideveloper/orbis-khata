@@ -11,15 +11,19 @@ type Mode = 'login' | 'signup' | 'recover' | 'reset'
 interface Props {
   readonly language: Language;
   readonly recovery?: boolean;
+  readonly recoveryLinkFailed?: boolean;
   readonly onRecovered: () => void;
 }
 
-export function AccountForm({ language, recovery = false, onRecovered }: Readonly<Props>) {
+export function AccountForm({ language, recovery = false, recoveryLinkFailed = false, onRecovered }: Readonly<Props>) {
   const tutorial = useTutorial()
-  const [mode, setMode] = useState<Mode>(recovery ? 'reset' : 'login')
+  const [mode, setMode] = useState<Mode>(recovery ? 'reset' : recoveryLinkFailed ? 'recover' : 'login')
   const [busy, setBusy] = useState(false)
   const inFlight = useRef(false)
-  const [message, setMessage] = useState('')
+  const [message, setMessage] = useState(() => recoveryLinkFailed ? inLanguage(language,
+    'এই পাসওয়ার্ড রিসেট লিংকটি ব্যবহার করা যায়নি। নিচে ইমেইল দিয়ে নতুন লিংক চান।',
+    'यह पासवर्ड रीसेट लिंक इस्तेमाल नहीं हो सका। नीचे ईमेल डालकर नया लिंक माँगें।',
+    'This password reset link could not be used. Enter your email below to request a new link.') : '')
   const t = accountCopy[language]
 
   const getVal = (data: FormData, key: string) => {

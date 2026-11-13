@@ -91,3 +91,13 @@ it('ignores an already queued loading deadline after observation or disposal', a
   act(() => notify('SIGNED_IN', { user: { id: 'current' } })); act(() => deadline())
   expect(result.current.unavailable).toBe(false); unmount(); act(() => deadline())
 })
+
+it('offers recovery retry without disabling regular account access', async () => {
+  auth.getSession.mockResolvedValue({ data: { session: null }, error: { code: 'CENTRAL_RECOVERY_LINK_INVALID' } })
+  const { result } = renderHook(useAccount)
+  await waitFor(() => expect(result.current.recoveryLinkFailed).toBe(true))
+  expect(result.current.unavailable).toBe(false)
+  expect(result.current.session).toBeNull()
+  act(() => notify('SIGNED_IN', { user: { id: 'current' } }))
+  expect(result.current.recoveryLinkFailed).toBe(false)
+})

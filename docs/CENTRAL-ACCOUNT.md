@@ -33,5 +33,29 @@ No gateway deployment or product schema application is included in the installer
 
 Remaining release checks: central signup providers/auto-confirmation, API rate limits
 for service-to-service verification, full affected-code coverage, product SQL/RLS tests,
-real signup/login/reload/refresh/logout and desktop/mobile E2E. Password recovery must
-receive a central endpoint before its existing UI is considered working.
+real signup/login/reload/refresh/logout and desktop/mobile E2E.
+
+## Customer password reset
+
+Khata Android opens the HTTPS Khata site to complete password reset, then the
+customer can sign in again in Android. The Admin customer API requests the reset
+from central Supabase Auth. Configure the following on the central Auth project
+`aqcwhqdzniruvoqwfsij`.
+
+1. Enable custom SMTP with a verified sender that can deliver to external
+   recipients. Disable click tracking for authentication links.
+2. Keep Site URL `https://orbis-khata.onrender.com/` and allow
+   `https://orbis-khata.onrender.com/?orbis_recovery=1` as a redirect.
+3. Use a dedicated Reset password template with the following link. Admin adds
+   the recovery marker to the approved redirect. The fragment keeps the token
+   out of the initial web request, and the client removes it before verification.
+
+   ```html
+   <h2>Reset your ORBIS password</h2>
+   <p><a href="{{ .RedirectTo }}#token_hash={{ .TokenHash }}&amp;type=recovery">Set a new password</a></p>
+   <p>If you did not request a password reset, you can ignore this email.</p>
+   ```
+
+After deploying Khata, request a fresh link with a dedicated test account outside
+the Supabase team. Check delivery, the new-password form, rejection of the used
+link, sign-in on web and Android, and access to the test account's existing company.

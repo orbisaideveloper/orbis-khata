@@ -3,14 +3,16 @@ import { createCustomerSessionClient, type CentralSession } from './customer-ses
 import { takeRecoveryLink } from './recovery-link'
 
 class CentralAccountError extends Error { readonly code = 'CENTRAL_ACCOUNT_UNAVAILABLE' }
+class RecoveryLinkError extends Error { readonly code = 'CENTRAL_RECOVERY_LINK_INVALID' }
 
 type Listener = (event: AuthChangeEvent, session: Session | null) => void
-export function createCentralAccount(options: Parameters<typeof createCustomerSessionClient>[0] & { recoveryHash?: string | null }) {
+export function createCentralAccount(options: Parameters<typeof createCustomerSessionClient>[0] & { recoveryHash?: string | null; invalidRecoveryLink?: boolean }) {
   const central = createCustomerSessionClient(options)
   const listeners = new Set<Listener>()
   let current: Session | null = null
   let revision = 0
   let recoveryHash = options.recoveryHash ?? null
+  let invalidRecoveryLink = options.invalidRecoveryLink ?? false
   let recoveryOperation: Promise<Session | null> | null = null
   let recovering = false
   const wrap = (value: CentralSession | null): Session | null => {
@@ -28,6 +30,9 @@ export function createCentralAccount(options: Parameters<typeof createCustomerSe
   }
   const restore = async () => {
     const expected = revision
+    if (invalidRecoveryLink) {
+      throw new RecoveryLinkError()
+    }
     if (recoveryHash) {
       if (!recoveryOperation) {
         const hash = recoveryHash
@@ -36,6 +41,10 @@ export function createCentralAccount(options: Parameters<typeof createCustomerSe
           recovering = true
           publish('PASSWORD_RECOVERY', wrap(value))
           return current
+        }).catch(error => {
+          if (expected !== revision) throw error
+          invalidRecoveryLink = true
+          throw new RecoveryLinkError()
         }).finally(() => { recoveryHash = null; recoveryOperation = null })
       }
       return recoveryOperation
@@ -49,7 +58,7 @@ export function createCentralAccount(options: Parameters<typeof createCustomerSe
   const failure = () => ({ data: { session: null, user: null }, error: new CentralAccountError('CENTRAL_ACCOUNT_UNAVAILABLE') })
   const login = async (mode: 'login' | 'signup', identifier: string, password: string, name?: string) => {
     const expected = ++revision
-    recovering = false; recoveryHash = null
+    recovering = false; recoveryHash = null; invalidRecoveryLink = false
     try {
       const next = wrap(await central.authenticate(mode, { identifier, password, ...(name ? { name } : {}) }))
       if (expected !== revision) return failure()
@@ -62,7 +71,9 @@ export function createCentralAccount(options: Parameters<typeof createCustomerSe
     auth: {
       async getSession() {
         try { return { data: { session: await restore() }, error: null } }
-        catch { return { data: { session: null }, error: new CentralAccountError('CENTRAL_ACCOUNT_UNAVAILABLE') } }
+        catch (error) {
+          return { data: { session: null }, error: error instanceof RecoveryLinkError ? error : new CentralAccountError('CENTRAL_ACCOUNT_UNAVAILABLE') }
+        }
       },
       async getUser() {
         const session = await this.getSession()
@@ -77,7 +88,7 @@ export function createCentralAccount(options: Parameters<typeof createCustomerSe
         return login('signup', input.email, input.password, [input.options.data.first_name, input.options.data.last_name].filter(Boolean).join(' '))
       },
       async signOut(_options: { scope: 'local' }) {
-        ++revision; recovering = false; recoveryHash = null
+        ++revision; recovering = false; recoveryHash = null; invalidRecoveryLink = false
         // Remove visible/private workspace access before waiting for the network.
         publish('SIGNED_OUT', null)
         try { await central.logout(); return { error: null } }
@@ -98,8 +109,15 @@ function configured() {
   const baseUrl = import.meta.env.VITE_ORBIS_CUSTOMER_API_URL as string | undefined
   if (!baseUrl) return null
   try {
-    const recoveryHash = takeRecoveryLink(window.location.href, clean => window.history.replaceState(null, '', clean))
-    return createCentralAccount({ baseUrl, storage: window.localStorage, recoveryHash })
+    const storage = window.localStorage
+    let recoveryHash: string | null = null
+    let invalidRecoveryLink = false
+    try {
+      recoveryHash = takeRecoveryLink(window.location.href, clean => window.history.replaceState(null, '', clean))
+    } catch {
+      invalidRecoveryLink = true
+    }
+    return createCentralAccount({ baseUrl, storage, recoveryHash, invalidRecoveryLink })
   }
   catch { return null }
 }

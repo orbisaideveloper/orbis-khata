@@ -67,9 +67,10 @@ describe('central password recovery', () => {
     expect(fetchImpl).not.toHaveBeenCalled()
   })
   it('fails closed on expired recovery links', async () => {
-    const { account, saved } = setup([new Response('{}', { status: 401 })], hash)
-    expect((await account.auth.getSession()).error).not.toBeNull()
+    const { account, saved } = setup([new Response('{}', { status: 401 }), session], hash)
+    expect((await account.auth.getSession()).error?.code).toBe('CENTRAL_RECOVERY_LINK_INVALID')
     expect(saved.size).toBe(0)
+    expect((await account.auth.signInWithPassword({ email: 'a@b.co', password: 'new password' })).error).toBeNull()
   })
   it('rejects unconfirmed password update responses', async () => {
     const { options } = setup([session, { version: 'orbis.customer.v1', customer }, {}])

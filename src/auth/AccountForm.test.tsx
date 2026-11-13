@@ -65,3 +65,14 @@ describe('account flows', () => {
     await waitFor(() => expect(done).toHaveBeenCalledOnce())
   })
 })
+
+it('lets customers request a fresh recovery link or return to login', async () => {
+  auth.resetPasswordForEmail.mockResolvedValue({ error: null })
+  render(<AccountForm language="en" recoveryLinkFailed onRecovered={() => {}} />)
+  expect(screen.getByRole('status')).toHaveTextContent('This password reset link could not be used')
+  fill('Email', 'customer@example.com')
+  fireEvent.click(screen.getByRole('button', { name: 'Send recovery link' }))
+  await waitFor(() => expect(auth.resetPasswordForEmail).toHaveBeenCalledWith('customer@example.com', expect.anything()))
+  fireEvent.click(screen.getByRole('button', { name: 'Log in' }))
+  expect(screen.getByLabelText('Password')).toBeEnabled()
+})

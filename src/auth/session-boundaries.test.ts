@@ -65,9 +65,18 @@ it('initializes configured browser auth and strips recovery credentials synchron
   const module = await import('./client')
   expect(module.authClient).not.toBeNull(); expect(location.hash).toBe(''); expect(location.search).toBe('')
 })
-it('fails closed for invalid browser configuration or recovery links', async () => {
-  for (const [base, path] of [['http://admin.example', '/'], ['https://admin.example', '/?orbis_recovery=1#token_hash=bad']]) {
-    vi.resetModules(); vi.stubEnv('VITE_ORBIS_CUSTOMER_API_URL', base); history.replaceState(null, '', path)
-    expect((await import('./client')).authClient).toBeNull()
-  }
+it('fails closed for an invalid central API origin', async () => {
+  vi.resetModules()
+  vi.stubEnv('VITE_ORBIS_CUSTOMER_API_URL', 'http://admin.example')
+  expect((await import('./client')).authClient).toBeNull()
+})
+it('keeps the browser auth client available after a default Supabase recovery callback', async () => {
+  vi.resetModules()
+  vi.stubEnv('VITE_ORBIS_CUSTOMER_API_URL', 'https://admin.example')
+  history.replaceState(null, '', '/?orbis_recovery=1#access_token=private&refresh_token=private&type=recovery')
+  const { authClient } = await import('./client')
+  expect(authClient).not.toBeNull()
+  expect(location.hash).toBe('')
+  expect(location.search).toBe('')
+  expect((await authClient?.auth.getSession())?.error?.code).toBe('CENTRAL_RECOVERY_LINK_INVALID')
 })

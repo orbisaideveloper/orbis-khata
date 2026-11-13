@@ -16,6 +16,7 @@ export function useAccount() {
   const [session,setSession]=useState<Session|null>(null)
   const [loading,setLoading]=useState(Boolean(authClient))
   const [recovery,setRecovery]=useState(false)
+  const [recoveryLinkFailed,setRecoveryLinkFailed]=useState(false)
   const [unavailable,setUnavailable]=useState(false)
   const [diagnosticCode,setDiagnosticCode]=useState<string|null>(null)
   const [manualLogin,setManualLogin]=useState(false)
@@ -32,7 +33,7 @@ export function useAccount() {
     const update=(next:Session|null,event?:string)=>{
       if(!alive)return
       setSession(next);setLoading(false);setUnavailable(false)
-      setDiagnosticCode(null);setManualLogin(false)
+      setDiagnosticCode(null);setManualLogin(false);setRecoveryLinkFailed(false)
       if(event==='PASSWORD_RECOVERY')setRecovery(true)
       if(event==='SIGNED_OUT')setRecovery(false)
     }
@@ -77,6 +78,11 @@ export function useAccount() {
       void client.auth.getSession().then(async({data:initial,error})=>{
         if(!alive||observed)return
         stopTimer()
+        if(error?.code==='CENTRAL_RECOVERY_LINK_INVALID'){
+          update(null)
+          setRecoveryLinkFailed(true)
+          return
+        }
         if(error){failed('CENTRAL_RESTORE',error);return}
         if(initial.session&&androidLocalFirst()){
           try{await enroll(initial.session)}
@@ -127,5 +133,5 @@ export function useAccount() {
     setSession(null);setLoading(false);setUnavailable(false)
     setManualLogin(true)
   }
-  return {session,loading,recovery,setRecovery,unavailable,diagnosticCode,manualLogin,tryOnlineLogin}
+  return {session,loading,recovery,setRecovery,recoveryLinkFailed,unavailable,diagnosticCode,manualLogin,tryOnlineLogin}
 }

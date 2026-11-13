@@ -209,7 +209,7 @@ function App() {
       {view === 'login' && (<section className="scene light-scene active" aria-label={t('loginTag')}>
           {renderBar('welcome', 'exit', 'loginTag')}
           <div className="login-title"><div className="login-mark">O</div><h1>{t('back')}</h1>{tutorial && <p className="subtitle">{authClient ? accountCopy[language].persistent : t('authInfo')}</p>}</div>
-          {authClient ? <AccountForm language={language} onRecovered={() => account.setRecovery(false)}/> : (<div className="form">
+          {authClient ? <AccountForm language={language} recoveryLinkFailed={account.recoveryLinkFailed} onRecovered={() => account.setRecovery(false)}/> : (<div className="form">
             <label className="field"><span>{t('email')}</span><span className="input"><span aria-hidden="true">✉</span><input autoComplete="off" disabled placeholder={t('pending')}/></span></label>
             <label className="field"><span>{t('pass')}</span><span className="input"><span aria-hidden="true">⌑</span><input type="password" autoComplete="off" disabled placeholder={t('noPass')}/></span></label>
             <div className="options"><span>{t('remember')}</span><span>{t('recover')}</span></div>
