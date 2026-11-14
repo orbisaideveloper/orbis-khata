@@ -16,13 +16,13 @@ import { openVerifiedAndroidSqlcipher } from '../local-db/native-cipher-gate'
 import { createLocalSqliteRepository, ensureLocalSchema, type SqlitePort } from '../local-db/sqlite-repository'
 import { createAndroidHardwareRecordCodec } from '../offline-integration/android-hardware-codec'
 import { isLotteryRead, lotteryInput } from '../lottery/protocol'
-import { encryptFinancialBackup } from '../sync/financial-backup'
+import { encryptFinancialBackup, inspectFinancialBackup } from '../sync/financial-backup'
 import { queueNew } from '../sync/outbox-state'
 import { failClosedIfMissingSnapshot } from './snapshot-policy'
 import {
   deviceLottery, demoRequest, demoMasters, demoPreviousBalance, saveDemoParty, saveDemoItem,
   deleteDemoParty, deleteDemoItem, saveDemoExpenseBill,
-  readDeviceLocalSnapshot, restoreDeviceLocalSnapshot, emptyDeviceLocalSnapshot,
+  readDeviceLocalSnapshot, restoreDeviceLocalSnapshot, emptyDeviceLocalSnapshot, validateDeviceLocalSnapshot,
   type DeviceLocalSnapshot,
 } from '../demo/store'
 import type { DemoParty, DemoItem } from '../demo/master-model'
@@ -238,6 +238,31 @@ export function exportNativeFinancialBackup(recoveryKey: Uint8Array<ArrayBuffer>
     const archive = await encryptFinancialBackup(actor, state, recoveryKey)
     if (assertActive().generation !== generation) throw new Error('ANDROID_LOCAL_ACTOR_CHANGED')
     return archive
+  })
+}
+
+/** Check the archive without changing any local records. */
+export async function previewNativeFinancialBackup(archive: Uint8Array<ArrayBuffer>, actor: string, key: Uint8Array<ArrayBuffer>) {
+  if (assertActive().actor !== actor) throw new Error('ANDROID_LOCAL_ACTOR_CHANGED')
+  const snapshot = validateDeviceLocalSnapshot(await inspectFinancialBackup(archive, actor, key))
+  return { companies: snapshot.companies.length, entries: snapshot.entries.length }
+}
+
+/** Restore only onto an empty local account. There is no merge or overwrite. */
+export function restoreNativeFinancialBackup(archive: Uint8Array<ArrayBuffer>, actor: string, key: Uint8Array<ArrayBuffer>): Promise<void> {
+  return ordered(async () => {
+    const scope = assertActive()
+    if (scope.actor !== actor) throw new Error('ANDROID_LOCAL_ACTOR_CHANGED')
+    const snapshot = validateDeviceLocalSnapshot(await inspectFinancialBackup(archive, actor, key))
+    const current = await readState(scope.db, actor)
+    const pending = await scope.db.get('SELECT operation_id FROM local_outbox WHERE actor_id=? LIMIT 1', [actor])
+    if (pending || JSON.stringify(current) !== JSON.stringify(emptyDeviceLocalSnapshot())) {
+      throw new Error('FINANCIAL_RESTORE_REQUIRES_EMPTY_ACCOUNT')
+    }
+    if (assertActive().generation !== scope.generation) throw new Error('ANDROID_LOCAL_ACTOR_CHANGED')
+    await persistState(scope.db, actor, snapshot)
+    if (assertActive().generation !== scope.generation) throw new Error('ANDROID_LOCAL_ACTOR_CHANGED')
+    restoreDeviceLocalSnapshot(snapshot)
   })
 }
 

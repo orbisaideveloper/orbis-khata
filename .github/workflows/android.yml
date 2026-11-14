@@ -78,9 +78,8 @@ jobs:
             python3 scripts/khata.py test android-device
             adb install -r android/app/build/outputs/apk/debug/app-debug.apk
             adb shell am start -W -n com.orbisaideveloper.khata/.MainActivity
-            adb shell uiautomator dump /sdcard/khata-window.xml
+            adb shell pidof com.orbisaideveloper.khata
             mkdir -p android/app/build/reports/native-preview
-            adb pull /sdcard/khata-window.xml android/app/build/reports/native-preview/
             adb exec-out screencap -p > android/app/build/reports/native-preview/welcome.png
       - name: Preserve Android diagnostics
         if: always()

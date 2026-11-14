@@ -13,6 +13,7 @@ public class MainActivity extends BridgeActivity {
     public void onCreate(Bundle savedInstanceState) {
         registerPlugin(OrbisKhataKeyBridge.class);
         registerPlugin(OrbisKhataOfflineBridge.class);
+        registerPlugin(OrbisDriveBridge.class);
         super.onCreate(savedInstanceState);
         // This listener owns system-bar and IME insets. Capacitor SystemBars inset handling is disabled.
         View content = findViewById(android.R.id.content);

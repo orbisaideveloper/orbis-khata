@@ -68,6 +68,7 @@ vi.mock('../demo/store', () => ({
     fixture.state = structuredClone(state)
   },
   emptyDeviceLocalSnapshot: () => ({ companies: [] }),
+  validateDeviceLocalSnapshot: (state: unknown) => state,
 }))
 
 const actor = '01234567-89ab-7def-8123-456789abcdef'
@@ -162,4 +163,20 @@ it('enrolls without a screen lock after central sign-in and keeps existing encry
   expect(fixture.credential).not.toHaveBeenCalled()
   await runtime.enrollVerifiedCentralIdentity(actor, displayId)
   expect(runtime.nativeLocalActor()).toBe(actor)
+})
+
+it('previews and restores an authenticated backup once without overwriting existing books', async () => {
+  const runtime = await import('./runtime')
+  const { encryptFinancialBackup, generateFinancialBackupKey } = await import('../sync/financial-backup')
+  const { emptyDeviceLocalSnapshot } = await vi.importActual<typeof import('../demo/store')>('../demo/store')
+  await runtime.enrollVerifiedCentralIdentity(actor, displayId)
+  const snapshot = emptyDeviceLocalSnapshot()
+  snapshot.companies.push({ id: 'demo-company', name: 'Demo' })
+  const key = generateFinancialBackupKey()
+  const archive = await encryptFinancialBackup(actor, snapshot, key)
+  await expect(runtime.previewNativeFinancialBackup(archive, actor, key)).resolves.toEqual({ companies: 1, entries: 0 })
+  expect(fixture.state.companies).toEqual([])
+  await runtime.restoreNativeFinancialBackup(archive, actor, key)
+  expect(fixture.state.companies).toEqual(snapshot.companies)
+  await expect(runtime.restoreNativeFinancialBackup(archive, actor, key)).rejects.toThrow('FINANCIAL_RESTORE_REQUIRES_EMPTY_ACCOUNT')
 })

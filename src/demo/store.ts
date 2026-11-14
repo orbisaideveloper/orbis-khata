@@ -807,7 +807,7 @@ export function emptyDeviceLocalSnapshot():DeviceLocalSnapshot {
   return {version:1,workspaceSettings:{},fiscalCounters:{},workspaceEvents:{},paymentLinks:{},retired:{},
     companies:[],parties:[],entries:[],expenses:[],expenseBillLines:{},documents:[],reversals:[],items:[],warehouses:[]}
 }
-export function restoreDeviceLocalSnapshot(candidate:unknown):void {
+export function validateDeviceLocalSnapshot(candidate:unknown):DeviceLocalSnapshot {
   if (!candidate || typeof candidate!=='object' || Array.isArray(candidate)) throw new Error('ANDROID_LOCAL_SNAPSHOT_INVALID')
   const value=candidate as DeviceLocalSnapshot
   const objects=[value.workspaceSettings,value.fiscalCounters,value.workspaceEvents,value.paymentLinks,value.retired,value.expenseBillLines]
@@ -817,7 +817,10 @@ export function restoreDeviceLocalSnapshot(candidate:unknown):void {
       value.reversals.some(pair=>!Array.isArray(pair) || pair.length!==2 || pair.some(str=>typeof str!=='string'))) {
     throw new Error('ANDROID_LOCAL_SNAPSHOT_INVALID')
   }
-  const next=structuredClone(value)
+  return value
+}
+export function restoreDeviceLocalSnapshot(candidate:unknown):void {
+  const next=structuredClone(validateDeviceLocalSnapshot(candidate))
   workspaceSettings=next.workspaceSettings;fiscalCounters=next.fiscalCounters;workspaceEvents=next.workspaceEvents
   paymentLinks=next.paymentLinks;retired=next.retired;companies=next.companies;parties=next.parties
   entries=next.entries;expenses=next.expenses;expenseBillLines=next.expenseBillLines;documents=next.documents
