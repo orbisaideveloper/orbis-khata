@@ -16,6 +16,7 @@ import { openVerifiedAndroidSqlcipher } from '../local-db/native-cipher-gate'
 import { createLocalSqliteRepository, ensureLocalSchema, type SqlitePort } from '../local-db/sqlite-repository'
 import { createAndroidHardwareRecordCodec } from '../offline-integration/android-hardware-codec'
 import { isLotteryRead, lotteryInput } from '../lottery/protocol'
+import { encryptFinancialBackup } from '../sync/financial-backup'
 import { queueNew } from '../sync/outbox-state'
 import { failClosedIfMissingSnapshot } from './snapshot-policy'
 import {
@@ -229,6 +230,17 @@ async function persistState(conn:SqlitePort,actor:string,state:DeviceLocalSnapsh
 async function hydrateForActor(actor:string,conn:SqlitePort,firstEnrollment=false):Promise<void> {
   restoreDeviceLocalSnapshot(await readState(conn,actor,firstEnrollment))
 }
+/** Export the committed ledger projection under the currently unlocked identity. */
+export function exportNativeFinancialBackup(recoveryKey: Uint8Array<ArrayBuffer>): Promise<Uint8Array<ArrayBuffer>> {
+  return ordered(async () => {
+    const { actor, db: connection, generation } = assertActive()
+    const state = await readState(connection, actor)
+    const archive = await encryptFinancialBackup(actor, state, recoveryKey)
+    if (assertActive().generation !== generation) throw new Error('ANDROID_LOCAL_ACTOR_CHANGED')
+    return archive
+  })
+}
+
 export function nativeLocalActor(): string | null { return active }
 export function nativeLocalDisplayId(): string | null { return identity?.displayId ?? null }
 /** Use this after successful central sign-in. No caller-supplied identity is trusted here. */
