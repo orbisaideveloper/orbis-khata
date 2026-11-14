@@ -13,7 +13,7 @@ test('installed shell reopens offline without caching identity or financial data
     return (await Promise.all(keys.map(async key => (await (await caches.open(key)).keys()).map(request => new URL(request.url).pathname)))).flat()
   })
   expect(cached).toContain('/')
-  expect(cached.every(path => path === '/' || path === '/index.html' || path.startsWith('/assets/') || ['/manifest.webmanifest', '/icon.svg'].includes(path))).toBe(true)
+  expect(cached.every(path => path === '/' || path === '/index.html' || path.startsWith('/assets/') || ['/manifest.webmanifest', '/orbis-icon.png'].includes(path))).toBe(true)
   await context.setOffline(true)
   await page.reload()
   await expect(page.locator('#root')).not.toBeEmpty()

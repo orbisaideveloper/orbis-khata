@@ -38,12 +38,12 @@ describe('owner-approved final UI: Welcome → Login → Workspace → Khata Boi
     expect(window.scrollTo).toHaveBeenCalledOnce()
   })
 
-  it('keeps approved three-line welcome, orbit, layout and no fabricated money', () => {
+  it('keeps approved three-line welcome, ORBIS logo, layout and no fabricated money', () => {
     render(<App />)
     const title = screen.getByRole('heading', { level: 1 })
     expect(title).toHaveTextContent('আপনার ব্যবসা।আপনার হিসাব।এক জায়গায়।')
     expect(title.querySelectorAll('br')).toHaveLength(2)
-    expect(document.querySelector('.welcome .orb svg')).not.toBeNull()
+    expect(document.querySelector('.welcome .orb img.orbis-logo')).not.toBeNull()
     expect(document.querySelector('.paper .balance')).toHaveTextContent('—')
     expect(screen.queryByText(/₹24,650|24650|Demo user|ডেমো ব্যবহারকারী/)).not.toBeInTheDocument()
     expect(screen.getByText('প্রতিষ্ঠান তৈরি হলে আপনার বাস্তব হিসাব এখানে দেখাবে')).toBeInTheDocument()

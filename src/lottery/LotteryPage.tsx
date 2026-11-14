@@ -1,3 +1,4 @@
+import { OrbisLogo } from "../brand/OrbisLogo";
 import type { ReactNode } from "react";
 import { LotteryLanguage } from "./language";
 import { ModulePicker, type ModuleTarget } from "../ModulePicker";
@@ -28,7 +29,7 @@ export default function LotteryPage({
     >
       <header className="module-heading">
         <div className="lottery-header-controls">{controls}</div>
-        <h1>ORBIS · {inLanguage(language, "লটারি", "लॉटरी", "Lottery")}</h1>
+        <h1 className="lottery-brand"><OrbisLogo />ORBIS · {inLanguage(language, "লটারি", "लॉटरी", "Lottery")}</h1>
         <ModulePicker
           language={language}
           active="lottery"

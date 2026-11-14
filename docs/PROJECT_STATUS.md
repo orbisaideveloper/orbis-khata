@@ -1862,3 +1862,11 @@ See [SONAR-CORRECTIONS-20261017.md](SONAR-CORRECTIONS-20261017.md) for every rep
 - No Render, Supabase, Play release or live financial data changes. Next check
   GitHub Actions, then exercise a candidate APK on locked and lockless phones,
   including offline Lottery, payment keyboard and existing data after upgrade.
+
+### 2026-11-14 — Shared welcome, sign-in and tablet layout
+- Base main d83b5a7. Compact mobile welcome and module cards, in-field
+  password visibility, simple privacy links, and the supplied ORBIS identity.
+- Tablet breakpoint covers the public screens and the signed-in Khata shell.
+  The supplied symbol also updates the PWA and Android launcher artwork.
+- Next: check desktop Chromium in CI, then verify the installed PWA and
+  Android candidate on a real phone and tablet before the next Play release.

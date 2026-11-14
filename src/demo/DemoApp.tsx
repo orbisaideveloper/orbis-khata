@@ -1,3 +1,4 @@
+import { OrbisLogo } from "../brand/OrbisLogo";
 import {selectNumeric} from '../select-numeric';
 import {useTheme} from '../use-theme';
 import { BooksBottomNav } from '../BooksBottomNav';
@@ -30,7 +31,7 @@ export default function DemoApp() {
     }, [page, language]);
     const navigation = useMemo(() => ({ page, open: navigate }), [page, navigate]);
     return <BooksNavigation.Provider value={navigation}><TutorialContext.Provider value={tutorial}><main className="phone kh-app" lang={language} data-theme={theme} onFocusCapture={selectNumeric} onClickCapture={selectNumeric}><section className="scene light-scene active">
-  <header className="kh-app-header"><button className="kh-brand" type="button" onClick={() => navigate('home')} aria-label={d.home}><span className="kh-logo">O</span><span><small>ORBIS</small><strong>{inLanguage(language, 'খাতাবই', 'खाताबही', 'Khata Boi')}</strong></span></button><div className="kh-header-actions"><select aria-label={t.language} value={language} onChange={e => setLanguage(e.target.value as Language)}>{languageOptions.map(l => <option key={l.code} value={l.code}>{l.name}</option>)}</select><WorkspaceMenu demo production={production} language={language} signedIn tutorial={tutorial} onTutorial={setTutorial} onBooks={navigate} onProfile={() => setProfile(true)} onLogout={() => { resetDemo(); setRevision(n => n + 1); }}/></div></header>
+  <header className="kh-app-header"><button className="kh-brand" type="button" onClick={() => navigate('home')} aria-label={d.home}><span className="kh-logo"><OrbisLogo /></span><span><small>ORBIS</small><strong>{inLanguage(language, 'খাতাবই', 'खाताबही', 'Khata Boi')}</strong></span></button><div className="kh-header-actions"><select aria-label={t.language} value={language} onChange={e => setLanguage(e.target.value as Language)}>{languageOptions.map(l => <option key={l.code} value={l.code}>{l.name}</option>)}</select><WorkspaceMenu demo production={production} language={language} signedIn tutorial={tutorial} onTutorial={setTutorial} onBooks={navigate} onProfile={() => setProfile(true)} onLogout={() => { resetDemo(); setRevision(n => n + 1); }}/></div></header>
   <aside className="kh-demo-strip"><span><b>{d.demo}</b> · {d.demoHint}</span><button type="button" onClick={() => {
             if (confirmDelete(language, t.reset)) {
                 resetDemo();

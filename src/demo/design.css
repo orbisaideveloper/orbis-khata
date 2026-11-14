@@ -97,7 +97,7 @@
 
 .expense-ordinary-form{display:contents}.kh-app .expense-entry-form>label.expense-schedule-toggle{grid-column:1/-1;min-height:0;background:transparent;border:0;display:flex;flex-direction:row;align-items:center;gap:8px;margin:4px 0;padding:4px 0;font-size:12px;font-weight:500}.kh-app .expense-schedule-toggle input[type=checkbox]{width:16px;height:16px;min-height:16px;margin:0;padding:0;accent-color:var(--kh-accent,#19775e);flex:none}.expense-schedule-content{grid-column:1/-1;min-width:0}.expense-scheduled-inline{min-width:0;padding-top:8px;border-top:1px solid var(--kh-edge)}.expense-scheduled-inline>small{display:block;font-size:11px;color:var(--kh-muted);margin-bottom:10px}.expense-scheduled-inline>.books-form,.expense-scheduled-inline .expense-profile-form{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}.expense-scheduled-inline>.books-form>label:first-child,.expense-scheduled-inline>.books-form>button,.expense-profile-form>.expense-schedule-fields,.expense-profile-form>details,.expense-profile-form>.expense-profile-toolbar{grid-column:1/-1}.expense-scheduled-inline>details{margin:10px 0}
 
-@media screen and (min-width: 900px) {
+@media screen and (min-width: 600px) {
   .phone.kh-app {
     --kh-desktop-width: min(100%, 1200px);
     --kh-desktop-frame: 5px;
@@ -124,16 +124,18 @@
     padding: 20px !important;
   }
 
-  .kh-app .kh-dashboard .kh-summary-grid {
-    grid-template-columns: repeat(4, minmax(0, 1fr));
-  }
-
   .kh-app .kh-dashboard .kh-module-grid {
     grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 
   .kh-app .kh-report-shortcut {
     text-align: start;
+  }
+}
+
+@media screen and (min-width: 900px) {
+  .kh-app .kh-dashboard .kh-summary-grid {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
   }
 }
 

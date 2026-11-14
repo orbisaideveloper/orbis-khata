@@ -55,6 +55,11 @@ test('summary cards open due lists and scoped ledgers while the independent Ledg
     await page.goto('/');
     await page.getByRole('button', { name: /Khata Boi.*Open/ }).click();
     await expect(page.getByRole('button', { name: 'To receive', exact: true })).toBeVisible();
+    const viewport = page.viewportSize()!;
+    await page.setViewportSize({ width: 768, height: 1024 });
+    expect((await page.locator('.phone.kh-app').boundingBox())!.width).toBeGreaterThan(560);
+    await expect(page.locator('.kh-bottom-nav')).toHaveCSS('position', 'sticky');
+    await page.setViewportSize(viewport);
     const longPartyName = 'Shiva Bikaner Sweets Extremely Long Customer Name '.repeat(8).trim();
     await page.locator('.kh-top-parties>span').first().evaluate((el, name) => {
         el.querySelector('span')!.textContent = name;

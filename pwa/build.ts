@@ -11,14 +11,14 @@ export function khataPwa(): Plugin {
     generateBundle(_options, bundle) {
       const files = Object.keys(bundle).filter(name => name === 'index.html' || name.startsWith('assets/'))
       const version = createHash('sha256')
-      for (const name of ['manifest.webmanifest', 'icon.svg']) {
+      for (const name of ['manifest.webmanifest', 'orbis-icon.png']) {
         version.update(readFileSync(new URL('../public/' + name, import.meta.url)))
       }
       for (const name of files.sort()) {
         const entry = bundle[name]
         version.update(name).update(entry.type === 'chunk' ? entry.code : entry.source)
       }
-      const urls = ['/', ...files.map(name => '/' + name), '/manifest.webmanifest', '/icon.svg']
+      const urls = ['/', ...files.map(name => '/' + name), '/manifest.webmanifest', '/orbis-icon.png']
       this.emitFile({ type: 'asset', fileName: 'sw.js', source: workerSource(version.digest('hex').slice(0, 20), urls) })
     },
   }

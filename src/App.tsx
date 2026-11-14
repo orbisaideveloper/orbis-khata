@@ -1,3 +1,4 @@
+import { OrbisLogo } from './brand/OrbisLogo';
 import { PrivacyLinks } from './privacy/PrivacyLinks';
 import { WorkspaceGreeting } from './WorkspaceGreeting';
 import './design.css';
@@ -18,6 +19,7 @@ import { BooksNavigation, useBooksTrail } from './books-navigation';
 import { languageOptions, readLanguage, saveLanguage, translations } from './i18n';
 import type { Language, TextKey } from './i18n';
 import './App.css';
+import './responsive-shell.css';
 import './appearance.css';
 import { PwaStatus } from './PwaStatus';
 import { WorkspaceMenu } from './WorkspaceMenu';
@@ -40,13 +42,6 @@ const languagePresentation: Record<Language, {
     en: { title: 'ORBIS Khata Boi', pickerLabel: 'Choose language' },
     hi: { title: 'ORBIS खाताबही', pickerLabel: 'भाषा चुनें' },
 };
-function OrbitMark() {
-    return (<svg viewBox="0 0 32 32" fill="none" aria-hidden="true" focusable="false">
-      <circle cx="16" cy="16" r="9" stroke="currentColor" strokeWidth="2"/>
-      <ellipse cx="16" cy="16" rx="15" ry="6" transform="rotate(-36 16 16)" stroke="#9bceff" strokeWidth="1.5"/>
-      <circle cx="25.7" cy="8.8" r="2.4" fill="currentColor"/>
-    </svg>);
-}
 function mainClass(view: View, signedIn: boolean) { if(view==='lottery'){return 'phone lottery-shell';}return view === 'khata' && signedIn ? 'phone kh-app' : 'phone'; }
 function LotteryScene({view,owner,language,onSelect,controls}:Readonly<{view:View;owner:string|null;language:Language;onSelect:(module:ModuleTarget)=>void;controls:ReactNode}>){if(view!=='lottery'||!owner){return null;}return <Suspense fallback={<p>{accountCopy[language].network}</p>}><LotteryPage owner={owner} language={language} onSelect={onSelect} controls={controls}/></Suspense>;}
 const nativeLoginCopy = {
@@ -111,7 +106,7 @@ function App() {
             }
         }} tutorial={tutorial} onTutorial={enabled => { setTutorial(enabled); saveTutorial(enabled); }} onProfile={() => navigate('profile')} onLogout={() => { void logout(); }}/>;
     const renderBar = (backView: View, ariaKey: TextKey, pillKey: TextKey) => (<header className="bar"><button type="button" className="back" onClick={() => navigate(backView)} aria-label={t(ariaKey)}>←</button><span className="pill">{t(pillKey)}</span>{languagePicker(true)}{signedIn && menu()}</header>);
-    const renderBrand = (subKey: TextKey) => (<div className="brand"><span className="orb"><OrbitMark /></span><span>ORBIS<small>{t(subKey)}</small></span></div>);
+    const renderBrand = (subKey: TextKey) => (<div className="brand"><span className="orb"><OrbisLogo /></span><span>ORBIS<small>{t(subKey)}</small></span></div>);
     const renderPlanned = (ic: string, cls: string, nameKey: TextKey, descKey: TextKey, statusKey: TextKey) => (<div className="module planned"><span className={`ic ${cls}`} aria-hidden="true">{ic}</span><span className="copy"><strong>{t(nameKey)}</strong><small>{t(descKey)}</small></span><span className="status">{t(statusKey)}</span></div>);
     useEffect(() => {
         document.documentElement.lang = language;
@@ -177,7 +172,7 @@ function App() {
     if (accountScreen) {
         return accountScreen;
     }
-    return (<BooksNavigation.Provider value={navigation}><TutorialContext.Provider value={tutorial}><main className={shellClass} data-theme={theme} data-android-local={androidLocalFirst() || undefined} onFocusCapture={selectNumeric} onClickCapture={selectNumeric}><PwaStatus language={language}/>
+    return (<BooksNavigation.Provider value={navigation}><TutorialContext.Provider value={tutorial}><main className={shellClass} data-theme={theme} data-view={view} data-android-local={androidLocalFirst() || undefined} onFocusCapture={selectNumeric} onClickCapture={selectNumeric}><PwaStatus language={language}/>
       {logoutError && <p role="alert">{accountCopy[language].error}</p>}
       {view === 'welcome' && (<section className="scene welcome active" aria-label={t('h1a')}>
           <header className="top">
@@ -206,9 +201,9 @@ function App() {
           </div>
         </section>)}
 
-      {view === 'login' && (<section className="scene light-scene active" aria-label={t('loginTag')}>
+      {view === 'login' && (<section className="scene light-scene active login-scene" aria-label={t('loginTag')}>
           {renderBar('welcome', 'exit', 'loginTag')}
-          <div className="login-title"><div className="login-mark">O</div><h1>{t('back')}</h1>{tutorial && <p className="subtitle">{authClient ? accountCopy[language].persistent : t('authInfo')}</p>}</div>
+          <div className="login-title"><div className="login-mark"><OrbisLogo withWordmark /></div><h1>{t('back')}</h1>{tutorial && <p className="subtitle">{authClient ? accountCopy[language].persistent : t('authInfo')}</p>}</div>
           {authClient ? <AccountForm language={language} recoveryLinkFailed={account.recoveryLinkFailed} onRecovered={() => account.setRecovery(false)}/> : (<div className="form">
             <label className="field"><span>{t('email')}</span><span className="input"><span aria-hidden="true">✉</span><input autoComplete="off" disabled placeholder={t('pending')}/></span></label>
             <label className="field"><span>{t('pass')}</span><span className="input"><span aria-hidden="true">⌑</span><input type="password" autoComplete="off" disabled placeholder={t('noPass')}/></span></label>
@@ -246,7 +241,7 @@ function App() {
       </section>}
 
       {view === 'khata' && (signedIn || guestUiEnabled) && (<section className="scene light-scene active" aria-label={t('khata')}>
-          {signedIn ? <header className="kh-app-header"><button className="kh-brand" type="button" aria-label={language==='bn'?'হোম':'Home'} onClick={homeBooks}><span className="kh-logo">O</span><span><small>ORBIS</small><strong>{t('khata')}</strong></span></button><div className="kh-header-actions">{languagePicker(true)}{menu()}<button type="button" className="kh-profile-button" onClick={homeBooks} aria-label={{bn:'ফিরুন',hi:'वापस',en:'Back'}[language]}>←</button></div></header> : renderBar('workspace', 'choose', 'khata')}
+          {signedIn ? <header className="kh-app-header"><button className="kh-brand" type="button" aria-label={language==='bn'?'হোম':'Home'} onClick={homeBooks}><span className="kh-logo"><OrbisLogo /></span><span><small>ORBIS</small><strong>{t('khata')}</strong></span></button><div className="kh-header-actions">{languagePicker(true)}{menu()}<button type="button" className="kh-profile-button" onClick={homeBooks} aria-label={{bn:'ফিরুন',hi:'वापस',en:'Back'}[language]}>←</button></div></header> : renderBar('workspace', 'choose', 'khata')}
           
           {signedIn && <BooksBottomNav language={language} page={booksPage} onOpen={openBooks}/>}
           {!signedIn && <div className="khata-title"><div className="bar"><span className="eyebrow l">{t('dashboard')}</span><span className="period">{t('month')}</span></div><h1>{t('khata')}</h1><p>{t('khataHead')}</p></div>}
