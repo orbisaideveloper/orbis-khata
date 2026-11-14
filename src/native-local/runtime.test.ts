@@ -167,7 +167,7 @@ it('enrolls without a screen lock after central sign-in and keeps existing encry
 
 it('previews and restores an authenticated backup once without overwriting existing books', async () => {
   const runtime = await import('./runtime')
-  const { encryptFinancialBackup, generateFinancialBackupKey } = await import('../sync/financial-backup')
+  const { encryptFinancialBackup, generateFinancialBackupKey, inspectFinancialBackup } = await import('../sync/financial-backup')
   const { emptyDeviceLocalSnapshot } = await vi.importActual<typeof import('../demo/store')>('../demo/store')
   await runtime.enrollVerifiedCentralIdentity(actor, displayId)
   const snapshot = emptyDeviceLocalSnapshot()
@@ -178,5 +178,7 @@ it('previews and restores an authenticated backup once without overwriting exist
   expect(fixture.state.companies).toEqual([])
   await runtime.restoreNativeFinancialBackup(archive, actor, key)
   expect(fixture.state.companies).toEqual(snapshot.companies)
+  const exported = await runtime.exportNativeFinancialBackup(key)
+  await expect(inspectFinancialBackup(exported, actor, key)).resolves.toEqual(snapshot)
   await expect(runtime.restoreNativeFinancialBackup(archive, actor, key)).rejects.toThrow('FINANCIAL_RESTORE_REQUIRES_EMPTY_ACCOUNT')
 })
