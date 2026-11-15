@@ -4,7 +4,10 @@ import android.app.Activity;
 import android.app.KeyguardManager;
 import android.content.Context;
 import android.content.Intent;
+import android.database.Cursor;
+import android.net.Uri;
 import android.os.Build;
+import android.provider.ContactsContract.CommonDataKinds.Phone;
 import android.security.keystore.KeyGenParameterSpec;
 import android.security.keystore.KeyInfo;
 import android.security.keystore.KeyProperties;
@@ -153,6 +156,49 @@ public class OrbisKhataOfflineBridge extends Plugin {
             Arrays.fill(ciphertext, (byte)0);
         } catch (Exception e) { call.reject("OFFLINE_HARDWARE_UNSEAL_FAILED"); }
         finally { if (plain != null) Arrays.fill(plain, (byte)0); }
+    }
+
+    @PluginMethod
+    public void pickPhone(PluginCall call) {
+        Intent picker = new Intent(Intent.ACTION_PICK);
+        picker.setType(Phone.CONTENT_TYPE);
+        try {
+            startActivityForResult(call, picker, "onPhonePicked");
+        } catch (RuntimeException error) {
+            call.reject("CONTACT_PICKER_UNAVAILABLE");
+        }
+    }
+
+    @ActivityCallback
+    private void onPhonePicked(PluginCall call, ActivityResult result) {
+        if (call == null) return;
+        if (result.getResultCode() == Activity.RESULT_CANCELED) {
+            call.resolve();
+            return;
+        }
+
+        Intent data = result.getData();
+        Uri uri = data == null ? null : data.getData();
+        if (result.getResultCode() != Activity.RESULT_OK || uri == null
+                || !"content".equals(uri.getScheme())) {
+            call.reject("CONTACT_NUMBER_UNAVAILABLE");
+            return;
+        }
+
+        // The picker grants temporary access to the selected phone row.
+        try (Cursor cursor = getContext().getContentResolver().query(
+                uri, new String[] { Phone.NUMBER }, null, null, null)) {
+            String number = cursor != null && cursor.moveToFirst() ? cursor.getString(0) : null;
+            if (number == null || number.trim().isEmpty()) {
+                call.reject("CONTACT_NUMBER_UNAVAILABLE");
+                return;
+            }
+            JSObject response = new JSObject();
+            response.put("number", number.trim());
+            call.resolve(response);
+        } catch (RuntimeException error) {
+            call.reject("CONTACT_NUMBER_UNAVAILABLE");
+        }
     }
 
     @PluginMethod

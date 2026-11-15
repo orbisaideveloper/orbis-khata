@@ -1901,3 +1901,14 @@ See [SONAR-CORRECTIONS-20261017.md](SONAR-CORRECTIONS-20261017.md) for every rep
   Verify the flow on Android using a new Drive account and an existing backup.
   Account-linked key recovery, first-login prompt and scheduling remain pending.
   No deployment, Play release or customer data changes.
+
+### Android party phone picker
+- Base main 6daf822. Khata and Lottery party forms use the Android phone-row
+  picker and pass the selected number to their existing save handlers. Web
+  retains the browser picker. Android reads only the selected contact row.
+- Three targeted suites (8 tests), typecheck and diff check passed. Scoped
+  lint completed with two existing fast-refresh warnings in PartyOpeningFields.
+  Android SDK 36 and device checks are pending.
+- Account-linked Drive recovery remains pending. It needs a server-owned
+  wrapping key and a recovery endpoint bound to a verified ORBIS identity.
+  No deployment, Play release or production data changes.

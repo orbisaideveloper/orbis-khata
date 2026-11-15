@@ -1,3 +1,4 @@
+import { canChooseContactPhone, chooseContactPhone } from '../contact-phone';
 import { useState } from "react";
 import type { LotteryParty } from "../../vendor/foundation-lottery/src/admin/models/lotteryAccountingTypes";
 import { inLanguage } from "../localize";
@@ -94,36 +95,25 @@ export function PartyOpeningFields({
     </fieldset>
   );
 }
-type Contacts = Navigator & {
-  contacts?: {
-    select: (
-      fields: string[],
-      options: { multiple: boolean },
-    ) => Promise<{ tel?: string[] }[]>;
-  };
-};
 export function LotteryContact({
   onNumber,
 }: Readonly<{ onNumber: (number: string) => void }>) {
   const [error, setError] = useState(false);
   const language = useLotteryLanguage();
-  const contacts = (navigator as Contacts).contacts;
   async function choose() {
     try {
-      const picked = await contacts?.select(["tel"], { multiple: false });
-      const phone = picked?.[0]?.tel?.[0];
+      const phone = await chooseContactPhone();
       if (phone) {
-        onNumber(phone.slice(0, 30));
+        onNumber(phone);
         setError(false);
       }
-    } catch (error) {
-      if (!(error instanceof DOMException && error.name === "AbortError"))
-        setError(true);
+    } catch {
+      setError(true);
     }
   }
   return (
     <div className="lottery-contact">
-      {contacts && (
+      {canChooseContactPhone() && (
         <button type="button" onClick={() => void choose()}>
           {inLanguage(
             language,
