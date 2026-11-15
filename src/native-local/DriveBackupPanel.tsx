@@ -82,6 +82,6 @@ export function DriveBackupPanel({ actor, language }: Readonly<{ actor: string; 
       </div>}
     </fieldset>
     {busy && <output>{t('অপেক্ষা করুন…', 'प्रतीक्षा करें…', 'Please wait…')}</output>}
-    {message && <output role="status">{message}</output>}
+    {message && <output>{message}</output>}
   </section>
 }
