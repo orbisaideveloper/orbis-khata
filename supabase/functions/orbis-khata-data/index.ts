@@ -1,3 +1,4 @@
+import { createRecoveryEnvelope } from '../../../src/sync/server-recovery-envelope.ts';
 import {identicalParty} from '../../../src/demo/party-match.ts';
 import {readSharedStatement} from '../../../src/customer-view/read-statement.ts';
 import { runProfiles, type ProfileCommand, type ProfileState } from "../../../src/expense-profiles/model.ts";
@@ -33,6 +34,23 @@ const handler = createKhataGateway({ origins: (env('KHATA_ORIGINS') || 'https://
         return decision;
     },
     execute: async (principal, operation) => sql.begin(async (tx) => {
+        if (operation.operation === 'drive-recovery') {
+            const actor = principal.orbisIdentityId;
+            if (operation.input.actor !== actor) throw new Error('KHATA_RECOVERY_IDENTITY_MISMATCH');
+            const wrappingKey = env('KHATA_DRIVE_RECOVERY_WRAP_KEY');
+            if (!wrappingKey) throw new Error('KHATA_RECOVERY_NOT_CONFIGURED');
+            const envelope = createRecoveryEnvelope(wrappingKey);
+            if (operation.input.action === 'link') {
+                const sealed = await envelope.seal(actor, {
+                    email: String(operation.input.email), key: String(operation.input.key),
+                });
+                await tx`insert into orbis_khata.drive_account_recovery (identity_id, sealed_record)
+                    values (${actor}::uuid, ${sealed}) on conflict (identity_id) do nothing`;
+            }
+            const rows = await tx`select sealed_record from orbis_khata.drive_account_recovery
+                where identity_id = ${actor}::uuid`;
+            return rows.length ? envelope.open(actor, rows[0].sealed_record) : null;
+        }
         // Central identity stays canonical; product-local ownership preserves historical rows.
         const owners = await tx `select orbis_khata.resolve_ledger_owner(${principal.orbisIdentityId}::uuid) as id`;
         const ledgerOwnerId = owners[0]?.id;

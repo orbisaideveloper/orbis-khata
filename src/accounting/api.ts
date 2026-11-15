@@ -1,5 +1,6 @@
 import { authClient } from '../auth/client';
 import { androidLocalFirst } from '../native-local/route';
+import type { AccountRecovery } from '../sync/account-recovery';
 import type { Command, Company, Report } from './model';
 export function createKhataDataClient(options: {
     url: string;
@@ -62,6 +63,10 @@ export async function requestKhata<T>(operation: string, input: unknown): Promis
     if (import.meta.env.DEV && import.meta.env.VITE_KHATA_DEMO === 'true') {
         return (await import('../demo/store')).demoRequest<T>(operation, input);
     }
+    return requestRemoteKhata<T>(operation, input);
+}
+
+function requestRemoteKhata<T>(operation: string, input: unknown): Promise<T> {
     const url = import.meta.env.VITE_KHATA_DATA_URL as string | undefined;
     const client = authClient;
     if (!url || !client) {
@@ -69,6 +74,10 @@ export async function requestKhata<T>(operation: string, input: unknown): Promis
     }
     if(!liveClient||liveUrl!==url){liveUrl=url;liveClient=createKhataDataClient({url,token:()=>client.central.accessToken()});}
     return liveClient<T>(operation,input);
+}
+export function requestDriveRecovery(actor: string, record?: AccountRecovery): Promise<AccountRecovery | null> {
+    const input = record ? { action: 'link', actor, ...record } : { action: 'read', actor };
+    return requestRemoteKhata('drive-recovery', input);
 }
 export async function companies(_owner: string): Promise<Company[]> { return requestKhata<Company[]>('companies', {}); }
 export async function createRecord(table: 'khata_companies' | 'khata_parties', row: Record<string, string>): Promise<Company> {

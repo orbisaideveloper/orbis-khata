@@ -1,5 +1,6 @@
 package com.orbisaideveloper.khata;
 
+import android.accounts.Account;
 import android.app.Activity;
 import android.app.PendingIntent;
 import androidx.activity.result.ActivityResult;
@@ -36,10 +37,11 @@ public class OrbisDriveBridge extends Plugin {
                 return;
             }
             pending = call;
-            AuthorizationRequest request = AuthorizationRequest.builder()
-                .setRequestedScopes(Collections.singletonList(new Scope("https://www.googleapis.com/auth/drive.appdata")))
-                .build();
-            Identity.getAuthorizationClient(getActivity()).authorize(request)
+            AuthorizationRequest.Builder request = AuthorizationRequest.builder()
+                .setRequestedScopes(Collections.singletonList(new Scope("https://www.googleapis.com/auth/drive.appdata")));
+            String email = call.getString("email");
+            if (email != null && !email.isEmpty()) request.setAccount(new Account(email, "com.google"));
+            Identity.getAuthorizationClient(getActivity()).authorize(request.build())
                 .addOnSuccessListener(result -> {
                     PendingIntent prompt = result.getPendingIntent();
                     if (result.hasResolution() && prompt != null) {

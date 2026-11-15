@@ -1912,3 +1912,20 @@ See [SONAR-CORRECTIONS-20261017.md](SONAR-CORRECTIONS-20261017.md) for every rep
 - Account-linked Drive recovery remains pending. It needs a server-owned
   wrapping key and a recovery endpoint bound to a verified ORBIS identity.
   No deployment, Play release or production data changes.
+
+### Android account-linked Drive recovery
+- Base main 964ae19. First backup confirms the Google email once. The verified
+  ORBIS gateway encrypts the Google email and backup key with AES-GCM, binding
+  the envelope to the canonical ORBIS identity. Concurrent setup cannot replace
+  an existing link. The Android app reuses the linked account and checks the
+  Drive response matches it. Linked restore previews and restores without a
+  visible key field. Unlinked older archives may require their original key once.
+- Targeted gateway, envelope, Drive and panel suites passed (26 tests), plus
+  typecheck, scoped lint and diff check. Native build, real Drive consent and
+  clean-phone restore remain to be verified.
+- Activation order: provision and securely escrow a random 32-byte hex
+  KHATA_DRIVE_RECOVERY_WRAP_KEY as a server-only Edge Function secret, apply
+  migration 20261115120000, deploy orbis-khata-data, and verify that the existing
+  KHATA_ORIGINS includes https://localhost. Keep the wrapping key stable for
+  already-linked users. Deploy the matching privacy/backup disclosure pages
+  before Play rollout. No production schema, secrets or deployment changed.

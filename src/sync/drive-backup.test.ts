@@ -58,3 +58,15 @@ it('rejects an invalid size, missing body, overlong or truncated download', asyn
   await expect(drive.latest()).rejects.toThrow('DRIVE_BACKUP_SIZE_INVALID')
   for (let i = 0; i < 3; i++) await expect(drive.latest()).rejects.toThrow('DRIVE_BACKUP_DOWNLOAD_INVALID')
 })
+
+it('authorizes the linked account and checks the email returned by Drive', async () => {
+  const email = 'user@example.com'
+  const drive = await connectBackupDrive(actor, email)
+  expect(authorize).toHaveBeenCalledWith({ email })
+  fetchDrive.mockResolvedValueOnce(Response.json({ user: { emailAddress: 'USER@example.com' } }))
+    .mockResolvedValueOnce(Response.json({ user: { emailAddress: 'other@example.com' } }))
+    .mockResolvedValueOnce(Response.json({ user: {} }))
+  await expect(drive.accountEmail()).resolves.toBe(email)
+  await expect(drive.accountEmail()).rejects.toThrow('DRIVE_ACCOUNT_CHANGED')
+  await expect(drive.accountEmail()).rejects.toThrow('DRIVE_ACCOUNT_UNAVAILABLE')
+})

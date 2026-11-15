@@ -1,15 +1,17 @@
 import { registerPlugin } from '@capacitor/core'
 
-const drive = registerPlugin<{ authorize(): Promise<{ token: string }> }>('OrbisDrive')
+import { validRecoveryEmail } from './account-recovery'
+
+const drive = registerPlugin<{ authorize(options?: { email: string }): Promise<{ token: string }> }>('OrbisDrive')
 const api = 'https://www.googleapis.com'
 const maximumBytes = 32 * 1024 * 1024 + 128
 
-export async function connectBackupDrive(actor: string) {
+export async function connectBackupDrive(actor: string, email?: string) {
   if (!/^[a-f0-9-]{36}$/iu.test(actor)) throw new Error('DRIVE_OWNER_INVALID')
   const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(actor))
   const owner = Array.from(new Uint8Array(digest), byte => byte.toString(16).padStart(2, '0')).join('')
   const archiveName = 'orbis-khata-financial-v1-' + owner + '.bin'
-  const { token } = await drive.authorize()
+  const { token } = await (email ? drive.authorize({ email }) : drive.authorize())
   if (!token) throw new Error('DRIVE_AUTH_FAILED')
   async function request(path: string, init?: RequestInit) {
     const response = await fetch(api + path, {
@@ -33,6 +35,14 @@ export async function connectBackupDrive(actor: string) {
     return files?.[0]
   }
   return {
+    async accountEmail() {
+      const response = await request('/drive/v3/about?fields=user(emailAddress)')
+      const { user } = await response.json() as { user?: { emailAddress?: unknown } }
+      if (!validRecoveryEmail(user?.emailAddress)) throw new Error('DRIVE_ACCOUNT_UNAVAILABLE')
+      const actual = user.emailAddress.toLowerCase()
+      if (email && actual !== email.toLowerCase()) throw new Error('DRIVE_ACCOUNT_CHANGED')
+      return actual
+    },
     async upload(archive: Uint8Array<ArrayBuffer>) {
       const boundary = 'orbis-' + crypto.randomUUID()
       const metadata = JSON.stringify({ name: archiveName, parents: ['appDataFolder'] })

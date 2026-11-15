@@ -1,4 +1,6 @@
 import { useRef, useState } from 'react'
+import { requestDriveRecovery } from '../accounting/api'
+import { isAccountRecovery, recoveryKeyBytes, type AccountRecovery } from '../sync/account-recovery'
 import { authClient } from '../auth/client'
 import type { Language } from '../i18n'
 import { inLanguage } from '../localize'
@@ -7,9 +9,10 @@ import { generateFinancialBackupKey } from '../sync/financial-backup'
 
 export function DriveBackupPanel({ actor, language }: Readonly<{ actor: string; language: Language }>) {
   const t = (bn: string, hi: string, en: string) => inLanguage(language, bn, hi, en)
+  const [confirmEmail, setConfirmEmail] = useState<string>()
   const [key, setKey] = useState('')
-  const [showKey, setShowKey] = useState(false)
-  const [preview, setPreview] = useState<{ archive: Uint8Array<ArrayBuffer>; secret: Uint8Array<ArrayBuffer>; companies: number; entries: number }>()
+  const [legacyKeyNeeded, setLegacyKeyNeeded] = useState(false)
+  const [preview, setPreview] = useState<{ archive: Uint8Array<ArrayBuffer>; record: AccountRecovery; companies: number; entries: number }>()
   const [busy, setBusy] = useState(false)
   const [message, setMessage] = useState('')
   const pending = useRef(false)
@@ -36,62 +39,90 @@ export function DriveBackupPanel({ actor, language }: Readonly<{ actor: string; 
       setBusy(false)
     }
   }
-  function recoveryKey(code: string) {
-    if (!/^[a-f0-9]{64}$/iu.test(code)) throw new Error('FINANCIAL_BACKUP_KEY_INVALID')
-    return Uint8Array.from(code.match(/../gu)!, pair => Number.parseInt(pair, 16))
+  async function openDrive(preferred?: string) {
+    const linked = await requestDriveRecovery(actor)
+    if (linked !== null && !isAccountRecovery(linked)) throw new Error('KHATA_RECOVERY_RECORD_INVALID')
+    const emailHint = linked?.email || preferred
+    const drive = emailHint ? await connectBackupDrive(actor, emailHint) : await connectBackupDrive(actor)
+    const email = await drive.accountEmail()
+    return { linked, drive, email }
   }
+
+  async function link(record: AccountRecovery) {
+    const saved = await requestDriveRecovery(actor, record)
+    if (saved?.key !== record.key || saved.email !== record.email) throw new Error('KHATA_RECOVERY_LINK_CONFLICT')
+  }
+
+  function askForLegacyKey() {
+    setLegacyKeyNeeded(true)
+    setMessage(t('পুরোনো ব্যাকআপ খুলতে তার রিকভারি চাবি একবার দিন।', 'पुराना बैकअप खोलने के लिए उसकी रिकवरी कुंजी एक बार दें।', 'Enter the recovery key for this older backup once.'))
+  }
+
   async function backup() {
     const local = await import('./runtime')
-    if (local.nativeLocalActor() !== actor) throw new Error('ANDROID_LOCAL_ACTOR_CHANGED')
-    const existingKey = key.trim() || await local.readNativeDriveRecoveryKey(actor)
-    if (existingKey) recoveryKey(existingKey)
-    const drive = await connectBackupDrive(actor)
-    if (!existingKey && await drive.hasBackup()) {
-      setMessage(t('আগের ব্যাকআপ পাওয়া গেছে। সেটি খুলতে রিকভারি চাবি দিন।', 'पुराना बैकअप मिला। उसे खोलने के लिए रिकवरी कुंजी दर्ज करें।', 'An existing backup was found. Enter its recovery key.'))
+    const deviceKey = await local.readNativeDriveRecoveryKey(actor)
+    const { linked, drive, email } = await openDrive(confirmEmail)
+    const hasBackup = await drive.hasBackup()
+    if (hasBackup && (!deviceKey || linked && linked.key !== deviceKey)) {
+      setMessage(t('আগের ব্যাকআপ পেয়েছি। আগে ব্যাকআপ দেখুন।', 'पुराना बैकअप मिला। पहले उसका पूर्वावलोकन देखें।', 'An existing backup was found. Preview it first.'))
+      setConfirmEmail(undefined)
       return
     }
-    const code = existingKey || Array.from(generateFinancialBackupKey(), byte => byte.toString(16).padStart(2, '0')).join('')
-    const secret = recoveryKey(code)
-    if (local.nativeLocalActor() !== actor) throw new Error('ANDROID_LOCAL_ACTOR_CHANGED')
-    if (!existingKey) {
-      await local.saveNativeDriveRecoveryKey(actor, code)
-      setKey(code)
+    if (!linked && confirmEmail !== email) {
+      setConfirmEmail(email)
+      return
     }
+    const code = linked?.key || deviceKey || Array.from(generateFinancialBackupKey(), byte => byte.toString(16).padStart(2, '0')).join('')
+    const secret = recoveryKeyBytes(code)
+    if (!linked && hasBackup) await local.previewNativeFinancialBackup(await drive.latest(), actor, secret)
+    if (!linked) await link({ email, key: code })
+    await local.saveNativeDriveRecoveryKey(actor, code)
     await drive.upload(await local.exportNativeFinancialBackup(secret))
-    if (existingKey) await local.saveNativeDriveRecoveryKey(actor, code)
     setPreview(undefined)
-    setShowKey(false)
-    setMessage(t('Drive-এ ব্যাকআপ সেভ হয়েছে।', 'Drive में बैकअप सहेजा गया।', 'Backup saved to Drive.'))
+    setConfirmEmail(undefined)
+    setLegacyKeyNeeded(false)
+    setKey('')
+    setMessage(t('Drive-এ ব্যাকআপ সেভ হয়েছে।', 'Drive में बैकअप सहेजा गया।', 'Backup saved to Drive.') + ' ' + email)
   }
   async function inspect() {
     const local = await import('./runtime')
-    const code = key.trim() || await local.readNativeDriveRecoveryKey(actor) || ''
-    const secret = recoveryKey(code)
-    const drive = await connectBackupDrive(actor)
+    const deviceKey = await local.readNativeDriveRecoveryKey(actor)
+    const { linked, drive, email } = await openDrive()
     const archive = await drive.latest()
-    const details = await local.previewNativeFinancialBackup(archive, actor, secret)
-    setPreview({ archive, secret, ...details })
+    const code = linked?.key || key.trim().toLowerCase() || deviceKey
+    if (!code) {
+      askForLegacyKey()
+      return
+    }
+    const details = await local.previewNativeFinancialBackup(archive, actor, recoveryKeyBytes(code))
+    setPreview({ archive, record: { email, key: code }, ...details })
+    setLegacyKeyNeeded(false)
+    setKey('')
   }
   async function restore() {
     if (!preview) return
     const local = await import('./runtime')
-    await local.restoreNativeFinancialBackup(preview.archive, actor, preview.secret)
+    await link(preview.record)
+    await local.restoreNativeFinancialBackup(preview.archive, actor, recoveryKeyBytes(preview.record.key))
+    await local.saveNativeDriveRecoveryKey(actor, preview.record.key)
     setPreview(undefined)
-    setShowKey(false)
-    setKey('')
     setMessage(t('হিসাব ফিরেছে। খাতায় ফিরে দেখুন।', 'खाते वापस आ गए। खाता खोलकर देखें।', 'Accounts restored. Open Khata to review them.'))
     window.dispatchEvent(new Event('khata-refresh'))
   }
   return <section className="privacy-links">
     <h2>{t('Google Drive ব্যাকআপ', 'Google Drive बैकअप', 'Google Drive backup')}</h2>
-    <p>{t('রিকভারি চাবি আলাদা নিরাপদ জায়গায় রাখুন। রিস্টোরের সময় একই Google অ্যাকাউন্ট লাগবে।', 'रिकवरी कुंजी अलग सुरक्षित जगह रखें। बहाली में वही Google खाता चाहिए।', 'Keep your recovery key somewhere safe. Use the same Google account to restore.')}</p>
+    <p>{t('প্রথমবার Google অ্যাকাউন্ট বেছে নিন। পরে একই অ্যাকাউন্ট ব্যবহার হবে।', 'पहली बार Google खाता चुनें। बाद में वही खाता इस्तेमाल होगा।', 'Choose a Google account the first time. The app will reuse that account.')}</p>
     <fieldset disabled={busy}>
-      <label className="field">{t('রিকভারি চাবি', 'रिकवरी कुंजी', 'Recovery key')}<input className="input" type={showKey ? "text" : "password"} value={key} onChange={event => { setKey(event.target.value); setPreview(undefined) }} autoComplete="off" autoCapitalize="none" spellCheck={false} maxLength={64}/></label>
-      {key && <button type="button" aria-pressed={showKey} onClick={() => setShowKey(!showKey)}>
-        {showKey ? t('চাবি লুকান', 'कुंजी छिपाएँ', 'Hide key') : t('চাবি দেখুন', 'कुंजी दिखाएँ', 'Show key')}
-      </button>}
-      <button type="button" onClick={() => void run(backup)}>{t('ব্যাকআপ নিন', 'बैकअप लें', 'Back up now')}</button>
-      <button type="button" onClick={() => { setPreview(undefined); void run(inspect) }}>{t('ব্যাকআপ দেখুন', 'बैकअप देखें', 'Preview restore')}</button>
+      {legacyKeyNeeded && <label className="field">
+        {t('পুরোনো রিকভারি চাবি', 'पुरानी रिकवरी कुंजी', 'Previous recovery key')}
+        <input className="input" type="password" value={key} onChange={event => setKey(event.target.value)} autoComplete="off" autoCapitalize="none" spellCheck={false} maxLength={64}/>
+      </label>}
+      {confirmEmail ? <div>
+        <p>{confirmEmail}</p>
+        <button type="button" onClick={() => void run(backup)}>{t('নিশ্চিত করে ব্যাকআপ নিন', 'पुष्टि करके बैकअप लें', 'Confirm and back up')}</button>
+        <button type="button" onClick={() => setConfirmEmail(undefined)}>{t('বাতিল', 'रद्द करें', 'Cancel')}</button>
+      </div> : <button type="button" onClick={() => void run(backup)}>{t('ব্যাকআপ নিন', 'बैकअप लें', 'Back up now')}</button>}
+      <button type="button" onClick={() => { setConfirmEmail(undefined); setPreview(undefined); void run(inspect) }}>{t('ব্যাকআপ দেখুন', 'बैकअप देखें', 'Preview restore')}</button>
       {preview && <div>
         <p>{t('কোম্পানি', 'कंपनियाँ', 'Companies')} {preview.companies} · {t('লেজার এন্ট্রি', 'लेजर प्रविष्टियाँ', 'Ledger entries')} {preview.entries}</p>
         <button type="button" onClick={() => void run(restore)}>{t('খালি খাতায় রিস্টোর করুন', 'खाली खाते में बहाल करें', 'Restore to empty account')}</button>

@@ -1,107 +1,116 @@
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 import { DriveBackupPanel } from './DriveBackupPanel'
 
 const mocks = vi.hoisted(() => ({
-  hasBackup: vi.fn(), session: vi.fn(), connect: vi.fn(), owner: vi.fn(), exportBackup: vi.fn(),
-  readKey: vi.fn(), saveKey: vi.fn(), preview: vi.fn(), restore: vi.fn(), upload: vi.fn(), latest: vi.fn(),
+  recovery: vi.fn(), email: vi.fn(), hasBackup: vi.fn(), session: vi.fn(), connect: vi.fn(),
+  exportBackup: vi.fn(), readKey: vi.fn(), saveKey: vi.fn(), preview: vi.fn(), restore: vi.fn(),
+  upload: vi.fn(), latest: vi.fn(),
 }))
 vi.mock('../auth/client', () => ({ authClient: { auth: { getSession: mocks.session } } }))
+vi.mock('../accounting/api', () => ({ requestDriveRecovery: mocks.recovery }))
 vi.mock('../sync/drive-backup', () => ({ connectBackupDrive: mocks.connect }))
 vi.mock('./runtime', () => ({
   readNativeDriveRecoveryKey: mocks.readKey, saveNativeDriveRecoveryKey: mocks.saveKey,
-  nativeLocalActor: mocks.owner, exportNativeFinancialBackup: mocks.exportBackup,
-  previewNativeFinancialBackup: mocks.preview, restoreNativeFinancialBackup: mocks.restore,
+  exportNativeFinancialBackup: mocks.exportBackup, previewNativeFinancialBackup: mocks.preview,
+  restoreNativeFinancialBackup: mocks.restore,
 }))
 
 const actor = '01234567-89ab-7def-8123-456789abcdef'
+const email = 'user@example.com'
+const record = { email, key: 'aa'.repeat(32) }
 const archive = new Uint8Array([1, 2, 3])
 const mount = () => render(<DriveBackupPanel actor={actor} language="en" />)
 const click = (name: string) => fireEvent.click(screen.getByRole('button', { name }))
-const enterKey = (key: string) => fireEvent.change(screen.getByLabelText('Recovery key'), { target: { value: key } })
 
 beforeEach(() => {
   vi.resetAllMocks()
   mocks.session.mockResolvedValue({ data: { session: { user: { id: actor } } }, error: null })
-  mocks.connect.mockResolvedValue({ upload: mocks.upload, latest: mocks.latest, hasBackup: mocks.hasBackup })
-  mocks.owner.mockReturnValue(actor)
+  mocks.recovery.mockImplementation(async (_actor, saved) => saved ?? null)
+  mocks.connect.mockResolvedValue({ upload: mocks.upload, latest: mocks.latest, hasBackup: mocks.hasBackup, accountEmail: mocks.email })
+  mocks.email.mockResolvedValue(email)
+  mocks.readKey.mockResolvedValue(null)
   mocks.exportBackup.mockResolvedValue(archive)
   mocks.latest.mockResolvedValue(archive)
   mocks.preview.mockResolvedValue({ companies: 2, entries: 3 })
 })
 afterEach(cleanup)
 
-it('generates a recovery key and uploads only the encrypted archive', async () => {
+it('confirms the first Drive account and links a generated key without showing it', async () => {
   mount()
   click('Back up now')
-  await screen.findByText('Backup saved to Drive.')
-  expect((screen.getByLabelText('Recovery key') as HTMLInputElement).value).toMatch(/^[0-9a-f]{64}$/u)
-  expect(screen.getByLabelText('Recovery key')).toHaveAttribute('type', 'password')
-  click('Show key')
-  expect(screen.getByLabelText('Recovery key')).toHaveAttribute('type', 'text')
-  click('Hide key')
-  expect(mocks.hasBackup).toHaveBeenCalledOnce()
-  expect(mocks.connect).toHaveBeenCalledWith(actor)
-  expect(mocks.exportBackup).toHaveBeenCalledWith(expect.any(Uint8Array))
+  await screen.findByText(email)
+  expect(mocks.connect).toHaveBeenNthCalledWith(1, actor)
+  expect(mocks.upload).not.toHaveBeenCalled()
+  click('Confirm and back up')
+  await screen.findByText(/Backup saved to Drive/u)
+  expect(mocks.connect).toHaveBeenNthCalledWith(2, actor, email)
+  expect(mocks.recovery).toHaveBeenLastCalledWith(actor, { email, key: expect.stringMatching(/^[0-9a-f]{64}$/u) })
   expect(mocks.upload).toHaveBeenCalledExactlyOnceWith(archive)
+  expect(screen.queryByLabelText(/recovery key/iu)).toBeNull()
 })
 
-it('shows a preview before restore, reports a nonempty account, and clears the key on success', async () => {
+it('reuses a linked account and key for another backup', async () => {
+  mocks.recovery.mockResolvedValue(record)
+  mocks.hasBackup.mockResolvedValue(true)
+  mocks.readKey.mockResolvedValue(record.key)
+  mount()
+  click('Back up now')
+  await screen.findByText(/Backup saved to Drive/u)
+  expect(mocks.connect).toHaveBeenCalledWith(actor, email)
+  expect(mocks.recovery).toHaveBeenCalledExactlyOnceWith(actor)
+  expect(mocks.saveKey).toHaveBeenCalledWith(actor, record.key)
+  expect(screen.queryByRole('button', { name: 'Confirm and back up' })).toBeNull()
+})
+
+it('restores from a linked account on a clean device after preview and confirmation', async () => {
+  mocks.recovery.mockResolvedValue(record)
   mocks.restore.mockRejectedValueOnce(new Error('FINANCIAL_RESTORE_REQUIRES_EMPTY_ACCOUNT'))
   mount()
-  enterKey('aa'.repeat(32))
   click('Preview restore')
   await screen.findByText(/Companies 2 · Ledger entries 3/u)
+  expect(mocks.connect).toHaveBeenCalledWith(actor, email)
   expect(mocks.restore).not.toHaveBeenCalled()
   click('Restore to empty account')
   await screen.findByText('Restore requires an empty local account.')
   click('Restore to empty account')
   await screen.findByText('Accounts restored. Open Khata to review them.')
-  expect(mocks.restore).toHaveBeenLastCalledWith(archive, actor, expect.any(Uint8Array))
-  expect(screen.getByLabelText('Recovery key')).toHaveValue('')
-  expect(screen.queryByRole('button', { name: 'Restore to empty account' })).toBeNull()
+  expect(mocks.restore).toHaveBeenLastCalledWith(archive, actor, new Uint8Array(32).fill(0xaa))
+  expect(screen.queryByLabelText(/recovery key/iu)).toBeNull()
 })
 
-it('requires the current online ORBIS identity and a valid key before connecting to Drive', async () => {
+it('keeps an existing backup and asks for the old key only when previewing a legacy archive', async () => {
+  mocks.hasBackup.mockResolvedValue(true)
+  mount()
+  click('Back up now')
+  await screen.findByText('An existing backup was found. Preview it first.')
+  expect(mocks.upload).not.toHaveBeenCalled()
+  click('Preview restore')
+  const key = await screen.findByLabelText('Previous recovery key')
+  expect(key).toHaveAttribute('type', 'password')
+  fireEvent.change(key, { target: { value: record.key } })
+  click('Preview restore')
+  await screen.findByText(/Companies 2/u)
+  click('Restore to empty account')
+  await screen.findByText('Accounts restored. Open Khata to review them.')
+  expect(mocks.recovery).toHaveBeenLastCalledWith(actor, record)
+})
+
+it('stops before Drive when the ORBIS session is unavailable', async () => {
   mocks.session.mockResolvedValueOnce({ data: { session: { user: { id: 'other' } } } })
   mount()
   click('Back up now')
   await screen.findByText('Sign in to ORBIS online first.')
-  enterKey('invalid')
-  click('Preview restore')
-  await screen.findByText(/Action not confirmed/u)
+  expect(mocks.recovery).not.toHaveBeenCalled()
   expect(mocks.connect).not.toHaveBeenCalled()
 })
 
-it('rejects account switches and invalidates a preview when the key changes', async () => {
-  mocks.owner.mockReturnValue('other')
+it('stops an upload when a concurrent setup links a different account', async () => {
+  mocks.recovery.mockResolvedValueOnce(null).mockResolvedValueOnce(null).mockResolvedValueOnce(record)
   mount()
-  enterKey('aa'.repeat(32))
   click('Back up now')
+  await screen.findByText(email)
+  click('Confirm and back up')
   await screen.findByText(/Action not confirmed/u)
-  expect(mocks.upload).not.toHaveBeenCalled()
-  click('Preview restore')
-  await screen.findByText(/Companies 2/u)
-  enterKey('bb'.repeat(32))
-  await waitFor(() => expect(screen.queryByRole('button', { name: 'Restore to empty account' })).toBeNull())
-})
-
-it('reuses the encrypted device key on another visit', async () => {
-  mocks.readKey.mockResolvedValue('aa'.repeat(32))
-  mount()
-  click('Back up now')
-  await screen.findByText('Backup saved to Drive.')
-  expect(mocks.readKey).toHaveBeenCalledWith(actor)
-  expect(mocks.saveKey).toHaveBeenCalledWith(actor, 'aa'.repeat(32))
-  click('Preview restore')
-  await screen.findByText(/Companies 2/u)
-})
-
-it('preserves an existing Drive backup when this phone has no key', async () => {
-  mocks.hasBackup.mockResolvedValue(true)
-  mount()
-  click('Back up now')
-  await screen.findByText('An existing backup was found. Enter its recovery key.')
-  expect(mocks.saveKey).not.toHaveBeenCalled()
   expect(mocks.upload).not.toHaveBeenCalled()
 })
