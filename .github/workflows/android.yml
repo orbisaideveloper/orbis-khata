@@ -118,6 +118,14 @@ jobs:
           path: android/app/build/outputs/bundle/release/app-release.aab
           if-no-files-found: error
           retention-days: 7
+      - name: Preserve release mapping
+        if: success() && github.event_name == 'workflow_dispatch' && inputs.signed_release
+        uses: actions/upload-artifact@v5
+        with:
+          name: khata-release-mapping-${{ github.sha }}-${{ inputs.version_code }}
+          path: android/app/build/outputs/mapping/release/mapping.txt
+          if-no-files-found: error
+          retention-days: 90
       - name: Preserve signed build result
         if: always() && github.event_name == 'workflow_dispatch' && inputs.signed_release
         uses: actions/upload-artifact@v5

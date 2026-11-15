@@ -1870,3 +1870,14 @@ See [SONAR-CORRECTIONS-20261017.md](SONAR-CORRECTIONS-20261017.md) for every rep
   The supplied symbol also updates the PWA and Android launcher artwork.
 - Next: check desktop Chromium in CI, then verify the installed PWA and
   Android candidate on a real phone and tablet before the next Play release.
+
+### Android release build diagnostics
+- Base main 1251af0. Enable release R8 and resource shrinking, preserve
+  reflective Khata Capacitor callbacks, and request native symbol tables
+  for libraries with symbols available. The signed workflow retains the matching
+  release mapping as a versioned artifact.
+- Targeted workflow YAML and diff checks passed. Android SDK 36 is unavailable
+  locally. Verify the signed AAB, Play Console DEX score and symbol recognition,
+  plus login, contacts, and Drive backup/restore on the minified build.
+- Next batch: Android backup onboarding, account-linked recovery and scheduling.
+  No deployment, Play submission or financial data writes in this checkpoint.
