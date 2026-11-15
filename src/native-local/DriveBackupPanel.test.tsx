@@ -4,11 +4,12 @@ import { DriveBackupPanel } from './DriveBackupPanel'
 
 const mocks = vi.hoisted(() => ({
   session: vi.fn(), connect: vi.fn(), owner: vi.fn(), exportBackup: vi.fn(),
-  preview: vi.fn(), restore: vi.fn(), upload: vi.fn(), latest: vi.fn(),
+  readKey: vi.fn(), saveKey: vi.fn(), preview: vi.fn(), restore: vi.fn(), upload: vi.fn(), latest: vi.fn(),
 }))
 vi.mock('../auth/client', () => ({ authClient: { auth: { getSession: mocks.session } } }))
 vi.mock('../sync/drive-backup', () => ({ connectBackupDrive: mocks.connect }))
 vi.mock('./runtime', () => ({
+  readNativeDriveRecoveryKey: mocks.readKey, saveNativeDriveRecoveryKey: mocks.saveKey,
   nativeLocalActor: mocks.owner, exportNativeFinancialBackup: mocks.exportBackup,
   previewNativeFinancialBackup: mocks.preview, restoreNativeFinancialBackup: mocks.restore,
 }))
@@ -34,6 +35,10 @@ it('generates a recovery key and uploads only the encrypted archive', async () =
   mount()
   click('Generate key')
   expect((screen.getByLabelText('Recovery key') as HTMLInputElement).value).toMatch(/^[0-9a-f]{64}$/u)
+  expect(screen.getByLabelText('Recovery key')).toHaveAttribute('type', 'password')
+  click('Show key')
+  expect(screen.getByLabelText('Recovery key')).toHaveAttribute('type', 'text')
+  click('Hide key')
   click('Back up now')
   await screen.findByText('Backup saved to Drive.')
   expect(mocks.connect).toHaveBeenCalledWith(actor)
@@ -79,4 +84,15 @@ it('rejects account switches and invalidates a preview when the key changes', as
   await screen.findByText(/Companies 2/u)
   enterKey('bb'.repeat(32))
   await waitFor(() => expect(screen.queryByRole('button', { name: 'Restore to empty account' })).toBeNull())
+})
+
+it('reuses the encrypted device key on another visit', async () => {
+  mocks.readKey.mockResolvedValue('aa'.repeat(32))
+  mount()
+  click('Back up now')
+  await screen.findByText('Backup saved to Drive.')
+  expect(mocks.readKey).toHaveBeenCalledWith(actor)
+  expect(mocks.saveKey).toHaveBeenCalledWith(actor, 'aa'.repeat(32))
+  click('Preview restore')
+  await screen.findByText(/Companies 2/u)
 })

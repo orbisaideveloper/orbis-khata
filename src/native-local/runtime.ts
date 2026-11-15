@@ -230,6 +230,27 @@ async function persistState(conn:SqlitePort,actor:string,state:DeviceLocalSnapsh
 async function hydrateForActor(actor:string,conn:SqlitePort,firstEnrollment=false):Promise<void> {
   restoreDeviceLocalSnapshot(await readState(conn,actor,firstEnrollment))
 }
+const DRIVE_RECOVERY_KEY = 'drive-recovery-key'
+
+export function readNativeDriveRecoveryKey(actor: string): Promise<string | null> {
+  return ordered(async () => {
+    const scope = assertActive()
+    if (scope.actor !== actor) throw new Error('ANDROID_LOCAL_ACTOR_CHANGED')
+    const key = await encryptedRead(scope.db, actor, DRIVE_RECOVERY_KEY)
+    if (assertActive().generation !== scope.generation) throw new Error('ANDROID_LOCAL_ACTOR_CHANGED')
+    return key
+  })
+}
+
+export function saveNativeDriveRecoveryKey(actor: string, key: string): Promise<void> {
+  return ordered(async () => {
+    const scope = assertActive()
+    if (scope.actor !== actor) throw new Error('ANDROID_LOCAL_ACTOR_CHANGED')
+    if (!/^[a-f0-9]{64}$/iu.test(key)) throw new Error('FINANCIAL_BACKUP_KEY_INVALID')
+    await encryptedWrite(scope.db, actor, DRIVE_RECOVERY_KEY, key)
+  })
+}
+
 /** Export the committed ledger projection under the currently unlocked identity. */
 export function exportNativeFinancialBackup(recoveryKey: Uint8Array<ArrayBuffer>): Promise<Uint8Array<ArrayBuffer>> {
   return ordered(async () => {

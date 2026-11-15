@@ -1881,3 +1881,14 @@ See [SONAR-CORRECTIONS-20261017.md](SONAR-CORRECTIONS-20261017.md) for every rep
   plus login, contacts, and Drive backup/restore on the minified build.
 - Next batch: Android backup onboarding, account-linked recovery and scheduling.
   No deployment, Play submission or financial data writes in this checkpoint.
+
+### Android Drive backup access and on-device key reuse
+- Base main cc68d66. Android's workspace menu opens the Drive backup panel
+  directly. Recovery keys are masked by default. After a successful upload
+  the app seals the key in the unlocked user's encrypted local database,
+  so repeat backup and preview on the same installation can reuse it.
+- Three targeted suites (18 tests), typecheck, scoped lint and diff check passed.
+  Physical Android, account-linked key recovery, first-run consent, automatic
+  scheduling and clean-device restore acceptance remain pending.
+- Next: define the account-linked recovery and background authorization contract.
+  No production deployment, Play submission or customer data writes.

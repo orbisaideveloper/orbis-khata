@@ -1,3 +1,4 @@
+import { inLanguage } from './localize';
 import { OrbisLogo } from './brand/OrbisLogo';
 import { PrivacyLinks } from './privacy/PrivacyLinks';
 import { WorkspaceGreeting } from './WorkspaceGreeting';
@@ -100,7 +101,11 @@ function App() {
     const [logoutError, setLogoutError] = useState(false);
     const guestEntered = useRef(false);
     const t = (key: TextKey) => translations[language][key];
-    const menu = () => <WorkspaceMenu onMainHome={mainHome} onAppearance={showAppearance} enhanced production={view==='khata'&&production} language={language} signedIn={signedIn} onBooks={page => {
+    const backupLabel = inLanguage(language, 'Google Drive ব্যাকআপ', 'Google Drive बैकअप', 'Google Drive backup');
+    const menu = () => <WorkspaceMenu onMainHome={mainHome} onAppearance={showAppearance} enhanced actions={signedIn && androidLocalFirst() && <button type="button" onClick={event => {
+            event.currentTarget.closest('details')?.removeAttribute('open');
+            navigate('drive-backup');
+        }}>{backupLabel}</button>} production={view==='khata'&&production} language={language} signedIn={signedIn} onBooks={page => {
             openBooks(page);
             if (view !== 'khata') {
                 navigate('khata');
@@ -234,6 +239,11 @@ function App() {
 
       <LotteryScene view={view} owner={sessionId} language={language} onSelect={navigate} controls={<WorkspaceMenu onMainHome={mainHome} onAppearance={showAppearance} settings={<><label className="lottery-language-setting"><span>{languagePresentation[language].pickerLabel}</span>{languagePicker()}</label><Themes language={language}/></>} actions={<><button type="button" onClick={()=>navigate('customer')}>{shareCopy(language,'title')}</button>{(['tds','payments'] as const).map(section=><button type="button" key={section} onClick={event=>{event.currentTarget.closest('.workspace-menu')?.removeAttribute('open');window.dispatchEvent(new CustomEvent('lottery-settings',{detail:section}));}}>{section==='tds'?'TDS':{bn:'পেমেন্টের মাধ্যম',en:'Payment methods',hi:'भुगतान के तरीके'}[language]}</button>)}</>} language={language} signedIn={signedIn} tutorial={tutorial} onTutorial={enabled=>{setTutorial(enabled);saveTutorial(enabled);}} onProfile={()=>navigate('profile')} onLogout={()=>void logout()}/>}/>
       {view==='customer'&&signedIn&&<Suspense fallback={<p>{accountCopy[language].network}</p>}><CustomerView key={sessionId} language={language} onSelect={navigate} onBack={mainHome} onBooks={()=>navigate('lottery')}/></Suspense>}
+      {view === 'drive-backup' && sessionId && androidLocalFirst() && <section className="scene light-scene active profile-page" aria-label={backupLabel}>
+        {renderBar('khata', 'choose', 'settings')}
+        <DriveBackupPanel key={sessionId} actor={sessionId} language={language}/>
+      </section>}
+
       {view === 'profile' && signedIn && <section className="scene light-scene active profile-page" aria-label={t('settings')}>
         {renderBar('workspace', 'choose', 'settings')}
         <p className="orbis-account-id">{account.session?.user.user_metadata?.orbis_display_id}</p>

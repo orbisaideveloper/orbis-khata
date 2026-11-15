@@ -8,7 +8,8 @@ import { generateFinancialBackupKey } from '../sync/financial-backup'
 export function DriveBackupPanel({ actor, language }: Readonly<{ actor: string; language: Language }>) {
   const t = (bn: string, hi: string, en: string) => inLanguage(language, bn, hi, en)
   const [key, setKey] = useState('')
-  const [preview, setPreview] = useState<{ archive: Uint8Array<ArrayBuffer>; companies: number; entries: number }>()
+  const [showKey, setShowKey] = useState(false)
+  const [preview, setPreview] = useState<{ archive: Uint8Array<ArrayBuffer>; secret: Uint8Array<ArrayBuffer>; companies: number; entries: number }>()
   const [busy, setBusy] = useState(false)
   const [message, setMessage] = useState('')
   const pending = useRef(false)
@@ -35,32 +36,38 @@ export function DriveBackupPanel({ actor, language }: Readonly<{ actor: string; 
       setBusy(false)
     }
   }
-  function recoveryKey() {
-    const code = key.trim()
+  function recoveryKey(code: string) {
     if (!/^[a-f0-9]{64}$/iu.test(code)) throw new Error('FINANCIAL_BACKUP_KEY_INVALID')
     return Uint8Array.from(code.match(/../gu)!, pair => Number.parseInt(pair, 16))
   }
   async function backup() {
-    const secret = recoveryKey()
     const local = await import('./runtime')
+    if (local.nativeLocalActor() !== actor) throw new Error('ANDROID_LOCAL_ACTOR_CHANGED')
+    const code = key.trim() || await local.readNativeDriveRecoveryKey(actor) || ''
+    const secret = recoveryKey(code)
     const drive = await connectBackupDrive(actor)
     if (local.nativeLocalActor() !== actor) throw new Error('ANDROID_LOCAL_ACTOR_CHANGED')
     await drive.upload(await local.exportNativeFinancialBackup(secret))
+    await local.saveNativeDriveRecoveryKey(actor, code)
+    setPreview(undefined)
+    setShowKey(false)
     setMessage(t('Drive-এ ব্যাকআপ সেভ হয়েছে।', 'Drive में बैकअप सहेजा गया।', 'Backup saved to Drive.'))
   }
   async function inspect() {
-    const secret = recoveryKey()
+    const local = await import('./runtime')
+    const code = key.trim() || await local.readNativeDriveRecoveryKey(actor) || ''
+    const secret = recoveryKey(code)
     const drive = await connectBackupDrive(actor)
     const archive = await drive.latest()
-    const local = await import('./runtime')
     const details = await local.previewNativeFinancialBackup(archive, actor, secret)
-    setPreview({ archive, ...details })
+    setPreview({ archive, secret, ...details })
   }
   async function restore() {
     if (!preview) return
     const local = await import('./runtime')
-    await local.restoreNativeFinancialBackup(preview.archive, actor, recoveryKey())
+    await local.restoreNativeFinancialBackup(preview.archive, actor, preview.secret)
     setPreview(undefined)
+    setShowKey(false)
     setKey('')
     setMessage(t('হিসাব ফিরেছে। খাতায় ফিরে দেখুন।', 'खाते वापस आ गए। खाता खोलकर देखें।', 'Accounts restored. Open Khata to review them.'))
     window.dispatchEvent(new Event('khata-refresh'))
@@ -69,8 +76,12 @@ export function DriveBackupPanel({ actor, language }: Readonly<{ actor: string; 
     <h2>{t('Google Drive ব্যাকআপ', 'Google Drive बैकअप', 'Google Drive backup')}</h2>
     <p>{t('রিকভারি চাবি আলাদা নিরাপদ জায়গায় রাখুন। রিস্টোরের সময় একই Google অ্যাকাউন্ট লাগবে।', 'रिकवरी कुंजी अलग सुरक्षित जगह रखें। बहाली में वही Google खाता चाहिए।', 'Keep your recovery key somewhere safe. Use the same Google account to restore.')}</p>
     <fieldset disabled={busy}>
-      <label className="field">{t('রিকভারি চাবি', 'रिकवरी कुंजी', 'Recovery key')}<input className="input" value={key} onChange={event => { setKey(event.target.value); setPreview(undefined) }} autoComplete="off" autoCapitalize="none" spellCheck={false} maxLength={64}/></label>
+      <label className="field">{t('রিকভারি চাবি', 'रिकवरी कुंजी', 'Recovery key')}<input className="input" type={showKey ? "text" : "password"} value={key} onChange={event => { setKey(event.target.value); setPreview(undefined) }} autoComplete="off" autoCapitalize="none" spellCheck={false} maxLength={64}/></label>
+      {key && <button type="button" aria-pressed={showKey} onClick={() => setShowKey(!showKey)}>
+        {showKey ? t('চাবি লুকান', 'कुंजी छिपाएँ', 'Hide key') : t('চাবি দেখুন', 'कुंजी दिखाएँ', 'Show key')}
+      </button>}
       <button type="button" onClick={() => {
+        setShowKey(false)
         setKey(Array.from(generateFinancialBackupKey(), byte => byte.toString(16).padStart(2, '0')).join(''))
         setPreview(undefined)
       }}>{t('নতুন চাবি তৈরি', 'नई कुंजी बनाएँ', 'Generate key')}</button>
