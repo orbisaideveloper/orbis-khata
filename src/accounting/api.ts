@@ -75,6 +75,21 @@ function requestRemoteKhata<T>(operation: string, input: unknown): Promise<T> {
     if(!liveClient||liveUrl!==url){liveUrl=url;liveClient=createKhataDataClient({url,token:()=>client.central.accessToken()});}
     return liveClient<T>(operation,input);
 }
+export async function readOnlineCompanies(actor: string): Promise<Company[]> {
+    const url = import.meta.env.VITE_KHATA_DATA_URL as string | undefined;
+    if (!url) throw new Error('KHATA_DATA_NOT_CONFIGURED');
+    const session = await authClient?.auth.getSession();
+    const verified = session?.data.session;
+    if (session?.error || verified?.user.id !== actor || !verified.access_token) {
+        throw new Error('AUTH_REQUIRED');
+    }
+    const request = createKhataDataClient({ url, token: async () => verified.access_token });
+    const rows = await request<Company[]>('companies', {});
+    if (!Array.isArray(rows) || rows.some(row => typeof row?.id !== 'string' || typeof row?.name !== 'string')) {
+        throw new Error('KHATA_COMPANY_LIST_INVALID');
+    }
+    return rows;
+}
 export function requestDriveRecovery(actor: string, record?: AccountRecovery): Promise<AccountRecovery | null> {
     const input = record ? { action: 'link', actor, ...record } : { action: 'read', actor };
     return requestRemoteKhata('drive-recovery', input);

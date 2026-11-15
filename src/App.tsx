@@ -28,6 +28,7 @@ import { TutorialContext, readTutorial, saveTutorial } from './tutorial';
 import { authClient } from './auth/client';
 import { useAccount } from './auth/useAccount';
 import { androidLocalFirst } from './native-local/route';
+import { CompanySyncPreview } from './native-local/CompanySyncPreview';
 import { DriveBackupPanel } from './native-local/DriveBackupPanel';
 import { AccountForm } from './auth/AccountForm';
 import { accountCopy } from './auth/copy';
@@ -248,6 +249,7 @@ function App() {
         {renderBar('workspace', 'choose', 'settings')}
         <p className="orbis-account-id">{account.session?.user.user_metadata?.orbis_display_id}</p>
         <CommonAccountProfile key={account.session!.user.id} userId={account.session!.user.id} language={language}/><PrivacyLinks language={language} detailed/>
+        {androidLocalFirst() && sessionId && <CompanySyncPreview key={sessionId} actor={sessionId} language={language}/>}
         {androidLocalFirst() && sessionId && <DriveBackupPanel key={sessionId} actor={sessionId} language={language}/>}
         {tutorial && <p className="books-hint">{accountCopy[language].lock} — {accountCopy[language].lockInfo}</p>}
       </section>}

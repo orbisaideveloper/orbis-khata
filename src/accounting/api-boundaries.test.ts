@@ -39,3 +39,24 @@ it('does not issue gateway requests when either its endpoint or account is uncon
   await expect((await import('./api')).companies('u')).rejects.toThrow('KHATA_DATA_NOT_CONFIGURED')
   expect(fetcher).not.toHaveBeenCalled(); vi.doUnmock('../auth/client')
 })
+
+it('reads cloud companies with the matching ORBIS session only', async () => {
+  vi.resetModules()
+  vi.stubEnv('VITE_KHATA_DATA_URL', 'https://data.example/khata')
+  const getSession = vi.fn().mockResolvedValue({ data: { session: { user: { id: 'actor' }, access_token: 'bound.token' } } })
+  vi.doMock('../auth/client', () => ({ authClient: { auth: { getSession } } }))
+  const fetcher = vi.fn().mockResolvedValueOnce(Response.json({ data: [{ id: 'cloud-company', name: 'Cloud' }] }))
+    .mockResolvedValueOnce(Response.json({ data: [{ id: 'invalid' }] }))
+  vi.stubGlobal('fetch', fetcher)
+  try {
+    const { readOnlineCompanies } = await import('./api')
+    await expect(readOnlineCompanies('different')).rejects.toThrow('AUTH_REQUIRED')
+    expect(fetcher).not.toHaveBeenCalled()
+    await expect(readOnlineCompanies('actor')).resolves.toEqual([{ id: 'cloud-company', name: 'Cloud' }])
+    expect(fetcher.mock.calls[0][1]).toMatchObject({ headers: { authorization: 'Bearer bound.token' } })
+    expect(JSON.parse(fetcher.mock.calls[0][1].body)).toMatchObject({ operation: 'companies', input: {} })
+    await expect(readOnlineCompanies('actor')).rejects.toThrow('KHATA_COMPANY_LIST_INVALID')
+  } finally {
+    vi.doUnmock('../auth/client')
+  }
+})

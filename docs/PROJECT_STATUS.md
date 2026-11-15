@@ -1929,3 +1929,13 @@ See [SONAR-CORRECTIONS-20261017.md](SONAR-CORRECTIONS-20261017.md) for every rep
   KHATA_ORIGINS includes https://localhost. Keep the wrapping key stable for
   already-linked users. Deploy the matching privacy/backup disclosure pages
   before Play rollout. No production schema, secrets or deployment changed.
+
+### Step 4 — Read-only web and Android company comparison
+- Base main 6202389. Android Account & settings compares the active web company
+  list and the active list on the unlocked phone under the same ORBIS identity.
+  Uses the existing authenticated companies operation. No import, write, or
+  reconciliation runs during comparison.
+- Four targeted suites (25 tests), typecheck, scoped lint, Knip, JSCPD and diff
+  check passed. Coverage and Chromium remain on the GitHub Quality runner.
+- Next: stage a cloud snapshot and reconcile company and ledger totals before
+  importing into a disposable test company. No production migration or deploy.

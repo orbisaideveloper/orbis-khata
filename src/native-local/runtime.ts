@@ -287,6 +287,14 @@ export function restoreNativeFinancialBackup(archive: Uint8Array<ArrayBuffer>, a
   })
 }
 
+export function readNativeCompaniesForComparison(actor: string) {
+  return ordered(async () => {
+    if (assertActive().actor !== actor) throw new Error('ANDROID_LOCAL_ACTOR_CHANGED')
+    const companies = await demoRequest<{ id: string; name: string }[]>('companies', {})
+    return companies.map(({ id, name }) => ({ id, name }))
+  })
+}
+
 export function nativeLocalActor(): string | null { return active }
 export function nativeLocalDisplayId(): string | null { return identity?.displayId ?? null }
 /** Use this after successful central sign-in. No caller-supplied identity is trusted here. */

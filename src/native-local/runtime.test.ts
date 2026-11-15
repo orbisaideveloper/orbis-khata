@@ -199,3 +199,13 @@ it('reads the device backup key after restart only for its unlocked owner', asyn
   await expect(restarted.readNativeDriveRecoveryKey('other')).rejects.toThrow('ANDROID_LOCAL_ACTOR_CHANGED')
   await expect(restarted.saveNativeDriveRecoveryKey('other', key)).rejects.toThrow('ANDROID_LOCAL_ACTOR_CHANGED')
 })
+
+it('reads the unlocked company list without writing to the encrypted journal', async () => {
+  const runtime = await import('./runtime')
+  await runtime.enrollVerifiedCentralIdentity(actor, displayId)
+  fixture.request.mockResolvedValue([{ id: 'local-shop', name: 'Local shop' }])
+  await expect(runtime.readNativeCompaniesForComparison('other')).rejects.toThrow('ANDROID_LOCAL_ACTOR_CHANGED')
+  await expect(runtime.readNativeCompaniesForComparison(actor)).resolves.toEqual([{ id: 'local-shop', name: 'Local shop' }])
+  expect(fixture.request).toHaveBeenCalledExactlyOnceWith('companies', {})
+  expect(fixture.journal).not.toHaveBeenCalled()
+})
