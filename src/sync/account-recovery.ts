@@ -1,4 +1,4 @@
-export const recoveryKeyPattern = /^[a-f0-9]{64}$/u
+const recoveryKeyPattern = /^[a-f0-9]{64}$/u
 
 export function validRecoveryEmail(value: unknown): value is string {
   return typeof value === 'string' && value.length <= 254 && /^[a-z0-9.!#$%&\x27*+/=?^_\x60{|}~-]+@[a-z0-9.-]+$/iu.test(value)
