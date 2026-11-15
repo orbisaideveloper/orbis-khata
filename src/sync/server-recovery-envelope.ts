@@ -10,10 +10,10 @@ export function createRecoveryEnvelope(wrappingKey: string) {
       const iv = crypto.getRandomValues(new Uint8Array(12))
       const ciphertext = await crypto.subtle.encrypt({ name: 'AES-GCM', iv, additionalData: context(actor) },
         await loadKey(), encoder.encode(JSON.stringify(record)))
-      return btoa(String.fromCharCode(...iv, ...new Uint8Array(ciphertext)))
+      return btoa(String.fromCodePoint(...iv, ...new Uint8Array(ciphertext)))
     },
     async open(actor: string, envelope: string): Promise<AccountRecovery> {
-      const bytes = Uint8Array.from(atob(envelope), character => character.charCodeAt(0))
+      const bytes = Uint8Array.from(atob(envelope), character => character.codePointAt(0)!)
       const plaintext = await crypto.subtle.decrypt({ name: 'AES-GCM', iv: bytes.slice(0, 12), additionalData: context(actor) },
         await loadKey(), bytes.slice(12))
       const result: unknown = JSON.parse(new TextDecoder().decode(plaintext))
