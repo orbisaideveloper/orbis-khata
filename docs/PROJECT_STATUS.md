@@ -1892,3 +1892,12 @@ See [SONAR-CORRECTIONS-20261017.md](SONAR-CORRECTIONS-20261017.md) for every rep
   scheduling and clean-device restore acceptance remain pending.
 - Next: define the account-linked recovery and background authorization contract.
   No production deployment, Play submission or customer data writes.
+
+### Android first manual Drive backup
+- Base main 49e4f8b. A first tap on Back up now can authorize Drive, check for
+  an existing archive, generate a masked recovery key and seal it before upload.
+  A prior archive with no available key prompts for that key.
+- Two targeted suites (13 tests), typecheck, scoped lint and diff check passed.
+  Verify the flow on Android using a new Drive account and an existing backup.
+  Account-linked key recovery, first-login prompt and scheduling remain pending.
+  No deployment, Play release or customer data changes.

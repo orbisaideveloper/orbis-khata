@@ -23,6 +23,15 @@ export async function connectBackupDrive(actor: string) {
     if (!response.ok) throw new Error('DRIVE_REQUEST_FAILED')
     return response
   }
+  async function latestFile() {
+    const filter = new URLSearchParams({
+      spaces: 'appDataFolder', q: "trashed = false and name = '" + archiveName + "'",
+      orderBy: 'createdTime desc', pageSize: '1', fields: 'files(id,size)',
+    })
+    const list = await request('/drive/v3/files?' + filter)
+    const { files } = await list.json() as { files?: { id: string; size: string }[] }
+    return files?.[0]
+  }
   return {
     async upload(archive: Uint8Array<ArrayBuffer>) {
       const boundary = 'orbis-' + crypto.randomUUID()
@@ -35,14 +44,11 @@ export async function connectBackupDrive(actor: string) {
         body: new Blob([prefix, archive, '\r\n--' + boundary + '--\r\n']),
       })
     },
+    async hasBackup() {
+      return Boolean(await latestFile())
+    },
     async latest() {
-      const filter = new URLSearchParams({
-        spaces: 'appDataFolder', q: "trashed = false and name = '" + archiveName + "'",
-        orderBy: 'createdTime desc', pageSize: '1', fields: 'files(id,size)',
-      })
-      const list = await request('/drive/v3/files?' + filter)
-      const { files } = await list.json() as { files?: { id: string; size: string }[] }
-      const file = files?.[0]
+      const file = await latestFile()
       if (!file || !/^[\w-]+$/u.test(file.id)) throw new Error('DRIVE_BACKUP_NOT_FOUND')
       const expected = Number(file.size)
       if (!Number.isSafeInteger(expected) || expected < 1 || expected > maximumBytes) throw new Error('DRIVE_BACKUP_SIZE_INVALID')

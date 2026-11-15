@@ -3,7 +3,7 @@ import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 import { DriveBackupPanel } from './DriveBackupPanel'
 
 const mocks = vi.hoisted(() => ({
-  session: vi.fn(), connect: vi.fn(), owner: vi.fn(), exportBackup: vi.fn(),
+  hasBackup: vi.fn(), session: vi.fn(), connect: vi.fn(), owner: vi.fn(), exportBackup: vi.fn(),
   readKey: vi.fn(), saveKey: vi.fn(), preview: vi.fn(), restore: vi.fn(), upload: vi.fn(), latest: vi.fn(),
 }))
 vi.mock('../auth/client', () => ({ authClient: { auth: { getSession: mocks.session } } }))
@@ -23,7 +23,7 @@ const enterKey = (key: string) => fireEvent.change(screen.getByLabelText('Recove
 beforeEach(() => {
   vi.resetAllMocks()
   mocks.session.mockResolvedValue({ data: { session: { user: { id: actor } } }, error: null })
-  mocks.connect.mockResolvedValue({ upload: mocks.upload, latest: mocks.latest })
+  mocks.connect.mockResolvedValue({ upload: mocks.upload, latest: mocks.latest, hasBackup: mocks.hasBackup })
   mocks.owner.mockReturnValue(actor)
   mocks.exportBackup.mockResolvedValue(archive)
   mocks.latest.mockResolvedValue(archive)
@@ -33,14 +33,14 @@ afterEach(cleanup)
 
 it('generates a recovery key and uploads only the encrypted archive', async () => {
   mount()
-  click('Generate key')
+  click('Back up now')
+  await screen.findByText('Backup saved to Drive.')
   expect((screen.getByLabelText('Recovery key') as HTMLInputElement).value).toMatch(/^[0-9a-f]{64}$/u)
   expect(screen.getByLabelText('Recovery key')).toHaveAttribute('type', 'password')
   click('Show key')
   expect(screen.getByLabelText('Recovery key')).toHaveAttribute('type', 'text')
   click('Hide key')
-  click('Back up now')
-  await screen.findByText('Backup saved to Drive.')
+  expect(mocks.hasBackup).toHaveBeenCalledOnce()
   expect(mocks.connect).toHaveBeenCalledWith(actor)
   expect(mocks.exportBackup).toHaveBeenCalledWith(expect.any(Uint8Array))
   expect(mocks.upload).toHaveBeenCalledExactlyOnceWith(archive)
@@ -95,4 +95,13 @@ it('reuses the encrypted device key on another visit', async () => {
   expect(mocks.saveKey).toHaveBeenCalledWith(actor, 'aa'.repeat(32))
   click('Preview restore')
   await screen.findByText(/Companies 2/u)
+})
+
+it('preserves an existing Drive backup when this phone has no key', async () => {
+  mocks.hasBackup.mockResolvedValue(true)
+  mount()
+  click('Back up now')
+  await screen.findByText('An existing backup was found. Enter its recovery key.')
+  expect(mocks.saveKey).not.toHaveBeenCalled()
+  expect(mocks.upload).not.toHaveBeenCalled()
 })

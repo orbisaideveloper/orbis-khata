@@ -43,12 +43,22 @@ export function DriveBackupPanel({ actor, language }: Readonly<{ actor: string; 
   async function backup() {
     const local = await import('./runtime')
     if (local.nativeLocalActor() !== actor) throw new Error('ANDROID_LOCAL_ACTOR_CHANGED')
-    const code = key.trim() || await local.readNativeDriveRecoveryKey(actor) || ''
-    const secret = recoveryKey(code)
+    const existingKey = key.trim() || await local.readNativeDriveRecoveryKey(actor)
+    if (existingKey) recoveryKey(existingKey)
     const drive = await connectBackupDrive(actor)
+    if (!existingKey && await drive.hasBackup()) {
+      setMessage(t('আগের ব্যাকআপ পাওয়া গেছে। সেটি খুলতে রিকভারি চাবি দিন।', 'पुराना बैकअप मिला। उसे खोलने के लिए रिकवरी कुंजी दर्ज करें।', 'An existing backup was found. Enter its recovery key.'))
+      return
+    }
+    const code = existingKey || Array.from(generateFinancialBackupKey(), byte => byte.toString(16).padStart(2, '0')).join('')
+    const secret = recoveryKey(code)
     if (local.nativeLocalActor() !== actor) throw new Error('ANDROID_LOCAL_ACTOR_CHANGED')
+    if (!existingKey) {
+      await local.saveNativeDriveRecoveryKey(actor, code)
+      setKey(code)
+    }
     await drive.upload(await local.exportNativeFinancialBackup(secret))
-    await local.saveNativeDriveRecoveryKey(actor, code)
+    if (existingKey) await local.saveNativeDriveRecoveryKey(actor, code)
     setPreview(undefined)
     setShowKey(false)
     setMessage(t('Drive-এ ব্যাকআপ সেভ হয়েছে।', 'Drive में बैकअप सहेजा गया।', 'Backup saved to Drive.'))
@@ -80,11 +90,6 @@ export function DriveBackupPanel({ actor, language }: Readonly<{ actor: string; 
       {key && <button type="button" aria-pressed={showKey} onClick={() => setShowKey(!showKey)}>
         {showKey ? t('চাবি লুকান', 'कुंजी छिपाएँ', 'Hide key') : t('চাবি দেখুন', 'कुंजी दिखाएँ', 'Show key')}
       </button>}
-      <button type="button" onClick={() => {
-        setShowKey(false)
-        setKey(Array.from(generateFinancialBackupKey(), byte => byte.toString(16).padStart(2, '0')).join(''))
-        setPreview(undefined)
-      }}>{t('নতুন চাবি তৈরি', 'नई कुंजी बनाएँ', 'Generate key')}</button>
       <button type="button" onClick={() => void run(backup)}>{t('ব্যাকআপ নিন', 'बैकअप लें', 'Back up now')}</button>
       <button type="button" onClick={() => { setPreview(undefined); void run(inspect) }}>{t('ব্যাকআপ দেখুন', 'बैकअप देखें', 'Preview restore')}</button>
       {preview && <div>
