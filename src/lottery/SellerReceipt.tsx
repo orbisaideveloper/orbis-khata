@@ -71,7 +71,15 @@ export function SellerReceipt({
         ),
       });
       setAmounts({ cashPaise: "", pwtPaise: "", bankPaise: "",upiPaise:"",chequePaise:"" });
-    } catch {
+    } catch (cause) {
+      if (cause instanceof Error && cause.message === "SELLER_ENTRY_NOT_SAVED") {
+        setError(l(
+          "বিক্রির সারি সেভ হয়নি। সারির সেভ বার্তাটি দেখে আবার চেষ্টা করুন।",
+          "The seller row could not be saved. Check the row’s save message and retry.",
+          "बिक्री की पंक्ति सहेजी नहीं गई। पंक्ति का संदेश देखें और फिर कोशिश करें।",
+        ));
+        return;
+      }
       setError(
         l(
           "আদায় সেভ হয়নি। আবার চেষ্টা করুন।",

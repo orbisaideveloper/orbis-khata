@@ -64,8 +64,11 @@ it("saves one exact split receipt and resets after confirmation while retaining 
     expect(screen.getByLabelText("Receipt Cash")).toHaveValue(""),
   );
 });
-it("does not submit invalid values and preserves entered amounts after an uncertain save", async () => {
-  const onSave = vi.fn().mockRejectedValue(new Error("offline"));
+it.each([
+  ["offline", "Receipt not confirmed"],
+  ["SELLER_ENTRY_NOT_SAVED", "The seller row could not be saved"],
+])("preserves entered amounts after a failed save (%s)", async (code, message) => {
+  const onSave = vi.fn().mockRejectedValue(new Error(code));
   render(
     <SellerReceipt
       workspace={workspace}
@@ -85,7 +88,7 @@ it("does not submit invalid values and preserves entered amounts after an uncert
     target: { value: "500" },
   });
   fireEvent.click(screen.getByRole("button", { name: "Save receipt" }));
-  expect(await screen.findByRole("alert")).toHaveTextContent("Retry");
+  expect(await screen.findByRole("alert")).toHaveTextContent(message);
   expect(screen.getByLabelText("Receipt Bank")).toHaveValue("500");
 });
 

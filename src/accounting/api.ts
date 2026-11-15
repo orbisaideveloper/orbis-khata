@@ -1,3 +1,4 @@
+import type { ShareCommand } from '../customer-view/contract';
 import { authClient } from '../auth/client';
 import { androidLocalFirst } from '../native-local/route';
 import type { AccountRecovery } from '../sync/account-recovery';
@@ -75,7 +76,7 @@ function requestRemoteKhata<T>(operation: string, input: unknown): Promise<T> {
     if(!liveClient||liveUrl!==url){liveUrl=url;liveClient=createKhataDataClient({url,token:()=>client.central.accessToken()});}
     return liveClient<T>(operation,input);
 }
-export async function readOnlineCompanies(actor: string): Promise<Company[]> {
+async function accountGateway(actor: string) {
     const url = import.meta.env.VITE_KHATA_DATA_URL as string | undefined;
     if (!url) throw new Error('KHATA_DATA_NOT_CONFIGURED');
     const session = await authClient?.auth.getSession();
@@ -83,7 +84,18 @@ export async function readOnlineCompanies(actor: string): Promise<Company[]> {
     if (session?.error || verified?.user.id !== actor || !verified.access_token) {
         throw new Error('AUTH_REQUIRED');
     }
-    const request = createKhataDataClient({ url, token: async () => verified.access_token });
+    return createKhataDataClient({ url, token: async () => verified.access_token });
+}
+
+export async function requestOnlineCustomerView<T>(actor: string, command: ShareCommand): Promise<T> {
+    if (!['list', 'statement', 'accept', 'decline'].includes(command.action)) {
+        throw new Error('KHATA_CUSTOMER_ACTION_INVALID');
+    }
+    return (await accountGateway(actor))<T>('party-sharing', command);
+}
+
+export async function readOnlineCompanies(actor: string): Promise<Company[]> {
+    const request = await accountGateway(actor);
     const rows = await request<Company[]>('companies', {});
     if (!Array.isArray(rows) || rows.some(row => typeof row?.id !== 'string' || typeof row?.name !== 'string')) {
         throw new Error('KHATA_COMPANY_LIST_INVALID');

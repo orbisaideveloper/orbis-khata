@@ -1,31 +1,24 @@
 import { androidLocalFirst } from '../native-local/route';
-import { inLanguage } from '../localize';
 import {ModulePicker,type ModuleTarget} from '../ModulePicker';
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import type { Language } from '../i18n';
-import { requestKhata } from '../accounting/api';
+import { requestKhata, requestOnlineCustomerView } from '../accounting/api';
 import type { Share, ShareCommand } from './contract';
 import { shareCopy, type ShareText } from './copy';
 import type { PartyStatement } from './statement';
 import { StatementView } from './StatementView';
 import { ShareList } from './ShareList';
 import './customer-view.css';
-const request = <T,>(command: ShareCommand) => requestKhata<T>('party-sharing', command);
-export default function CustomerView(props: Parameters<typeof SharedCustomerView>[0]) {
-    if (!androidLocalFirst()) return <SharedCustomerView {...props}/>;
-    return <section className="scene light-scene active">
-        <h1>{shareCopy(props.language, 'title')}</h1>
-        <p>{inLanguage(props.language, 'শেয়ার করা স্টেটমেন্ট দেখতে খাতাবই ওয়েব খুলুন।', 'साझा विवरण देखने के लिए खाताबही वेब खोलें।', 'Open Khata Boi on the web to view shared statements.')}</p>
-        <a href="https://orbis-khata.onrender.com/" target="_blank" rel="noreferrer">Khata Boi</a>
-        <button type="button" onClick={props.onBack}>{inLanguage(props.language, 'ফিরুন', 'वापस', 'Back')}</button>
-    </section>;
-}
-function SharedCustomerView({ language, onBack, onBooks, onSelect }: Readonly<{
+export default function CustomerView({ actor, language, onBack, onBooks, onSelect }: Readonly<{
+    actor?: string;
     language: Language;
     onSelect?: (module: ModuleTarget) => void;
     onBack: () => void;
     onBooks: () => void;
 }>) {
+    const request = useCallback(<T,>(command: ShareCommand) => androidLocalFirst()
+        ? requestOnlineCustomerView<T>(actor ?? '', command)
+        : requestKhata<T>('party-sharing', command), [actor]);
     const t = (key: ShareText) => shareCopy(language, key);
     const [links, setLinks] = useState<Share[]>([]), [statement, setStatement] = useState<PartyStatement | null>(null), [active, setActive] = useState<string | null>(null), [busy, setBusy] = useState(true), [error, setError] = useState(false), [remove, setRemove] = useState<Share | null>(null);
     const today = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' });
@@ -86,7 +79,7 @@ function SharedCustomerView({ language, onBack, onBooks, onSelect }: Readonly<{
             }
         });
         return () => { revision.current = version + 1; };
-    }, []);
+    }, [request]);
     async function command(link: Share, action: 'accept' | 'decline') {
         await request({ action, id: link.id });
         setStatement(null);

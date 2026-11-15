@@ -2,9 +2,11 @@ import { StrictMode } from 'react';
 import { cleanup, act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import CustomerView from './CustomerView';
-import { requestKhata } from '../accounting/api';
-vi.mock('../accounting/api', () => ({ requestKhata: vi.fn() }));
-afterEach(cleanup);
+import { requestKhata, requestOnlineCustomerView } from '../accounting/api';
+vi.mock('../accounting/api', () => ({ requestKhata: vi.fn(), requestOnlineCustomerView: vi.fn() }));
+const native = vi.hoisted(() => vi.fn(() => false));
+vi.mock('../native-local/route', () => ({ androidLocalFirst: native }));
+afterEach(() => { cleanup(); native.mockReturnValue(false); });
 const request = vi.mocked(requestKhata);
 const incoming = { id: 'in', organization: 'Original books', party: 'Own party', partyType: 'SELLER', recipient: 'ORB-U-23456789', status: 'pending', outgoing: false };
 const outgoing = { ...incoming, id: 'out', party: 'Other party', outgoing: true, status: 'accepted' };
@@ -66,4 +68,16 @@ it('does not fetch financial data after unmount during a refresh',async()=>{
 });
 it('offers the shared module picker in Customer view without loading financial workspaces',async()=>{
  const select=vi.fn();render(<CustomerView language="en" onBack={vi.fn()} onBooks={vi.fn()} onSelect={select}/>);await screen.findByText(/No links/);fireEvent.click(screen.getByText('Modules'));fireEvent.click(screen.getByRole('button',{name:/Khata Boi/}));expect(select).toHaveBeenCalledWith('khata');expect(request).toHaveBeenCalledExactlyOnceWith('party-sharing',{action:'list'});
+});
+
+it('opens linked statements inside Android using the authenticated online view', async () => {
+    native.mockReturnValue(true);
+    const online = vi.mocked(requestOnlineCustomerView);
+    online.mockResolvedValueOnce([{ ...incoming, status: 'accepted' }]).mockResolvedValueOnce(statement);
+    render(<CustomerView actor="customer-id" language="en" onBack={vi.fn()} onBooks={vi.fn()}/>);
+    fireEvent.click(await screen.findByRole('button', { name: 'View statement' }));
+    expect(await screen.findByRole('table')).toBeVisible();
+    expect(online).toHaveBeenNthCalledWith(1, 'customer-id', { action: 'list' });
+    expect(online).toHaveBeenNthCalledWith(2, 'customer-id', expect.objectContaining({ action: 'statement', id: 'in' }));
+    expect(request).not.toHaveBeenCalled();
 });

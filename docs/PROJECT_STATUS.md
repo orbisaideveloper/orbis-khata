@@ -1939,3 +1939,15 @@ See [SONAR-CORRECTIONS-20261017.md](SONAR-CORRECTIONS-20261017.md) for every rep
   check passed. Coverage and Chromium remain on the GitHub Quality runner.
 - Next: stage a cloud snapshot and reconcile company and ledger totals before
   importing into a disposable test company. No production migration or deploy.
+
+### Android Customer View and Lottery receipt feedback
+- Base main 5896045. The Android customer can open incoming invitations and
+  statements in the app using the authenticated sharing gateway. Android
+  owner-side linking still requires a server-linked party.
+- Acquiring the Lottery seller-row save lock before loading the pending write
+  prevents competing saves during preparation. Receipt feedback distinguishes
+  seller-row failure from an unconfirmed receipt and retains the entered amount.
+- Ten targeted suites (73 tests), typecheck and diff check passed. Exact cause
+  of the reported live receipt failure and Android device behavior are pending.
+  Web bill import and live synchronization are pending. No deployment or live
+  data writes in this checkpoint.

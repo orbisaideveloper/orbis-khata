@@ -884,34 +884,34 @@ export function DailySellerEntry({
     row: DailySellerRow,
     showValidation: boolean,
   ) => {
-    const actions = actionsRef.current;
-    let durableOperation = null;
-    if (localStore?.getSellerSyncOperation) {
-      try {
-        durableOperation = await localStore.getSellerSyncOperation(
-          accountingScope,
-          entryDate,
-          partyId,
-        );
-      } catch {
-        // Browser recovery remains available; a fresh operation still receives
-        // optimistic version protection on the server.
-      }
-    }
-    const sync = {
-      operationId:
-        durableOperation?.operationId ?? fallbackSellerSyncOperationId(),
-      expectedVersion:
-        durableOperation?.expectedVersion ?? sellerExpectedVersion(row),
-    };
-    onLocalRowStateChange?.(entryDate, row, "SYNCING");
-    if (localStore?.markSellerRowSyncing) {
-      void localStore
-        .markSellerRowSyncing(accountingScope, entryDate, row)
-        .catch(() => undefined);
-    }
     setPartySaving(partyId, true);
     try {
+      const actions = actionsRef.current;
+      let durableOperation = null;
+      if (localStore?.getSellerSyncOperation) {
+        try {
+          durableOperation = await localStore.getSellerSyncOperation(
+            accountingScope,
+            entryDate,
+            partyId,
+          );
+        } catch {
+          // Browser recovery remains available; a fresh operation still receives
+          // optimistic version protection on the server.
+        }
+      }
+      const sync = {
+        operationId:
+          durableOperation?.operationId ?? fallbackSellerSyncOperationId(),
+        expectedVersion:
+          durableOperation?.expectedVersion ?? sellerExpectedVersion(row),
+      };
+      onLocalRowStateChange?.(entryDate, row, "SYNCING");
+      if (localStore?.markSellerRowSyncing) {
+        void localStore
+          .markSellerRowSyncing(accountingScope, entryDate, row)
+          .catch(() => undefined);
+      }
       if (rowIsZero(row)) {
         const deleted = await deleteZeroSellerRow(row, actions);
         finishDeletingRow(partyId, entryDate, versionAtStart, deleted);
