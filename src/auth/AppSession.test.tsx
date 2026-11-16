@@ -63,7 +63,7 @@ it('keeps the profile off the home screen and opens it only from the menu',()=>{
  const view=render(<App/>);english()
  expect(screen.queryByText('Private profile editor')).toBeNull()
  fireEvent.click(screen.getByLabelText('More options'))
- expect(screen.queryByRole('button',{name:'Parties',exact:true})).toBeNull()
+ expect(screen.queryByRole('button',{name:'Parties'})).toBeNull()
  expect(screen.queryByRole('link',{name:'Privacy Policy'})).toBeNull()
  fireEvent.click(screen.getByRole('checkbox',{name:'Show tutorial hints'}))
  expect(localStorage.getItem('orbis-khata-tutorial-v1')).toBe('on')
