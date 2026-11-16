@@ -2,9 +2,9 @@ import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 import { CompanySyncPreview } from './CompanySyncPreview'
 
-const { cloud, local, owner, readExport, importCompany } = vi.hoisted(() => ({ cloud: vi.fn(), local: vi.fn(), owner: vi.fn(), readExport: vi.fn(), importCompany: vi.fn() }))
+const { cloud, local, owner, readExport, importCompany, syncCompany } = vi.hoisted(() => ({ cloud: vi.fn(), local: vi.fn(), owner: vi.fn(), readExport: vi.fn(), importCompany: vi.fn(), syncCompany: vi.fn() }))
 vi.mock('../accounting/api', () => ({ readOnlineCompanies: cloud, readOnlineCompanyExport: readExport }))
-vi.mock('./runtime', () => ({ readNativeCompaniesForComparison: local, nativeLocalActor: owner, importNativeCompany: importCompany }))
+vi.mock('./runtime', () => ({ readNativeCompaniesForComparison: local, nativeLocalActor: owner, importNativeCompany: importCompany, syncNativeCompany: syncCompany }))
 
 beforeEach(() => {
   vi.resetAllMocks()
@@ -56,4 +56,20 @@ it('previews before importing and keeps the existing phone company visible', asy
   expect(screen.getByText('Phone store')).toBeVisible()
   expect(screen.getByText('Companies on this phone (2)')).toBeVisible()
   expect(screen.queryByRole('button', { name: 'Preview import' })).toBeNull()
+})
+
+
+it.each([
+  [undefined, /Last sync/u],
+  ['KHATA_COMPANY_SYNC_CONFLICT', /No changes were saved/u],
+  ['OFFLINE', /Check your connection/u],
+])('reports the outcome when updating an existing company (%s)', async (reason, message) => {
+  local.mockResolvedValue([{ id: 'web-1', name: 'Web store' }])
+  readExport.mockResolvedValue({ source: 'web' })
+  if (reason) syncCompany.mockRejectedValue(new Error(reason))
+  else syncCompany.mockResolvedValue({ changed: true, syncedAt: '2026-11-16T06:00:00Z' })
+  compare()
+  fireEvent.click(await screen.findByRole('button', { name: 'Sync now' }))
+  expect(await screen.findByText(message)).toBeVisible()
+  expect(syncCompany).toHaveBeenCalledWith('actor', 'web-1', { source: 'web' })
 })

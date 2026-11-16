@@ -1,3 +1,4 @@
+import type { DeviceLocalSnapshot } from '../demo/store'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const fixture = vi.hoisted(() => ({
@@ -9,7 +10,7 @@ const fixture = vi.hoisted(() => ({
   restore: vi.fn(),
   journal: vi.fn(),
   registerScope: vi.fn(),
-  state: { companies: [] as string[] },
+  state: undefined as unknown as DeviceLocalSnapshot,
 }))
 
 vi.mock('@capacitor-community/sqlite', () => ({
@@ -59,7 +60,8 @@ vi.mock('../offline-integration/android-hardware-codec', () => ({
     unseal: async (bytes: Uint8Array) => new TextDecoder().decode(bytes).trimEnd(),
   }),
 }))
-vi.mock('../demo/store', () => ({
+vi.mock('../demo/store', async (importOriginal) => ({
+  ...await importOriginal<typeof import('../demo/store')>(),
   demoRequest: fixture.request,
   demoMasters: fixture.masters,
   readDeviceLocalSnapshot: () => structuredClone(fixture.state),
@@ -67,9 +69,10 @@ vi.mock('../demo/store', () => ({
     fixture.restore(state)
     fixture.state = structuredClone(state)
   },
-  emptyDeviceLocalSnapshot: () => ({ companies: [] }),
-  validateDeviceLocalSnapshot: (state: unknown) => state,
 }))
+
+const { emptyDeviceLocalSnapshot } = await vi.importActual<typeof import('../demo/store')>('../demo/store')
+const demoCompany = { id: 'demo-company', name: 'Demo' }
 
 const actor = '01234567-89ab-7def-8123-456789abcdef'
 const displayId = 'ORB-U-ABCDEFGH'
@@ -80,7 +83,7 @@ beforeEach(() => {
   vi.resetAllMocks()
   localStorage.clear()
   fixture.rows.clear()
-  fixture.state = { companies: [] }
+  fixture.state = emptyDeviceLocalSnapshot()
   fixture.deviceLockStatus.mockResolvedValue({ secure: true })
   fixture.credential.mockResolvedValue(true)
   fixture.journal.mockResolvedValue({ changes: 1 })
@@ -106,7 +109,7 @@ describe('Android local accounting runtime', () => {
     expect(runtime.nativeLocalDisplayId()).toBe(displayId)
 
     fixture.request.mockImplementationOnce(async () => {
-      fixture.state.companies.push('demo-company')
+      fixture.state.companies.push(demoCompany)
       return { saved: true }
     })
     await expect(runtime.nativeLocalRequest('create', { table: 'khata_companies', row: { id: 'demo-company' } }))
@@ -114,10 +117,10 @@ describe('Android local accounting runtime', () => {
     expect(fixture.journal).toHaveBeenCalledOnce()
 
     vi.resetModules()
-    fixture.state = { companies: [] }
+    fixture.state = emptyDeviceLocalSnapshot()
     const restarted = await import('./runtime')
     await expect(restarted.restoreNativeOfflineIdentity()).resolves.toEqual({ actorId: actor, displayId })
-    expect(fixture.state.companies).toEqual(['demo-company'])
+    expect(fixture.state.companies).toEqual([demoCompany])
     fixture.masters.mockReturnValue({ parties: [] })
     await expect(restarted.nativeLocalRequest('masters', { company: 'demo-company' }))
       .resolves.toEqual({ parties: [] })
@@ -132,7 +135,7 @@ describe('Android local accounting runtime', () => {
     const runtime = await import('./runtime')
     await runtime.enrollVerifiedCentralIdentity(actor, displayId)
     fixture.request.mockImplementation(async () => {
-      fixture.state.companies.push('demo-company')
+      fixture.state.companies.push(demoCompany)
       return { saved: true }
     })
     fixture.journal.mockResolvedValueOnce({ changes: 0 })
@@ -141,7 +144,7 @@ describe('Android local accounting runtime', () => {
       .rejects.toThrow('ANDROID_LOCAL_SAVE_UNCERTAIN_REVIEW_LEDGER')
     expect(fixture.state.companies).toEqual([])
     await expect(runtime.nativeLocalRequest('create', input)).resolves.toEqual({ saved: true })
-    expect(fixture.state.companies).toEqual(['demo-company'])
+    expect(fixture.state.companies).toEqual([demoCompany])
   })
 
   it('fails closed when an enrolled snapshot loses a chunk', async () => {
@@ -168,7 +171,6 @@ it('enrolls without a screen lock after central sign-in and keeps existing encry
 it('previews and restores an authenticated backup once without overwriting existing books', async () => {
   const runtime = await import('./runtime')
   const { encryptFinancialBackup, generateFinancialBackupKey, inspectFinancialBackup } = await import('../sync/financial-backup')
-  const { emptyDeviceLocalSnapshot } = await vi.importActual<typeof import('../demo/store')>('../demo/store')
   await runtime.enrollVerifiedCentralIdentity(actor, displayId)
   const snapshot = emptyDeviceLocalSnapshot()
   snapshot.companies.push({ id: 'demo-company', name: 'Demo' })
@@ -208,4 +210,32 @@ it('reads the unlocked company list without writing to the encrypted journal', a
   await expect(runtime.readNativeCompaniesForComparison(actor)).resolves.toEqual([{ id: 'local-shop', name: 'Local shop' }])
   expect(fixture.request).toHaveBeenCalledExactlyOnceWith('companies', {})
   expect(fixture.journal).not.toHaveBeenCalled()
+})
+
+it('updates a linked company in durable storage without duplicating it or overwriting a local edit', async () => {
+  const runtime = await import('./runtime')
+  await runtime.enrollVerifiedCentralIdentity(actor, displayId)
+  const company = demoCompany.id
+  const archive = {
+    ...emptyDeviceLocalSnapshot(),
+    actor, company: demoCompany, settings: null, unsupported: false,
+    expenseProfiles: null, productionRoutes: {}, balances: {},
+  }
+  await expect(runtime.readNativeSyncCompanies(actor)).resolves.toEqual([])
+  await runtime.importNativeCompany(actor, company, archive)
+  await expect(runtime.readNativeSyncCompanies(actor)).resolves.toEqual([demoCompany])
+  const updated = { ...archive, company: { ...demoCompany, name: 'Updated on web' } }
+  await expect(runtime.syncNativeCompany(actor, company, updated)).resolves.toMatchObject({ changed: true })
+
+  vi.resetModules()
+  const restarted = await import('./runtime')
+  await restarted.restoreNativeOfflineIdentity()
+  expect(fixture.state.companies).toEqual([updated.company])
+  await expect(restarted.syncNativeCompany(actor, company, updated)).resolves.toMatchObject({ changed: false })
+  fixture.request.mockImplementationOnce(async () => {
+    fixture.state.companies[0].name = 'Edited on Android'
+  })
+  await restarted.nativeLocalRequest('create', { table: 'khata_companies', row: { id: company } })
+  await expect(restarted.syncNativeCompany(actor, company, updated)).rejects.toThrow('KHATA_COMPANY_SYNC_CONFLICT')
+  expect(fixture.state.companies[0].name).toBe('Edited on Android')
 })
