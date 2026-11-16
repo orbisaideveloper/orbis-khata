@@ -36,7 +36,17 @@ for(const language of ['en','bn','hi'] as const){
    if(operation==='lottery'&&input.method==='listOrganizations')data=[];
    expect(data,'Unexpected operation '+operation+JSON.stringify(input)).toBeDefined();await route.fulfill({headers,json:{data}});
   });
-  await page.goto('/');await page.getByRole('button',{name:new RegExp(translations[language].khata)}).click();
+  await page.goto('/');
+  const cards = page.locator('[data-workspace-card]');
+  await expect(cards).toHaveCount(6);
+  await expect(cards.nth(4)).toHaveAttribute('data-workspace-card', 'daily');
+  await expect(cards.nth(5)).toHaveAttribute('data-workspace-card', 'results');
+  const reorderCustomer = page.locator('[data-workspace-card="customer"] .workspace-card-grip');
+  await reorderCustomer.press('ArrowUp');
+  await expect(cards.nth(1)).toHaveAttribute('data-workspace-card', 'customer');
+  await page.reload();
+  await expect(cards.nth(1)).toHaveAttribute('data-workspace-card', 'customer');
+  await page.getByRole('button',{name:new RegExp(translations[language].khata)}).click();
   const preview=page.locator('.kh-recent-expenses');await expect(preview).toContainText('Payee 4');await expect(preview).toContainText('Payee 3');await expect(preview).toContainText('Payee 2');await expect(preview).not.toContainText('Payee 1');
   await page.screenshot({path:test.info().outputPath('expense-preview.png'),fullPage:true});
   await page.getByRole('button',{name:new RegExp(l('দিনের হিসাব','दिन का हिसाब','Daily summary'))}).click();

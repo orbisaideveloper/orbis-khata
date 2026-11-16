@@ -2,6 +2,7 @@ import { inLanguage } from './localize';
 import { OrbisLogo } from './brand/OrbisLogo';
 import { PrivacyLinks } from './privacy/PrivacyLinks';
 import { WorkspaceGreeting } from './WorkspaceGreeting';
+import { WorkspaceCards } from './WorkspaceCards';
 import './design.css';
 import {shareCopy} from './customer-view/copy';
 import {Themes} from './theme';
@@ -78,7 +79,6 @@ function accountStateScreen(account: ReturnType<typeof useAccount>, language: La
     }
     return null;
 }
-function LotteryModule({signedIn,language,onOpen}:Readonly<{signedIn:boolean;language:Language;onOpen:()=>void}>){const t=translations[language];return signedIn?<button type="button" className="module" onClick={onOpen}><span className="ic" aria-hidden="true">🎟️</span><span className="copy"><strong>{t.lot}</strong><small>{t.lotDesc}</small></span><span className="status">{t.open}</span></button>:<div className="module planned"><span className="ic lot" aria-hidden="true">🎟️</span><span className="copy"><strong>{t.lot}</strong><small>{t.lotDesc}</small></span><span className="status">{t.soon}</span></div>;}
 function useNativeBack(view: View, signedIn: boolean, booksPage: BooksPage, backBooks: () => void) {
     const enabled = view === 'khata' && signedIn;
     useEffect(() => {
@@ -135,7 +135,6 @@ function App() {
         }}>{backupLabel}</button>} production={view==='khata'&&production} language={language} signedIn={signedIn} onBooks={view==='khata' ? openBooks : undefined} tutorial={tutorial} onTutorial={enabled => { setTutorial(enabled); saveTutorial(enabled); }} onProfile={() => navigate('profile')} onLogout={() => { void logout(); }}/>;
     const renderBar = (backView: View, ariaKey: TextKey, pillKey: TextKey) => (<header className="bar"><button type="button" className="back" onClick={() => navigate(backView)} aria-label={t(ariaKey)}>←</button><span className="pill">{t(pillKey)}</span>{languagePicker(true)}{signedIn && menu()}</header>);
     const renderBrand = (subKey: TextKey) => (<div className="brand"><span className="orb"><OrbisLogo /></span><span>ORBIS<small>{t(subKey)}</small></span></div>);
-    const renderPlanned = (ic: string, cls: string, nameKey: TextKey, descKey: TextKey, statusKey: TextKey) => (<div className="module planned"><span className={`ic ${cls}`} aria-hidden="true">{ic}</span><span className="copy"><strong>{t(nameKey)}</strong><small>{t(descKey)}</small></span><span className="status">{t(statusKey)}</span></div>);
     useEffect(() => {
         document.documentElement.lang = language;
         document.title = languagePresentation[language].title;
@@ -250,12 +249,7 @@ function App() {
           <div className="workspace-title"><p className="orbis-account-id">{account.session?.user.user_metadata?.orbis_display_id}</p><span className="eyebrow l">{t('workBadge')}</span><WorkspaceGreeting key={sessionId??'guest'} userId={sessionId} language={language}/><p className="subtitle">{t('choose')}</p></div>
           <div className="welcome-panel"><strong>{t('panel')}</strong>{tutorial && <p>{t('panelDesc')}</p>}</div>
           {appearance&&<Themes language={language}/>}
-          <div className="modules">
-            <button type="button" className="module" onClick={() => navigate('khata')}><span className="ic" aria-hidden="true">📘</span><span className="copy"><strong>{t('khata')}</strong><small>{t('khataDesc')}</small></span><span className="status">{t('open')}</span></button>
-            {renderPlanned('🌱', 'farm', 'farm', 'farmDesc', 'later')}
-            {signedIn&&<button type="button" className="module" onClick={()=>navigate('customer')}><span className="ic customer" aria-hidden="true"><svg viewBox="0 0 48 48" fill="none"><rect x="9" y="7" width="30" height="35" rx="6" fill="currentColor" opacity=".12"/><circle cx="24" cy="19" r="6" stroke="currentColor" strokeWidth="2.5"/><path d="M14 35c0-10 20-10 20 0M17 3h14" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"/></svg></span><span className="copy"><strong>{shareCopy(language,'title')}</strong><small>{{bn:'লিঙ্ক করা হিসাব ও স্টেটমেন্ট',hi:'लिंक किए खाते और विवरण',en:'Linked accounts and statements'}[language]}</small></span><span className="status">{t('open')}</span></button>}
-            <LotteryModule signedIn={signedIn} language={language} onOpen={()=>navigate('lottery')}/>
-          </div>
+          <WorkspaceCards key={sessionId ?? 'guest'} owner={sessionId} language={language} onOpen={navigate}/>
           {!signedIn && <button type="button" className="exit" onClick={backToWelcome}>{t('exit')}</button>}
 
         </section>)}

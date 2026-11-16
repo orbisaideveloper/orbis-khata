@@ -2009,3 +2009,15 @@ See [SONAR-CORRECTIONS-20261017.md](SONAR-CORRECTIONS-20261017.md) for every rep
   owns the session-change branch. App and Android sync tests (18),
   scoped lint, typecheck and diff check passed locally. Verify zero
   open issues on the next GitHub Quality run. No environment deploy.
+
+### Workspace cards and device-local ordering
+- Based on GitHub main 813e5b1. Add Daily accounts and Lottery results as
+  planned cards alongside the four existing modules. Touch and pointer
+  long press and keyboard arrows reorder cards on the current device.
+  The saved order is scoped by account and stores only card identifiers.
+- App and WorkspaceCards tests (16), scoped lint, typecheck and diff check
+  passed locally. The existing mobile/desktop Chromium navigation suite
+  checks the six cards and order persistence. Review the GitHub Quality
+  and Android candidate runs and check the gesture on a real phone.
+- Daily accounts tools and lottery result lookup are future work. No
+  ledger, server, database or Play release changes were made.
