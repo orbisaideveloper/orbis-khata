@@ -32,8 +32,11 @@ export function useNativeCompanySync(actor: string | null) {
       running = true
       try {
         const { readNativeSyncCompanies } = await import('./runtime')
-        for (const company of await readNativeSyncCompanies(actor)) {
-          if (!active) break
+        const companies = await readNativeSyncCompanies(actor)
+        // Queue one company at a time to bound requests and preserve cancellation.
+        await companies.reduce(async (previous, company) => {
+          await previous
+          if (!active) return
           try {
             await syncWebCompany(actor, company.id)
             if (active) setConflict(current => current?.actor === actor && current.id === company.id ? undefined : current)
@@ -42,7 +45,7 @@ export function useNativeCompanySync(actor: string | null) {
               setConflict({ actor, id: company.id, name: company.name })
             }
           }
-        }
+        }, Promise.resolve())
       } catch {
         // An offline lock or a changed account can interrupt a foreground pull.
       } finally {

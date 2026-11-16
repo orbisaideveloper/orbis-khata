@@ -60,3 +60,16 @@ it('waits for a visible online session and ignores an unavailable runtime', asyn
   await waitFor(() => expect(api.list).toHaveBeenCalledOnce())
   expect(api.save).not.toHaveBeenCalled()
 })
+
+it('finishes one company before starting the next', async () => {
+  api.list.mockResolvedValue([{ id: 'first', name: 'First' }, { id: 'second', name: 'Second' }])
+  let finishFirst!: (value: typeof result) => void
+  const first = new Promise<typeof result>(resolve => { finishFirst = resolve })
+  api.save.mockReturnValueOnce(first)
+  renderHook(() => useNativeCompanySync('owner'))
+  await waitFor(() => expect(api.save).toHaveBeenCalledOnce())
+  expect(api.read).toHaveBeenCalledExactlyOnceWith('owner', 'first')
+  finishFirst(result)
+  await waitFor(() => expect(api.save).toHaveBeenCalledTimes(2))
+  expect(api.read).toHaveBeenLastCalledWith('owner', 'second')
+})

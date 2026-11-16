@@ -126,7 +126,11 @@ function companyRecords(snapshot: Snapshot, company: string, rows: ReturnType<ty
 
 function stable(value: unknown): string {
   if (Array.isArray(value)) return '[' + value.map(stable).join(',') + ']'
-  if (record(value)) return '{' + Object.keys(value).sort().map(key => JSON.stringify(key) + ':' + stable(value[key])).join(',') + '}'
+  if (record(value)) {
+    // Keep UTF-16 key order so persisted sync digests remain valid across locales.
+    const keys = Object.keys(value).sort((left, right) => Number(left > right) - Number(left < right))
+    return '{' + keys.map(key => JSON.stringify(key) + ':' + stable(value[key])).join(',') + '}'
+  }
   return JSON.stringify(value) ?? 'null'
 }
 

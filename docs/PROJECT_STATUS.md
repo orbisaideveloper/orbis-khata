@@ -1988,3 +1988,15 @@ See [SONAR-CORRECTIONS-20261017.md](SONAR-CORRECTIONS-20261017.md) for every rep
 - Next: retest Arko after web edits, including offline reopen, repeat pull and
   local conflicts. Android-to-Web reconciliation, plan permissions and reducing
   transfer to only changed records remain future work.
+
+### Quality #160 Sonar correction
+- GitHub main f335d99 passed coverage and all 60 Chromium mobile/desktop
+  cases. The Sonar reliability rating D failed the required A gate.
+- Local follow-up on the f335d99 source tree addresses all five logged
+  findings. App and WorkspaceMenu simplify navigation handling and use a
+  native status element. Android sync still pulls companies serially.
+  Company transfer retains the key ordering already used in saved digests.
+- Regression checks cover queue ordering and digest compatibility. Targeted
+  tests (40), typecheck, scoped lint and diff check passed. Verify Sonar on
+  the corrective commit after pushing. This checkpoint changes local source
+  only. GitHub main, staging, production and live ledgers are untouched.

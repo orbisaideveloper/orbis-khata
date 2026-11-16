@@ -33,7 +33,10 @@ export function WorkspaceMenu({ language, tutorial, onTutorial, onProfile, onLog
         document.addEventListener('pointerdown',outside,true);document.addEventListener('keydown',escape);
         return()=>{document.removeEventListener('pointerdown',outside,true);document.removeEventListener('keydown',escape);};
     },[]);
-    return <details className={appMenu ? 'workspace-menu workspace-app-menu' : moduleMenu ? 'workspace-menu workspace-module-menu' : 'workspace-menu'} ref={menu}>
+    let menuClass = 'workspace-menu';
+    if (appMenu) menuClass += ' workspace-app-menu';
+    else if (moduleMenu) menuClass += ' workspace-module-menu';
+    return <details className={menuClass} ref={menu}>
     <summary aria-label={t.menu}>{appMenu ? <span className="workspace-menu-lines" aria-hidden="true"/> : '⋮'}</summary>
     <div className="workspace-menu-panel">
       {signedIn&&onMainHome&&<button type="button" onClick={event=>{event.currentTarget.closest('details')?.removeAttribute('open');onMainHome();}}>{inLanguage(language,'মূল হোম','मुख्य होम','Main home')}</button>}

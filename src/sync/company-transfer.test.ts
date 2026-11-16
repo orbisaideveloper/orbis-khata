@@ -53,3 +53,8 @@ it('recognizes an unchanged legacy copy and isolates the synchronized company', 
   expect(companyProjectionText(companyProjection(next, company))).toEqual(
     companyProjectionText(companyProjection({ ...next, entries: [...next.entries].reverse() }, company)))
 })
+
+it('preserves the key order used by existing sync digests across locales', () => {
+  const projection = { rows: { 'é': true, 'a': true, 'Z': true, '_': true } }
+  expect(companyProjectionText(projection)).toBe('{"rows":{"Z":true,"_":true,"a":true,"é":true}}')
+})

@@ -16,7 +16,7 @@ import { BooksBottomNav } from './BooksBottomNav';
 import { BookServicesContext, liveBookServices } from './books-services';
 import { DemoWorkspace } from './demo/DemoWorkspace';
 import './demo/design.css';
-import { BooksNavigation, requestBooksBack, useBooksTrail } from './books-navigation';
+import { BooksNavigation, requestBooksBack, useBooksTrail, type BooksPage } from './books-navigation';
 import { languageOptions, readLanguage, saveLanguage, translations } from './i18n';
 import type { Language, TextKey } from './i18n';
 import './App.css';
@@ -79,6 +79,24 @@ function accountStateScreen(account: ReturnType<typeof useAccount>, language: La
     return null;
 }
 function LotteryModule({signedIn,language,onOpen}:Readonly<{signedIn:boolean;language:Language;onOpen:()=>void}>){const t=translations[language];return signedIn?<button type="button" className="module" onClick={onOpen}><span className="ic" aria-hidden="true">🎟️</span><span className="copy"><strong>{t.lot}</strong><small>{t.lotDesc}</small></span><span className="status">{t.open}</span></button>:<div className="module planned"><span className="ic lot" aria-hidden="true">🎟️</span><span className="copy"><strong>{t.lot}</strong><small>{t.lotDesc}</small></span><span className="status">{t.soon}</span></div>;}
+function useNativeBack(view: View, signedIn: boolean, booksPage: BooksPage, backBooks: () => void) {
+    const enabled = view === 'khata' && signedIn;
+    useEffect(() => {
+        const onNativeBack = (event: Event) => {
+            const menu = document.querySelector<HTMLDetailsElement>('.workspace-menu[open]');
+            if (menu) {
+                menu.open = false;
+                event.preventDefault();
+            } else if (enabled && (booksPage !== 'home' || requestBooksBack())) {
+                if (booksPage !== 'home') backBooks();
+                event.preventDefault();
+            }
+        };
+        window.addEventListener('orbis-native-back', onNativeBack);
+        return () => window.removeEventListener('orbis-native-back', onNativeBack);
+    }, [enabled, booksPage, backBooks]);
+}
+
 function App() {
     // Remember only owner-scoped UI location; financial data stays service-owned.
     const account = useAccount();
@@ -129,20 +147,7 @@ function App() {
         window.addEventListener('popstate', onBack);
         return () => window.removeEventListener('popstate', onBack);
     }, [signedIn, view]);
-    useEffect(() => {
-        const onNativeBack = (event: Event) => {
-            const menu = document.querySelector<HTMLDetailsElement>('.workspace-menu[open]');
-            if (menu) {
-                menu.open = false;
-                event.preventDefault();
-            } else if (view === 'khata' && signedIn && (booksPage !== 'home' || requestBooksBack())) {
-                if (booksPage !== 'home') backBooks();
-                event.preventDefault();
-            }
-        };
-        window.addEventListener('orbis-native-back', onNativeBack);
-        return () => window.removeEventListener('orbis-native-back', onNativeBack);
-    }, [view, signedIn, booksPage, backBooks]);
+    useNativeBack(view, signedIn, booksPage, backBooks);
     useEffect(()=>{if(signedIn&&!account.loading&&(view==='khata'||view==='lottery'||view==='customer'||view==='workspace'))saveLocation(sessionId??undefined,{view});},[signedIn,account.loading,view,sessionId]);
     async function logout() {
         if (!authClient) {
@@ -191,7 +196,7 @@ function App() {
         return accountScreen;
     }
     return (<BooksNavigation.Provider value={navigation}><TutorialContext.Provider value={tutorial}><main className={shellClass} data-theme={theme} data-view={view} data-android-local={androidLocalFirst() || undefined} onFocusCapture={selectNumeric} onClickCapture={selectNumeric}><PwaStatus language={language}/>
-      {syncConflict && <p className="books-hint" role="status">{syncConflict} · {inLanguage(language, 'ফোনে আলাদা পরিবর্তন আছে। সিঙ্ক থেমেছে।', 'फ़ोन पर अलग बदलाव हैं। सिंक रुका है।', 'Local changes detected. Sync paused.')}</p>}
+      {syncConflict && <output className="books-hint sync-conflict">{syncConflict} · {inLanguage(language, 'ফোনে আলাদা পরিবর্তন আছে। সিঙ্ক থেমেছে।', 'फ़ोन पर अलग बदलाव हैं। सिंक रुका है।', 'Local changes detected. Sync paused.')}</output>}
       {logoutError && <p role="alert">{accountCopy[language].error}</p>}
       {view === 'welcome' && (<section className="scene welcome active" aria-label={t('h1a')}>
           <header className="top">
