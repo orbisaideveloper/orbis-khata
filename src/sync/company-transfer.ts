@@ -91,3 +91,77 @@ export function mergeCompanyExport(current: Snapshot, incoming: CompanyExport): 
     workspaceEvents: addRecords(current.workspaceEvents, events),
   }
 }
+
+export const companySyncKey = (id: string) => 'web-company-sync:' + id
+
+export function companySyncState(snapshot: Snapshot, company: string) {
+  const result = snapshot.workspaceEvents[companySyncKey(company)]?.result
+  if (record(result) && typeof result.digest === 'string' && typeof result.syncedAt === 'string') {
+    return { digest: result.digest, syncedAt: result.syncedAt }
+  }
+}
+
+function companyRows(snapshot: Snapshot, company: string) {
+  const owned = <T extends { company: string }>(rows: T[]) => rows.filter(row => row.company === company)
+  return {
+    companies: snapshot.companies.filter(row => row.id === company),
+    parties: owned(snapshot.parties), entries: owned(snapshot.entries), expenses: owned(snapshot.expenses),
+    documents: owned(snapshot.documents), items: owned(snapshot.items), warehouses: owned(snapshot.warehouses),
+  }
+}
+
+function companyRecords(snapshot: Snapshot, company: string, rows: ReturnType<typeof companyRows>) {
+  const pick = <T,>(values: Record<string, T>, keys: string[]) =>
+    Object.fromEntries(keys.filter(key => Object.hasOwn(values, key)).map(key => [key, values[key]]))
+  return {
+    reversals: pick(Object.fromEntries(snapshot.reversals), rows.documents.map(row => row.id)),
+    expenseBillLines: pick(snapshot.expenseBillLines, rows.expenses.map(row => row.id)),
+    paymentLinks: pick(snapshot.paymentLinks, rows.entries.map(row => row.id)),
+    fiscalCounters: pick(snapshot.fiscalCounters, Object.keys(snapshot.fiscalCounters).filter(key => key.startsWith(company + ':'))),
+    workspaceSettings: pick(snapshot.workspaceSettings, [company]),
+    workspaceEvents: pick(snapshot.workspaceEvents, ['expense-profiles:' + company,
+      ...rows.documents.map(row => 'production-route:' + row.id)]),
+  }
+}
+
+function stable(value: unknown): string {
+  if (Array.isArray(value)) return '[' + value.map(stable).join(',') + ']'
+  if (record(value)) return '{' + Object.keys(value).sort().map(key => JSON.stringify(key) + ':' + stable(value[key])).join(',') + '}'
+  return JSON.stringify(value) ?? 'null'
+}
+
+export function companyProjection(snapshot: Snapshot, company: string): Record<string, Record<string, unknown>> {
+  const rows = companyRows(snapshot, company)
+  const collections = Object.fromEntries(Object.entries(rows).map(([key, list]) =>
+    [key, Object.fromEntries(list.map(row => [row.id, row]))]))
+  return { ...collections, ...companyRecords(snapshot, company, rows) }
+}
+
+export function companyProjectionText(projection: ReturnType<typeof companyProjection>): string {
+  return stable(projection)
+}
+
+export function isUnchangedCompanySubset(local: ReturnType<typeof companyProjection>, remote: ReturnType<typeof companyProjection>): boolean {
+  return Object.entries(local).every(([family, values]) =>
+    Object.entries(values).every(([id, value]) =>
+      Object.hasOwn(remote[family], id) && stable(value) === stable(remote[family][id])))
+}
+
+export function withoutCompanyProjection(snapshot: Snapshot, company: string): Snapshot {
+  const rows = companyRows(snapshot, company)
+  const records = companyRecords(snapshot, company, rows)
+  const exclude = <T,>(all: Record<string, T>, removed: object) =>
+    Object.fromEntries(Object.entries(all).filter(([key]) => !Object.hasOwn(removed, key)))
+  const other = <T extends { company: string }>(all: T[]) => all.filter(row => row.company !== company)
+  return {
+    ...snapshot, companies: snapshot.companies.filter(row => row.id !== company),
+    parties: other(snapshot.parties), entries: other(snapshot.entries), expenses: other(snapshot.expenses),
+    documents: other(snapshot.documents), items: other(snapshot.items), warehouses: other(snapshot.warehouses),
+    reversals: snapshot.reversals.filter(([id]) => !Object.hasOwn(records.reversals, id)),
+    expenseBillLines: exclude(snapshot.expenseBillLines, records.expenseBillLines),
+    paymentLinks: exclude(snapshot.paymentLinks, records.paymentLinks),
+    fiscalCounters: exclude(snapshot.fiscalCounters, records.fiscalCounters),
+    workspaceSettings: exclude(snapshot.workspaceSettings, records.workspaceSettings),
+    workspaceEvents: exclude(snapshot.workspaceEvents, records.workspaceEvents),
+  }
+}

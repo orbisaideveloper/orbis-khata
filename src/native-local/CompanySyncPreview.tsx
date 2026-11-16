@@ -1,3 +1,4 @@
+import { syncWebCompany } from './company-sync'
 import { useState } from 'react'
 import { readOnlineCompanies, readOnlineCompanyExport } from '../accounting/api'
 import { money, type Company } from '../accounting/model'
@@ -61,6 +62,23 @@ export function CompanySyncPreview({ actor, language }: Readonly<{ actor: string
     }
   }
 
+  async function sync(company: string) {
+    setBusy(true)
+    setNotice('')
+    setPreview(undefined)
+    try {
+      const result = await syncWebCompany(actor, company)
+      const time = new Date(result.syncedAt).toLocaleString(language)
+      setNotice(t('শেষ সিঙ্ক', 'पिछला सिंक', 'Last sync') + ' · ' + time)
+    } catch (error) {
+      setNotice(error instanceof Error && error.message === 'KHATA_COMPANY_SYNC_CONFLICT'
+        ? t('ফোন ও ওয়েবের হিসাব আলাদা। কোনো পরিবর্তন সেভ হয়নি।', 'फ़ोन और वेब के खाते अलग हैं। कोई बदलाव सहेजा नहीं गया।', 'Phone and web records differ. No changes were saved.')
+        : t('সিঙ্ক করা যায়নি। ইন্টারনেট ও সাইন ইন দেখে আবার চেষ্টা করুন।', 'सिंक नहीं हुआ। इंटरनेट और साइन इन जाँचकर फिर कोशिश करें।', 'Sync failed. Check your connection and sign-in and try again.'))
+    } finally {
+      setBusy(false)
+    }
+  }
+
   return <section className="privacy-links">
     <h2>{t('কোম্পানির তালিকা মিলিয়ে দেখুন', 'कंपनियों की सूचियाँ देखें', 'Compare company lists')}</h2>
     <p>{t('ওয়েব ও এই ফোনে থাকা সক্রিয় কোম্পানিগুলো দেখুন।', 'वेब और इस फ़ोन की सक्रिय कंपनियाँ देखें।', 'View active companies on the web and on this phone.')}</p>
@@ -74,10 +92,13 @@ export function CompanySyncPreview({ actor, language }: Readonly<{ actor: string
       { title: t('এই ফোনের কোম্পানি', 'इस फ़ोन की कंपनियाँ', 'Companies on this phone'), rows: comparison.local, online: false },
     ].map(({ title, rows, online }) => <div key={title}>
       <h3>{title} ({rows.length})</h3>
-      {rows.length > 0 && <ul>{rows.map(row => <li key={row.id}>{row.name} {online && !comparison.local.some(local => local.id === row.id) &&
-        <button type="button" disabled={busy} onClick={() => void transfer(row.id, false)}>
+      {rows.length > 0 && <ul>{rows.map(row => <li key={row.id}>{row.name} {online && (comparison.local.some(local => local.id === row.id)
+        ? <button type="button" disabled={busy} onClick={() => void sync(row.id)}>
+          {t('এখন সিঙ্ক করুন', 'अभी सिंक करें', 'Sync now')}
+        </button>
+        : <button type="button" disabled={busy} onClick={() => void transfer(row.id, false)}>
           {t('স্থানান্তর দেখুন', 'स्थानांतरण देखें', 'Preview import')}
-        </button>}</li>)}</ul>}
+        </button>)}</li>)}</ul>}
     </div>)}</div>}
     {preview && <div>
       <h3>{preview.company.name}</h3>

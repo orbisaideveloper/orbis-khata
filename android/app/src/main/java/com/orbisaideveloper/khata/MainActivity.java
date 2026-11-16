@@ -32,12 +32,19 @@ public class MainActivity extends BridgeActivity {
         getOnBackPressedDispatcher().addCallback(this, new OnBackPressedCallback(true) {
             @Override
             public void handleOnBackPressed() {
-                if (getBridge() != null && getBridge().getWebView().canGoBack()) {
-                    getBridge().getWebView().goBack();
-                } else {
-                    // Keep an unfinished form alive rather than destroying the Activity.
+                if (getBridge() == null) {
                     moveTaskToBack(true);
+                    return;
                 }
+                var webView = getBridge().getWebView();
+                webView.evaluateJavascript(
+                    "window.dispatchEvent(new Event('orbis-native-back', {cancelable: true}))",
+                    result -> {
+                        if ("false".equals(result)) return;
+                        if (webView.canGoBack()) webView.goBack();
+                        else moveTaskToBack(true);
+                    }
+                );
             }
         });
     }

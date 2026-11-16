@@ -1,7 +1,7 @@
 import { expect, it } from 'vitest'
 import { checkImportedLedger, emptyDeviceLocalSnapshot, readDeviceLocalSnapshot } from '../demo/store'
 import { emptyPartyDetails } from '../demo/master-model'
-import { mergeCompanyExport, parseCompanyExport } from './company-transfer'
+import { companyProjection, companyProjectionText, isUnchangedCompanySubset, mergeCompanyExport, parseCompanyExport, withoutCompanyProjection } from './company-transfer'
 
 const company = 'company'
 const actor = 'actor'
@@ -37,4 +37,19 @@ it('rejects a different actor, a foreign record, unsupported payments, and missi
   expect(() => parseCompanyExport({ ...archive, parties: [{ ...party, company: 'other' }] }, company, actor)).toThrow('EXPORT_INVALID')
   expect(() => parseCompanyExport({ ...archive, unsupported: true }, company, actor)).toThrow('EXPORT_UNSUPPORTED')
   expect(() => parseCompanyExport({ ...archive, entries: [payment] }, company, actor)).toThrow('EXPORT_INVALID')
+})
+
+it('recognizes an unchanged legacy copy and isolates the synchronized company', () => {
+  const original = { ...emptyDeviceLocalSnapshot(), companies: [{ id: 'phone', name: 'Phone company' }] }
+  const first = mergeCompanyExport(original, parseCompanyExport({
+    ...archive, entries: [sale], paymentLinks: {},
+  }, company, actor))
+  const next = mergeCompanyExport(withoutCompanyProjection(first, company), parseCompanyExport(archive, company, actor))
+  expect(isUnchangedCompanySubset(companyProjection(first, company), companyProjection(next, company))).toBe(true)
+  expect(next.companies).toEqual([...original.companies, archive.company])
+  expect(next.entries.map(entry => entry.id)).toEqual(['sale', 'receipt'])
+  first.entries[0] = { ...first.entries[0], note: 'Local edit' }
+  expect(isUnchangedCompanySubset(companyProjection(first, company), companyProjection(next, company))).toBe(false)
+  expect(companyProjectionText(companyProjection(next, company))).toEqual(
+    companyProjectionText(companyProjection({ ...next, entries: [...next.entries].reverse() }, company)))
 })

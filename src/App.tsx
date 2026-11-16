@@ -16,7 +16,7 @@ import { BooksBottomNav } from './BooksBottomNav';
 import { BookServicesContext, liveBookServices } from './books-services';
 import { DemoWorkspace } from './demo/DemoWorkspace';
 import './demo/design.css';
-import { BooksNavigation, useBooksTrail } from './books-navigation';
+import { BooksNavigation, requestBooksBack, useBooksTrail } from './books-navigation';
 import { languageOptions, readLanguage, saveLanguage, translations } from './i18n';
 import type { Language, TextKey } from './i18n';
 import './App.css';
@@ -29,6 +29,7 @@ import { TutorialContext, readTutorial, saveTutorial } from './tutorial';
 import { authClient } from './auth/client';
 import { useAccount } from './auth/useAccount';
 import { androidLocalFirst } from './native-local/route';
+import { useNativeCompanySync } from './native-local/company-sync';
 import { CompanySyncPreview } from './native-local/CompanySyncPreview';
 import { DriveBackupPanel } from './native-local/DriveBackupPanel';
 import { AccountForm } from './auth/AccountForm';
@@ -82,7 +83,7 @@ function App() {
     // Remember only owner-scoped UI location; financial data stays service-owned.
     const account = useAccount();
     const theme=useTheme();
-    const {page:booksPage,open:openBooks,home:homeBooks}=useBooksTrail();
+    const {page:booksPage,open:openBooks,back:backBooks,home:homeBooks}=useBooksTrail();
     const [production,setProduction]=useState(false);
     const [appearance,setAppearance]=useState(false);
     const mainHome=()=>{setAppearance(false);navigate('workspace');};
@@ -94,6 +95,7 @@ function App() {
         window.scrollTo?.({ top: 0, left: 0, behavior: 'instant' });
     }, [view, booksPage]);
     const sessionId = account.session?.user.id ?? null;
+    const syncConflict = useNativeCompanySync(androidLocalFirst() ? sessionId : null);
     const [knownSession, setKnownSession] = useState(sessionId);
     if (authClient && !account.loading && sessionId !== knownSession) {
         setKnownSession(sessionId);
@@ -104,7 +106,7 @@ function App() {
     const guestEntered = useRef(false);
     const t = (key: TextKey) => translations[language][key];
     const backupLabel = inLanguage(language, 'Google Drive ব্যাকআপ', 'Google Drive बैकअप', 'Google Drive backup');
-    const menu = () => <WorkspaceMenu appMenu={view==='workspace'} onMainHome={view==='workspace' ? undefined : mainHome} onAppearance={showAppearance} enhanced actions={signedIn && androidLocalFirst() && <button type="button" onClick={event => {
+    const menu = () => <WorkspaceMenu appMenu={view==='workspace'} moduleMenu={view==='khata'} onMainHome={view==='workspace' ? undefined : mainHome} onAppearance={showAppearance} enhanced actions={view!=='khata' && signedIn && androidLocalFirst() && <button type="button" onClick={event => {
             event.currentTarget.closest('details')?.removeAttribute('open');
             navigate('drive-backup');
         }}>{backupLabel}</button>} production={view==='khata'&&production} language={language} signedIn={signedIn} onBooks={view==='khata' ? openBooks : undefined} tutorial={tutorial} onTutorial={enabled => { setTutorial(enabled); saveTutorial(enabled); }} onProfile={() => navigate('profile')} onLogout={() => { void logout(); }}/>;
@@ -121,13 +123,26 @@ function App() {
             const target = (event.state as {
                 khataView?: View;
             } | null)?.khataView;
-            if(view==='khata' && signedIn){homeBooks();window.history.pushState({khataView:'khata'},'');return;}
             // Browser history uses the same access policy as button navigation.
             setView(resolveKhataView(target, signedIn, guestUiEnabled, guestEntered.current));
         }
         window.addEventListener('popstate', onBack);
         return () => window.removeEventListener('popstate', onBack);
-    }, [signedIn, view, booksPage, homeBooks]);
+    }, [signedIn, view]);
+    useEffect(() => {
+        const onNativeBack = (event: Event) => {
+            const menu = document.querySelector<HTMLDetailsElement>('.workspace-menu[open]');
+            if (menu) {
+                menu.open = false;
+                event.preventDefault();
+            } else if (view === 'khata' && signedIn && (booksPage !== 'home' || requestBooksBack())) {
+                if (booksPage !== 'home') backBooks();
+                event.preventDefault();
+            }
+        };
+        window.addEventListener('orbis-native-back', onNativeBack);
+        return () => window.removeEventListener('orbis-native-back', onNativeBack);
+    }, [view, signedIn, booksPage, backBooks]);
     useEffect(()=>{if(signedIn&&!account.loading&&(view==='khata'||view==='lottery'||view==='customer'||view==='workspace'))saveLocation(sessionId??undefined,{view});},[signedIn,account.loading,view,sessionId]);
     async function logout() {
         if (!authClient) {
@@ -176,6 +191,7 @@ function App() {
         return accountScreen;
     }
     return (<BooksNavigation.Provider value={navigation}><TutorialContext.Provider value={tutorial}><main className={shellClass} data-theme={theme} data-view={view} data-android-local={androidLocalFirst() || undefined} onFocusCapture={selectNumeric} onClickCapture={selectNumeric}><PwaStatus language={language}/>
+      {syncConflict && <p className="books-hint" role="status">{syncConflict} · {inLanguage(language, 'ফোনে আলাদা পরিবর্তন আছে। সিঙ্ক থেমেছে।', 'फ़ोन पर अलग बदलाव हैं। सिंक रुका है।', 'Local changes detected. Sync paused.')}</p>}
       {logoutError && <p role="alert">{accountCopy[language].error}</p>}
       {view === 'welcome' && (<section className="scene welcome active" aria-label={t('h1a')}>
           <header className="top">
@@ -234,7 +250,7 @@ function App() {
 
         </section>)}
 
-      <LotteryScene view={view} owner={sessionId} language={language} onSelect={navigate} controls={<WorkspaceMenu onMainHome={mainHome} onAppearance={showAppearance} settings={<><label className="lottery-language-setting"><span>{languagePresentation[language].pickerLabel}</span>{languagePicker()}</label><Themes language={language}/></>} actions={<><button type="button" onClick={()=>navigate('customer')}>{shareCopy(language,'title')}</button>{(['tds','payments'] as const).map(section=><button type="button" key={section} onClick={event=>{event.currentTarget.closest('.workspace-menu')?.removeAttribute('open');window.dispatchEvent(new CustomEvent('lottery-settings',{detail:section}));}}>{section==='tds'?'TDS':{bn:'পেমেন্টের মাধ্যম',en:'Payment methods',hi:'भुगतान के तरीके'}[language]}</button>)}</>} language={language} signedIn={signedIn} tutorial={tutorial} onTutorial={enabled=>{setTutorial(enabled);saveTutorial(enabled);}} onProfile={()=>navigate('profile')} onLogout={()=>void logout()}/>}/>
+      <LotteryScene view={view} owner={sessionId} language={language} onSelect={navigate} controls={<WorkspaceMenu moduleMenu onMainHome={mainHome} onAppearance={showAppearance} settings={<><label className="lottery-language-setting"><span>{languagePresentation[language].pickerLabel}</span>{languagePicker()}</label><Themes language={language}/></>} actions={<><button type="button" onClick={()=>navigate('customer')}>{shareCopy(language,'title')}</button>{(['tds','payments'] as const).map(section=><button type="button" key={section} onClick={event=>{event.currentTarget.closest('.workspace-menu')?.removeAttribute('open');window.dispatchEvent(new CustomEvent('lottery-settings',{detail:section}));}}>{section==='tds'?'TDS':{bn:'পেমেন্টের মাধ্যম',en:'Payment methods',hi:'भुगतान के तरीके'}[language]}</button>)}</>} language={language} signedIn={signedIn} tutorial={tutorial} onTutorial={enabled=>{setTutorial(enabled);saveTutorial(enabled);}} onProfile={()=>navigate('profile')} onLogout={()=>void logout()}/>}/>
       {view==='customer'&&signedIn&&<Suspense fallback={<p>{accountCopy[language].network}</p>}><CustomerView key={sessionId} actor={sessionId ?? undefined} language={language} onSelect={navigate} onBack={mainHome} onBooks={()=>navigate('lottery')}/></Suspense>}
       {view === 'drive-backup' && sessionId && androidLocalFirst() && <section className="scene light-scene active profile-page" aria-label={backupLabel}>
         {renderBar('khata', 'choose', 'settings')}
@@ -255,7 +271,7 @@ function App() {
       </section>}
 
       {view === 'khata' && (signedIn || guestUiEnabled) && (<section className="scene light-scene active" aria-label={t('khata')}>
-          {signedIn ? <header className="kh-app-header"><button className="kh-brand" type="button" aria-label={language==='bn'?'হোম':'Home'} onClick={homeBooks}><span className="kh-logo"><OrbisLogo /></span><span><small>ORBIS</small><strong>{t('khata')}</strong></span></button><div className="kh-header-actions">{languagePicker(true)}{menu()}<button type="button" className="kh-profile-button" onClick={homeBooks} aria-label={{bn:'ফিরুন',hi:'वापस',en:'Back'}[language]}>←</button></div></header> : renderBar('workspace', 'choose', 'khata')}
+          {signedIn ? <header className="kh-app-header"><div className="kh-header-menu">{menu()}</div><button className="kh-brand" type="button" aria-label={language==='bn'?'হোম':'Home'} onClick={homeBooks}><span className="kh-logo"><OrbisLogo /></span><span><small>ORBIS</small><strong>{t('khata')}</strong></span></button><div className="kh-header-actions">{languagePicker(true)}<button type="button" className="kh-profile-button" onClick={homeBooks} aria-label={{bn:'ফিরুন',hi:'वापस',en:'Back'}[language]}>←</button></div></header> : renderBar('workspace', 'choose', 'khata')}
           
           {signedIn && <BooksBottomNav language={language} page={booksPage} onOpen={openBooks}/>}
           {!signedIn && <div className="khata-title"><div className="bar"><span className="eyebrow l">{t('dashboard')}</span><span className="period">{t('month')}</span></div><h1>{t('khata')}</h1><p>{t('khataHead')}</p></div>}

@@ -103,6 +103,11 @@ export function DemoWorkspace({ language, userId = 'demo-owner', moduleControl, 
     const showingOverview = navigation.page === 'overview' && overview !== null && overview.company === company;
     function closeOverview() { setOverview(null); navigation.open('home'); }
     const [locked, setLocked] = useState(false);
+    useEffect(() => {
+        const refreshed = () => setVersion(current => current + 1);
+        window.addEventListener('khata-company-synced', refreshed);
+        return () => window.removeEventListener('khata-company-synced', refreshed);
+    }, []);
     const changed = () => {window.dispatchEvent(new Event('khata-refresh'));setVersion(n => n + 1);};
     useEffect(() => {
         let alive = true;

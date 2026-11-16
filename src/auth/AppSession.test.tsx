@@ -77,3 +77,21 @@ it('restores the saved module for the same signed-in owner without opening the m
  localStorage.setItem('orbis.khata.location.v1:owner-a',JSON.stringify({view:'khata',company:'c'}));
  const first=render(<App/>);expect(screen.getByText('Books for owner-a')).toBeInTheDocument();first.unmount();render(<App/>);expect(screen.getByText('Books for owner-a')).toBeInTheDocument();expect(screen.queryByRole('button',{name:/Khata Boi.*Open/})).toBeNull();
 });
+
+it('uses Android Back to dismiss the menu, then return to the previous books page', () => {
+  render(<App />); english()
+  fireEvent.click(screen.getByRole('button', { name: /Khata Boi/ }))
+  fireEvent.click(screen.getByLabelText('More options'))
+  expect(screen.queryByRole('button', { name: 'Account & profile' })).toBeNull()
+  fireEvent.click(screen.getByRole('button', { name: 'Parties' }))
+  const back = () => {
+    const event = new Event('orbis-native-back', { cancelable: true })
+    fireEvent(window, event)
+    return event.defaultPrevented
+  }
+  fireEvent.click(screen.getByLabelText('More options'))
+  expect(back()).toBe(true)
+  expect(screen.getByLabelText('More options').closest('details')?.open).toBe(false)
+  expect(back()).toBe(true)
+  expect(back()).toBe(false)
+})

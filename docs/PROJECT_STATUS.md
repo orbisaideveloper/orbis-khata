@@ -1973,3 +1973,18 @@ See [SONAR-CORRECTIONS-20261017.md](SONAR-CORRECTIONS-20261017.md) for every rep
 - 36 targeted tests, typecheck, disposable SQL export acceptance and diff
   check passed. Next: independently verify Edge deployment and run Android
   acceptance against Deepa's account. No production data or deployment changed.
+
+### Android foreground Web pull and module navigation
+- Base main 696d141 / Edge v27. Previously imported companies can initialize
+  a sync baseline through Sync now if the phone records are an unchanged subset
+  of the web export. New imports record their baseline automatically.
+- Foreground, reconnect and periodic checks pull a company snapshot. Identical
+  records produce no write. Local edits or pending commands pause that company's
+  sync. Balance reconciliation and encrypted atomic commit remain mandatory.
+  Rollout uses the existing read endpoint; no server migration or deployment.
+- Khata and Lottery menus keep module actions, with global profile, backup,
+  release version and logout on the main workspace. Android Back uses the
+  books trail before top-level WebView history. Device and CI acceptance pending.
+- Next: retest Arko after web edits, including offline reopen, repeat pull and
+  local conflicts. Android-to-Web reconciliation, plan permissions and reducing
+  transfer to only changed records remain future work.

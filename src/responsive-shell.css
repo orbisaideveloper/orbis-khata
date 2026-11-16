@@ -262,3 +262,81 @@ body:has(.phone[data-android-local][data-view="workspace"]) {
 .phone[data-android-local] .workspace-scene {
   background: #fff;
 }
+
+.workspace-app-menu .workspace-menu-panel,
+.workspace-module-menu .workspace-menu-panel {
+  left: 0;
+  right: auto;
+  max-height: min(68dvh, 520px);
+  overflow: auto;
+}
+
+.workspace-menu-panel .tutorial-menu-row {
+  position: relative;
+  justify-content: space-between;
+  cursor: pointer;
+}
+
+.tutorial-menu-row input {
+  position: absolute;
+  inset-inline-end: 13px;
+  opacity: 0;
+}
+
+.tutorial-menu-row:focus-within {
+  outline: 2px solid currentColor;
+  outline-offset: -2px;
+}
+
+.tutorial-check {
+  min-width: 1em;
+  text-align: end;
+}
+
+.kh-app header.kh-app-header {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  align-items: center;
+}
+
+.kh-header-menu { justify-self: start; }
+.kh-app-header .kh-header-actions { justify-self: end; min-width: 0; }
+.kh-app-header .kh-header-actions select { max-width: 100%; }
+
+body:has(.phone[data-android-local]) {
+  background: #fff;
+  padding: 0;
+}
+
+.phone[data-android-local] {
+  width: 100%;
+  max-width: none;
+  margin: 0;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+}
+
+.phone[data-android-local].kh-app header.kh-app-header,
+.phone[data-android-local] .lottery-module header.module-heading {
+  color: #203866;
+  background: #fff;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+}
+
+@media (max-width: 390px) {
+  .kh-app header.kh-app-header { gap: 4px; padding-inline: 8px; }
+  .kh-app-header .kh-header-actions { gap: 4px; }
+}
+
+.phone[data-android-local].kh-app .kh-brand small {
+  color: #52617a;
+}
+
+.phone[data-android-local].kh-app header.kh-app-header :is(.kh-header-actions > select, .kh-profile-button, .workspace-module-menu > summary) {
+  color: #203866;
+  background: #f5f8fd;
+  border-color: #dbe4f3;
+}

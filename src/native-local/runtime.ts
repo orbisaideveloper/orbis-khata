@@ -9,7 +9,7 @@
  * NOTE: Release needs real-phone enrollment, reboot, offline, isolation, rollback,
  * low-space and test-update acceptance. Backup/export and restore are separate gates.
  */
-import { mergeCompanyExport, parseCompanyExport } from '../sync/company-transfer'
+import { companyProjection, companyProjectionText, companySyncKey, companySyncState, isUnchangedCompanySubset, mergeCompanyExport, parseCompanyExport, withoutCompanyProjection } from '../sync/company-transfer'
 import { SQLiteConnection, CapacitorSQLite } from '@capacitor-community/sqlite'
 import { registerPlugin } from '@capacitor/core'
 import { createAndroidSqlcipherRuntime } from '../local-db/android-sqlcipher-runtime'
@@ -292,15 +292,43 @@ export function restoreNativeFinancialBackup(archive: Uint8Array<ArrayBuffer>, a
   })
 }
 
-export function importNativeCompany(actor: string, company: string, payload: unknown) {
+function saveWebCompany(actor: string, company: string, payload: unknown, sync: boolean) {
   return ordered(async () => {
     const scope = assertActive()
     if (scope.actor !== actor) throw new Error('ANDROID_LOCAL_ACTOR_CHANGED')
     const imported = parseCompanyExport(payload, company, actor)
     const current = await readState(scope.db, actor)
-    const snapshot = mergeCompanyExport(current, imported)
-    checkImportedLedger(snapshot, company, imported.balances)
-    await saveImportedSnapshot(scope, snapshot)
+    const next = mergeCompanyExport(sync ? withoutCompanyProjection(current, company) : current, imported)
+    const remote = companyProjection(next, company)
+    const digest = await sha256(companyProjectionText(remote))
+    if (sync) {
+      const local = companyProjection(current, company)
+      const baseline = companySyncState(current, company)
+      const pending = await scope.db.get('SELECT operation_id FROM local_outbox WHERE actor_id=? AND company_id=? LIMIT 1', [actor, company])
+      const safe = baseline ? baseline.digest === await sha256(companyProjectionText(local)) : isUnchangedCompanySubset(local, remote)
+      if (pending || !safe || !current.companies.some(row => row.id === company)) throw new Error('KHATA_COMPANY_SYNC_CONFLICT')
+      if (baseline?.digest === digest) return { changed: false, syncedAt: baseline.syncedAt }
+    }
+    checkImportedLedger(next, company, imported.balances)
+    const syncedAt = new Date().toISOString()
+    next.workspaceEvents[companySyncKey(company)] = { payload: '', result: { digest, syncedAt } }
+    await saveImportedSnapshot(scope, next)
+    return { changed: true, syncedAt }
+  })
+}
+
+export const importNativeCompany = (actor: string, company: string, payload: unknown) =>
+  saveWebCompany(actor, company, payload, false)
+
+export const syncNativeCompany = (actor: string, company: string, payload: unknown) =>
+  saveWebCompany(actor, company, payload, true)
+
+export function readNativeSyncCompanies(actor: string) {
+  return ordered(async () => {
+    const scope = assertActive()
+    if (scope.actor !== actor) throw new Error('ANDROID_LOCAL_ACTOR_CHANGED')
+    const snapshot = await readState(scope.db, actor)
+    return snapshot.companies.filter(row => !Object.hasOwn(snapshot.retired, row.id) && companySyncState(snapshot, row.id))
   })
 }
 
