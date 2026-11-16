@@ -2000,3 +2000,12 @@ See [SONAR-CORRECTIONS-20261017.md](SONAR-CORRECTIONS-20261017.md) for every rep
   tests (40), typecheck, scoped lint and diff check passed. Verify Sonar on
   the corrective commit after pushing. This checkpoint changes local source
   only. GitHub main, staging, production and live ledgers are untouched.
+
+### Quality #161 remaining App complexity
+- Main 87991f1 passed coverage, 60 Chromium cases and the Sonar Quality
+  Gate. Strict overall Sonar found one remaining S3776 finding in App
+  (complexity 16, allowed 15). Android Candidate #52 passed.
+- Move owner-scoped view restoration into useAccountView so App no longer
+  owns the session-change branch. App and Android sync tests (18),
+  scoped lint, typecheck and diff check passed locally. Verify zero
+  open issues on the next GitHub Quality run. No environment deploy.

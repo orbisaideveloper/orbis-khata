@@ -97,6 +97,17 @@ function useNativeBack(view: View, signedIn: boolean, booksPage: BooksPage, back
     }, [enabled, booksPage, backBooks]);
 }
 
+function useAccountView(account: ReturnType<typeof useAccount>) {
+    const sessionId = account.session?.user.id ?? null;
+    const [view, setView] = useState<View>(() => authClient && account.session ? readLocation(account.session.user.id).view : 'welcome');
+    const [knownSession, setKnownSession] = useState(sessionId);
+    if (authClient && !account.loading && sessionId !== knownSession) {
+        setKnownSession(sessionId);
+        setView(sessionId ? readLocation(sessionId).view : 'welcome');
+    }
+    return { sessionId, view, setView };
+}
+
 function App() {
     // Remember only owner-scoped UI location; financial data stays service-owned.
     const account = useAccount();
@@ -107,18 +118,12 @@ function App() {
     const mainHome=()=>{setAppearance(false);navigate('workspace');};
     const showAppearance=()=>{setAppearance(true);navigate('workspace');};
     const [tutorial, setTutorial] = useState(readTutorial);
-    const [view, setView] = useState<View>(() => authClient && account.session ? readLocation(account.session.user.id).view : 'welcome');
+    const { sessionId, view, setView } = useAccountView(account);
     const [language, setLanguage] = useState<Language>(readLanguage);
     useEffect(() => {
         window.scrollTo?.({ top: 0, left: 0, behavior: 'instant' });
     }, [view, booksPage]);
-    const sessionId = account.session?.user.id ?? null;
     const syncConflict = useNativeCompanySync(androidLocalFirst() ? sessionId : null);
-    const [knownSession, setKnownSession] = useState(sessionId);
-    if (authClient && !account.loading && sessionId !== knownSession) {
-        setKnownSession(sessionId);
-        setView(sessionId ? readLocation(sessionId).view : 'welcome');
-    }
     const signedIn = Boolean(account.session);
     const [logoutError, setLogoutError] = useState(false);
     const guestEntered = useRef(false);
@@ -146,7 +151,7 @@ function App() {
         }
         window.addEventListener('popstate', onBack);
         return () => window.removeEventListener('popstate', onBack);
-    }, [signedIn, view]);
+    }, [setView, signedIn, view]);
     useNativeBack(view, signedIn, booksPage, backBooks);
     useEffect(()=>{if(signedIn&&!account.loading&&(view==='khata'||view==='lottery'||view==='customer'||view==='workspace'))saveLocation(sessionId??undefined,{view});},[signedIn,account.loading,view,sessionId]);
     async function logout() {
