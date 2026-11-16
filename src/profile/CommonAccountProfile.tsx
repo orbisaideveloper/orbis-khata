@@ -6,12 +6,13 @@ const translations={
  en:{title:'Common account profile',name:'Name',address:'Address',phone:'Alternate phone',birth:'Date of birth',gender:'Gender',unset:'Not specified',male:'Male',female:'Female',other:'Other',private:'Prefer not to say',save:'Save profile',reload:'Reload',loading:'Checking profile…',saved:'Profile saved to your central account.',failed:'Profile could not be loaded or saved. Please retry.'},
  hi:{title:'साझा अकाउंट प्रोफ़ाइल',name:'नाम',address:'पता',phone:'वैकल्पिक फ़ोन',birth:'जन्मतिथि',gender:'लिंग',unset:'नहीं बताया',male:'पुरुष',female:'महिला',other:'अन्य',private:'नहीं बताना चाहते',save:'प्रोफ़ाइल सहेजें',reload:'फिर पढ़ें',loading:'प्रोफ़ाइल की जाँच हो रही है…',saved:'प्रोफ़ाइल केंद्रीय अकाउंट में सहेजी गई।',failed:'प्रोफ़ाइल पढ़ना या सहेजना सुनिश्चित नहीं हुआ। फिर प्रयास करें।'},
 }
-export function CommonAccountProfile({userId,language}:Readonly<{userId:string;language:'bn'|'en'|'hi'}>){
+export function CommonAccountProfile({userId,language,displayId}:Readonly<{displayId?:string;userId:string;language:'bn'|'en'|'hi'}>){
  const [attempt,setAttempt]=useState(0)
- return <ProfileEditor key={`${userId}:${language}:${attempt}`} userId={userId} language={language} onReload={()=>setAttempt(n=>n+1)}/>
+ return <ProfileEditor key={`${userId}:${language}:${attempt}`} userId={userId} language={language} displayId={displayId} onReload={()=>setAttempt(n=>n+1)}/>
 }
-function ProfileEditor({userId,language,onReload}:Readonly<{userId:string;language:'bn'|'en'|'hi';onReload:()=>void}>){
+function ProfileEditor({userId,language,displayId,onReload}:Readonly<{displayId?:string;userId:string;language:'bn'|'en'|'hi';onReload:()=>void}>){
  const t=translations[language]
+ const editLabel={bn:'প্রোফাইল সম্পাদনা করুন',en:'Edit profile',hi:'प्रोफ़ाइल संपादित करें'}[language]
  const [maxBirthDate]=useState(()=>new Date().toISOString().slice(0,10))
  const [result,setResult]=useState<ProfileResult|null>(null),[busy,setBusy]=useState(true),[message,setMessage]=useState('')
  const operation=useRef<AbortController|null>(null)
@@ -37,8 +38,15 @@ function ProfileEditor({userId,language,onReload}:Readonly<{userId:string;langua
   }catch{if(!controller.signal.aborted)setMessage(t.failed)}
   finally{if(!controller.signal.aborted)setBusy(false)}
  }
- return <section aria-label={t.title}><h2>{t.title}</h2>{busy&&<output>{t.loading}</output>}
-  {result&&<><p>{result.contact.email}</p>
+ return <section className="account-profile" aria-label={t.title}><h2>{t.title}</h2>{busy&&<output>{t.loading}</output>}
+  {!result&&displayId&&<p>{displayId}</p>}
+  {result&&<>
+   <div className="account-profile-summary">
+    <strong>{result.profile.name}</strong>
+    <span>{result.contact.email}</span>
+    <span>{result.customer.displayId}</span>
+   </div>
+   <details><summary>{editLabel}</summary>
    <form onSubmit={event=>{void save(event,result)}}><fieldset disabled={busy}>
     <label>{t.name}<input name="name" autoComplete="name" required maxLength={120} defaultValue={result.profile.name}/></label>
     <label>{t.address}<input name="address" autoComplete="street-address" maxLength={1000} defaultValue={result.profile.address??''}/></label>
@@ -46,7 +54,7 @@ function ProfileEditor({userId,language,onReload}:Readonly<{userId:string;langua
     <label>{t.birth}<input name="dateOfBirth" type="date" min="1900-01-01" max={maxBirthDate} defaultValue={result.profile.dateOfBirth??''}/></label>
     <label>{t.gender}<select name="gender" defaultValue={result.profile.gender??''}><option value="">{t.unset}</option><option value="male">{t.male}</option><option value="female">{t.female}</option><option value="other">{t.other}</option><option value="prefer-not-to-say">{t.private}</option></select></label>
     <button type="submit">{t.save}</button>
-   </fieldset></form></>}
+   </fieldset></form></details></>}
   {message&&<output>{message}</output>}<button type="button" disabled={busy} onClick={onReload}>{t.reload}</button>
  </section>
 }

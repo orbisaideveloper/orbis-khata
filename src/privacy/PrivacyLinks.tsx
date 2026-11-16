@@ -11,6 +11,6 @@ export function PrivacyLinks({language, detailed = false}: Readonly<{language:La
  const t = copy[language];
  return <section className="privacy-links" aria-label={t[0]}>
  <nav aria-label={t[0]}><a href="https://orbis-khata.onrender.com/privacy.html" target="_blank" rel="noopener noreferrer">{t[1]}</a><a href="https://orbis-khata.onrender.com/delete-account.html" target="_blank" rel="noopener noreferrer">{t[2]}</a></nav>
- {detailed && <><p>{t[3]}</p><a href={mail}>{t[4]}</a><p>{contact}</p><p>{t[5]}</p></>}
+ {detailed && <details><summary>{t[0]}</summary><p>{t[3]}</p><a href={mail}>{t[4]}</a><p>{contact}</p><p>{t[5]}</p></details>}
  </section>;
 }

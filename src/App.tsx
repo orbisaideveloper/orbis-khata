@@ -21,6 +21,7 @@ import { languageOptions, readLanguage, saveLanguage, translations } from './i18
 import type { Language, TextKey } from './i18n';
 import './App.css';
 import './responsive-shell.css';
+import './profile/account-settings.css';
 import './appearance.css';
 import { PwaStatus } from './PwaStatus';
 import { WorkspaceMenu } from './WorkspaceMenu';
@@ -247,10 +248,14 @@ function App() {
 
       {view === 'profile' && signedIn && <section className="scene light-scene active profile-page" aria-label={t('settings')}>
         {renderBar('workspace', 'choose', 'settings')}
-        <p className="orbis-account-id">{account.session?.user.user_metadata?.orbis_display_id}</p>
-        <CommonAccountProfile key={account.session!.user.id} userId={account.session!.user.id} language={language}/><PrivacyLinks language={language} detailed/>
-        {androidLocalFirst() && sessionId && <CompanySyncPreview key={sessionId} actor={sessionId} language={language}/>}
-        {androidLocalFirst() && sessionId && <DriveBackupPanel key={sessionId} actor={sessionId} language={language}/>}
+        <div className="account-settings">
+          <CommonAccountProfile key={account.session!.user.id} userId={account.session!.user.id} displayId={account.session?.user.user_metadata?.orbis_display_id} language={language}/>
+          {androidLocalFirst() && sessionId && <>
+            <CompanySyncPreview key={sessionId} actor={sessionId} language={language}/>
+            <DriveBackupPanel key={sessionId} actor={sessionId} language={language}/>
+          </>}
+          <PrivacyLinks language={language} detailed/>
+        </div>
         {tutorial && <p className="books-hint">{accountCopy[language].lock} — {accountCopy[language].lockInfo}</p>}
       </section>}
 

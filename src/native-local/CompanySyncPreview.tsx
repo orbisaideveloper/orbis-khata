@@ -39,12 +39,12 @@ export function CompanySyncPreview({ actor, language }: Readonly<{ actor: string
     </button>
     {busy && <output>{t('তালিকা আনা হচ্ছে…', 'सूचियाँ लोड हो रही हैं…', 'Loading company lists…')}</output>}
     {failed && <output>{t('তালিকা আনা যায়নি। অনলাইনে একই ORBIS অ্যাকাউন্টে সাইন ইন করে চেষ্টা করুন।', 'सूचियाँ नहीं मिल सकीं। उसी ORBIS खाते में ऑनलाइन साइन इन करके फिर कोशिश करें।', 'Could not load both lists. Sign in online with the same ORBIS account and try again.')}</output>}
-    {comparison && [
+    {comparison && <div className="account-company-lists">{[
       { title: t('ওয়েবের কোম্পানি', 'वेब की कंपनियाँ', 'Web companies'), rows: comparison.online },
       { title: t('এই ফোনের কোম্পানি', 'इस फ़ोन की कंपनियाँ', 'Companies on this phone'), rows: comparison.local },
     ].map(({ title, rows }) => <div key={title}>
       <h3>{title} ({rows.length})</h3>
       {rows.length > 0 && <ul>{rows.map(row => <li key={row.id}>{row.name}</li>)}</ul>}
-    </div>)}
+    </div>)}</div>}
   </section>
 }

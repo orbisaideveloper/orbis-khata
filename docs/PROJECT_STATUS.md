@@ -1951,3 +1951,13 @@ See [SONAR-CORRECTIONS-20261017.md](SONAR-CORRECTIONS-20261017.md) for every rep
   of the reported live receipt failure and Android device behavior are pending.
   Web bill import and live synchronization are pending. No deployment or live
   data writes in this checkpoint.
+
+### Account settings layout
+- Base main f205cd3. Profile summary and expandable edit form, consistent
+  company comparison and Drive card widths, and a compact privacy section.
+- Deepa's Android screenshot confirms the existing read-only comparison:
+  Arko is listed on the web and Deepa on the device.
+- 71 targeted tests, typecheck, scoped lint and diff check passed. Chromium
+  remains on GitHub Quality. Device layout acceptance is pending.
+- Next: a complete, consistent server snapshot for one company and a
+  non-destructive Android import. No live migration or deployment ran.
