@@ -9,8 +9,9 @@ const contact = 'orbisaideveloper@gmail.com';
 const mail = 'mailto:' + contact + '?subject=' + encodeURIComponent('Khata Boi account and data deletion request') + '&body=' + encodeURIComponent('Please delete my Khata Boi account and associated personal and owned business data.\nRegistered email / Orbis ID:\nCompany / requested scope:\nPlease explain any necessary retention and expiry. Do not send passwords or OTPs.');
 export function PrivacyLinks({language, detailed = false}: Readonly<{language:Language; detailed?:boolean}>) {
  const t = copy[language];
- return <section className="privacy-links" aria-label={t[0]}>
+ return <section className={detailed ? 'privacy-links privacy-account' : 'privacy-links'} aria-label={t[0]}>
+ {detailed && <h2>{t[0]}</h2>}
  <nav aria-label={t[0]}><a href="https://orbis-khata.onrender.com/privacy.html" target="_blank" rel="noopener noreferrer">{t[1]}</a><a href="https://orbis-khata.onrender.com/delete-account.html" target="_blank" rel="noopener noreferrer">{t[2]}</a></nav>
- {detailed && <details><summary>{t[0]}</summary><p>{t[3]}</p><a href={mail}>{t[4]}</a><p>{contact}</p><p>{t[5]}</p></details>}
+ {detailed && <><p>{t[3]}</p><a href={mail}>{t[4]}</a><p>{contact}</p><p>{t[5]}</p></>}
  </section>;
 }

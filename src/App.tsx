@@ -104,15 +104,10 @@ function App() {
     const guestEntered = useRef(false);
     const t = (key: TextKey) => translations[language][key];
     const backupLabel = inLanguage(language, 'Google Drive ব্যাকআপ', 'Google Drive बैकअप', 'Google Drive backup');
-    const menu = () => <WorkspaceMenu onMainHome={mainHome} onAppearance={showAppearance} enhanced actions={signedIn && androidLocalFirst() && <button type="button" onClick={event => {
+    const menu = () => <WorkspaceMenu appMenu={view==='workspace'} onMainHome={view==='workspace' ? undefined : mainHome} onAppearance={showAppearance} enhanced actions={signedIn && androidLocalFirst() && <button type="button" onClick={event => {
             event.currentTarget.closest('details')?.removeAttribute('open');
             navigate('drive-backup');
-        }}>{backupLabel}</button>} production={view==='khata'&&production} language={language} signedIn={signedIn} onBooks={page => {
-            openBooks(page);
-            if (view !== 'khata') {
-                navigate('khata');
-            }
-        }} tutorial={tutorial} onTutorial={enabled => { setTutorial(enabled); saveTutorial(enabled); }} onProfile={() => navigate('profile')} onLogout={() => { void logout(); }}/>;
+        }}>{backupLabel}</button>} production={view==='khata'&&production} language={language} signedIn={signedIn} onBooks={view==='khata' ? openBooks : undefined} tutorial={tutorial} onTutorial={enabled => { setTutorial(enabled); saveTutorial(enabled); }} onProfile={() => navigate('profile')} onLogout={() => { void logout(); }}/>;
     const renderBar = (backView: View, ariaKey: TextKey, pillKey: TextKey) => (<header className="bar"><button type="button" className="back" onClick={() => navigate(backView)} aria-label={t(ariaKey)}>←</button><span className="pill">{t(pillKey)}</span>{languagePicker(true)}{signedIn && menu()}</header>);
     const renderBrand = (subKey: TextKey) => (<div className="brand"><span className="orb"><OrbisLogo /></span><span>ORBIS<small>{t(subKey)}</small></span></div>);
     const renderPlanned = (ic: string, cls: string, nameKey: TextKey, descKey: TextKey, statusKey: TextKey) => (<div className="module planned"><span className={`ic ${cls}`} aria-hidden="true">{ic}</span><span className="copy"><strong>{t(nameKey)}</strong><small>{t(descKey)}</small></span><span className="status">{t(statusKey)}</span></div>);
@@ -225,7 +220,7 @@ function App() {
         </section>)}
 
       {view === 'workspace' && (signedIn || guestUiEnabled) && (<section className="scene light-scene active workspace-scene" aria-label={t('choose')}>
-          <header className="bar workspace-header">{renderBrand('workBrand')}{languagePicker(true)}{signedIn && menu()}</header>
+          <header className="bar workspace-header"><div className="workspace-header-menu">{signedIn && menu()}</div>{renderBrand('workBrand')}{languagePicker(true)}</header>
           <div className="workspace-title"><p className="orbis-account-id">{account.session?.user.user_metadata?.orbis_display_id}</p><span className="eyebrow l">{t('workBadge')}</span><WorkspaceGreeting key={sessionId??'guest'} userId={sessionId} language={language}/><p className="subtitle">{t('choose')}</p></div>
           <div className="welcome-panel"><strong>{t('panel')}</strong>{tutorial && <p>{t('panelDesc')}</p>}</div>
           {appearance&&<Themes language={language}/>}

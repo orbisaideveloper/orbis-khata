@@ -205,3 +205,60 @@
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
+
+.workspace-header {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  align-items: center;
+}
+
+.workspace-header-menu {
+  justify-self: start;
+}
+
+.workspace-header > :last-child {
+  justify-self: end;
+  max-width: 100%;
+}
+
+.workspace-app-menu .workspace-menu-panel {
+  left: 0;
+  right: auto;
+  max-height: min(70dvh, 520px);
+  overflow-y: auto;
+}
+
+.workspace-menu-lines {
+  display: inline-block;
+  width: 18px;
+  height: 12px;
+  border-block: 2px solid currentColor;
+  background: linear-gradient(currentColor, currentColor) center / 100% 2px no-repeat;
+}
+
+.workspace-app-menu .tutorial-menu-row {
+  justify-content: space-between;
+}
+
+.workspace-app-menu .workspace-version {
+  padding: 8px 13px;
+  color: #52617a;
+}
+
+body:has(.phone[data-android-local][data-view="workspace"]) {
+  padding: 0;
+  background: #fff;
+}
+
+.phone[data-android-local][data-view="workspace"] {
+  width: 100%;
+  max-width: none;
+  margin: 0;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+}
+
+.phone[data-android-local] .workspace-scene {
+  background: #fff;
+}

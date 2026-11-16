@@ -1,5 +1,4 @@
 import { Capacitor } from '@capacitor/core';
-import { PrivacyLinks } from './privacy/PrivacyLinks';
 import {useEffect,useRef,type ReactNode} from 'react';
 import {inLanguage} from './localize';
 import { booksLabels, type BooksPage } from './books-navigation';
@@ -9,7 +8,8 @@ const copy = {
     en: { menu: 'More options', profile: 'Account & profile', tutorial: 'Tutorial', logout: 'Log out' },
     hi: { menu: 'अन्य विकल्प', profile: 'अकाउंट और प्रोफ़ाइल', tutorial: 'ट्यूटोरियल', logout: 'लॉग आउट' },
 };
-export function WorkspaceMenu({ language, tutorial, onTutorial, onProfile, onLogout, signedIn, onBooks, demo = false, enhanced = false, settings, actions, production = false, onMainHome, onAppearance }: Readonly<{
+export function WorkspaceMenu({ language, tutorial, onTutorial, onProfile, onLogout, signedIn, onBooks, demo = false, enhanced = false, settings, actions, production = false, onMainHome, onAppearance, appMenu = false }: Readonly<{
+    appMenu?:boolean;
     onMainHome?:()=>void;
     onAppearance?:()=>void;
     production?:boolean;
@@ -32,19 +32,18 @@ export function WorkspaceMenu({ language, tutorial, onTutorial, onProfile, onLog
         document.addEventListener('pointerdown',outside,true);document.addEventListener('keydown',escape);
         return()=>{document.removeEventListener('pointerdown',outside,true);document.removeEventListener('keydown',escape);};
     },[]);
-    return <details className="workspace-menu" ref={menu}>
-    <summary aria-label={t.menu}>⋮</summary>
+    return <details className={appMenu ? 'workspace-menu workspace-app-menu' : 'workspace-menu'} ref={menu}>
+    <summary aria-label={t.menu}>{appMenu ? <span className="workspace-menu-lines" aria-hidden="true"/> : '⋮'}</summary>
     <div className="workspace-menu-panel">
       {signedIn&&onMainHome&&<button type="button" onClick={event=>{event.currentTarget.closest('details')?.removeAttribute('open');onMainHome();}}>{inLanguage(language,'মূল হোম','मुख्य होम','Main home')}</button>}
-      {signedIn&&onAppearance&&<button type="button" onClick={event=>{event.currentTarget.closest('details')?.removeAttribute('open');onAppearance();}}>{inLanguage(language,'ডিজাইন','डिज़ाइन','Appearance')}</button>}
+      {signedIn&&onAppearance&&<button type="button" onClick={event=>{event.currentTarget.closest('details')?.removeAttribute('open');onAppearance();}}>{appMenu ? booksLabels[language].themes : inLanguage(language,'ডিজাইন','डिज़ाइन','Appearance')}</button>}
       {signedIn && onBooks && ([...((demo || enhanced) ? ['home' as const] : []), 'ledger', 'all-ledgers', 'parties', 'items', ...((demo || enhanced) ? ['bills' as const] : []), 'expenses', 'reports', ...(production?['production' as const]:[]), 'company', 'settings', 'themes'] as const).map(page => <button type="button" key={page} onClick={event => { event.currentTarget.closest('details')?.removeAttribute('open'); onBooks(page); }}>{booksLabels[language][page]}</button>)}
       {signedIn&&onBooks&&(demo||enhanced)&&<button type="button" onClick={event=>{event.currentTarget.closest('details')?.removeAttribute('open');onBooks('stock');}}>{inLanguage(language,'স্টক ট্রান্সফার','स्टॉक ट्रांसफर','Stock transfer')}</button>}
       {signedIn && <button type="button" onClick={event => { event.currentTarget.closest('details')?.removeAttribute('open'); onProfile(); }}>{t.profile}</button>}
       {actions}
       {settings&&<details className="workspace-settings"><summary>{inLanguage(language,'সেটিংস','सेटिंग्स','Settings')}</summary><div>{settings}</div></details>}
-      {!demo && <PrivacyLinks language={language}/>}
-      <small>{inLanguage(language,'ভার্সন','वर्ज़न','Version')}: {Capacitor.isNativePlatform() ? (import.meta.env.VITE_KHATA_ANDROID_RELEASE || 'Unavailable') : `Web · ${import.meta.env.VITE_KHATA_WEB_RELEASE || 'local'}`}</small>
-      <label className="tutorial-menu-row"><span>{t.tutorial}</span><input type="checkbox" checked={tutorial} onChange={event => onTutorial(event.target.checked)}/></label>
+      <small className="workspace-version">{inLanguage(language,'ভার্সন','वर्ज़न','Version')}: {Capacitor.isNativePlatform() ? (import.meta.env.VITE_KHATA_ANDROID_RELEASE || 'Unavailable') : `Web · ${import.meta.env.VITE_KHATA_WEB_RELEASE || 'local'}`}</small>
+      <label className="tutorial-menu-row"><span>{appMenu ? inLanguage(language,'ব্যবহারের নির্দেশনা দেখান','इस्तेमाल के संकेत दिखाएँ','Show tutorial hints') : t.tutorial}</span><input type="checkbox" checked={tutorial} onChange={event => onTutorial(event.target.checked)}/></label>
       {!demo && <button type="button" onClick={onLogout}>{t.logout}</button>}
     </div>
   </details>;

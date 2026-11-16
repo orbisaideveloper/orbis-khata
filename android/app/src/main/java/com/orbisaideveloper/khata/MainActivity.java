@@ -2,9 +2,11 @@ package com.orbisaideveloper.khata;
 
 import com.getcapacitor.BridgeActivity;
 import android.os.Bundle;
+import android.graphics.Color;
 import android.view.View;
 import androidx.core.graphics.Insets;
 import androidx.core.view.ViewCompat;
+import androidx.core.view.WindowCompat;
 import androidx.core.view.WindowInsetsCompat;
 import androidx.activity.OnBackPressedCallback;
 
@@ -17,6 +19,8 @@ public class MainActivity extends BridgeActivity {
         super.onCreate(savedInstanceState);
         // This listener owns system-bar and IME insets. Capacitor SystemBars inset handling is disabled.
         View content = findViewById(android.R.id.content);
+        content.setBackgroundColor(Color.WHITE);
+        WindowCompat.getInsetsController(getWindow(), content).setAppearanceLightStatusBars(true);
         ViewCompat.setOnApplyWindowInsetsListener(content, (view, windowInsets) -> {
             Insets safe = windowInsets.getInsets(
                 WindowInsetsCompat.Type.systemBars() | WindowInsetsCompat.Type.displayCutout());

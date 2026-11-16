@@ -187,8 +187,6 @@ test('shared profile save and reload preserve the central ID', async ({ page }) 
     const profile = page.getByRole('region', { name: 'Common account profile', exact: true });
     const privacy = page.getByRole('region', {name:'Privacy and account deletion',exact:true});
     await expect(privacy.getByRole('link',{name:'Request account/data deletion'})).toHaveAttribute('href','https://orbis-khata.onrender.com/delete-account.html');
-    await expect(privacy.getByRole('link', { name: 'Compose deletion request' })).toBeHidden();
-    await privacy.getByText('Privacy and account deletion', { exact: true }).click();
     await expect(privacy.getByRole('link',{name:'Compose deletion request'})).toHaveAttribute('href',/^mailto:orbisaideveloper@gmail.com/);
     await expect(privacy).toContainText('Opening email does not submit or complete deletion');
 
