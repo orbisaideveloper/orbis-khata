@@ -187,9 +187,12 @@ test('shared profile save and reload preserve the central ID', async ({ page }) 
     const profile = page.getByRole('region', { name: 'Common account profile', exact: true });
     const privacy = page.getByRole('region', {name:'Privacy and account deletion',exact:true});
     await expect(privacy.getByRole('link',{name:'Request account/data deletion'})).toHaveAttribute('href','https://orbis-khata.onrender.com/delete-account.html');
+    await expect(privacy.getByRole('link', { name: 'Compose deletion request' })).toBeHidden();
+    await privacy.getByText('Privacy and account deletion', { exact: true }).click();
     await expect(privacy.getByRole('link',{name:'Compose deletion request'})).toHaveAttribute('href',/^mailto:orbisaideveloper@gmail.com/);
     await expect(privacy).toContainText('Opening email does not submit or complete deletion');
 
+    await profile.getByText('Edit profile', { exact: true }).click();
     await profile.getByLabel('Name', { exact: true }).fill('Updated customer');
     await profile.getByLabel('Address', { exact: true }).fill('Test address');
     await profile.getByRole('button', { name: 'Save profile', exact: true }).click();
@@ -197,6 +200,8 @@ test('shared profile save and reload preserve the central ID', async ({ page }) 
     await page.reload();
     await page.getByLabel('More options', { exact: true }).click();
     await page.getByRole('button', { name: 'Account & profile', exact: true }).click();
+    await expect(profile.getByText('Updated customer', { exact: true })).toBeVisible();
+    await profile.getByText('Edit profile', { exact: true }).click();
     await expect(profile.getByLabel('Name', { exact: true })).toHaveValue('Updated customer');
     await expect(profile.getByLabel('Address', { exact: true })).toHaveValue('Test address');
     await expect(page.getByText(customer.displayId, { exact: true })).toBeVisible();
