@@ -2021,3 +2021,11 @@ See [SONAR-CORRECTIONS-20261017.md](SONAR-CORRECTIONS-20261017.md) for every rep
   and Android candidate runs and check the gesture on a real phone.
 - Daily accounts tools and lottery result lookup are future work. No
   ledger, server, database or Play release changes were made.
+
+### Quality #163 Workspace card follow-up
+- Android Candidate #54 passed. Quality #163 passed coverage, all 60
+  Chromium tests and the Sonar Quality Gate. Strict overall Sonar stopped
+  on three findings in WorkspaceCards.
+- Use includes for saved IDs, mark the customer icon as decorative, and
+  simplify the status-label expression. Review strict Sonar on the next
+  run. No deployment or Play release.

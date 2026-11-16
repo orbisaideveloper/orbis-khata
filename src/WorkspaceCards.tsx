@@ -15,7 +15,7 @@ function readOrder(key: string): CardId[] {
   try {
     const raw: unknown = JSON.parse(localStorage.getItem(key) ?? 'null')
     if (!Array.isArray(raw)) return [...defaultOrder]
-    const ordered = raw.filter((id): id is CardId => defaultOrder.some(card => card === id))
+    const ordered = raw.filter((id): id is CardId => defaultOrder.includes(id))
     return [...new Set([...ordered, ...defaultOrder])]
   } catch {
     return [...defaultOrder]
@@ -33,7 +33,7 @@ function moduleCard(id: CardId, language: Language, signedIn: boolean) {
   switch (id) {
     case 'khata': return { title: t.khata, description: t.khataDesc, icon: '📘', target: 'khata' as const }
     case 'farm': return { title: t.farm, description: t.farmDesc, icon: '🌱' }
-    case 'customer': return { title: shareCopy(language, 'title'), description: inLanguage(language, 'লিঙ্ক করা হিসাব ও স্টেটমেন্ট', 'लिंक किए खाते और विवरण', 'Linked accounts and statements'), icon: <svg viewBox="0 0 48 48" fill="none"><rect x="9" y="7" width="30" height="35" rx="6" fill="currentColor" opacity=".12"/><circle cx="24" cy="19" r="6" stroke="currentColor" strokeWidth="2.5"/><path d="M14 35c0-10 20-10 20 0M17 3h14" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"/></svg>, target: 'customer' as const }
+    case 'customer': return { title: shareCopy(language, 'title'), description: inLanguage(language, 'লিঙ্ক করা হিসাব ও স্টেটমেন্ট', 'लिंक किए खाते और विवरण', 'Linked accounts and statements'), icon: <svg viewBox="0 0 48 48" fill="none" aria-hidden="true"><rect x="9" y="7" width="30" height="35" rx="6" fill="currentColor" opacity=".12"/><circle cx="24" cy="19" r="6" stroke="currentColor" strokeWidth="2.5"/><path d="M14 35c0-10 20-10 20 0M17 3h14" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"/></svg>, target: 'customer' as const }
     case 'lottery': return { title: t.lot, description: t.lotDesc, icon: '🎟️', target: signedIn ? 'lottery' as const : undefined }
     case 'daily': return { title: inLanguage(language, 'দৈনিক হিসাব', 'दैनिक हिसाब', 'Daily accounts'), description: inLanguage(language, 'আয়–খরচ, পাওনা–দেনা ও মাসের বাজেট', 'आय–खर्च, लेना–देना और मासिक बजट', 'Income, expenses, dues and monthly budget'), icon: '📝' }
     case 'results': return { title: inLanguage(language, 'লটারি রেজাল্ট', 'लॉटरी नतीजे', 'Lottery results'), description: inLanguage(language, 'টিকিট স্ক্যান করে বা নম্বর দিয়ে ফল দেখুন', 'टिकट स्कैन करें या नंबर से नतीजे देखें', 'Check results by scanning a ticket or entering its number'), icon: '🔎' }
@@ -161,7 +161,8 @@ export function WorkspaceCards({ owner, language, onOpen }: Readonly<{ owner: st
   return <div className="modules" ref={root}>
     {visible.map((id, index) => {
       const card = moduleCard(id, language, Boolean(owner))
-      const contents = <><span className={'ic ' + id} aria-hidden="true">{card.icon}</span><span className="copy"><strong id={titleId + id}>{card.title}</strong><small>{card.description}</small></span><span className="status">{card.target ? t.open : t[id === 'lottery' ? 'soon' : 'later']}</span></>
+      const plannedStatus = id === 'lottery' ? t.soon : t.later
+      const contents = <><span className={'ic ' + id} aria-hidden="true">{card.icon}</span><span className="copy"><strong id={titleId + id}>{card.title}</strong><small>{card.description}</small></span><span className="status">{card.target ? t.open : plannedStatus}</span></>
       const target = card.target
       return <div key={id} className="workspace-card" data-workspace-card={id} data-dragging={dragging === id || undefined} data-drop={dragging && hover === id && dragging !== id || undefined}>
         {target ? <button type="button" className="module" onClick={() => onOpen(target)}>{contents}</button> : <div className="module planned">{contents}</div>}
