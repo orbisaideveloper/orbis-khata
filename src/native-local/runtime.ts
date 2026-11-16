@@ -9,6 +9,7 @@
  * NOTE: Release needs real-phone enrollment, reboot, offline, isolation, rollback,
  * low-space and test-update acceptance. Backup/export and restore are separate gates.
  */
+import { mergeCompanyExport, parseCompanyExport } from '../sync/company-transfer'
 import { SQLiteConnection, CapacitorSQLite } from '@capacitor-community/sqlite'
 import { registerPlugin } from '@capacitor/core'
 import { createAndroidSqlcipherRuntime } from '../local-db/android-sqlcipher-runtime'
@@ -22,7 +23,7 @@ import { failClosedIfMissingSnapshot } from './snapshot-policy'
 import {
   deviceLottery, demoRequest, demoMasters, demoPreviousBalance, saveDemoParty, saveDemoItem,
   deleteDemoParty, deleteDemoItem, saveDemoExpenseBill,
-  readDeviceLocalSnapshot, restoreDeviceLocalSnapshot, emptyDeviceLocalSnapshot, validateDeviceLocalSnapshot,
+  readDeviceLocalSnapshot, checkImportedLedger, restoreDeviceLocalSnapshot, emptyDeviceLocalSnapshot, validateDeviceLocalSnapshot,
   type DeviceLocalSnapshot,
 } from '../demo/store'
 import type { DemoParty, DemoItem } from '../demo/master-model'
@@ -269,6 +270,13 @@ export async function previewNativeFinancialBackup(archive: Uint8Array<ArrayBuff
   return { companies: snapshot.companies.length, entries: snapshot.entries.length }
 }
 
+async function saveImportedSnapshot(scope: ReturnType<typeof assertActive>, snapshot: DeviceLocalSnapshot) {
+  if (assertActive().generation !== scope.generation) throw new Error('ANDROID_LOCAL_ACTOR_CHANGED')
+  await persistState(scope.db, scope.actor, snapshot)
+  if (assertActive().generation !== scope.generation) throw new Error('ANDROID_LOCAL_ACTOR_CHANGED')
+  restoreDeviceLocalSnapshot(snapshot)
+}
+
 /** Restore only onto an empty local account. There is no merge or overwrite. */
 export function restoreNativeFinancialBackup(archive: Uint8Array<ArrayBuffer>, actor: string, key: Uint8Array<ArrayBuffer>): Promise<void> {
   return ordered(async () => {
@@ -280,10 +288,19 @@ export function restoreNativeFinancialBackup(archive: Uint8Array<ArrayBuffer>, a
     if (pending || JSON.stringify(current) !== JSON.stringify(emptyDeviceLocalSnapshot())) {
       throw new Error('FINANCIAL_RESTORE_REQUIRES_EMPTY_ACCOUNT')
     }
-    if (assertActive().generation !== scope.generation) throw new Error('ANDROID_LOCAL_ACTOR_CHANGED')
-    await persistState(scope.db, actor, snapshot)
-    if (assertActive().generation !== scope.generation) throw new Error('ANDROID_LOCAL_ACTOR_CHANGED')
-    restoreDeviceLocalSnapshot(snapshot)
+    await saveImportedSnapshot(scope, snapshot)
+  })
+}
+
+export function importNativeCompany(actor: string, company: string, payload: unknown) {
+  return ordered(async () => {
+    const scope = assertActive()
+    if (scope.actor !== actor) throw new Error('ANDROID_LOCAL_ACTOR_CHANGED')
+    const imported = parseCompanyExport(payload, company, actor)
+    const current = await readState(scope.db, actor)
+    const snapshot = mergeCompanyExport(current, imported)
+    checkImportedLedger(snapshot, company, imported.balances)
+    await saveImportedSnapshot(scope, snapshot)
   })
 }
 

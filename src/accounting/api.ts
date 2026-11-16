@@ -94,6 +94,10 @@ export async function requestOnlineCustomerView<T>(actor: string, command: Share
     return (await accountGateway(actor))<T>('party-sharing', command);
 }
 
+export async function readOnlineCompanyExport(actor: string, company: string): Promise<unknown> {
+    return (await accountGateway(actor))('company-export', { company });
+}
+
 export async function readOnlineCompanies(actor: string): Promise<Company[]> {
     const request = await accountGateway(actor);
     const rows = await request<Company[]>('companies', {});

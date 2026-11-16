@@ -1961,3 +1961,15 @@ See [SONAR-CORRECTIONS-20261017.md](SONAR-CORRECTIONS-20261017.md) for every rep
   remains on GitHub Quality. Device layout acceptance is pending.
 - Next: a complete, consistent server snapshot for one company and a
   non-destructive Android import. No live migration or deployment ran.
+
+### Web to Android company import
+- Base main a776ab1. A verified account can preview and import a web company
+  into Android without replacing another company. The server reads an owned
+  active company in a single SQL snapshot. The phone checks ledger totals,
+  rejects existing IDs and commits the encrypted projection atomically.
+- Covered bill and ledger data, receipt links, masters, stock documents and
+  reversals, expenses, profiles and settings. Companies with separate legacy
+  opening-expense payments are refused until Android supports those records.
+- 36 targeted tests, typecheck, disposable SQL export acceptance and diff
+  check passed. Next: independently verify Edge deployment and run Android
+  acceptance against Deepa's account. No production data or deployment changed.

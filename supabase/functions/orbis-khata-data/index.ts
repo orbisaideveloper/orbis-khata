@@ -1,3 +1,4 @@
+import { exportCompany } from './company-export.ts';
 import { createRecoveryEnvelope } from '../../../src/sync/server-recovery-envelope.ts';
 import {identicalParty} from '../../../src/demo/party-match.ts';
 import {readSharedStatement} from '../../../src/customer-view/read-statement.ts';
@@ -56,6 +57,10 @@ const handler = createKhataGateway({ origins: (env('KHATA_ORIGINS') || 'https://
         const ledgerOwnerId = owners[0]?.id;
         if (typeof ledgerOwnerId !== 'string') {
             throw new Error('KHATA_OWNER_RESOLUTION_FAILED');
+        }
+        if (operation.operation === 'company-export') {
+            const snapshot = await exportCompany(tx, String(operation.input.company), ledgerOwnerId);
+            return { ...snapshot, actor: principal.orbisIdentityId };
         }
         await tx `select set_config('orbis.khata.gateway_verified','v1',true)`;
         await tx `select set_config('orbis.khata.identity',${principal.orbisIdentityId},true),set_config('orbis.khata.display_id',${principal.displayId},true)`;

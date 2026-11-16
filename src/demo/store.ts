@@ -828,6 +828,22 @@ export function restoreDeviceLocalSnapshot(candidate:unknown):void {
   for(const [id,day] of next.reversals)inventoryReversals.set(id,day)
 }
 
+export function checkImportedLedger(snapshot: DeviceLocalSnapshot, company: string, expected: Record<string, string>): void {
+  const previous = readDeviceLocalSnapshot()
+  try {
+    restoreDeviceLocalSnapshot(snapshot)
+    const actual = report(company, '0001-01-01', '9999-12-31', null, 0).balances
+    for (const name of new Set([...Object.keys(actual), ...Object.keys(expected)])) {
+      const account = name as keyof typeof actual
+      if (BigInt(actual[account]?.closing ?? '0') !== BigInt(expected[name] ?? '0')) {
+        throw new Error('KHATA_COMPANY_LEDGER_MISMATCH')
+      }
+    }
+  } finally {
+    restoreDeviceLocalSnapshot(previous)
+  }
+}
+
 /** The Android runtime serializes calls and saves this projection with its receipt. */
 export async function deviceLottery(input: LotteryInput, actor: string): Promise<unknown> {
   const { runLottery } = await import('../lottery/service');

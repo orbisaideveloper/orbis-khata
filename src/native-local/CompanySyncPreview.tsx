@@ -1,13 +1,16 @@
 import { useState } from 'react'
-import { readOnlineCompanies } from '../accounting/api'
-import type { Company } from '../accounting/model'
+import { readOnlineCompanies, readOnlineCompanyExport } from '../accounting/api'
+import { money, type Company } from '../accounting/model'
 import type { Language } from '../i18n'
+import { parseCompanyExport } from '../sync/company-transfer'
 import { inLanguage } from '../localize'
 
 type CompanyComparison = { online: Company[]; local: Company[] }
 
 export function CompanySyncPreview({ actor, language }: Readonly<{ actor: string; language: Language }>) {
   const [comparison, setComparison] = useState<CompanyComparison>()
+  const [preview, setPreview] = useState<ReturnType<typeof parseCompanyExport>>()
+  const [notice, setNotice] = useState('')
   const [busy, setBusy] = useState(false)
   const [failed, setFailed] = useState(false)
   const t = (bn: string, hi: string, en: string) => inLanguage(language, bn, hi, en)
@@ -16,6 +19,8 @@ export function CompanySyncPreview({ actor, language }: Readonly<{ actor: string
     setBusy(true)
     setFailed(false)
     setComparison(undefined)
+    setPreview(undefined)
+    setNotice('')
     try {
       const runtime = await import('./runtime')
       const [online, local] = await Promise.all([
@@ -31,6 +36,31 @@ export function CompanySyncPreview({ actor, language }: Readonly<{ actor: string
     }
   }
 
+  async function transfer(company: string, confirm: boolean) {
+    setBusy(true)
+    setNotice('')
+    try {
+      const runtime = await import('./runtime')
+      if (confirm && preview?.company.id === company) {
+        await runtime.importNativeCompany(actor, company, preview)
+        setNotice(t('হিসাব ফোনে যোগ হয়েছে।', 'खाता इस फ़ोन में जुड़ गया।', 'Company imported to this phone.'))
+        setPreview(undefined)
+        setComparison(current => current && { ...current, local: [...current.local, preview.company] })
+        window.dispatchEvent(new Event('khata-refresh'))
+      } else {
+        setPreview(undefined)
+        const payload = await readOnlineCompanyExport(actor, company)
+        if (runtime.nativeLocalActor() !== actor) throw new Error('ANDROID_LOCAL_ACTOR_CHANGED')
+        setPreview(parseCompanyExport(payload, company, actor))
+      }
+    } catch {
+      setPreview(undefined)
+      setNotice(t('স্থানান্তর করা যায়নি। আংশিক হিসাব যোগ করা হয়নি।', 'स्थानांतरण नहीं हो सका। अधूरा खाता नहीं जोड़ा गया।', 'Unable to import this company. No partial import was made.'))
+    } finally {
+      setBusy(false)
+    }
+  }
+
   return <section className="privacy-links">
     <h2>{t('কোম্পানির তালিকা মিলিয়ে দেখুন', 'कंपनियों की सूचियाँ देखें', 'Compare company lists')}</h2>
     <p>{t('ওয়েব ও এই ফোনে থাকা সক্রিয় কোম্পানিগুলো দেখুন।', 'वेब और इस फ़ोन की सक्रिय कंपनियाँ देखें।', 'View active companies on the web and on this phone.')}</p>
@@ -40,11 +70,31 @@ export function CompanySyncPreview({ actor, language }: Readonly<{ actor: string
     {busy && <output>{t('তালিকা আনা হচ্ছে…', 'सूचियाँ लोड हो रही हैं…', 'Loading company lists…')}</output>}
     {failed && <output>{t('তালিকা আনা যায়নি। অনলাইনে একই ORBIS অ্যাকাউন্টে সাইন ইন করে চেষ্টা করুন।', 'सूचियाँ नहीं मिल सकीं। उसी ORBIS खाते में ऑनलाइन साइन इन करके फिर कोशिश करें।', 'Could not load both lists. Sign in online with the same ORBIS account and try again.')}</output>}
     {comparison && <div className="account-company-lists">{[
-      { title: t('ওয়েবের কোম্পানি', 'वेब की कंपनियाँ', 'Web companies'), rows: comparison.online },
-      { title: t('এই ফোনের কোম্পানি', 'इस फ़ोन की कंपनियाँ', 'Companies on this phone'), rows: comparison.local },
-    ].map(({ title, rows }) => <div key={title}>
+      { title: t('ওয়েবের কোম্পানি', 'वेब की कंपनियाँ', 'Web companies'), rows: comparison.online, online: true },
+      { title: t('এই ফোনের কোম্পানি', 'इस फ़ोन की कंपनियाँ', 'Companies on this phone'), rows: comparison.local, online: false },
+    ].map(({ title, rows, online }) => <div key={title}>
       <h3>{title} ({rows.length})</h3>
-      {rows.length > 0 && <ul>{rows.map(row => <li key={row.id}>{row.name}</li>)}</ul>}
+      {rows.length > 0 && <ul>{rows.map(row => <li key={row.id}>{row.name} {online && !comparison.local.some(local => local.id === row.id) &&
+        <button type="button" disabled={busy} onClick={() => void transfer(row.id, false)}>
+          {t('স্থানান্তর দেখুন', 'स्थानांतरण देखें', 'Preview import')}
+        </button>}</li>)}</ul>}
     </div>)}</div>}
+    {preview && <div>
+      <h3>{preview.company.name}</h3>
+      <p>{t('স্টক ও বিলের নথি', 'स्टॉक और बिल दस्तावेज़', 'Stock and bill documents')} {preview.documents.length} · {t('লেজার এন্ট্রি', 'लेजर प्रविष्टियाँ', 'Ledger entries')} {preview.entries.length} · {t('খরচের এন্ট্রি', 'खर्च प्रविष्टियाँ', 'Expense entries')} {preview.expenses.length}</p>
+      <dl>
+        <dt>{t('নগদ', 'नकद', 'Cash')}</dt><dd>{money(preview.balances.cash ?? '0')}</dd>
+        <dt>{t('ব্যাংক', 'बैंक', 'Bank')}</dt><dd>{money(preview.balances.bank ?? '0')}</dd>
+        <dt>{t('পাওনা', 'लेना है', 'To receive')}</dt><dd>{money(preview.balances.receivable ?? '0')}</dd>
+        <dt>{t('দেনা', 'देना है', 'To pay')}</dt><dd>{money(-BigInt(preview.balances.payable ?? '0'))}</dd>
+      </dl>
+      <button type="button" disabled={busy} onClick={() => void transfer(preview.company.id, true)}>
+        {t('এই ফোনে হিসাব যোগ করুন', 'इस फ़ोन में खाता जोड़ें', 'Import to this phone')}
+      </button>
+      <button type="button" disabled={busy} onClick={() => setPreview(undefined)}>
+        {t('বাতিল', 'रद्द करें', 'Cancel')}
+      </button>
+    </div>}
+    {notice && <output>{notice}</output>}
   </section>
 }
