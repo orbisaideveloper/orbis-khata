@@ -47,7 +47,8 @@ jobs:
           set -euo pipefail
           mkdir -p quality-reports
           npm ci --no-fund 2>&1 | tee quality-reports/install.txt
-          npm audit --audit-level=low 2>&1 | tee quality-reports/audit.txt
+          node --test scripts/audit-advisory-gate.test.mjs 2>&1 | tee quality-reports/audit-policy-tests.txt
+          node scripts/audit-advisory-gate.mjs 2>&1 | tee quality-reports/audit.txt
           npm run lint 2>&1 | tee quality-reports/lint.txt
           npm run typecheck 2>&1 | tee quality-reports/typecheck.txt
           node --test scripts/check-sonar.test.mjs 2>&1 | tee quality-reports/sonar-report-tests.txt

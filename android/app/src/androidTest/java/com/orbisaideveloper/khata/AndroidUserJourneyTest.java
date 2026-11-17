@@ -54,7 +54,7 @@ public class AndroidUserJourneyTest {
                 Thread.sleep(250);
             }
             assertNotNull("Capacitor bridge did not start", activity.getBridge());
-            waitFor(activity, "(function(){return !!document.querySelector('main[data-view=\"welcome\"],input[name=\"password\"]')})()", 75000);
+            waitFor(activity, "(function(){return !!document.querySelector('main[data-view=\"welcome\"] .actions button.primary,input[name=\"password\"]')})()", 75000);
             assertEquals("true", javascript(activity,
                 "(function(){const b=document.querySelector('main[data-view=\"welcome\"] .actions button.primary');"
                 + "if(b){b.click();return true;}return !!document.querySelector('input[name=\"password\"]')})()"));
@@ -71,7 +71,8 @@ public class AndroidUserJourneyTest {
             assertEquals("true", javascript(activity,
                 "(function(){const p=document.querySelector('form input[name=\"password\"]');"
                 + "p.closest('.account-password').querySelector('button').click();"
-                + "return p.type==='password' && p.value===''})()"));
+                + "return true})()"));
+            waitFor(activity, "(function(){const p=document.querySelector('form input[name=\"password\"]');return !!p && p.type==='password' && p.value===''})()", 5000);
         } finally {
             instrumentation.runOnMainSync(activity::finish);
         }
