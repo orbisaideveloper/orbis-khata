@@ -2,6 +2,8 @@ import { expenseCommand } from '../accounting/expense-model'
 import { validSettings } from '../accounting/workspace-contract'
 import type { DeviceLocalSnapshot } from '../demo/store'
 
+const serialPattern = /^[1-9]\d{0,8}$/u
+
 type Snapshot = DeviceLocalSnapshot
 type CompanyExport = Pick<Snapshot, 'parties' | 'entries' | 'expenses' | 'expenseBillLines' | 'documents' | 'reversals' | 'items' | 'warehouses' | 'paymentLinks' | 'fiscalCounters'> & {
   actor: string
@@ -47,7 +49,7 @@ export function parseCompanyExport(value: unknown, company: string, actor: strin
         typeof link.account === 'string' && (link.bill === null || names.has(link.bill) || documents.has(link.bill))) ||
       !data.reversals.every(([id]) => documents.has(id)) ||
       !Object.entries(data.productionRoutes).every(([id, route]) => documents.has(id) && record(route) && documents.has(route.input)) ||
-      !Object.entries(data.fiscalCounters).every(([key, value]) => key.startsWith(company + ':') && typeof value === 'string' && /^[1-9][0-9]{0,8}$/u.test(value))) invalid()
+      !Object.entries(data.fiscalCounters).every(([key, value]) => key.startsWith(company + ':') && typeof value === 'string' && serialPattern.test(value))) invalid()
   return data
 }
 
@@ -148,9 +150,8 @@ export function companyProjectionText(projection: ReturnType<typeof companyProje
 type Projection = ReturnType<typeof companyProjection>
 
 function serialAdvanced(before: unknown, after: unknown): boolean {
-  const serial = /^[1-9][0-9]{0,8}$/u
-  return typeof before === 'string' && typeof after === 'string' && serial.test(before) &&
-    serial.test(after) && Number(after) > Number(before)
+  return typeof before === 'string' && typeof after === 'string' && serialPattern.test(before) &&
+    serialPattern.test(after) && Number(after) > Number(before)
 }
 
 function numberingAdvanced(company: string, before: unknown, after: unknown, remote: Projection): boolean {
