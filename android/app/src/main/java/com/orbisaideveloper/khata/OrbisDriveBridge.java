@@ -44,7 +44,9 @@ public class OrbisDriveBridge extends Plugin {
             Identity.getAuthorizationClient(getActivity()).authorize(request.build())
                 .addOnSuccessListener(result -> {
                     PendingIntent prompt = result.getPendingIntent();
-                    if (result.hasResolution() && prompt != null) {
+                    if (result.hasResolution() && Boolean.TRUE.equals(call.getBoolean("silent"))) {
+                        fail("DRIVE_CONSENT_REQUIRED");
+                    } else if (result.hasResolution() && prompt != null) {
                         try { consent.launch(new IntentSenderRequest.Builder(prompt.getIntentSender()).build()); }
                         catch (RuntimeException error) { fail("DRIVE_AUTH_FAILED"); }
                     } else {

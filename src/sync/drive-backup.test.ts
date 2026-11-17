@@ -18,11 +18,13 @@ afterEach(() => vi.unstubAllGlobals())
 it('uploads the archive to appDataFolder and downloads the latest file for that owner', async () => {
   const bytes = new Uint8Array([1, 2, 3])
   fetchDrive.mockResolvedValueOnce(Response.json({ id: 'backup-id' }))
+    .mockResolvedValueOnce(new Response(bytes))
     .mockResolvedValueOnce(file('3')).mockResolvedValueOnce(new Response(bytes))
   const drive = await connectBackupDrive(actor)
   await drive.upload(bytes)
   await expect(drive.latest()).resolves.toEqual(bytes)
-  const [upload, list, download] = fetchDrive.mock.calls
+  const [upload, verify, list, download] = fetchDrive.mock.calls
+  expect(verify[0]).toBe(download[0])
   expect(upload[0]).toBe('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart')
   expect(upload[1]?.headers).toMatchObject({ Authorization: 'Bearer test-token' })
   const payload = await new Response(upload[1]?.body).text()
@@ -69,4 +71,11 @@ it('authorizes the linked account and checks the email returned by Drive', async
   await expect(drive.accountEmail()).resolves.toBe(email)
   await expect(drive.accountEmail()).rejects.toThrow('DRIVE_ACCOUNT_CHANGED')
   await expect(drive.accountEmail()).rejects.toThrow('DRIVE_ACCOUNT_UNAVAILABLE')
+})
+
+it('requires the newly uploaded archive to match the sent bytes', async () => {
+  fetchDrive.mockResolvedValueOnce(Response.json({ id: 'backup-id' }))
+    .mockResolvedValueOnce(new Response(new Uint8Array([2])))
+  const drive = await connectBackupDrive(actor)
+  await expect(drive.upload(new Uint8Array([1]))).rejects.toThrow('DRIVE_BACKUP_UPLOAD_UNVERIFIED')
 })

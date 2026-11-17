@@ -187,12 +187,67 @@ it('previews and restores an authenticated backup once without overwriting exist
   const key = generateFinancialBackupKey()
   const archive = await encryptFinancialBackup(actor, snapshot, key)
   await expect(runtime.previewNativeFinancialBackup(archive, actor, key)).resolves.toEqual({ companies: 1, entries: 0 })
+  await expect(runtime.openNativeFinancialBackupCopy(archive, actor, key)).resolves.toEqual([{ ...snapshot.companies[0], entries: [], selectable: [] }])
   expect(fixture.state.companies).toEqual([])
   await runtime.restoreNativeFinancialBackup(archive, actor, key)
   expect(fixture.state.companies).toEqual(snapshot.companies)
   const exported = await runtime.exportNativeFinancialBackup(key)
   await expect(inspectFinancialBackup(exported, actor, key)).resolves.toEqual(snapshot)
-  await expect(runtime.restoreNativeFinancialBackup(archive, actor, key)).rejects.toThrow('FINANCIAL_RESTORE_REQUIRES_EMPTY_ACCOUNT')
+  await expect(runtime.restoreNativeFinancialBackup(archive, actor, key)).resolves.toBeUndefined()
+  expect(fixture.state.companies).toEqual(snapshot.companies)
+  snapshot.companies[0].name = 'Older name'
+  const divergent = await encryptFinancialBackup(actor, snapshot, key)
+  await expect(runtime.restoreNativeFinancialBackup(divergent, actor, key)).rejects.toThrow('FINANCIAL_RESTORE_COMPANY_CONFLICT')
+  expect(fixture.state.companies).toEqual([{ id: 'demo-company', name: 'Demo' }])
+})
+
+it('restores an independent company into existing books without creating duplicates', async () => {
+  const runtime = await import('./runtime')
+  const { encryptFinancialBackup, generateFinancialBackupKey } = await import('../sync/financial-backup')
+  await runtime.enrollVerifiedCentralIdentity(actor, displayId)
+  const key = generateFinancialBackupKey()
+  const { emptyPartyDetails } = await import('../demo/master-model')
+  const current = { ...emptyDeviceLocalSnapshot(), companies: [demoCompany] }
+  const oldCompany = { id: 'archived-shop', name: 'Archived shop' }
+  const archivedItem = { id: 'archived-item', company: oldCompany.id, name: 'Archived item', unit: 'pc', code: '', default_rate: null }
+  const party = { ...emptyPartyDetails, id: 'archived-customer', company: oldCompany.id, name: 'Customer', kind: 'customer' as const, receivable: '0', payable: '0' }
+  const entry = {
+    id: 'archived-sale', company: oldCompany.id, party_id: party.id, party_name: party.name,
+    kind: 'sale' as const, effective_date: '2026-10-25', amount_minor: '10000',
+    debit_account: 'receivable' as const, credit_account: 'sales' as const, reference: '', note: '', reversed: false,
+  }
+  const archived = { ...emptyDeviceLocalSnapshot(), companies: [oldCompany], items: [archivedItem], parties: [party], entries: [entry] }
+  await runtime.restoreNativeFinancialBackup(await encryptFinancialBackup(actor, current, key), actor, key)
+  const archive = await encryptFinancialBackup(actor, archived, key)
+  fixture.outbox.set(actor + ':' + oldCompany.id, 'pending')
+  await expect(runtime.restoreNativeFinancialBackup(archive, actor, key)).rejects.toThrow('FINANCIAL_RESTORE_PENDING_CHANGES')
+  expect(fixture.state).toEqual(current)
+  fixture.outbox.delete(actor + ':' + oldCompany.id)
+  fixture.outbox.set(actor + ':' + demoCompany.id, 'pending')
+  await runtime.restoreNativeFinancialBackup(archive, actor, key)
+  await runtime.restoreNativeFinancialBackup(archive, actor, key)
+  expect(fixture.outbox.get(actor + ':' + demoCompany.id)).toBe('pending')
+  expect(fixture.state.companies).toEqual([demoCompany, oldCompany])
+  expect(fixture.state.items).toEqual([archivedItem])
+  expect(fixture.state.entries).toEqual([entry])
+})
+
+it('rejects an older backup that contains a locally deleted master', async () => {
+  const runtime = await import('./runtime')
+  const { encryptFinancialBackup, generateFinancialBackupKey } = await import('../sync/financial-backup')
+  await runtime.enrollVerifiedCentralIdentity(actor, displayId)
+  const key = generateFinancialBackupKey()
+  const item = { id: 'old-item', company: demoCompany.id, name: 'Old item', unit: 'pc', code: '', default_rate: null }
+  const current = {
+    ...emptyDeviceLocalSnapshot(), companies: [demoCompany],
+    deletedMasters: [{ company: item.company, id: item.id, kind: 'item' as const }],
+  }
+  const older = { ...emptyDeviceLocalSnapshot(), companies: [demoCompany], items: [item] }
+  await runtime.restoreNativeFinancialBackup(await encryptFinancialBackup(actor, current, key), actor, key)
+  const archive = await encryptFinancialBackup(actor, older, key)
+  await expect(runtime.restoreNativeFinancialBackup(archive, actor, key))
+    .rejects.toThrow('FINANCIAL_RESTORE_DELETED_MASTER_CONFLICT')
+  expect(fixture.state).toEqual(current)
 })
 
 it('reads the device backup key after restart only for its unlocked owner', async () => {

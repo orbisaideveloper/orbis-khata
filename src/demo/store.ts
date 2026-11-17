@@ -23,6 +23,8 @@ let paymentLinks: Record<string, {
     account: string;
 }> = {};
 let retired: Record<string, string> = {};
+type DeletedMaster = { company: string; id: string; kind: 'party' | 'item' }
+let deletedMasters: DeletedMaster[] = [];
 let companies: Company[] = [];
 let parties: DemoParty[] = [];
 let entries: (Voucher & {
@@ -47,6 +49,7 @@ export function resetDemo() {
     workspaceEvents = {};
     paymentLinks = {};
     retired = {};
+    deletedMasters = [];
     inventoryReversals.clear();
     expenseBillLines = {};
     companies = [{ id: companyId, name: 'ডেমো দোকান' }];
@@ -544,6 +547,7 @@ export function deleteDemoParty(company: string, id: string) {
         fail('PARTY_IN_USE');
     }
     parties = parties.filter(p => !(p.id === id && p.company === company));
+    deletedMasters.push({ company, id, kind: 'party' });
 }
 export function deleteDemoItem(company: string, id: string) {
     if (!items.some(i => i.id === id && i.company === company)) {
@@ -553,6 +557,7 @@ export function deleteDemoItem(company: string, id: string) {
         fail('ITEM_IN_USE');
     }
     items = items.filter(i => !(i.id === id && i.company === company));
+    deletedMasters.push({ company, id, kind: 'item' });
 }
 function demoAccountBalances(company: string, settings: WorkspaceSettings, to: string) {
     return settings.accounts.map(account => {
@@ -798,10 +803,12 @@ export type DeviceLocalSnapshot = {
   reversals: [string,string][]
   items: typeof items
   warehouses: typeof warehouses
+  deletedMasters?: DeletedMaster[]
 }
 export function readDeviceLocalSnapshot():DeviceLocalSnapshot {
   return structuredClone({ version:1 as const,workspaceSettings,fiscalCounters,workspaceEvents,paymentLinks,retired,
-    companies,parties,entries,expenses,expenseBillLines,documents,reversals:[...inventoryReversals],items,warehouses })
+    companies,parties,entries,expenses,expenseBillLines,documents,reversals:[...inventoryReversals],items,warehouses,
+    ...(deletedMasters.length ? { deletedMasters } : {}) })
 }
 export function emptyDeviceLocalSnapshot():DeviceLocalSnapshot {
   return {version:1,workspaceSettings:{},fiscalCounters:{},workspaceEvents:{},paymentLinks:{},retired:{},
@@ -812,6 +819,11 @@ export function validateDeviceLocalSnapshot(candidate:unknown):DeviceLocalSnapsh
   const value=candidate as DeviceLocalSnapshot
   const objects=[value.workspaceSettings,value.fiscalCounters,value.workspaceEvents,value.paymentLinks,value.retired,value.expenseBillLines]
   const arrays=[value.companies,value.parties,value.entries,value.expenses,value.documents,value.reversals,value.items,value.warehouses]
+  if (value.deletedMasters !== undefined && (!Array.isArray(value.deletedMasters) ||
+    value.deletedMasters.some(row => !row || !['party', 'item'].includes(row.kind) ||
+      typeof row.company !== 'string' || !row.company || typeof row.id !== 'string' || !row.id))) {
+    throw new Error('ANDROID_LOCAL_SNAPSHOT_INVALID')
+  }
   if (value.version!==1 || objects.some(obj=>!obj || typeof obj!=='object' || Array.isArray(obj)) ||
       arrays.some(array=>!Array.isArray(array)) ||
       value.reversals.some(pair=>!Array.isArray(pair) || pair.length!==2 || pair.some(str=>typeof str!=='string'))) {
@@ -821,6 +833,7 @@ export function validateDeviceLocalSnapshot(candidate:unknown):DeviceLocalSnapsh
 }
 export function restoreDeviceLocalSnapshot(candidate:unknown):void {
   const next=structuredClone(validateDeviceLocalSnapshot(candidate))
+  deletedMasters = next.deletedMasters ?? [];
   workspaceSettings=next.workspaceSettings;fiscalCounters=next.fiscalCounters;workspaceEvents=next.workspaceEvents
   paymentLinks=next.paymentLinks;retired=next.retired;companies=next.companies;parties=next.parties
   entries=next.entries;expenses=next.expenses;expenseBillLines=next.expenseBillLines;documents=next.documents

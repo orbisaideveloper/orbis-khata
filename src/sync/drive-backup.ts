@@ -2,16 +2,18 @@ import { registerPlugin } from '@capacitor/core'
 
 import { validRecoveryEmail } from './account-recovery'
 
-const drive = registerPlugin<{ authorize(options?: { email: string }): Promise<{ token: string }> }>('OrbisDrive')
+const drive = registerPlugin<{ authorize(options?: { email: string; silent?: boolean }): Promise<{ token: string }> }>('OrbisDrive')
 const api = 'https://www.googleapis.com'
 const maximumBytes = 32 * 1024 * 1024 + 128
 
-export async function connectBackupDrive(actor: string, email?: string) {
+export type DriveBackupVersion = { id: string; size: string; createdTime: string }
+
+export async function connectBackupDrive(actor: string, email?: string, silent = false) {
   if (!/^[a-f0-9-]{36}$/iu.test(actor)) throw new Error('DRIVE_OWNER_INVALID')
   const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(actor))
   const owner = Array.from(new Uint8Array(digest), byte => byte.toString(16).padStart(2, '0')).join('')
   const archiveName = 'orbis-khata-financial-v1-' + owner + '.bin'
-  const { token } = await (email ? drive.authorize({ email }) : drive.authorize())
+  const { token } = await (email ? drive.authorize(silent ? { email, silent } : { email }) : drive.authorize())
   if (!token) throw new Error('DRIVE_AUTH_FAILED')
   async function request(path: string, init?: RequestInit) {
     const response = await fetch(api + path, {
@@ -25,14 +27,34 @@ export async function connectBackupDrive(actor: string, email?: string) {
     if (!response.ok) throw new Error('DRIVE_REQUEST_FAILED')
     return response
   }
-  async function latestFile() {
+  async function listVersions(limit: number) {
     const filter = new URLSearchParams({
       spaces: 'appDataFolder', q: "trashed = false and name = '" + archiveName + "'",
-      orderBy: 'createdTime desc', pageSize: '1', fields: 'files(id,size)',
+      orderBy: 'createdTime desc', pageSize: String(limit), fields: 'files(id,size,createdTime)',
     })
     const list = await request('/drive/v3/files?' + filter)
-    const { files } = await list.json() as { files?: { id: string; size: string }[] }
-    return files?.[0]
+    const { files } = await list.json() as { files?: DriveBackupVersion[] }
+    return (files ?? []).slice(0, limit)
+  }
+  async function download(id: string, expected: number) {
+    const response = await request('/drive/v3/files/' + id + '?alt=media')
+    const reader = response.body?.getReader()
+    if (!reader) throw new Error('DRIVE_BACKUP_DOWNLOAD_INVALID')
+    const archive = new Uint8Array(expected)
+    let offset = 0
+    try {
+      for (;;) {
+        const { done, value } = await reader.read()
+        if (done) break
+        if (offset + value.length > expected) throw new Error('DRIVE_BACKUP_DOWNLOAD_INVALID')
+        archive.set(value, offset)
+        offset += value.length
+      }
+    } finally {
+      await reader.cancel()
+    }
+    if (offset !== expected) throw new Error('DRIVE_BACKUP_DOWNLOAD_INVALID')
+    return archive
   }
   return {
     async accountEmail() {
@@ -48,38 +70,26 @@ export async function connectBackupDrive(actor: string, email?: string) {
       const metadata = JSON.stringify({ name: archiveName, parents: ['appDataFolder'] })
       const prefix = '--' + boundary + '\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n' + metadata +
         '\r\n--' + boundary + '\r\nContent-Type: application/octet-stream\r\n\r\n'
-      await request('/upload/drive/v3/files?uploadType=multipart', {
+      const response = await request('/upload/drive/v3/files?uploadType=multipart', {
         method: 'POST',
         headers: { 'Content-Type': 'multipart/related; boundary=' + boundary },
         body: new Blob([prefix, archive, '\r\n--' + boundary + '--\r\n']),
       })
+      const { id } = await response.json() as { id?: string }
+      if (typeof id !== 'string' || !/^[\w-]+$/u.test(id)) throw new Error('DRIVE_BACKUP_UPLOAD_UNVERIFIED')
+      const saved = await download(id, archive.byteLength)
+      if (saved.some((byte, index) => byte !== archive[index])) throw new Error('DRIVE_BACKUP_UPLOAD_UNVERIFIED')
     },
+    history: () => listVersions(10),
     async hasBackup() {
-      return Boolean(await latestFile())
+      return (await listVersions(1)).length > 0
     },
-    async latest() {
-      const file = await latestFile()
+    async latest(version?: DriveBackupVersion) {
+      const [file] = version ? [version] : await listVersions(1)
       if (!file || !/^[\w-]+$/u.test(file.id)) throw new Error('DRIVE_BACKUP_NOT_FOUND')
       const expected = Number(file.size)
       if (!Number.isSafeInteger(expected) || expected < 1 || expected > maximumBytes) throw new Error('DRIVE_BACKUP_SIZE_INVALID')
-      const response = await request('/drive/v3/files/' + file.id + '?alt=media')
-      const reader = response.body?.getReader()
-      if (!reader) throw new Error('DRIVE_BACKUP_DOWNLOAD_INVALID')
-      const archive = new Uint8Array(expected)
-      let offset = 0
-      try {
-        for (;;) {
-          const { done, value } = await reader.read()
-          if (done) break
-          if (offset + value.length > expected) throw new Error('DRIVE_BACKUP_DOWNLOAD_INVALID')
-          archive.set(value, offset)
-          offset += value.length
-        }
-      } finally {
-        await reader.cancel()
-      }
-      if (offset !== expected) throw new Error('DRIVE_BACKUP_DOWNLOAD_INVALID')
-      return archive
+      return download(file.id, expected)
     },
   }
 }

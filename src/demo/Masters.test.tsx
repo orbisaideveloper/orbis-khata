@@ -1,7 +1,7 @@
 import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 import { ItemMaster, PartyMaster } from './Masters'
-import { demoMasters, demoRequest, resetDemo, saveDemoItem, saveDemoParty, deleteDemoParty, deleteDemoItem } from './store'
+import { demoMasters, demoRequest, resetDemo, saveDemoItem, saveDemoParty, deleteDemoParty, deleteDemoItem, readDeviceLocalSnapshot, restoreDeviceLocalSnapshot } from './store'
 import { emptyPartyDetails, type DemoParty } from './master-model'
 import type { Report } from '../accounting/model'
 const company='11111111-1111-4111-8111-111111111111'
@@ -70,3 +70,20 @@ it('highlights an existing normalized party and prevents a duplicate save withou
  fireEvent.change(screen.getByLabelText('Name'),{target:{value:' sample  trader '}});fireEvent.change(screen.getByLabelText('Phone number'),{target:{value:'5550123456'}});
  expect(screen.getByText('Matching party already exists')).toBeVisible();fireEvent.click(screen.getByRole('button',{name:'Save'}));expect(await screen.findByRole('alert')).toHaveTextContent('already exist');expect(demoMasters(company).parties).toHaveLength(1);
 });
+
+it('keeps deleted master identities through a snapshot round trip', () => {
+ const party: DemoParty = { id: crypto.randomUUID(), company, name: 'Unused', kind: 'customer', receivable: '0', payable: '0', ...emptyPartyDetails }
+ const item = { id: crypto.randomUUID(), company, name: 'Unused', unit: 'piece', code: '', default_rate: null }
+ saveDemoParty(party)
+ saveDemoItem(item)
+ deleteDemoParty(company, party.id)
+ deleteDemoItem(company, item.id)
+ const snapshot = readDeviceLocalSnapshot()
+ resetDemo()
+ restoreDeviceLocalSnapshot(snapshot)
+ expect(readDeviceLocalSnapshot().deletedMasters).toEqual([
+  { company, id: party.id, kind: 'party' },
+  { company, id: item.id, kind: 'item' },
+ ])
+ expect(demoMasters(company)).toEqual({ parties: [], items: [] })
+})

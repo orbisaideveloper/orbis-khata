@@ -9,7 +9,7 @@
  * NOTE: Release needs real-phone enrollment, reboot, offline, isolation, rollback,
  * low-space and test-update acceptance. Backup/export and restore are separate gates.
  */
-import { CompanySyncConflict, companyProjection, companyProjectionText, companySyncKey, companySyncState, isUnchangedCompanySubset, mergeCompanyExport, parseCompanyExport, withoutCompanyProjection } from '../sync/company-transfer'
+import { CompanySyncConflict, companyProjection, companyProjectionText, companySyncKey, companySyncState, isUnchangedCompanySubset, mergeBackupCompanies, mergeCompanyExport, parseCompanyExport, withoutCompanyProjection } from '../sync/company-transfer'
 import { SQLiteConnection, CapacitorSQLite } from '@capacitor-community/sqlite'
 import { registerPlugin } from '@capacitor/core'
 import { createAndroidSqlcipherRuntime } from '../local-db/android-sqlcipher-runtime'
@@ -18,6 +18,7 @@ import { createLocalSqliteRepository, ensureLocalSchema, type SqlitePort } from 
 import { createAndroidHardwareRecordCodec } from '../offline-integration/android-hardware-codec'
 import { isLotteryRead, lotteryInput } from '../lottery/protocol'
 import { encryptFinancialBackup, inspectFinancialBackup } from '../sync/financial-backup'
+import { restoreSelectedBackupPostings, selectableBackupPostings } from '../sync/selected-backup-restore'
 import { queueNew } from '../sync/outbox-state'
 import { failClosedIfMissingSnapshot } from './snapshot-policy'
 import {
@@ -270,6 +271,31 @@ export async function previewNativeFinancialBackup(archive: Uint8Array<ArrayBuff
   return { companies: snapshot.companies.length, entries: snapshot.entries.length }
 }
 
+/** Read an authenticated copy without replacing the active snapshot. */
+export async function openNativeFinancialBackupCopy(archive: Uint8Array<ArrayBuffer>, actor: string, key: Uint8Array<ArrayBuffer>) {
+  const scope = assertActive()
+  if (scope.actor !== actor) throw new Error('ANDROID_LOCAL_ACTOR_CHANGED')
+  const snapshot = validateDeviceLocalSnapshot(await inspectFinancialBackup(archive, actor, key))
+  const current = await readState(scope.db, actor)
+  if (assertActive().generation !== scope.generation) throw new Error('ANDROID_LOCAL_ACTOR_CHANGED')
+  const selectable = selectableBackupPostings(current, snapshot)
+  const entries = new Map<string, DeviceLocalSnapshot['entries']>()
+  for (const row of snapshot.entries) {
+    if (typeof row.amount_minor !== 'string' || !/^\d+$/u.test(row.amount_minor)) {
+      throw new Error('ANDROID_LOCAL_SNAPSHOT_INVALID')
+    }
+    const companyEntries = entries.get(row.company)
+    if (companyEntries) companyEntries.push(row)
+    else entries.set(row.company, [row])
+  }
+  return snapshot.companies.map(company => ({
+    id: company.id,
+    name: company.name,
+    entries: entries.get(company.id) ?? [],
+    selectable: [...selectable.values()].filter(posting => posting.entry.company === company.id).map(posting => posting.entry.id),
+  }))
+}
+
 async function saveImportedSnapshot(scope: ReturnType<typeof assertActive>, snapshot: DeviceLocalSnapshot) {
   if (assertActive().generation !== scope.generation) throw new Error('ANDROID_LOCAL_ACTOR_CHANGED')
   await persistState(scope.db, scope.actor, snapshot)
@@ -277,18 +303,43 @@ async function saveImportedSnapshot(scope: ReturnType<typeof assertActive>, snap
   restoreDeviceLocalSnapshot(snapshot)
 }
 
-/** Restore only onto an empty local account. There is no merge or overwrite. */
+/** Restore an empty account or add independent companies atomically. */
 export function restoreNativeFinancialBackup(archive: Uint8Array<ArrayBuffer>, actor: string, key: Uint8Array<ArrayBuffer>): Promise<void> {
   return ordered(async () => {
     const scope = assertActive()
     if (scope.actor !== actor) throw new Error('ANDROID_LOCAL_ACTOR_CHANGED')
     const snapshot = validateDeviceLocalSnapshot(await inspectFinancialBackup(archive, actor, key))
     const current = await readState(scope.db, actor)
-    const pending = await scope.db.get('SELECT operation_id FROM local_outbox WHERE actor_id=? LIMIT 1', [actor])
-    if (pending || JSON.stringify(current) !== JSON.stringify(emptyDeviceLocalSnapshot())) {
-      throw new Error('FINANCIAL_RESTORE_REQUIRES_EMPTY_ACCOUNT')
+    const currentJson = JSON.stringify(current)
+    if (currentJson === JSON.stringify(snapshot)) return
+    const restoredMasters = {
+      party: new Set(snapshot.parties.map(row => JSON.stringify([row.company, row.id]))),
+      item: new Set(snapshot.items.map(row => JSON.stringify([row.company, row.id]))),
     }
-    await saveImportedSnapshot(scope, snapshot)
+    if (current.deletedMasters?.some(row => restoredMasters[row.kind].has(JSON.stringify([row.company, row.id])))) {
+      throw new Error('FINANCIAL_RESTORE_DELETED_MASTER_CONFLICT')
+    }
+    const empty = currentJson === JSON.stringify(emptyDeviceLocalSnapshot())
+    const targets = snapshot.companies.filter(company => !current.companies.some(row => row.id === company.id))
+    const pending = empty
+      ? await scope.db.get("SELECT operation_id FROM local_outbox WHERE actor_id=? AND state<>'synced' LIMIT 1", [actor])
+      : (await Promise.all(targets.map(company => scope.db.get(
+        "SELECT operation_id FROM local_outbox WHERE actor_id=? AND company_id=? AND state<>'synced' LIMIT 1", [actor, company.id],
+      )))).some(Boolean)
+    if (pending) throw new Error('FINANCIAL_RESTORE_PENDING_CHANGES')
+    const next = empty ? snapshot : mergeBackupCompanies(current, snapshot, actor)
+    if (JSON.stringify(next) !== currentJson) await saveImportedSnapshot(scope, next)
+  })
+}
+
+export function restoreNativeBackupSelection(archive: Uint8Array<ArrayBuffer>, actor: string, key: Uint8Array<ArrayBuffer>, ids: string[]) {
+  return ordered(async () => {
+    const scope = assertActive()
+    if (scope.actor !== actor) throw new Error('ANDROID_LOCAL_ACTOR_CHANGED')
+    if (!ids.length) return
+    const snapshot = validateDeviceLocalSnapshot(await inspectFinancialBackup(archive, actor, key))
+    const current = await readState(scope.db, actor)
+    await saveImportedSnapshot(scope, restoreSelectedBackupPostings(current, snapshot, ids))
   })
 }
 

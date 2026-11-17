@@ -210,3 +210,79 @@ export function withoutCompanyProjection(snapshot: Snapshot, company: string): S
     workspaceEvents: exclude(snapshot.workspaceEvents, records.workspaceEvents),
   }
 }
+
+/** Add complete, independent companies. Existing ledgers must match exactly. */
+export function mergeBackupCompanies(current: Snapshot, archive: Snapshot, actor: string): Snapshot {
+  const conflict = () => { throw new Error('FINANCIAL_RESTORE_COMPANY_CONFLICT') }
+  for (const company of archive.companies) {
+    if (Object.hasOwn(current.retired, company.id) || Object.hasOwn(archive.retired, company.id)) conflict()
+    const existing = current.companies.some(row => row.id === company.id)
+    if (existing) {
+      if (stable(companyProjection(current, company.id)) !== stable(companyProjection(archive, company.id))) conflict()
+      continue
+    }
+    const rows = companyRows(archive, company.id)
+    const records = companyRecords(archive, company.id, rows)
+    const parties = new Set(rows.parties.map(row => row.id))
+    const items = new Set(rows.items.map(row => row.id))
+    const warehouses = new Set(rows.warehouses.map(row => row.id))
+    if (!rows.documents.every(row => (!row.party || parties.has(row.party)) && Array.isArray(row.lines) &&
+      row.lines.every(line => items.has(line.item) && warehouses.has(line.warehouse) && (!line.to || warehouses.has(line.to))))) conflict()
+    parseCompanyExport({
+      ...rows, ...records, actor, company, version: 1, unsupported: false, balances: {},
+      settings: archive.workspaceSettings[company.id] ?? null, expenseProfiles: null, productionRoutes: {},
+      reversals: Object.entries(records.reversals),
+    }, company.id, actor)
+  }
+  function union<T>(before: Record<string, T>, after: Record<string, T>): Record<string, T> {
+    for (const [id, value] of Object.entries(after)) {
+      if (Object.hasOwn(before, id) && stable(before[id]) !== stable(value)) conflict()
+    }
+    return { ...after, ...before }
+  }
+  function unionRows<T extends { id: string }>(before: T[], after: T[]): T[] {
+    const byId = (rows: T[]) => Object.fromEntries(rows.map(row => [row.id, row]))
+    const indexed = byId(after)
+    if (Object.keys(indexed).length !== after.length) conflict()
+    const merged = union(byId(before), indexed)
+    const previous = new Set(before.map(row => row.id))
+    return [...before, ...after.filter(row => !previous.has(row.id)).map(row => merged[row.id])]
+  }
+  const companies = new Set(archive.companies.map(row => row.id))
+  const owned = (rows: { company: string }[]) => rows.every(row => companies.has(row.company))
+  if (![archive.parties, archive.entries, archive.expenses, archive.documents, archive.items, archive.warehouses].every(owned)) conflict()
+  const archivedEntries = new Set(archive.entries.map(row => row.id))
+  const archivedExpenses = new Set(archive.expenses.map(row => row.id))
+  const archivedDocuments = new Set(archive.documents.map(row => row.id))
+  if (!Object.keys(archive.workspaceSettings).every(id => companies.has(id)) ||
+      !Object.keys(archive.paymentLinks).every(id => archivedEntries.has(id)) ||
+      !Object.keys(archive.expenseBillLines).every(id => archivedExpenses.has(id)) ||
+      !archive.reversals.every(([id]) => archivedDocuments.has(id))) conflict()
+  const deleted = new Map<string, NonNullable<Snapshot['deletedMasters']>[number]>()
+  for (const row of [...(current.deletedMasters ?? []), ...(archive.deletedMasters ?? [])]) {
+    deleted.set(stable(row), row)
+  }
+  const parties = unionRows(current.parties, archive.parties)
+  const items = unionRows(current.items, archive.items)
+  const masterIds = {
+    party: new Set(parties.map(row => stable([row.company, row.id]))),
+    item: new Set(items.map(row => stable([row.company, row.id]))),
+  }
+  if ([...deleted.values()].some(row => masterIds[row.kind].has(stable([row.company, row.id])))) conflict()
+  return {
+    ...current,
+    companies: unionRows(current.companies, archive.companies),
+    parties, items,
+    entries: unionRows(current.entries, archive.entries),
+    expenses: unionRows(current.expenses, archive.expenses),
+    documents: unionRows(current.documents, archive.documents),
+    warehouses: unionRows(current.warehouses, archive.warehouses),
+    reversals: Object.entries(union(Object.fromEntries(current.reversals), Object.fromEntries(archive.reversals))),
+    expenseBillLines: union(current.expenseBillLines, archive.expenseBillLines),
+    paymentLinks: union(current.paymentLinks, archive.paymentLinks),
+    fiscalCounters: union(current.fiscalCounters, archive.fiscalCounters),
+    workspaceSettings: union(current.workspaceSettings, archive.workspaceSettings),
+    workspaceEvents: union(current.workspaceEvents, archive.workspaceEvents),
+    ...(deleted.size ? { deletedMasters: [...deleted.values()] } : {}),
+  }
+}

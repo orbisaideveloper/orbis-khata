@@ -32,6 +32,7 @@ import { useAccount } from './auth/useAccount';
 import { androidLocalFirst } from './native-local/route';
 import { useNativeCompanySync } from './native-local/company-sync';
 import { CompanySyncPreview } from './native-local/CompanySyncPreview';
+import { useForegroundDriveAutoBackup } from './native-local/auto-drive-backup';
 import { DriveBackupPanel } from './native-local/DriveBackupPanel';
 import { AccountForm } from './auth/AccountForm';
 import { accountCopy } from './auth/copy';
@@ -125,6 +126,7 @@ function App() {
     }, [view, booksPage]);
     const syncConflict = useNativeCompanySync(androidLocalFirst() ? sessionId : null);
     const signedIn = Boolean(account.session);
+    useForegroundDriveAutoBackup(androidLocalFirst() && signedIn ? sessionId : null);
     const [logoutError, setLogoutError] = useState(false);
     const guestEntered = useRef(false);
     const t = (key: TextKey) => translations[language][key];
@@ -265,10 +267,8 @@ function App() {
         {renderBar('workspace', 'choose', 'settings')}
         <div className="account-settings">
           <CommonAccountProfile key={account.session!.user.id} userId={account.session!.user.id} displayId={account.session?.user.user_metadata?.orbis_display_id} language={language}/>
-          {androidLocalFirst() && sessionId && <>
-            <CompanySyncPreview key={sessionId} actor={sessionId} language={language}/>
-            <DriveBackupPanel key={sessionId} actor={sessionId} language={language}/>
-          </>}
+          {androidLocalFirst() && sessionId &&
+            <CompanySyncPreview key={sessionId} actor={sessionId} language={language}/>}
           <PrivacyLinks language={language} detailed/>
         </div>
         {tutorial && <p className="books-hint">{accountCopy[language].lock} — {accountCopy[language].lockInfo}</p>}
