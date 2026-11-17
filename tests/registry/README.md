@@ -39,3 +39,16 @@ diagnostics for seven days. Its recorded success must be checked after push.
 
 No authenticated live customer CRUD automation is claimed. Neither this
 registry nor successful code-level tests prove all pages work on a phone.
+
+## Android instrumentation phase 2 — Public read-only journeys
+
+`AndroidPublicFlowsTest` adds Sign-up / Forgot-password screen navigation and
+Bengali ↔ English language selection with back navigation on the **installed
+APK**. This proves navigation and form rendering only; it does not log in,
+create an account or confirm business records. The prior password visibility
+instrumentation test passed Android CI run 44149303404.
+
+**Authenticated CRUD acceptance remains BLOCKED** pending a separately verified
+isolated writable test account/company with no stable reviewer or real-company
+data. A green Android instrumentation run is not a full accounting acceptance
+certificate. Never submit Signup or Password Recovery during these tests.

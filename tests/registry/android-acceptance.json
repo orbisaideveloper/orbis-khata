@@ -11,15 +11,33 @@
     "implemented_unverified": "Automation source added but full Android CI not verified yet",
     "existing_mock_browser": "Existing Playwright UI tests use mocked backend; not live Android acceptance",
     "planned": "Acceptance automation not implemented",
-    "blocked": "Needs isolated credentials, dedicated tenant, or test backend capability"
+    "blocked": "Needs isolated credentials, dedicated tenant, or test backend capability",
+    "verified_android_ci": "Verified on a completed Android instrumentation GitHub Actions run (commit-specific)"
   },
   "cases": [
     {
       "id": "KH-AND-001",
       "area": "Android Shell",
       "flow": "Welcome or signed-out entry → Login → password show/hide",
-      "status": "implemented_unverified",
+      "status": "verified_android_ci",
       "source": "android/app/src/androidTest/java/com/orbisaideveloper/khata/AndroidUserJourneyTest.java",
+      "writes": false,
+      "ci_run": "https://github.com/orbisaideveloper/orbis-khata/actions/runs/44149303404"
+    },
+    {
+      "id": "KH-AND-002",
+      "area": "Android Public Authentication UI",
+      "flow": "Sign-up form → Sign-in → Forgot password → Sign-in, without submitting",
+      "status": "implemented_unverified",
+      "source": "android/app/src/androidTest/java/com/orbisaideveloper/khata/AndroidPublicFlowsTest.java",
+      "writes": false
+    },
+    {
+      "id": "KH-AND-003",
+      "area": "Android Language Navigation",
+      "flow": "Welcome English language switch → Login → back → restore Bengali",
+      "status": "implemented_unverified",
+      "source": "android/app/src/androidTest/java/com/orbisaideveloper/khata/AndroidPublicFlowsTest.java",
       "writes": false
     },
     {
