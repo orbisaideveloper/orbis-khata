@@ -10,6 +10,8 @@ const fixture = vi.hoisted(() => ({
   restore: vi.fn(),
   journal: vi.fn(),
   registerScope: vi.fn(),
+  outbox: new Map<string, string>(),
+  failManifest: vi.fn(),
   state: undefined as unknown as DeviceLocalSnapshot,
 }))
 
@@ -29,13 +31,20 @@ vi.mock('@capacitor/core', () => ({
 vi.mock('../local-db/android-sqlcipher-runtime', () => ({ createAndroidSqlcipherRuntime: () => ({}) }))
 vi.mock('../local-db/native-cipher-gate', () => ({
   openVerifiedAndroidSqlcipher: async () => ({
-    get: async (_sql: string, params: string[]) => {
+    get: async (sql: string, params: string[]) => {
+      if (sql.includes('FROM local_outbox')) {
+        const state = fixture.outbox.get(params.join(':'))
+        return state && (!sql.includes("state<>'synced'") || state !== 'synced') ? { operation_id: 'test-operation' } : null
+      }
       const bytes = fixture.rows.get(`${params[0]}:${params[3]}`)
       return bytes ? { sealed_hex: Array.from(bytes, byte => byte.toString(16).padStart(2, '0')).join('') } : null
     },
     run: async (sql: string, params: [string, string, string, string, string, Uint8Array]) => {
       if (sql.includes('INSERT INTO local_outbox')) return fixture.journal()
-      if (sql.includes('INSERT INTO local_snapshots')) fixture.rows.set(`${params[0]}:${params[3]}`, params[5])
+      if (sql.includes('INSERT INTO local_snapshots')) {
+        if (sql.includes('ON CONFLICT')) fixture.failManifest()
+        fixture.rows.set(`${params[0]}:${params[3]}`, params[5])
+      }
       return { changes: 1 }
     },
     transaction: async (work: () => Promise<void>) => {
@@ -83,6 +92,7 @@ beforeEach(() => {
   vi.resetAllMocks()
   localStorage.clear()
   fixture.rows.clear()
+  fixture.outbox.clear()
   fixture.state = emptyDeviceLocalSnapshot()
   fixture.deviceLockStatus.mockResolvedValue({ secure: true })
   fixture.credential.mockResolvedValue(true)
@@ -238,4 +248,91 @@ it('updates a linked company in durable storage without duplicating it or overwr
   await restarted.nativeLocalRequest('create', { table: 'khata_companies', row: { id: company } })
   await expect(restarted.syncNativeCompany(actor, company, updated)).rejects.toThrow('KHATA_COMPANY_SYNC_CONFLICT')
   expect(fixture.state.companies[0].name).toBe('Edited on Android')
+})
+
+async function legacyCompanyFixture() {
+  const runtime = await import('./runtime')
+  const { mergeCompanyExport, parseCompanyExport } = await import('../sync/company-transfer')
+  const { defaultSettings } = await import('../accounting/workspace-contract')
+  const { emptyPartyDetails } = await import('../demo/master-model')
+  const { encryptFinancialBackup, generateFinancialBackupKey } = await import('../sync/financial-backup')
+  await runtime.enrollVerifiedCentralIdentity(actor, displayId)
+  const company = { id: 'arko', name: 'Arko' }
+  const deepa = { id: 'deepa', name: 'Deepa' }
+  const supplier = { ...emptyPartyDetails, id: 'supplier', company: company.id, name: 'Supplier', kind: 'supplier' as const, receivable: '0', payable: '0' }
+  const customer = { ...supplier, id: 'customer', kind: 'customer' as const, name: 'Customer' }
+  const purchase = { id: 'purchase', company: company.id, party_id: supplier.id, party_name: supplier.name, kind: 'purchase', effective_date: '2026-11-16', amount_minor: '100000', debit_account: 'purchases', credit_account: 'payable', reference: '1', note: '', reversed: false }
+  const payment = { ...purchase, id: 'payment', kind: 'payment', amount_minor: '50000', debit_account: 'payable', credit_account: 'cash' }
+  const sale = { ...purchase, id: 'sale', party_id: customer.id, party_name: customer.name, kind: 'sale', debit_account: 'receivable', credit_account: 'sales' }
+  const receipt = { ...sale, id: 'receipt', kind: 'receipt', amount_minor: '60000', debit_account: 'cash', credit_account: 'receivable' }
+  const settings = defaultSettings()
+  const counter = 'arko:sale:2026'
+  const first = {
+    ...emptyDeviceLocalSnapshot(), actor, company, settings, unsupported: false, expenseProfiles: null, productionRoutes: {},
+    parties: [supplier], items: [{ id: 'old-item', company: company.id, name: 'Old item', unit: 'pc', code: '', default_rate: '0' }],
+    entries: [purchase, payment], fiscalCounters: { [counter]: '1' },
+    balances: { purchases: '100000', payable: '-50000', cash: '-50000' },
+  }
+  const local = { ...emptyDeviceLocalSnapshot(), companies: [deepa] }
+  const legacy = mergeCompanyExport(local, parseCompanyExport(first, company.id, actor))
+  const key = generateFinancialBackupKey()
+  await runtime.restoreNativeFinancialBackup(await encryptFinancialBackup(actor, legacy, key), actor, key)
+  const web = {
+    ...first, entries: [...first.entries, sale, receipt], parties: [supplier, customer],
+    items: [...first.items, { id: 'item', company: company.id, name: 'Item', unit: 'pc', code: '', default_rate: '0' }],
+    paymentLinks: { receipt: { bill: sale.id, account: 'cash' } },
+    settings: { ...settings, next: { ...settings.next, sale: '2' } }, fiscalCounters: { [counter]: '2' },
+    balances: { ...first.balances, sales: '-100000', receivable: '40000', cash: '10000' },
+  }
+  return { runtime, company, deepa, legacy, web }
+}
+
+it('syncs a pre-baseline Arko import after a Web sale, receipt and numbering advance', async () => {
+  const { runtime, company, deepa, web } = await legacyCompanyFixture()
+  await expect(runtime.syncNativeCompany(actor, company.id, web)).resolves.toMatchObject({ changed: true })
+  expect(fixture.state.companies).toEqual([deepa, company])
+  expect(fixture.state.parties).toHaveLength(2)
+  expect(fixture.state.items).toHaveLength(2)
+  expect(fixture.state.entries.map(row => row.id)).toEqual(['purchase', 'payment', 'sale', 'receipt'])
+  expect(fixture.state.paymentLinks.receipt.bill).toBe('sale')
+  const { checkImportedLedger } = await import('../demo/store')
+  expect(() => checkImportedLedger(fixture.state, company.id, web.balances)).not.toThrow()
+  await expect(runtime.syncNativeCompany(actor, company.id, web)).resolves.toMatchObject({ changed: false })
+})
+
+it('blocks queued local work but ignores acknowledgements and other companies outbox rows', async () => {
+  const { runtime, company, deepa, legacy, web } = await legacyCompanyFixture()
+  const key = actor + ':' + company.id
+  fixture.outbox.set(actor + ':' + deepa.id, 'queued')
+  fixture.outbox.set(key, 'queued')
+  await expect(runtime.syncNativeCompany(actor, company.id, web)).rejects.toMatchObject({ reason: 'PENDING_LOCAL_OUTBOX' })
+  expect(fixture.state).toEqual(legacy)
+  expect(fixture.outbox.get(key)).toBe('queued')
+  fixture.outbox.set(key, 'synced')
+  await expect(runtime.syncNativeCompany(actor, company.id, web)).resolves.toMatchObject({ changed: true })
+})
+
+it('rejects existing Web record changes on a legacy import and accepts them after establishing a baseline', async () => {
+  const { runtime, company, legacy, web } = await legacyCompanyFixture()
+  const changed = { ...web, entries: web.entries.map(row => row.id === 'purchase' ? { ...row, note: 'Web correction' } : row) }
+  await expect(runtime.syncNativeCompany(actor, company.id, changed)).rejects.toMatchObject({ reason: 'LEGACY_RECORD_MISMATCH' })
+  expect(fixture.state).toEqual(legacy)
+  await runtime.syncNativeCompany(actor, company.id, web)
+  await expect(runtime.syncNativeCompany(actor, company.id, changed)).resolves.toMatchObject({ changed: true })
+})
+
+it('rejects foreign scope, bad balances and interrupted snapshot writes without changing durable books', async () => {
+  const { runtime, company, legacy, web } = await legacyCompanyFixture()
+  const disk = new Map(fixture.rows)
+  await expect(runtime.syncNativeCompany('other-owner', company.id, web)).rejects.toThrow('ANDROID_LOCAL_ACTOR_CHANGED')
+  await expect(runtime.syncNativeCompany(actor, 'deepa', web)).rejects.toThrow('EXPORT_INVALID')
+  await expect(runtime.syncNativeCompany(actor, company.id, { ...web, balances: { ...web.balances, cash: '0' } })).rejects.toThrow('LEDGER_MISMATCH')
+  fixture.failManifest.mockImplementationOnce(() => { throw new Error('test SQLite write failure') })
+  await expect(runtime.syncNativeCompany(actor, company.id, web)).rejects.toThrow('test SQLite write failure')
+  expect(fixture.state).toEqual(legacy)
+  expect(fixture.rows).toEqual(disk)
+  vi.resetModules()
+  const restarted = await import('./runtime')
+  await restarted.restoreNativeOfflineIdentity()
+  expect(fixture.state).toEqual(legacy)
 })

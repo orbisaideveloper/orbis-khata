@@ -3,8 +3,22 @@ import { useState } from 'react'
 import { readOnlineCompanies, readOnlineCompanyExport } from '../accounting/api'
 import { money, type Company } from '../accounting/model'
 import type { Language } from '../i18n'
-import { parseCompanyExport } from '../sync/company-transfer'
+import { CompanySyncConflict, parseCompanyExport } from '../sync/company-transfer'
 import { inLanguage } from '../localize'
+
+const diagnosticCodes: Readonly<Partial<Record<string, string>>> = {
+  ANDROID_LOCAL_ACTOR_CHANGED: 'ACTOR_MISMATCH',
+  KHATA_COMPANY_EXPORT_INVALID: 'INVALID_EXPORT',
+  KHATA_COMPANY_EXPORT_UNSUPPORTED: 'UNSUPPORTED_EXPORT',
+  KHATA_COMPANY_LEDGER_MISMATCH: 'FINANCIAL_BALANCE_MISMATCH',
+  KHATA_COMPANY_IMPORT_CONFLICT: 'RECORD_ID_CONFLICT',
+}
+
+function syncDiagnostic(error: unknown): string {
+  if (error instanceof CompanySyncConflict) return error.reason
+  if (error instanceof Error && Object.hasOwn(diagnosticCodes, error.message)) return diagnosticCodes[error.message] ?? ''
+  return ''
+}
 
 type CompanyComparison = { online: Company[]; local: Company[] }
 
@@ -12,6 +26,7 @@ export function CompanySyncPreview({ actor, language }: Readonly<{ actor: string
   const [comparison, setComparison] = useState<CompanyComparison>()
   const [preview, setPreview] = useState<ReturnType<typeof parseCompanyExport>>()
   const [notice, setNotice] = useState('')
+  const [diagnostic, setDiagnostic] = useState('')
   const [busy, setBusy] = useState(false)
   const [failed, setFailed] = useState(false)
   const t = (bn: string, hi: string, en: string) => inLanguage(language, bn, hi, en)
@@ -22,6 +37,7 @@ export function CompanySyncPreview({ actor, language }: Readonly<{ actor: string
     setComparison(undefined)
     setPreview(undefined)
     setNotice('')
+    setDiagnostic('')
     try {
       const runtime = await import('./runtime')
       const [online, local] = await Promise.all([
@@ -40,6 +56,7 @@ export function CompanySyncPreview({ actor, language }: Readonly<{ actor: string
   async function transfer(company: string, confirm: boolean) {
     setBusy(true)
     setNotice('')
+    setDiagnostic('')
     try {
       const runtime = await import('./runtime')
       if (confirm && preview?.company.id === company) {
@@ -65,12 +82,14 @@ export function CompanySyncPreview({ actor, language }: Readonly<{ actor: string
   async function sync(company: string) {
     setBusy(true)
     setNotice('')
+    setDiagnostic('')
     setPreview(undefined)
     try {
       const result = await syncWebCompany(actor, company)
       const time = new Date(result.syncedAt).toLocaleString(language)
       setNotice(t('শেষ সিঙ্ক', 'पिछला सिंक', 'Last sync') + ' · ' + time)
     } catch (error) {
+      setDiagnostic(syncDiagnostic(error))
       setNotice(error instanceof Error && error.message === 'KHATA_COMPANY_SYNC_CONFLICT'
         ? t('ফোন ও ওয়েবের হিসাব আলাদা। কোনো পরিবর্তন সেভ হয়নি।', 'फ़ोन और वेब के खाते अलग हैं। कोई बदलाव सहेजा नहीं गया।', 'Phone and web records differ. No changes were saved.')
         : t('সিঙ্ক করা যায়নি। ইন্টারনেট ও সাইন ইন দেখে আবার চেষ্টা করুন।', 'सिंक नहीं हुआ। इंटरनेट और साइन इन जाँचकर फिर कोशिश करें।', 'Sync failed. Check your connection and sign-in and try again.'))
@@ -116,6 +135,6 @@ export function CompanySyncPreview({ actor, language }: Readonly<{ actor: string
         {t('বাতিল', 'रद्द करें', 'Cancel')}
       </button>
     </div>}
-    {notice && <output>{notice}</output>}
+    {notice && <output>{notice}{diagnostic && <small> · {diagnostic}</small>}</output>}
   </section>
 }

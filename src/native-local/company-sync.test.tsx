@@ -13,7 +13,7 @@ beforeEach(() => {
   api.save.mockResolvedValue(result)
   api.list.mockResolvedValue([{ id: 'company', name: 'Test store' }])
 })
-afterEach(() => { cleanup(); vi.restoreAllMocks() })
+afterEach(() => { cleanup(); vi.restoreAllMocks(); vi.useRealTimers() })
 
 it('shares one active transfer per company and refreshes only after a change', async () => {
   const refreshed = vi.fn()
@@ -72,4 +72,27 @@ it('finishes one company before starting the next', async () => {
   finishFirst(result)
   await waitFor(() => expect(api.save).toHaveBeenCalledTimes(2))
   expect(api.read).toHaveBeenLastCalledWith('owner', 'second')
+})
+
+it('retries every 120 seconds only while visible and shares the automatic pull with Sync now', async () => {
+  vi.useFakeTimers()
+  const visibility = vi.spyOn(document, 'visibilityState', 'get').mockReturnValue('hidden')
+  renderHook(() => useNativeCompanySync('owner'))
+  await act(async () => { await vi.advanceTimersByTimeAsync(120_000) })
+  expect(api.read).not.toHaveBeenCalled()
+
+  let finish!: (value: typeof result) => void
+  api.save.mockReturnValueOnce(new Promise<typeof result>(resolve => { finish = resolve }))
+  visibility.mockReturnValue('visible')
+  await act(async () => { fireEvent(document, new Event('visibilitychange')) })
+  await act(async () => {
+    const manual = syncWebCompany('owner', 'company')
+    expect(api.read).toHaveBeenCalledOnce()
+    finish(result)
+    await manual
+  })
+  await act(async () => { await vi.advanceTimersByTimeAsync(119_999) })
+  expect(api.read).toHaveBeenCalledOnce()
+  await act(async () => { await vi.advanceTimersByTimeAsync(1) })
+  expect(api.read).toHaveBeenCalledTimes(2)
 })

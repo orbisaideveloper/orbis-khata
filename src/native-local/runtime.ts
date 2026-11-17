@@ -9,7 +9,7 @@
  * NOTE: Release needs real-phone enrollment, reboot, offline, isolation, rollback,
  * low-space and test-update acceptance. Backup/export and restore are separate gates.
  */
-import { companyProjection, companyProjectionText, companySyncKey, companySyncState, isUnchangedCompanySubset, mergeCompanyExport, parseCompanyExport, withoutCompanyProjection } from '../sync/company-transfer'
+import { CompanySyncConflict, companyProjection, companyProjectionText, companySyncKey, companySyncState, isUnchangedCompanySubset, mergeCompanyExport, parseCompanyExport, withoutCompanyProjection } from '../sync/company-transfer'
 import { SQLiteConnection, CapacitorSQLite } from '@capacitor-community/sqlite'
 import { registerPlugin } from '@capacitor/core'
 import { createAndroidSqlcipherRuntime } from '../local-db/android-sqlcipher-runtime'
@@ -292,23 +292,33 @@ export function restoreNativeFinancialBackup(archive: Uint8Array<ArrayBuffer>, a
   })
 }
 
+async function checkedSyncBaseline(scope: ReturnType<typeof assertActive>, current: DeviceLocalSnapshot, company: string) {
+  if (Object.hasOwn(current.retired, company) || !current.companies.some(row => row.id === company)) {
+    throw new CompanySyncConflict('COMPANY_NOT_FOUND')
+  }
+  const pending = await scope.db.get("SELECT operation_id FROM local_outbox WHERE actor_id=? AND company_id=? AND state<>'synced' LIMIT 1", [scope.actor, company])
+  if (pending) throw new CompanySyncConflict('PENDING_LOCAL_OUTBOX')
+  const baseline = companySyncState(current, company)
+  if (baseline && baseline.digest !== await sha256(companyProjectionText(companyProjection(current, company)))) {
+    throw new CompanySyncConflict('LOCAL_BASELINE_MISMATCH')
+  }
+  return baseline
+}
+
 function saveWebCompany(actor: string, company: string, payload: unknown, sync: boolean) {
   return ordered(async () => {
     const scope = assertActive()
     if (scope.actor !== actor) throw new Error('ANDROID_LOCAL_ACTOR_CHANGED')
     const imported = parseCompanyExport(payload, company, actor)
     const current = await readState(scope.db, actor)
+    const baseline = sync ? await checkedSyncBaseline(scope, current, company) : undefined
     const next = mergeCompanyExport(sync ? withoutCompanyProjection(current, company) : current, imported)
     const remote = companyProjection(next, company)
     const digest = await sha256(companyProjectionText(remote))
-    if (sync) {
-      const local = companyProjection(current, company)
-      const baseline = companySyncState(current, company)
-      const pending = await scope.db.get('SELECT operation_id FROM local_outbox WHERE actor_id=? AND company_id=? LIMIT 1', [actor, company])
-      const safe = baseline ? baseline.digest === await sha256(companyProjectionText(local)) : isUnchangedCompanySubset(local, remote)
-      if (pending || !safe || !current.companies.some(row => row.id === company)) throw new Error('KHATA_COMPANY_SYNC_CONFLICT')
-      if (baseline?.digest === digest) return { changed: false, syncedAt: baseline.syncedAt }
+    if (sync && !baseline && !isUnchangedCompanySubset(companyProjection(current, company), remote)) {
+      throw new CompanySyncConflict('LEGACY_RECORD_MISMATCH')
     }
+    if (baseline?.digest === digest) return { changed: false, syncedAt: baseline.syncedAt }
     checkImportedLedger(next, company, imported.balances)
     const syncedAt = new Date().toISOString()
     next.workspaceEvents[companySyncKey(company)] = { payload: '', result: { digest, syncedAt } }

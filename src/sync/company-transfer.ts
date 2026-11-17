@@ -47,7 +47,7 @@ export function parseCompanyExport(value: unknown, company: string, actor: strin
         typeof link.account === 'string' && (link.bill === null || names.has(link.bill) || documents.has(link.bill))) ||
       !data.reversals.every(([id]) => documents.has(id)) ||
       !Object.entries(data.productionRoutes).every(([id, route]) => documents.has(id) && record(route) && documents.has(route.input)) ||
-      !Object.keys(data.fiscalCounters).every(key => key.startsWith(company + ':'))) invalid()
+      !Object.entries(data.fiscalCounters).every(([key, value]) => key.startsWith(company + ':') && typeof value === 'string' && /^[1-9][0-9]{0,8}$/u.test(value))) invalid()
   return data
 }
 
@@ -145,10 +145,50 @@ export function companyProjectionText(projection: ReturnType<typeof companyProje
   return stable(projection)
 }
 
-export function isUnchangedCompanySubset(local: ReturnType<typeof companyProjection>, remote: ReturnType<typeof companyProjection>): boolean {
+type Projection = ReturnType<typeof companyProjection>
+
+function serialAdvanced(before: unknown, after: unknown): boolean {
+  const serial = /^[1-9][0-9]{0,8}$/u
+  return typeof before === 'string' && typeof after === 'string' && serial.test(before) &&
+    serial.test(after) && Number(after) > Number(before)
+}
+
+function numberingAdvanced(company: string, before: unknown, after: unknown, remote: Projection): boolean {
+  if (!validSettings(before) || !validSettings(after)) return false
+  if (stable({ ...before, next: null }) !== stable({ ...after, next: null })) return false
+  if (Object.keys(before.next).length !== Object.keys(after.next).length) return false
+  const counters = Object.entries(remote.fiscalCounters)
+  return Object.entries(before.next).every(([kind, previous]) => {
+    const current = after.next[kind as keyof typeof after.next]
+    return previous === current || (serialAdvanced(previous, current) &&
+      counters.some(([key, value]) => key.startsWith(company + ':' + kind + ':') && value === current))
+  })
+}
+
+function legacyRecordCompatible(family: string, id: string, before: unknown, remote: Projection): boolean {
+  const records = remote[family]
+  if (!Object.hasOwn(records, id)) return false
+  const after = records[id]
+  if (stable(before) === stable(after)) return true
+  if (family === 'fiscalCounters') return serialAdvanced(before, after)
+  return family === 'workspaceSettings' && numberingAdvanced(id, before, after, remote)
+}
+
+/** A legacy import lacks a digest. Financial rows and all non-numbering settings must still match. */
+export function isUnchangedCompanySubset(local: Projection, remote: Projection): boolean {
   return Object.entries(local).every(([family, values]) =>
-    Object.entries(values).every(([id, value]) =>
-      Object.hasOwn(remote[family], id) && stable(value) === stable(remote[family][id])))
+    Object.entries(values).every(([id, value]) => legacyRecordCompatible(family, id, value, remote)))
+}
+
+export type CompanyConflictReason = 'PENDING_LOCAL_OUTBOX' | 'LOCAL_BASELINE_MISMATCH' | 'LEGACY_RECORD_MISMATCH' | 'COMPANY_NOT_FOUND'
+
+export class CompanySyncConflict extends Error {
+  readonly reason: CompanyConflictReason
+
+  constructor(reason: CompanyConflictReason) {
+    super('KHATA_COMPANY_SYNC_CONFLICT')
+    this.reason = reason
+  }
 }
 
 export function withoutCompanyProjection(snapshot: Snapshot, company: string): Snapshot {

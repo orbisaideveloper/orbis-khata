@@ -1,5 +1,6 @@
 import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
+import { CompanySyncConflict } from '../sync/company-transfer'
 import { CompanySyncPreview } from './CompanySyncPreview'
 
 const { cloud, local, owner, readExport, importCompany, syncCompany } = vi.hoisted(() => ({ cloud: vi.fn(), local: vi.fn(), owner: vi.fn(), readExport: vi.fn(), importCompany: vi.fn(), syncCompany: vi.fn() }))
@@ -72,4 +73,14 @@ it.each([
   fireEvent.click(await screen.findByRole('button', { name: 'Sync now' }))
   expect(await screen.findByText(message)).toBeVisible()
   expect(syncCompany).toHaveBeenCalledWith('actor', 'web-1', { source: 'web' })
+})
+
+it('shows a safe reason for a blocked sync', async () => {
+  local.mockResolvedValue([{ id: 'web-1', name: 'Web store' }])
+  readExport.mockResolvedValue({ source: 'web' })
+  syncCompany.mockRejectedValue(new CompanySyncConflict('PENDING_LOCAL_OUTBOX'))
+  compare()
+  fireEvent.click(await screen.findByRole('button', { name: 'Sync now' }))
+  expect(await screen.findByText(/PENDING_LOCAL_OUTBOX/u)).toBeVisible()
+  expect(screen.getByText(/No changes were saved/u)).toBeVisible()
 })

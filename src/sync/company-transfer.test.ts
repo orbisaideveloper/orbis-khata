@@ -1,5 +1,6 @@
 import { expect, it } from 'vitest'
 import { checkImportedLedger, emptyDeviceLocalSnapshot, readDeviceLocalSnapshot } from '../demo/store'
+import { defaultSettings } from '../accounting/workspace-contract'
 import { emptyPartyDetails } from '../demo/master-model'
 import { companyProjection, companyProjectionText, isUnchangedCompanySubset, mergeCompanyExport, parseCompanyExport, withoutCompanyProjection } from './company-transfer'
 
@@ -57,4 +58,23 @@ it('recognizes an unchanged legacy copy and isolates the synchronized company', 
 it('preserves the key order used by existing sync digests across locales', () => {
   const projection = { rows: { 'é': true, 'a': true, 'Z': true, '_': true } }
   expect(companyProjectionText(projection)).toBe('{"rows":{"Z":true,"_":true,"a":true,"é":true}}')
+})
+
+it('rejects legacy counter rollback and changes to financial settings', () => {
+  const settings = defaultSettings()
+  const key = company + ':sale:2026'
+  const snapshot = mergeCompanyExport(emptyDeviceLocalSnapshot(), parseCompanyExport({
+    ...archive, settings, fiscalCounters: { [key]: '2' },
+  }, company, actor))
+  const prior = companyProjection(snapshot, company)
+  const rolledBack = companyProjection({ ...snapshot, fiscalCounters: { [key]: '1' } }, company)
+  const differentSettings = companyProjection({ ...snapshot, workspaceSettings: {
+    [company]: { ...settings, production: true },
+  } }, company)
+  const unsupportedNext = companyProjection({ ...snapshot, workspaceSettings: {
+    [company]: { ...settings, next: { ...settings.next, sale: '9' } },
+  } }, company)
+  expect(isUnchangedCompanySubset(prior, rolledBack)).toBe(false)
+  expect(isUnchangedCompanySubset(prior, differentSettings)).toBe(false)
+  expect(isUnchangedCompanySubset(prior, unsupportedNext)).toBe(false)
 })
