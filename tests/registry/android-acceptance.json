@@ -1,0 +1,142 @@
+{
+  "schema": "orbis.acceptance.registry.v1",
+  "purpose": "Catalog every feature before extending real-device acceptance tests. A catalog entry is not evidence of a passing test.",
+  "safety": {
+    "environment": "isolated synthetic test tenant only for future write tests",
+    "productionWrites": false,
+    "reviewerStableDataWrites": false,
+    "credentialPolicy": "GitHub encrypted secrets only; never commit passwords"
+  },
+  "statusLegend": {
+    "implemented_unverified": "Automation source added but full Android CI not verified yet",
+    "existing_mock_browser": "Existing Playwright UI tests use mocked backend; not live Android acceptance",
+    "planned": "Acceptance automation not implemented",
+    "blocked": "Needs isolated credentials, dedicated tenant, or test backend capability"
+  },
+  "cases": [
+    {
+      "id": "KH-AND-001",
+      "area": "Android Shell",
+      "flow": "Welcome or signed-out entry → Login → password show/hide",
+      "status": "implemented_unverified",
+      "source": "android/app/src/androidTest/java/com/orbisaideveloper/khata/AndroidUserJourneyTest.java",
+      "writes": false
+    },
+    {
+      "id": "KH-AUTH-001",
+      "area": "Auth",
+      "flow": "Reviewer test account sign-in, sign-out, recover and cold start",
+      "status": "blocked",
+      "reason": "isolated test credentials and backend authorization required"
+    },
+    {
+      "id": "KH-COMP-001",
+      "area": "Company",
+      "flow": "Create, switch, reopen and company isolation",
+      "status": "blocked",
+      "reason": "isolated writable test tenant required"
+    },
+    {
+      "id": "KH-MAST-001",
+      "area": "Masters",
+      "flow": "Party and Item create, edit, validation, delete confirmation",
+      "status": "existing_mock_browser",
+      "source": "e2e-central/masters.spec.ts"
+    },
+    {
+      "id": "KH-BILL-001",
+      "area": "Billing",
+      "flow": "Create unpaid sale, payment, edit and ledger reconciliation",
+      "status": "planned"
+    },
+    {
+      "id": "KH-LEDG-001",
+      "area": "Ledger",
+      "flow": "Opening balance, dates, carry-forward, correction",
+      "status": "planned"
+    },
+    {
+      "id": "KH-INV-001",
+      "area": "Inventory",
+      "flow": "Stock transfer, negative stock rejection, cost",
+      "status": "planned"
+    },
+    {
+      "id": "KH-PROD-001",
+      "area": "Production",
+      "flow": "Toggle, input, output, stock and costing",
+      "status": "existing_mock_browser",
+      "source": "e2e-central/production.spec.ts"
+    },
+    {
+      "id": "KH-LOT-001",
+      "area": "Lottery",
+      "flow": "Daily reserve, seller entries, payment, re-open",
+      "status": "existing_mock_browser",
+      "source": "e2e-central/lottery.spec.ts"
+    },
+    {
+      "id": "KH-EXP-001",
+      "area": "Expenses",
+      "flow": "Create, edit, settle, monthly reporting",
+      "status": "planned"
+    },
+    {
+      "id": "KH-REP-001",
+      "area": "Reports",
+      "flow": "Daily/monthly and export checks",
+      "status": "planned"
+    },
+    {
+      "id": "KH-OFF-001",
+      "area": "Offline",
+      "flow": "Airplane mode entry, app relaunch and recovery",
+      "status": "blocked",
+      "reason": "requires isolated real-device data and test fixtures"
+    },
+    {
+      "id": "KH-SYNC-001",
+      "area": "Sync",
+      "flow": "Offline queue, retry, conflict, no duplicate entries",
+      "status": "blocked",
+      "reason": "native server acceptance and isolated synced environment required"
+    },
+    {
+      "id": "KH-BAK-001",
+      "area": "Backup",
+      "flow": "Encrypted backup, recovery, integrity and restore",
+      "status": "blocked",
+      "reason": "current native release notes flag backup as unavailable"
+    },
+    {
+      "id": "KH-UI-001",
+      "area": "Accessibility",
+      "flow": "TalkBack labels, keyboard focus, font scaling",
+      "status": "planned"
+    },
+    {
+      "id": "KH-VIS-001",
+      "area": "Visual",
+      "flow": "Screenshot regression across phone and tablet sizes",
+      "status": "planned"
+    },
+    {
+      "id": "KH-BROW-001",
+      "area": "Cross-browser",
+      "flow": "Chromium, Firefox and WebKit parity",
+      "status": "planned"
+    },
+    {
+      "id": "KH-PERF-001",
+      "area": "Performance",
+      "flow": "Cold launch, company open, save latency regression",
+      "status": "planned"
+    },
+    {
+      "id": "KH-SEC-001",
+      "area": "Security",
+      "flow": "Tenant isolation, expired session and deep link checks",
+      "status": "planned"
+    }
+  ]
+}
