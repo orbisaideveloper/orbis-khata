@@ -13,7 +13,8 @@ export async function connectBackupDrive(actor: string, email?: string, silent =
   const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(actor))
   const owner = Array.from(new Uint8Array(digest), byte => byte.toString(16).padStart(2, '0')).join('')
   const archiveName = 'orbis-khata-financial-v1-' + owner + '.bin'
-  const { token } = await (email ? drive.authorize(silent ? { email, silent } : { email }) : drive.authorize())
+  const authorize = (address: string) => drive.authorize(silent ? { email: address, silent } : { email: address })
+  const { token } = await (email ? authorize(email) : drive.authorize())
   if (!token) throw new Error('DRIVE_AUTH_FAILED')
   async function request(path: string, init?: RequestInit) {
     const response = await fetch(api + path, {

@@ -132,6 +132,10 @@ export function DriveBackupPanel({ actor, language }: Readonly<{ actor: string; 
     setCopy(await local.openNativeFinancialBackupCopy(preview.archive, actor, recoveryKeyBytes(preview.record.key)))
   }
 
+  function toggleSelectedPosting(id: string, checked: boolean) {
+    setSelected(previous => checked ? [...previous, id] : previous.filter(posting => posting !== id))
+  }
+
   async function restoreSelection() {
     if (!preview || !selected.length) return
     const local = await import('./runtime')
@@ -198,10 +202,7 @@ export function DriveBackupPanel({ actor, language }: Readonly<{ actor: string; 
         <ul>{company.entries.map(row => <li key={row.id}>
           <label>
             {company.selectable?.includes(row.id) && <input type="checkbox" checked={selected.includes(row.id)}
-              onChange={event => {
-                const checked = event.target.checked
-                setSelected(previous => checked ? [...previous, row.id] : previous.filter(id => id !== row.id))
-              }}/>}
+              onChange={event => toggleSelectedPosting(row.id, event.target.checked)}/>}
             {row.effective_date} · {row.party_name} · {money(row.amount_minor)}
           </label>
         </li>)}</ul>
