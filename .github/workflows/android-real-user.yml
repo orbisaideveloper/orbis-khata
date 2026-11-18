@@ -39,7 +39,7 @@ jobs:
       - run: python3 scripts/khata.py test android
       - run: sudo chown "$(id -un)" /dev/kvm
       - name: Installed APK authenticated reviewer acceptance
-        uses: reactivecircus/android-emulator-runner@a421e43855164a8197daf9d8d40fe71c6996bb0
+        uses: reactivecircus/android-emulator-runner@a421e43855164a8197daf9d8d40fe71c6996bb0d
         env:
           TEST_EMAIL: ${{ secrets.KHATA_TEST_EMAIL }}
           TEST_PASSWORD: ${{ secrets.KHATA_TEST_PASSWORD }}
