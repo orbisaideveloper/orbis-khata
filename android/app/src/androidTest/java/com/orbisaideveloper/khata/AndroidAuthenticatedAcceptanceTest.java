@@ -103,6 +103,11 @@ public class AndroidAuthenticatedAcceptanceTest {
             }
             assertTrue("Expected central reviewer identity missing; no financial data changed",verified);
             System.out.println("ORBIS_STEP_PASS central reviewer identity");
+            assertTrue("Cannot set stable Bengali test selectors",truth(
+                "(function(){let s=document.querySelector('main[data-view=workspace] select.lang');"
+                +"if(!s)return false;Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype,'value').set.call(s,'bn');"
+                +"s.dispatchEvent(new Event('change',{bubbles:true}));return true})()"));
+            until("(function(){return document.documentElement.lang==='bn'})()","Bengali language selected",8000);
             click("[data-workspace-card=khata] button.module","open Khata");
             until("(function(){return !!document.querySelector('main[data-view=khata] .books')})()","Khata",30000);
             if(truth("(function(){return !!document.querySelector('.kh-company-manage')})()"))
@@ -111,7 +116,7 @@ public class AndroidAuthenticatedAcceptanceTest {
             String exists="(function(){let s=document.querySelector('.books-company select');return !!s&&"
                 +"Array.from(s.options).some(o=>o.textContent.trim()==="+quote(COMPANY)+")})()";
             if(!truth(exists)) {
-                click(".books-company button","new test-only company");
+                click(".books-company > button","new test-only company");
                 until("(function(){return !!document.querySelector('form.books-form input[name=name]')})()","company form",8000);
                 fill("form.books-form input[name=name]",COMPANY,"isolated company name");
                 assertTrue("Company form missing",truth("(function(){document.querySelector('form.books-form').requestSubmit();return true})()"));
@@ -125,6 +130,14 @@ public class AndroidAuthenticatedAcceptanceTest {
                 +"document.querySelector('.books-hero').textContent.includes("+quote(COMPANY)+")})()",
                 "confirmed isolated company",25000);
             System.out.println("ORBIS_STEP_PASS isolated company verified");
+            // A newly selected company is displayed in the Accounting editor;
+            // return through the real Khata home control before using billing navigation.
+            click("header.kh-app-header button.kh-brand","return to Khata home");
+            until("(function(){return !!Array.from(document.querySelectorAll('.books-navigation button'))"
+                +".find(x=>x.textContent.trim()==='বিল')})()","Khata billing navigation",30000);
+            assertTrue("Unexpected active company: refusing test writes",truth(
+                "(function(){let s=document.querySelector('.kh-company-modules select');"
+                +"return !!s&&s.selectedOptions[0]?.textContent.trim()==="+quote(COMPANY)+"})()"));
             // Additional data mutation is forbidden if navigation does not enter this exact company.
             until("(function(){return !!Array.from(document.querySelectorAll('.books-navigation button'))"
                 +".find(b=>b.textContent.trim()==='পার্টি'||b.textContent.trim()==='Parties')})()",

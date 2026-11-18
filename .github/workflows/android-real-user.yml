@@ -38,6 +38,10 @@ jobs:
       - name: Prepare runner report directory
         run: mkdir -p "$HOME/storage/downloads"
       - run: npm ci --include=optional
+      - name: Validate real-user script and UI test contract
+        run: |
+          bash -n scripts/android-real-user-run.sh
+          python3 scripts/android-real-user-preflight.py
       - run: python3 scripts/khata.py test android
       - run: sudo chown "$(id -un)" /dev/kvm
       - name: Installed APK authenticated reviewer acceptance

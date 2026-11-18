@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 set -euo pipefail
-set -eu
+set +x
 python3 scripts/khata.py test android-device
 adb install -r android/app/build/outputs/apk/debug/app-debug.apk
 adb install -r android/app/build/outputs/apk/androidTest/debug/app-debug-androidTest.apk
@@ -17,4 +17,4 @@ adb shell am instrument -w -r \
 unset PASS_B64
 adb exec-out screencap -p > android/app/build/reports/real-user/final-screen.png || true
 grep -q 'OK (1 test)' android/app/build/reports/real-user/instrumentation.txt
-printf '{"schema":"orbis.android.real_user.v1","result":"PASS","run_id":"%s","commit":"%s","tenant":"ORBIS Automation Test","test":"login-company-party-item-sale-receipt-ledger","report_note":"Only owner-invoked credentials-gated Android acceptance"}\n' "$RUN_ID" "${{ github.sha }}" > android/app/build/reports/real-user/status.json
+printf '{"schema":"orbis.android.real_user.v1","result":"PASS","run_id":"%s","commit":"%s","tenant":"ORBIS Automation Test","test":"login-company-party-item-sale-receipt-ledger","report_note":"Only owner-invoked credentials-gated Android acceptance"}\n' "$RUN_ID" "$GITHUB_SHA" > android/app/build/reports/real-user/status.json
