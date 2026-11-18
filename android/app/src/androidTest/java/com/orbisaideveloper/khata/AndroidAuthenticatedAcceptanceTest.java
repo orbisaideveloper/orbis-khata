@@ -4,6 +4,8 @@ import android.app.Instrumentation;
 import android.content.Context;
 import android.content.Intent;
 import android.os.Bundle;
+import android.util.Base64;
+import java.nio.charset.StandardCharsets;
 import android.os.SystemClock;
 import androidx.test.ext.junit.runners.AndroidJUnit4;
 import androidx.test.platform.app.InstrumentationRegistry;
@@ -61,7 +63,9 @@ public class AndroidAuthenticatedAcceptanceTest {
     public void reviewerLoginAndIsolatedLocalMasters() throws Exception {
         Bundle options=InstrumentationRegistry.getArguments();
         String email=options.getString("khata_email","");
-        String password=options.getString("khata_password","");
+        String passwordEncoded=options.getString("khata_password_b64","");
+        String password="";
+        if(!passwordEncoded.isEmpty())password=new String(Base64.decode(passwordEncoded,Base64.DEFAULT),StandardCharsets.UTF_8);
         String run=options.getString("khata_run","");
         // The ordinary public CI has NO secrets: this test is SKIPPED there.
         Assume.assumeTrue("Manual owner-only test",!email.isBlank()&&!password.isBlank());
