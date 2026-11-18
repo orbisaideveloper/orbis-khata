@@ -1,0 +1,73 @@
+name: Khata Android Real User Acceptance
+on:
+  workflow_dispatch:
+    inputs:
+      confirm_test_only:
+        description: Confirm isolated synthetic reviewer-account Android testing
+        type: boolean
+        required: true
+        default: false
+permissions:
+  contents: read
+jobs:
+  android-real-user:
+    if: inputs.confirm_test_only == true
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '24'
+          cache: npm
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '21'
+      - name: Check configured reviewer secrets
+        env:
+          TEST_EMAIL: ${{ secrets.KHATA_TEST_EMAIL }}
+          TEST_PASSWORD: ${{ secrets.KHATA_TEST_PASSWORD }}
+        run: |
+          test -n "$TEST_EMAIL" || { echo 'Missing KHATA_TEST_EMAIL secret'; exit 1; }
+          test -n "$TEST_PASSWORD" || { echo 'Missing KHATA_TEST_PASSWORD secret'; exit 1; }
+          test "$TEST_EMAIL" = 'orbisaideveloper+playreview@gmail.com' || exit 1
+      - run: npm ci --include=optional
+      - run: python3 scripts/khata.py test android
+      - run: sudo chown "$(id -un)" /dev/kvm
+      - name: Installed APK authenticated reviewer acceptance
+        uses: reactivecircus/android-emulator-runner@a421e43855164a8197daf9d8d40fe71c6996bb0
+        env:
+          TEST_EMAIL: ${{ secrets.KHATA_TEST_EMAIL }}
+          TEST_PASSWORD: ${{ secrets.KHATA_TEST_PASSWORD }}
+          RUN_ID: ${{ github.run_id }}
+        with:
+          api-level: 35
+          arch: x86_64
+          target: google_apis
+          disable-animations: true
+          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
+          script: |
+            set -eu
+            (cd android && ./gradlew assembleDebug assembleDebugAndroidTest --no-daemon)
+            adb install -r android/app/build/outputs/apk/debug/app-debug.apk
+            adb install -r android/app/build/outputs/apk/androidTest/debug/app-debug-androidTest.apk
+            mkdir -p android/app/build/reports/real-user
+            set +x
+            adb shell am instrument -w -r \
+              -e class com.orbisaideveloper.khata.AndroidAuthenticatedAcceptanceTest \
+              -e khata_email "$TEST_EMAIL" \
+              -e khata_password "$TEST_PASSWORD" \
+              -e khata_run "$RUN_ID" \
+              com.orbisaideveloper.khata.test/androidx.test.runner.AndroidJUnitRunner \
+              > android/app/build/reports/real-user/instrumentation.txt 2>&1
+            adb exec-out screencap -p > android/app/build/reports/real-user/final-screen.png || true
+            grep -q 'OK (1 test)' android/app/build/reports/real-user/instrumentation.txt
+      - name: Preserve failure/success evidence
+        if: always()
+        uses: actions/upload-artifact@v5
+        with:
+          name: khata-android-real-user-${{ github.run_id }}
+          path: android/app/build/reports/real-user/
+          if-no-files-found: warn
+          retention-days: 14

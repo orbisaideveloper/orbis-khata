@@ -155,6 +155,16 @@
       "area": "Security",
       "flow": "Tenant isolation, expired session and deep link checks",
       "status": "planned"
+    },
+    {
+      "id": "KH-AND-004",
+      "area": "Android Live Reviewer Account",
+      "flow": "Real password login, verify known reviewer display ID, create/select ORBIS Automation Test company, synthetic Party and Item saves",
+      "status": "implemented_unverified",
+      "source": "android/app/src/androidTest/java/com/orbisaideveloper/khata/AndroidAuthenticatedAcceptanceTest.java",
+      "workflow": ".github/workflows/android-real-user.yml",
+      "writes": true,
+      "blocker": "Owner must configure two GitHub Actions encrypted secrets before running; no live CI PASS yet"
     }
   ]
 }
