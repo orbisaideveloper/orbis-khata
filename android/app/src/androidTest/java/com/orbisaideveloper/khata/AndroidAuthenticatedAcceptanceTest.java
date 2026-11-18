@@ -91,17 +91,46 @@ public class AndroidAuthenticatedAcceptanceTest {
             fill("form input[name=email]",email,"reviewer email");
             fill("form input[name=password]",password,"reviewer password (never logged)");
             assertTrue("Login form not found",truth("(function(){let f=document.querySelector('form:has(input[name=password])');"
-                +"if(!f)return false;f.requestSubmit();return true})()"));
+                +"if(!f||f.querySelector('fieldset:disabled'))return false;f.requestSubmit();return true})()"));
+            System.out.println("ORBIS_AUTH_STAGE LOGIN_SUBMITTED");
+            // Real auth: network, session, native enrollment, and React render.
+            // Never force a popstate event during login; it can interfere with navigation.
             long loginDeadline=SystemClock.elapsedRealtime()+135000;
             boolean verified=false;
+            String previousStage="";
+            String lastStage="UNOBSERVED";
             while(SystemClock.elapsedRealtime()<loginDeadline) {
-                truth("(function(){window.dispatchEvent(new PopStateEvent('popstate',{state:{khataView:'workspace'}}));return true})()");
-                if(quote("ORB-U-DEE7F753").equals(evaluate("(function(){return document.querySelector('main[data-view=workspace] .orbis-account-id')?.textContent.trim()||''})()"))) {
-                    verified=true;break;
+                String state=evaluate("(function(){"
+                    +"const main=document.querySelector('main');"
+                    +"const id=main?.querySelector('.orbis-account-id')?.textContent?.trim()||'';"
+                    +"if(id==="+quote("ORB-U-DEE7F753")+")return 'REVIEWER_VERIFIED';"
+                    +"if(id)return 'WRONG_IDENTITY';"
+                    +"const diag=main?.querySelector('[data-testid=native-auth-diagnostic]')?.textContent||'';"
+                    +"if(diag.includes('ENROLL_SIGNIN'))return 'NATIVE_ENROLL_SIGNIN';"
+                    +"if(diag.includes('ENROLL_RESTORE'))return 'NATIVE_ENROLL_RESTORE';"
+                    +"if(diag.includes('CENTRAL_WAIT'))return 'NATIVE_CENTRAL_WAIT';"
+                    +"if(diag.includes('CENTRAL_RESTORE'))return 'NATIVE_CENTRAL_RESTORE';"
+                    +"if(diag.includes('OFFLINE_RESTORE'))return 'NATIVE_OFFLINE_RESTORE';"
+                    +"if(diag)return 'NATIVE_AUTH_DIAGNOSTIC';"
+                    +"if(main?.querySelector('[role=alert]'))return 'APP_ERROR';"
+                    +"if(main?.querySelector('.form .status-message'))return 'LOGIN_ERROR_MESSAGE';"
+                    +"if(main?.querySelector('form fieldset:disabled'))return 'LOGIN_PENDING';"
+                    +"if(main?.querySelector('form input[name=password]'))return 'LOGIN_FORM';"
+                    +"if(main?.querySelector('output'))return 'APP_LOADING_OR_OUTPUT';"
+                    +"return 'NO_EXPECTED_AUTH_VIEW';"
+                    +"})()");
+                // Fixed allow-listed codes: no password, token, ID or response body.
+                lastStage=state.replace(String.valueOf((char)34), "");
+                if(!lastStage.equals(previousStage)){
+                    System.out.println("ORBIS_AUTH_STAGE "+lastStage);
+                    previousStage=lastStage;
                 }
+                if("REVIEWER_VERIFIED".equals(lastStage)){verified=true;break;}
+                if("WRONG_IDENTITY".equals(lastStage))break;
                 Thread.sleep(650);
             }
-            assertTrue("Expected central reviewer identity missing; no financial data changed",verified);
+            assertTrue("Central reviewer auth did not complete; final safe stage="+lastStage
+                +"; financial data unchanged",verified);
             System.out.println("ORBIS_STEP_PASS central reviewer identity");
             assertTrue("Cannot set stable Bengali test selectors",truth(
                 "(function(){let s=document.querySelector('main[data-view=workspace] select.lang');"
@@ -153,6 +182,8 @@ public class AndroidAuthenticatedAcceptanceTest {
             nav("আইটেম");
             until("(function(){return !!document.querySelector('.master-items')})()","Item page",12000);
             click(".master-page .books-section-title button","add item");
+            until("(function(){return !!document.querySelector('.master-page form.books-form input[name=unit]')})()",
+                "new item form",8000);
             fill(".master-page form.books-form input[name=name]","AUTO ITEM "+run,"synthetic Item");
             fill(".master-page form.books-form input[name=unit]","litre","item unit");
             assertTrue("Item save failed to start",truth("(function(){document.querySelector('.master-page form.books-form').requestSubmit();return true})()"));

@@ -1,3 +1,13 @@
+# 2026-11-18 — Android Real User Acceptance: local ZIP audit and safe diagnostic patch
+
+- Source examined: owner-uploaded latest `orbis-khata-main` ZIP against GitHub main; preserve previous recorded history below. Scope limited to Android acceptance test code, reporter/preflight and documentation. No app business data, central auth server, backend, schema or deployment changes.
+- Live Run `44249472585` **FAILED** at expected reviewer identity after an authenticated-form submission; it did not establish whether Central Login rejected credentials, native identity enrollment failed, or test navigation interfered. No company or financial data writes occurred in that failed run.
+- Removed repeated synthetic `PopStateEvent` while polling login. The test now waits for the real app session render and reports allow-listed auth stages without passwords, tokens or response bodies. Identity and exact isolated company checks are still mandatory before writing.
+- Improved real-user Bash runner with per-failure JSON `FAIL` artifact and strict `PASS` only after Android instrumentation `OK (1 test)`; enhanced source/selector static preflight and instrumentation-failure mock test.
+- Local observed checks: `bash -n` PASS, static workflow/UI selector checks PASS, mock success/missing-secret/failed-instrumentation PASS, YAML manual-only dispatch check PASS, Java source compiler check using stubbed Android APIs PASS. **Not run**: full `npm test`/TypeScript/real Android Gradle/Emulator or live Reviewer login, due absent cached packages, Node engine mismatch and no Android SDK/real staging connectivity in this sandbox. These are not PASS.
+- Next: verify exact patched commit with GitHub Actions quality/Android Candidate; do not claim live user automation green or initiate production writes. The next manual credentialed test should be considered only after diagnostics are reviewed. Company, Party, Item, Bill, Receipt and Ledger E2E remain unverified.
+
+---
 # 2026-11-17 — Live Arko sync conflict repair and release handoff
 
 ## Current authority, timeline, and evidence levels

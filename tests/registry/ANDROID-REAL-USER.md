@@ -18,3 +18,29 @@ Security hardening: emulator receives only an ephemeral Base64-encoded password 
 Accounting extension (implemented but NOT YET VERIFIED): synthetic sales invoice qty 2 × INR 100 = INR 200, independent cash receipt INR 80, party ledger remaining receivable INR 120. Test records use a GitHub Run ID and only the verified ORBIS Automation Test local company. No real user financial records touched. No authenticated test-run evidence until owner installs secrets.
 
 Manual live APK build uses the same configurable Central Admin staging/API URLs as the verified Android candidate workflow. This does not authorize deployment or publish. Be alert to cold-start latency and fail closed on reviewer login timeout.
+
+## 18 November 2026: authentication-stage diagnostic (not an acceptance PASS)
+
+The fifth manual run (`44249472585`) passed Android build and reached a real
+sign-in attempt, but failed on `Expected central reviewer identity missing`.
+The original test repeatedly fired a synthetic `PopStateEvent` to try to reach
+`workspace`; this does **not** establish authentication and could disrupt React
+navigation. The acceptance test now waits for the normal signed-in render,
+while emitting **allow-listed** `ORBIS_AUTH_STAGE` markers (submitted, pending,
+form error, native enrollment/restore error, wrong identity, verified). Neither
+credentials nor tokens nor HTTP response bodies are logged. If identity is
+unverified, no synthetic company or accounting records may be written.
+
+The shell runner now emits `status.json` as `FAIL` for a failing
+instrumentation/runner command and `PASS` only after `OK (1 test)`; a
+non-sensitive `instrumentation.txt` remains the source of detailed stage
+messages. This is implemented test-infrastructure improvement, **not proof of
+fixed server authentication**. Review the protected GitHub artifact before
+considering another manual run.
+
+Local validation is intentionally distinct from Live CI: YAML/manual-only
+settings, bash syntax, mock success and failure (including instrumentation
+failure), source-selector contracts and a Java source compile with minimal
+mock Android APIs can run without credentials. Full React tests require the
+project dependency tree; an actual APK, Capacitor runtime and central Admin
+login require Android SDK/Emulator and reachable staging APIs.
