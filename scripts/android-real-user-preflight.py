@@ -27,3 +27,44 @@ for name, ok in must:
         raise SystemExit('PRECHECK FAIL: '+name)
     print('PRECHECK PASS: '+name)
 print('STATIC WORKFLOW CONTRACT PASS; Android login requires separate manual acceptance')
+
+# Run the real shell driver with stubbed tooling in a disposable directory.
+# This checks command grouping, Android argument count, success and fail closed
+# without a network, an Android emulator, any private credentials or test data.
+import json
+import os
+import subprocess
+import tempfile
+
+subprocess.run(['bash', '-n', str(root / 'scripts/android-real-user-run.sh')], check=True)
+with tempfile.TemporaryDirectory(prefix='orbis-acceptance-mock-') as temp:
+    sandbox=Path(temp)
+    bin_dir=sandbox / 'bin'
+    bin_dir.mkdir()
+    python_stub=bin_dir / 'python3'
+    python_stub.write_text('#!/bin/sh\n[ "$1" = scripts/khata.py ] && [ "$2" = test ] && [ "$3" = android-device ]\n')
+    adb_stub=bin_dir / 'adb'
+    adb_stub.write_text('#!/bin/sh\ncase "$1" in\n  install) exit 0;;\n  shell) [ "$2" = am ] && [ "$3" = instrument ] || exit 10; echo "INSTRUMENTATION_STATUS: ok"; echo "OK (1 test)";;\n  exec-out) printf PNG;;\n  *) exit 11;;\nesac\n')
+    python_stub.chmod(0o755)
+    adb_stub.chmod(0o755)
+    env=os.environ.copy()
+    env.update({
+        'PATH': str(bin_dir) + os.pathsep + env.get('PATH', ''),
+        'TEST_EMAIL': 'synthetic@example.invalid',
+        'TEST_PASSWORD': 'fake-secret-no-real-account',
+        'RUN_ID': '12345',
+        'GITHUB_SHA': 'a'*40,
+    })
+    run=subprocess.run(['bash', str(root / 'scripts/android-real-user-run.sh')],
+                       cwd=sandbox,env=env,capture_output=True,text=True)
+    assert run.returncode == 0, 'Mock driver failed: ' + run.stdout[-300:] + run.stderr[-300:]
+    report_dir=sandbox / 'android/app/build/reports/real-user'
+    status=json.loads((report_dir / 'status.json').read_text())
+    assert status['result']=='PASS' and status['run_id']=='12345'
+    assert 'OK (1 test)' in (report_dir / 'instrumentation.txt').read_text()
+    # A missing secret must reject before any test operation.
+    env.pop('TEST_PASSWORD')
+    missing=subprocess.run(['bash', str(root / 'scripts/android-real-user-run.sh')],
+                           cwd=sandbox,env=env,capture_output=True,text=True)
+    assert missing.returncode != 0, 'Missing test secret was not rejected'
+    print('MOCK RUNNER: PASS (success path, failure path, no live credentials)')

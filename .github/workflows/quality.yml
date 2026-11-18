@@ -28,6 +28,10 @@ jobs:
         with:
           node-version: '24'
           cache: npm
+      - name: Android Real User Runner preflight (no secrets or device writes)
+        run: |
+          bash -n scripts/android-real-user-run.sh
+          python3 scripts/android-real-user-preflight.py
       - name: Validate Sonar configuration (fail closed)
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}

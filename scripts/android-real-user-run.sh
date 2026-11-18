@@ -1,6 +1,11 @@
 #!/usr/bin/env bash
 set -euo pipefail
 set +x
+: "${TEST_EMAIL:?Test email not set}"
+: "${TEST_PASSWORD:?Test password not set}"
+: "${RUN_ID:?Run identifier not set}"
+: "${GITHUB_SHA:?Commit SHA not set}"
+mkdir -p android/app/build/reports/real-user
 python3 scripts/khata.py test android-device
 adb install -r android/app/build/outputs/apk/debug/app-debug.apk
 adb install -r android/app/build/outputs/apk/androidTest/debug/app-debug-androidTest.apk
