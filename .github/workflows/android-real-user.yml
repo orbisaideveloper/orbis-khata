@@ -35,6 +35,8 @@ jobs:
           test -n "$TEST_EMAIL" || { echo 'Missing KHATA_TEST_EMAIL secret'; exit 1; }
           test -n "$TEST_PASSWORD" || { echo 'Missing KHATA_TEST_PASSWORD secret'; exit 1; }
           test "$TEST_EMAIL" = 'orbisaideveloper+playreview@gmail.com' || exit 1
+      - name: Prepare runner report directory
+        run: mkdir -p "$HOME/storage/downloads"
       - run: npm ci --include=optional
       - run: python3 scripts/khata.py test android
       - run: sudo chown "$(id -un)" /dev/kvm
