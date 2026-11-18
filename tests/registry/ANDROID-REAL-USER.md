@@ -14,3 +14,5 @@ NOT YET COMPLETE: actual authenticated run cannot be certified until GitHub Secr
 Bill, Payment, Ledger, backup, offline and cloud sync remain separate pending cases. No blanket full-user-test PASS.
 
 Security hardening: emulator receives only an ephemeral Base64-encoded password argument (not a password literal in a remote shell command). Base64 is an encoding, **not encryption**; the GitHub encrypted secret and runner isolation remain mandatory. The report includes a non-sensitive JSON PASS record only if instrumentation has `OK (1 test)`; failures cannot be called PASS.
+
+Accounting extension (implemented but NOT YET VERIFIED): synthetic sales invoice qty 2 × INR 100 = INR 200, independent cash receipt INR 80, party ledger remaining receivable INR 120. Test records use a GitHub Run ID and only the verified ORBIS Automation Test local company. No real user financial records touched. No authenticated test-run evidence until owner installs secrets.

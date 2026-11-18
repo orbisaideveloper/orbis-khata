@@ -159,12 +159,12 @@
     {
       "id": "KH-AND-004",
       "area": "Android Live Reviewer Account",
-      "flow": "Real password login, verify known reviewer display ID, create/select ORBIS Automation Test company, synthetic Party and Item saves",
+      "flow": "Real reviewer login → verified identity → ORBIS Automation Test company → synthetic Party/Item → INR 200 sale → INR 80 receipt → INR 120 receivable",
       "status": "implemented_unverified",
       "source": "android/app/src/androidTest/java/com/orbisaideveloper/khata/AndroidAuthenticatedAcceptanceTest.java",
       "workflow": ".github/workflows/android-real-user.yml",
       "writes": true,
-      "blocker": "Owner must configure two GitHub Actions encrypted secrets before running; no live CI PASS yet"
+      "blocker": "GitHub Actions encrypted reviewer secrets not configured; no live CI verification; no deletes/restore/cloud sync"
     }
   ]
 }

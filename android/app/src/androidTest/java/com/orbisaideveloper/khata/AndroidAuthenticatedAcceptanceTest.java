@@ -59,6 +59,9 @@ public class AndroidAuthenticatedAcceptanceTest {
         assertTrue("Page missing "+name,truth("(function(){let b=Array.from(document.querySelectorAll('.books-navigation button'))"
             +".find(x=>x.textContent.trim()==="+quote(name)+");if(!b||b.disabled)return false;b.click();return true})()"));
     }
+    private void actionRestoreConfirm() throws Exception {
+        assertTrue("Confirmation handler restore failed",truth("(function(){if(!window.__orbisOriginalConfirm)return false;window.confirm=window.__orbisOriginalConfirm;delete window.__orbisOriginalConfirm;return true})()"));
+    }
     @Test(timeout=420000)
     public void reviewerLoginAndIsolatedLocalMasters() throws Exception {
         Bundle options=InstrumentationRegistry.getArguments();
@@ -143,7 +146,60 @@ public class AndroidAuthenticatedAcceptanceTest {
             until("(function(){return !!document.querySelector('.master-items')&&"
                 +"document.querySelector('.master-items').textContent.includes("+quote("AUTO ITEM "+run)+")})()",
                 "Item saved",25000);
-            System.out.println("ORBIS_TEST_COMPLETE reviewer login + isolated local company + Party + Item");
+            // Accounting invariant test: two items at INR 100 each => sale INR 200,
+            // separately received INR 80 => expected remaining receivable INR 120.
+            // Synthetic data is confined to the verified disposable company.
+            nav("বিল");
+            until("(function(){return !!document.querySelector('.kh-bill-start')})()","bill start",20000);
+            assertTrue("Sales invoice action missing",truth("(function(){let root=document.querySelector('.kh-bill-start');"
+                +"let b=Array.from(root.querySelectorAll('button')).find(x=>x.textContent.includes('বিক্রয় বিল'));"
+                +"if(!b)return false;b.click();return true})()"));
+            until("(function(){return !!document.querySelector('.invoice-page form')})()","invoice form",30000);
+            assertTrue("Synthetic customer option not available",truth("(function(){let s=document.querySelector('.invoice-page .invoice-party select');"
+                +"let o=s&&Array.from(s.options).find(x=>x.textContent.includes("+quote(party)+"));"
+                +"if(!o)return false;Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype,'value').set.call(s,o.value);"
+                +"s.dispatchEvent(new Event('change',{bubbles:true}));return true})()"));
+            assertTrue("Synthetic item option not available",truth("(function(){let s=document.querySelector('.invoice-page select[aria-label=\"আইটেমের নাম 1\"]');"
+                +"let o=s&&Array.from(s.options).find(x=>x.textContent.includes("+quote("AUTO ITEM "+run)+"));"
+                +"if(!o)return false;Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype,'value').set.call(s,o.value);"
+                +"s.dispatchEvent(new Event('change',{bubbles:true}));return true})()"));
+            fill(".invoice-page input[aria-label=\"পরিমাণ 1\"]","2","sale quantity");
+            fill(".invoice-page input[aria-label=\"দর 1\"]","100","sale rate");
+            until("(function(){let b=document.querySelector('.invoice-page form button.books-primary');return !!b&&!b.disabled})()",
+                "invoice review ready",20000);
+            click(".invoice-page form button.books-primary","review synthetic sale");
+            until("(function(){return !!document.querySelector('.bill-review button.books-primary')})()",
+                "review invoice",20000);
+            click(".bill-review button.books-primary","save INR 200 sale");
+            until("(function(){let r=document.querySelector('.bill-review');return !!r&&r.textContent.includes('বিল সংরক্ষণ হয়েছে।')})()",
+                "sale persistence confirmation",30000);
+            click(".bill-review .books-buttons button:last-child","back to accounting");
+            nav("জমা / পেমেন্ট");
+            until("(function(){return !!document.querySelector('.workspace-settings form select')})()",
+                "receipt form",20000);
+            assertTrue("Receipt customer not available",truth("(function(){let s=document.querySelector('.workspace-settings form select');"
+                +"let o=s&&Array.from(s.options).find(x=>x.textContent.includes("+quote(party)+"));"
+                +"if(!o)return false;Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype,'value').set.call(s,o.value);"
+                +"s.dispatchEvent(new Event('change',{bubbles:true}));return true})()"));
+            fill(".workspace-settings form input[inputmode=decimal]","80","cash receipt amount");
+            assertTrue("Receipt form unavailable",truth("(function(){window.__orbisOriginalConfirm=window.confirm;"
+                +"window.confirm=()=>true;let f=document.querySelector('.workspace-settings form');"
+                +"if(!f)return false;f.requestSubmit();return true})()"));
+            until("(function(){let o=document.querySelector('.workspace-settings output');"
+                +"return !!o&&o.textContent.includes('পেমেন্ট সেভ হয়েছে।')})()",
+                "INR 80 receipt save",30000);
+            actionRestoreConfirm();
+            nav("লেজার");
+            until("(function(){return !!document.querySelector('.ledger-explorer .ledger-row')})()",
+                "ledger list",25000);
+            assertTrue("Party ledger missing",truth("(function(){let b=Array.from(document.querySelectorAll('.ledger-explorer .ledger-row'))"
+                +".find(x=>x.textContent.includes("+quote(party)+"));if(!b)return false;b.click();return true})()"));
+            until("(function(){let e=document.querySelector('.ledger-detail p');if(!e)return false;"
+                +"let x=e.textContent.replace(/[০-৯]/g,c=>'০১২৩৪৫৬৭৮৯'.indexOf(c));"
+                +"return /120(?:[.,]00)?/.test(x)})()",
+                "remaining receivable INR 120",30000);
+            System.out.println("ORBIS_TEST_COMPLETE account + company + Party + Item + INR 200 sale + INR 80 receipt + INR 120 ledger");
+
         } finally {
             inst.runOnMainSync(activity::finish);
         }
