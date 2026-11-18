@@ -81,6 +81,7 @@ jobs:
             adb shell pidof com.orbisaideveloper.khata
             mkdir -p android/app/build/reports/native-preview
             adb exec-out screencap -p > android/app/build/reports/native-preview/welcome.png
+            bash scripts/android-keystore-probe-ci.sh
       - name: Preserve Android diagnostics
         if: always()
         uses: actions/upload-artifact@v5
