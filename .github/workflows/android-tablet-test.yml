@@ -81,8 +81,13 @@ jobs:
           # The instrumentation APK must target the *isolated* tablet app.
           TEST_APK="android/app/build/outputs/apk/androidTest/tabletTest/app-tabletTest-androidTest.apk"
           test -s "$TEST_APK"
-          "$AAPT" dump badging "$TEST_APK" > /tmp/khata-tablet-test-badging.txt
-          grep -F "targetPackage='com.orbisaideveloper.khata.tablettest'" /tmp/khata-tablet-test-badging.txt
+          # Instrumentation target is a Manifest attribute, not reliable badging text.
+          "$AAPT" dump xmltree "$TEST_APK" AndroidManifest.xml > /tmp/khata-tablet-test-manifest.txt
+          grep -E 'android:targetPackage.*="com\\.orbisaideveloper\\.khata\\.tablettest"' /tmp/khata-tablet-test-manifest.txt
+          if grep -E 'android:targetPackage.*="com\\.orbisaideveloper\\.khata"' /tmp/khata-tablet-test-manifest.txt; then
+            echo "STOP: instrumentation targets Play Khata Boi" >&2
+            exit 1
+          fi
           "$SIGNER" verify --print-certs "$TEST_APK" > /tmp/khata-tablet-test-signer.txt
           APP_SIGNER="$(grep -F 'Signer #1 certificate SHA-256 digest:' /tmp/khata-tablet-signer.txt | head -1)"
           TEST_SIGNER="$(grep -F 'Signer #1 certificate SHA-256 digest:' /tmp/khata-tablet-test-signer.txt | head -1)"
