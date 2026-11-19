@@ -57,10 +57,24 @@ jobs:
         run: npm run build
       - name: Sync Capacitor Android project
         run: npm run android:sync
-      - name: Assemble tablet-only APK
+      - name: Assemble tablet-only APK and instrumentation
         run: |
+          # CI-only fallback for public JUnit/Hamcrest dependencies: no production Gradle edits.
+          cat > /tmp/khata-tablet-maven.init.gradle <<'GRADLE'
+          allprojects {
+            repositories {
+              maven {
+                url 'https://maven-central.storage-download.googleapis.com/maven2/'
+                content {
+                  includeGroup 'junit'
+                  includeGroup 'org.hamcrest'
+                }
+              }
+            }
+          }
+          GRADLE
           cd android
-          ./gradlew --no-daemon :app:assembleTabletTest :app:assembleTabletTestAndroidTest
+          ./gradlew --no-daemon -I /tmp/khata-tablet-maven.init.gradle :app:assembleTabletTest :app:assembleTabletTestAndroidTest
       - name: Verify tablet APK ID, label, signature and SHA256
         shell: bash
         run: |
