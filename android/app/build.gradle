@@ -9,6 +9,8 @@ if (!(releaseCode ==~ /[1-9][0-9]*/) || releaseCode.toLong() > 2100000000) {
 android {
     namespace = "com.orbisaideveloper.khata"
     compileSdk = rootProject.ext.compileSdkVersion
+    // Instrument only the isolated tabletTest variant; never target Play Khata Boi.
+    testBuildType 'tabletTest'
     defaultConfig {
         applicationId "com.orbisaideveloper.khata"
         minSdkVersion rootProject.ext.minSdkVersion
