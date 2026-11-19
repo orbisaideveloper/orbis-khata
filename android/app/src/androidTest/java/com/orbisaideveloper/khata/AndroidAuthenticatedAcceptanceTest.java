@@ -82,24 +82,30 @@ public class AndroidAuthenticatedAcceptanceTest {
             long bridgeDeadline=SystemClock.elapsedRealtime()+75000;
             while(activity.getBridge()==null&&SystemClock.elapsedRealtime()<bridgeDeadline)Thread.sleep(250);
             assertNotNull("Native Capacitor bridge failed",activity.getBridge());
-            until("(function(){return !!document.querySelector('main[data-view=welcome] .actions button.primary,form input[name=password]')})()",
-                "welcome or login",100000);
-            if(truth("(function(){return !!document.querySelector('main[data-view=welcome] .actions button.primary')})()"))
-                click("main[data-view=welcome] .actions button.primary","open login");
-            until("(function(){return !!document.querySelector('form input[name=email]')&&!!document.querySelector('form input[name=password]')})()",
-                "login fields",12000);
-            fill("form input[name=email]",email,"reviewer email");
-            fill("form input[name=password]",password,"reviewer password (never logged)");
-            assertTrue("Login form not found",truth("(function(){let f=document.querySelector('form:has(input[name=password])');"
-                +"if(!f||f.querySelector('fieldset:disabled'))return false;f.requestSubmit();return true})()"));
-            System.out.println("ORBIS_AUTH_STAGE LOGIN_SUBMITTED");
-            // Real auth: network, session, native enrollment, and React render.
-            // Never force a popstate event during login; it can interfere with navigation.
+            // A stable-signed upgrade preserves the isolated app's local session.
+            // Accept only the exact reviewer identity; never switch an unknown user.
+            until("(function(){return !!document.querySelector('main[data-view=welcome] .actions button.primary,form input[name=password],main[data-view=workspace] .orbis-account-id')})()",
+                "welcome, login, or restored reviewer workspace",100000);
+            boolean existingReviewer=truth("(function(){return document.querySelector('main[data-view=workspace] .orbis-account-id')?.textContent?.trim()==="+quote("ORB-U-DEE7F753") +"})()");
+            if (!existingReviewer) {
+                assertFalse("Wrong authenticated account: refusing test writes",truth("(function(){let id=document.querySelector('main[data-view=workspace] .orbis-account-id')?.textContent?.trim();return !!id})()"));
+                if(truth("(function(){return !!document.querySelector('main[data-view=welcome] .actions button.primary')})()"))
+                    click("main[data-view=welcome] .actions button.primary","open login");
+                until("(function(){return !!document.querySelector('form input[name=email]')&&!!document.querySelector('form input[name=password]')})()",
+                    "login fields",12000);
+                fill("form input[name=email]",email,"reviewer email");
+                fill("form input[name=password]",password,"reviewer password (never logged)");
+                assertTrue("Login form not found",truth("(function(){let f=document.querySelector('form:has(input[name=password])');"
+                    +"if(!f||f.querySelector('fieldset:disabled'))return false;f.requestSubmit();return true})()"));
+                System.out.println("ORBIS_AUTH_STAGE LOGIN_SUBMITTED");
+            } else {
+                System.out.println("ORBIS_AUTH_STAGE EXISTING_REVIEWER_SESSION");
+            }
             long loginDeadline=SystemClock.elapsedRealtime()+135000;
-            boolean verified=false;
+            boolean verified=existingReviewer;
             String previousStage="";
             String lastStage="UNOBSERVED";
-            while(SystemClock.elapsedRealtime()<loginDeadline) {
+            while(!verified && SystemClock.elapsedRealtime()<loginDeadline) {
                 String state=evaluate("(function(){"
                     +"const main=document.querySelector('main');"
                     +"const id=main?.querySelector('.orbis-account-id')?.textContent?.trim()||'';"
