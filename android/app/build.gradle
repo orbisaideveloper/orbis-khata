@@ -1,6 +1,9 @@
 apply plugin: 'com.android.application'
 
 def uploadStore = System.getenv('KHATA_UPLOAD_STORE_FILE')
+def tabletStore = System.getenv('KHATA_TABLET_STORE_FILE')
+def tabletPassword = System.getenv('KHATA_TABLET_SIGN_PASSWORD')
+
 def releaseCode = System.getenv('KHATA_ANDROID_VERSION_CODE') ?: '1'
 if (!(releaseCode ==~ /[1-9][0-9]*/) || releaseCode.toLong() > 2100000000) {
     throw new GradleException('Invalid Android version code')
@@ -25,6 +28,16 @@ android {
         }
     }
     signingConfigs {
+        // Dedicated QA certificate. Never reused for Play release signing.
+        if (tabletStore && tabletPassword) {
+            tabletStable {
+                storeFile file(tabletStore)
+                storeType 'PKCS12'
+                storePassword tabletPassword
+                keyAlias 'tabletTestKey'
+                keyPassword tabletPassword
+            }
+        }
         if (uploadStore) {
             release {
                 storeFile file(uploadStore)
@@ -41,7 +54,7 @@ android {
             matchingFallbacks = ['debug']
             applicationIdSuffix '.tablettest'
             debuggable true
-            signingConfig signingConfigs.debug
+            signingConfig (tabletStore && tabletPassword) ? signingConfigs.tabletStable : signingConfigs.debug
         }
         release {
             if (uploadStore) signingConfig signingConfigs.release
