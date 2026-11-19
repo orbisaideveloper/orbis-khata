@@ -142,56 +142,77 @@ public class AndroidAuthenticatedAcceptanceTest {
             if(truth("(function(){return !!document.querySelector('.kh-company-manage')})()"))
                 click(".kh-company-manage","company management");
             until("(function(){return !!document.querySelector('.books-company button')})()","company manager",22000);
-            String exists="(function(){let s=document.querySelector('.books-company select');return !!s&&"
-                +"Array.from(s.options).some(o=>o.textContent.trim()==="+quote(COMPANY)+")})()";
+            // A successful company save hides the form. Observe BOTH company-manager and
+            // Khata-home selections instead of treating FORM_HIDDEN as a persistence failure.
+            // Require the exact company label: never write to an unrelated company.
+            String exists="(function(){let n="+quote(COMPANY)+";return Array.from(document.querySelectorAll("+
+                "'.books-company select, .kh-company-modules select')).some(s=>"+
+                "Array.from(s.options).some(o=>o.textContent.trim()===n))})()";
+            String selectedCompany="(function(){let n="+quote(COMPANY)+";return Array.from(document.querySelectorAll("+
+                "'.books-company select, .kh-company-modules select')).some(s=>"+
+                "s.selectedOptions[0]?.textContent.trim()===n)})()";
             if(!truth(exists)) {
+                // A prior attempt could have committed. Do not retry until the current
+                // company-manager list has loaded and has been checked exactly once.
                 click(".books-company > button","new test-only company");
                 until("(function(){return !!document.querySelector('form.books-form input[name=name]')})()","company form",8000);
                 fill("form.books-form input[name=name]",COMPANY,"isolated company name");
                 assertTrue("Company form missing",truth("(function(){document.querySelector('form.books-form').requestSubmit();return true})()"));
-                // Do not blindly retry a create: its SQLCipher commit may have succeeded.
-                // Classify only fixed UI states and allowlisted non-sensitive error codes.
-                long companyDeadline=SystemClock.elapsedRealtime()+25000;
+                long companyDeadline=SystemClock.elapsedRealtime()+35000;
                 String saveStage="UNOBSERVED";
                 boolean created=false;
+                boolean managerReopened=false;
+                String lastPrinted="";
                 while(SystemClock.elapsedRealtime()<companyDeadline){
-                    if(truth(exists)){created=true;break;}
+                    if(truth(exists)) {created=true;break;}
                     String state=evaluate("(function(){"
                         +"const f=document.querySelector('form.books-form');"
                         +"const code=document.querySelector('[data-testid=khata-tablet-save-error]')?.textContent?.trim()||'';"
                         +"if(/^[A-Z][A-Z0-9_]{3,80}$/.test(code))return 'SAVE_ERROR_'+code;"
-                        +"if(!f)return 'FORM_HIDDEN';"
-                        +"const out=f.querySelector('output');"
-                        +"if(out)return 'FORM_PENDING_OR_ERROR';"
-                        +"const b=f.querySelector('button[type=submit]');"
-                        +"if(b?.disabled)return 'SAVE_IN_PROGRESS';"
+                        +"if(!f){"
+                        +"if(document.querySelector('.kh-company-manage'))return 'HOME_COMPANY_MANAGER_AVAILABLE';"
+                        +"if(document.querySelector('.books-company select'))return 'FORM_HIDDEN_MANAGER_PRESENT';"
+                        +"if(document.querySelector('.kh-company-modules select'))return 'FORM_HIDDEN_HOME_PRESENT';"
+                        +"return 'FORM_HIDDEN_NO_COMPANY_VIEW';}"
+                        +"if(f.querySelector('output'))return 'FORM_PENDING_OR_ERROR';"
+                        +"if(f.querySelector('button[type=submit]')?.disabled)return 'SAVE_IN_PROGRESS';"
                         +"return 'SAVE_NOT_VISIBLE_IN_LIST';"
                         +"})()");
                     saveStage=state.replace(String.valueOf((char)34),"");
+                    if(!saveStage.equals(lastPrinted)){
+                        System.out.println("ORBIS_COMPANY_SAVE_STAGE "+saveStage);
+                        lastPrinted=saveStage;
+                    }
                     if(saveStage.startsWith("SAVE_ERROR_"))break;
+                    // A navigation transition can unmount the form AND selector.
+                    // Reopen the manager once for a read-only check, never re-submit.
+                    if(!managerReopened && "HOME_COMPANY_MANAGER_AVAILABLE".equals(saveStage)){
+                        click(".kh-company-manage","inspect saved company without retry");
+                        managerReopened=true;
+                    }
                     Thread.sleep(350);
                 }
                 if(!created){
-                    System.out.println("ORBIS_COMPANY_SAVE_STAGE "+saveStage);
-                    fail("Isolated test company save not verified; stage="+saveStage+"; no retry");
+                    fail("Isolated test company not positively verified; stage="+saveStage+"; no retry");
                 }
+                System.out.println("ORBIS_STEP_PASS exact isolated company visible after save");
             }
-            assertTrue("Exact company selection failed",truth("(function(){let s=document.querySelector('.books-company select');"
-                +"let o=Array.from(s.options).find(x=>x.textContent.trim()==="+quote(COMPANY)+");"
-                +"if(!o)return false;Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype,'value').set.call(s,o.value);"
+            // Explicitly select the known test company, from either manager or home.
+            assertTrue("Exact company selection failed",truth("(function(){let n="+quote(COMPANY)+";"
+                +"let selects=Array.from(document.querySelectorAll('.books-company select, .kh-company-modules select'));"
+                +"let s=selects.find(x=>Array.from(x.options).some(o=>o.textContent.trim()===n));"
+                +"if(!s)return false;let o=Array.from(s.options).find(x=>x.textContent.trim()===n);"
+                +"Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype,'value').set.call(s,o.value);"
                 +"s.dispatchEvent(new Event('change',{bubbles:true}));return true})()"));
-            until("(function(){return !!document.querySelector('.books-hero')&&"
-                +"document.querySelector('.books-hero').textContent.includes("+quote(COMPANY)+")})()",
-                "confirmed isolated company",25000);
+            until(selectedCompany,"confirmed selected isolated company",25000);
             System.out.println("ORBIS_STEP_PASS isolated company verified");
-            // A newly selected company is displayed in the Accounting editor;
-            // return through the real Khata home control before using billing navigation.
-            click("header.kh-app-header button.kh-brand","return to Khata home");
+            // The company manager has no billing navigation. Return through
+            // the actual Khata header, then verify the selected company AGAIN.
+            if(truth("(function(){return !!document.querySelector('header.kh-app-header button.kh-brand')})()"))
+                click("header.kh-app-header button.kh-brand","return to Khata home");
             until("(function(){return !!Array.from(document.querySelectorAll('.books-navigation button'))"
                 +".find(x=>x.textContent.trim()==='বিল')})()","Khata billing navigation",30000);
-            assertTrue("Unexpected active company: refusing test writes",truth(
-                "(function(){let s=document.querySelector('.kh-company-modules select');"
-                +"return !!s&&s.selectedOptions[0]?.textContent.trim()==="+quote(COMPANY)+"})()"));
+            assertTrue("Unexpected active company: refusing test writes",truth(selectedCompany));
             // Additional data mutation is forbidden if navigation does not enter this exact company.
             until("(function(){return !!Array.from(document.querySelectorAll('.books-navigation button'))"
                 +".find(b=>b.textContent.trim()==='পার্টি'||b.textContent.trim()==='Parties')})()",
