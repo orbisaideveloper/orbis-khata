@@ -149,7 +149,32 @@ public class AndroidAuthenticatedAcceptanceTest {
                 until("(function(){return !!document.querySelector('form.books-form input[name=name]')})()","company form",8000);
                 fill("form.books-form input[name=name]",COMPANY,"isolated company name");
                 assertTrue("Company form missing",truth("(function(){document.querySelector('form.books-form').requestSubmit();return true})()"));
-                until(exists,"isolated company save",25000);
+                // Do not blindly retry a create: its SQLCipher commit may have succeeded.
+                // Classify only fixed UI states and allowlisted non-sensitive error codes.
+                long companyDeadline=SystemClock.elapsedRealtime()+25000;
+                String saveStage="UNOBSERVED";
+                boolean created=false;
+                while(SystemClock.elapsedRealtime()<companyDeadline){
+                    if(truth(exists)){created=true;break;}
+                    String state=evaluate("(function(){"
+                        +"const f=document.querySelector('form.books-form');"
+                        +"const code=document.querySelector('[data-testid=khata-tablet-save-error]')?.textContent?.trim()||'';"
+                        +"if(/^[A-Z][A-Z0-9_]{3,80}$/.test(code))return 'SAVE_ERROR_'+code;"
+                        +"if(!f)return 'FORM_HIDDEN';"
+                        +"const out=f.querySelector('output');"
+                        +"if(out)return 'FORM_PENDING_OR_ERROR';"
+                        +"const b=f.querySelector('button[type=submit]');"
+                        +"if(b?.disabled)return 'SAVE_IN_PROGRESS';"
+                        +"return 'SAVE_NOT_VISIBLE_IN_LIST';"
+                        +"})()");
+                    saveStage=state.replace(String.valueOf((char)34),"");
+                    if(saveStage.startsWith("SAVE_ERROR_"))break;
+                    Thread.sleep(350);
+                }
+                if(!created){
+                    System.out.println("ORBIS_COMPANY_SAVE_STAGE "+saveStage);
+                    fail("Isolated test company save not verified; stage="+saveStage+"; no retry");
+                }
             }
             assertTrue("Exact company selection failed",truth("(function(){let s=document.querySelector('.books-company select');"
                 +"let o=Array.from(s.options).find(x=>x.textContent.trim()==="+quote(COMPANY)+");"
