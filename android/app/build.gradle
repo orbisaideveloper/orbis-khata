@@ -54,7 +54,7 @@ android {
             matchingFallbacks = ['debug']
             applicationIdSuffix '.tablettest'
             debuggable true
-            signingConfig (tabletStore && tabletPassword) ? signingConfigs.tabletStable : signingConfigs.debug
+            signingConfig = (tabletStore && tabletPassword) ? signingConfigs.tabletStable : signingConfigs.debug
         }
         release {
             if (uploadStore) signingConfig signingConfigs.release
