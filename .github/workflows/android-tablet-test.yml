@@ -60,7 +60,7 @@ jobs:
       - name: Assemble tablet-only APK
         run: |
           cd android
-          ./gradlew --no-daemon :app:assembleTabletTest
+          ./gradlew --no-daemon :app:assembleTabletTest :app:assembleTabletTestAndroidTest
       - name: Verify tablet APK ID, label, signature and SHA256
         shell: bash
         run: |
@@ -78,6 +78,16 @@ jobs:
             exit 1
           fi
           "$SIGNER" verify --print-certs "$APK" > /tmp/khata-tablet-signer.txt
+          # The instrumentation APK must target the *isolated* tablet app.
+          TEST_APK="android/app/build/outputs/apk/androidTest/tabletTest/app-tabletTest-androidTest.apk"
+          test -s "$TEST_APK"
+          "$AAPT" dump badging "$TEST_APK" > /tmp/khata-tablet-test-badging.txt
+          grep -F "targetPackage='com.orbisaideveloper.khata.tablettest'" /tmp/khata-tablet-test-badging.txt
+          "$SIGNER" verify --print-certs "$TEST_APK" > /tmp/khata-tablet-test-signer.txt
+          APP_SIGNER="$(grep -F 'Signer #1 certificate SHA-256 digest:' /tmp/khata-tablet-signer.txt | head -1)"
+          TEST_SIGNER="$(grep -F 'Signer #1 certificate SHA-256 digest:' /tmp/khata-tablet-test-signer.txt | head -1)"
+          test -n "$APP_SIGNER" && test "$APP_SIGNER" = "$TEST_SIGNER"
+          sha256sum "$TEST_APK" | tee android/app/build/outputs/apk/androidTest/tabletTest/test-apk.sha256
           sha256sum "$APK" | tee android/app/build/outputs/apk/tabletTest/apk.sha256
           echo "VERIFIED: isolated Khata Test APK; original Play package unchanged"
       - name: Upload verified Khata Test APK
@@ -88,6 +98,8 @@ jobs:
           path: |
             android/app/build/outputs/apk/tabletTest/app-tabletTest.apk
             android/app/build/outputs/apk/tabletTest/apk.sha256
+            android/app/build/outputs/apk/androidTest/tabletTest/app-tabletTest-androidTest.apk
+            android/app/build/outputs/apk/androidTest/tabletTest/test-apk.sha256
           if-no-files-found: error
           retention-days: 14
       - name: Preserve build diagnostics
