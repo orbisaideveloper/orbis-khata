@@ -1,0 +1,98 @@
+name: Khata Tablet Test APK (isolated)
+
+on:
+  push:
+    branches:
+      - 'tablet-test/**'
+    paths:
+      - 'android/**'
+      - 'src/**'
+      - 'public/**'
+      - 'pwa/**'
+      - 'capacitor.config.json'
+      - 'package*.json'
+      - 'scripts/khata*.py'
+      - '.github/workflows/android-tablet-test.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: khata-tablet-test-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  isolated-test-apk:
+    if: startsWith(github.ref, 'refs/heads/tablet-test/')
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    env:
+      VITE_ORBIS_CUSTOMER_API_URL: ${{ vars.VITE_ORBIS_CUSTOMER_API_URL || 'https://orbis-admin-staging.onrender.com' }}
+      VITE_KHATA_DATA_URL: ${{ vars.VITE_KHATA_DATA_URL || 'https://gqyaxsczlmvppxuoqbox.supabase.co/functions/v1/orbis-khata-data' }}
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '24'
+          cache: npm
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: gradle
+          cache-dependency-path: |
+            android/**/*.gradle
+            android/gradle/wrapper/gradle-wrapper.properties
+            package-lock.json
+      - name: Verify Android SDK
+        run: test -f "$ANDROID_HOME/platforms/android-36/android.jar"
+      - name: Prepare guarded report directory
+        run: mkdir -p "$HOME/storage/downloads"
+      - name: Install source dependencies
+        run: npm ci --include=optional
+      - name: Run existing selftest
+        run: python3 scripts/khata-selftest.py
+      - name: Verify web bundle and Android project
+        run: python3 scripts/khata.py test android
+      - name: Assemble tablet-only APK
+        run: |
+          cd android
+          ./gradlew --no-daemon :app:assembleTabletTest
+      - name: Verify tablet APK ID, label, signature and SHA256
+        shell: bash
+        run: |
+          set -euo pipefail
+          APK="android/app/build/outputs/apk/tabletTest/app-tabletTest.apk"
+          test -s "$APK"
+          AAPT="$(find "$ANDROID_HOME/build-tools" -type f -name aapt | sort -V | tail -n 1)"
+          SIGNER="$(find "$ANDROID_HOME/build-tools" -type f -name apksigner | sort -V | tail -n 1)"
+          test -x "$AAPT" && test -x "$SIGNER"
+          "$AAPT" dump badging "$APK" > /tmp/khata-tablet-badging.txt
+          grep -F "package: name='com.orbisaideveloper.khata.tablettest'" /tmp/khata-tablet-badging.txt
+          grep -F "application-label:'Khata Test'" /tmp/khata-tablet-badging.txt
+          if grep -F "package: name='com.orbisaideveloper.khata'" /tmp/khata-tablet-badging.txt; then
+            echo "STOP: original Play package collision" >&2
+            exit 1
+          fi
+          "$SIGNER" verify --print-certs "$APK" > /tmp/khata-tablet-signer.txt
+          sha256sum "$APK" | tee android/app/build/outputs/apk/tabletTest/apk.sha256
+          echo "VERIFIED: isolated Khata Test APK; original Play package unchanged"
+      - name: Upload verified Khata Test APK
+        if: success()
+        uses: actions/upload-artifact@v5
+        with:
+          name: khata-tablet-test-${{ github.sha }}
+          path: |
+            android/app/build/outputs/apk/tabletTest/app-tabletTest.apk
+            android/app/build/outputs/apk/tabletTest/apk.sha256
+          if-no-files-found: error
+          retention-days: 14
+      - name: Preserve build diagnostics
+        if: always()
+        uses: actions/upload-artifact@v5
+        with:
+          name: khata-tablet-build-report-${{ github.sha }}
+          path: ~/storage/downloads/ORBIS-KHATA-LATEST-REPORT.txt
+          if-no-files-found: warn
+          retention-days: 14
