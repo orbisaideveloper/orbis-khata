@@ -83,8 +83,8 @@ jobs:
           test -s "$TEST_APK"
           # Instrumentation target is a Manifest attribute, not reliable badging text.
           "$AAPT" dump xmltree "$TEST_APK" AndroidManifest.xml > /tmp/khata-tablet-test-manifest.txt
-          grep -E 'android:targetPackage.*="com\\.orbisaideveloper\\.khata\\.tablettest"' /tmp/khata-tablet-test-manifest.txt
-          if grep -E 'android:targetPackage.*="com\\.orbisaideveloper\\.khata"' /tmp/khata-tablet-test-manifest.txt; then
+          grep -F 'android:targetPackage' /tmp/khata-tablet-test-manifest.txt | grep -F '"com.orbisaideveloper.khata.tablettest"'
+          if grep -F 'android:targetPackage' /tmp/khata-tablet-test-manifest.txt | grep -F '"com.orbisaideveloper.khata"'; then
             echo "STOP: instrumentation targets Play Khata Boi" >&2
             exit 1
           fi
