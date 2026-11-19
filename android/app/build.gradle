@@ -33,6 +33,14 @@ android {
         }
     }
     buildTypes {
+        // Separate tablet-only debug APK. Existing Play release build is untouched.
+        tabletTest {
+            initWith debug
+            matchingFallbacks = ['debug']
+            applicationIdSuffix '.tablettest'
+            debuggable true
+            signingConfig signingConfigs.debug
+        }
         release {
             if (uploadStore) signingConfig signingConfigs.release
             minifyEnabled true
