@@ -89,9 +89,16 @@ jobs:
             exit 1
           fi
           "$SIGNER" verify --print-certs "$TEST_APK" > /tmp/khata-tablet-test-signer.txt
-          APP_SIGNER="$(grep -F 'Signer #1 certificate SHA-256 digest:' /tmp/khata-tablet-signer.txt | head -1)"
-          TEST_SIGNER="$(grep -F 'Signer #1 certificate SHA-256 digest:' /tmp/khata-tablet-test-signer.txt | head -1)"
-          test -n "$APP_SIGNER" && test "$APP_SIGNER" = "$TEST_SIGNER"
+          echo "=== APP SIGNER (PUBLIC DIGEST ONLY) ==="
+          grep -i 'certificate SHA-256 digest' /tmp/khata-tablet-signer.txt || true
+          echo "=== INSTRUMENTATION SIGNER (PUBLIC DIGEST ONLY) ==="
+          grep -i 'certificate SHA-256 digest' /tmp/khata-tablet-test-signer.txt || true
+          APP_SIGNER="$(sed -n 's/^Signer #1 certificate SHA-256 digest: //p' /tmp/khata-tablet-signer.txt | head -n 1)"
+          TEST_SIGNER="$(sed -n 's/^Signer #1 certificate SHA-256 digest: //p' /tmp/khata-tablet-test-signer.txt | head -n 1)"
+          if [[ -z "$APP_SIGNER" || -z "$TEST_SIGNER" || "$APP_SIGNER" != "$TEST_SIGNER" ]]; then
+            echo "STOP: app and instrumentation are not signed with identical certs" >&2
+            exit 1
+          fi
           sha256sum "$TEST_APK" | tee android/app/build/outputs/apk/androidTest/tabletTest/test-apk.sha256
           sha256sum "$APK" | tee android/app/build/outputs/apk/tabletTest/apk.sha256
           echo "VERIFIED: isolated Khata Test APK; original Play package unchanged"
