@@ -107,8 +107,8 @@ jobs:
           grep -i 'certificate SHA-256 digest' /tmp/khata-tablet-signer.txt || true
           echo "=== INSTRUMENTATION SIGNER (PUBLIC DIGEST ONLY) ==="
           grep -i 'certificate SHA-256 digest' /tmp/khata-tablet-test-signer.txt || true
-          APP_SIGNER="$(sed -n 's/^Signer #1 certificate SHA-256 digest: //p' /tmp/khata-tablet-signer.txt | head -n 1)"
-          TEST_SIGNER="$(sed -n 's/^Signer #1 certificate SHA-256 digest: //p' /tmp/khata-tablet-test-signer.txt | head -n 1)"
+          APP_SIGNER="$(sed -n 's/^.*certificate SHA-256 digest: //p' /tmp/khata-tablet-signer.txt | head -n 1)"
+          TEST_SIGNER="$(sed -n 's/^.*certificate SHA-256 digest: //p' /tmp/khata-tablet-test-signer.txt | head -n 1)"
           if [[ -z "$APP_SIGNER" || -z "$TEST_SIGNER" || "$APP_SIGNER" != "$TEST_SIGNER" ]]; then
             echo "STOP: app and instrumentation are not signed with identical certs" >&2
             exit 1
