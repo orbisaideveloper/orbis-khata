@@ -123,6 +123,8 @@ function RecordForm({ language, owner, company, onCreated, onCancel }: Readonly<
     const expensePreview = Boolean(company) && partyType === 'expense' && import.meta.env.VITE_KHATA_PREVIEW === 'true' && import.meta.env.VITE_KHATA_DEMO !== 'true';
     const [busy, setBusy] = useState(false);
     const [failed, setFailed] = useState(false);
+    // Isolated tablet QA only: expose allowlisted error codes, never raw provider messages.
+    const [testFailureCode, setTestFailureCode] = useState('');
     const guard = useRef(false);
     const pending = useRef<Record<string, string> | null>(null);
     async function save(e: React.SyntheticEvent<HTMLFormElement>) {
@@ -137,10 +139,17 @@ function RecordForm({ language, owner, company, onCreated, onCancel }: Readonly<
         guard.current = true;
         setBusy(true);
         setFailed(false);
+        setTestFailureCode('');
         try {
             onCreated(await api.createRecord(company ? 'khata_parties' : 'khata_companies', pending.current));
         }
-        catch {
+        catch (error) {
+            // Keep provider details, credentials, tokens, and arbitrary exceptions out of reports.
+            if (import.meta.env.VITE_KHATA_TABLET_DIAGNOSTICS === 'true') {
+                const code = error instanceof Error && /^[A-Z][A-Z0-9_]{3,80}$/u.test(error.message)
+                    ? error.message : 'UNCLASSIFIED_SAVE_ERROR';
+                setTestFailureCode(code);
+            }
             setFailed(true);
         }
         finally {
@@ -161,6 +170,8 @@ function RecordForm({ language, owner, company, onCreated, onCancel }: Readonly<
     {company && <label>{t.kind}<select name="kind" value={partyType} onChange={e => setPartyType(e.target.value)} disabled={busy || failed}><option value="customer">{t.customer}</option><option value="supplier">{t.supplier}</option><option value="both">{t.both}</option><option value="expense">{t.expense}</option></select></label>}
     {expensePreview && <output>{inLanguage(language, 'খরচের পার্টি এখন প্রিভিউতে আছে। আপডেট চালু হলে সংরক্ষণ করা যাবে।', 'खर्च पार्टी अभी प्रीव्यू में है। अपडेट के बाद सेव कर सकेंगे।', 'Expense contacts are in preview. Saving becomes available after the update.')}</output>}
     {failed && <output aria-live="polite">{t.pending}</output>}
+    {import.meta.env.VITE_KHATA_TABLET_DIAGNOSTICS === 'true' && testFailureCode &&
+      <output data-testid="khata-tablet-save-error" aria-label="Tablet test save error code">{testFailureCode}</output>}
     <div className="books-buttons">
       <button type="submit" className="books-primary" disabled={busy || expensePreview}>{recordBtnLabel}</button>
       {onCancel && !failed && <button type="button" onClick={onCancel} disabled={busy}>{t.cancel}</button>}
