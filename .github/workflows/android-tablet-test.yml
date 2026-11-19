@@ -54,11 +54,28 @@ jobs:
       - name: Run existing selftest
         run: python3 scripts/khata-selftest.py
       - name: Build web bundle for isolated tablet test
+        env:
+          VITE_KHATA_TABLET_DIAGNOSTICS: 'true'
         run: npm run build
       - name: Sync Capacitor Android project
         run: npm run android:sync
       - name: Assemble tablet-only APK and instrumentation
+        env:
+          KHATA_TABLET_STORE_B64: ${{ secrets.KHATA_TABLET_STORE_B64 }}
+          KHATA_TABLET_SIGN_PASSWORD: ${{ secrets.KHATA_TABLET_SIGN_PASSWORD }}
         run: |
+          set -euo pipefail
+          # Fail closed instead of silently rotating the test signing certificate.
+          test -n "$KHATA_TABLET_STORE_B64" && test -n "$KHATA_TABLET_SIGN_PASSWORD" || {
+            echo "STOP: configure stable tablet QA signing secrets first"
+            exit 1
+          }
+          KHATA_TABLET_STORE_FILE="$RUNNER_TEMP/orbis-tablet-qa.p12"
+          export KHATA_TABLET_STORE_FILE
+          trap 'rm -f "$KHATA_TABLET_STORE_FILE"' EXIT
+          printf '%s' "$KHATA_TABLET_STORE_B64" | base64 -d > "$KHATA_TABLET_STORE_FILE"
+          chmod 600 "$KHATA_TABLET_STORE_FILE"
+          test -s "$KHATA_TABLET_STORE_FILE"
           # CI-only fallback for public JUnit/Hamcrest dependencies: no production Gradle edits.
           cat > /tmp/khata-tablet-maven.init.gradle <<'GRADLE'
           allprojects {
@@ -111,6 +128,11 @@ jobs:
           TEST_SIGNER="$(sed -n 's/^.*certificate SHA-256 digest: //p' /tmp/khata-tablet-test-signer.txt | head -n 1)"
           if [[ -z "$APP_SIGNER" || -z "$TEST_SIGNER" || "$APP_SIGNER" != "$TEST_SIGNER" ]]; then
             echo "STOP: app and instrumentation are not signed with identical certs" >&2
+            exit 1
+          fi
+          # Fingerprint pinned to the dedicated persistent QA certificate only.
+          if [[ "$APP_SIGNER" != "f5ddd7ca1dcd3b92791dfd0b09dc8ca23017e2ccb733097e235f1f3d07fef662" ]]; then
+            echo "STOP: tablet signer rotated or missing; refusing another reinstall cycle" >&2
             exit 1
           fi
           sha256sum "$TEST_APK" | tee android/app/build/outputs/apk/androidTest/tabletTest/test-apk.sha256
