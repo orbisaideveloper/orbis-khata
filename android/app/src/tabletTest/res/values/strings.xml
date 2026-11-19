@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Khata Test</string>
+    <string name="title_activity_main">Khata Test</string>
+    <string name="package_name">com.orbisaideveloper.khata.tablettest</string>
+    <string name="custom_url_scheme">com.orbisaideveloper.khata.tablettest</string>
+</resources>
