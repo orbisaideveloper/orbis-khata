@@ -174,7 +174,7 @@ it('keeps posted accounting immutable when phone values differ',async()=>{
 it('rejects malformed and cross-scope bounded responses without clearing a local entry',async()=>{
  const f=await fixture();const request={organizationId:f.scope.organizationId,partyId:f.row.partyId,occurredAt:f.record.occurredAt};
  const good={organization:{id:f.scope.organizationId,userLedgerStorage:'CLOUD'},partyId:f.row.partyId,occurredAt:f.record.occurredAt,draftSales:[],sales:[]};
- for(const snapshot of [{...good,partyId:'foreign'},{...good,occurredAt:'2026-11-15'},{...good,organization:{...good.organization,userLedgerStorage:'DEVICE'}},{...good,draftSales:[{id:'invalid',partyId:f.row.partyId}]}]) {
+ for(const snapshot of [{...good,partyId:'foreign'},{...good,occurredAt:'2026-11-15'},{...good,organization:{...good.organization,userLedgerStorage:'DEVICE'}},{...good,draftSales:[{id:'invalid',partyId:f.row.partyId}]},{...good,draftSales:[null]}]) {
   vi.mocked(readOnlineSellerRecovery).mockResolvedValue({actor,version:1,snapshot});
   await expect(readSellerRecoveryWorkspace(actor,request)).rejects.toThrow(/RECOVERY_/);
  }

@@ -19,7 +19,7 @@ export function validateRecoverySnapshot(snapshot: SellerRecoverySnapshot, reque
 }
 
 function validateRecoverySale(sale: RecoverySale, partyId: string) {
-    if (!sale || sale.partyId !== partyId || typeof sale.id !== 'string' || typeof sale.reference !== 'string' ||
+    if (sale?.partyId !== partyId || typeof sale.id !== 'string' || typeof sale.reference !== 'string' ||
       !accountingBusinessDate(sale.occurredAt) || !Number.isSafeInteger(sale.syncVersion) || (sale.syncVersion ?? -1) < 0 ||
       ![sale.dispatchQuantity, sale.morningReturnQuantity, sale.dayReturnQuantity, sale.eveningReturnQuantity].every(n=>Number.isSafeInteger(n)&&n>=0) ||
       typeof sale.commissionPaise !== 'string' || !/^\d+$/u.test(sale.commissionPaise)) throw new Error('RECOVERY_RESPONSE_INVALID');

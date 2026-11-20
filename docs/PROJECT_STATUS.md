@@ -1,3 +1,11 @@
+# 2026-11-20 — Strict Quality follow-up: optional chaining
+
+- Base `bdc0bdf4`; Quality run `44756140598` failed only strict zero-open-Sonar-issues on `typescript:S6582`, recovery contract line22. CI 200 suites / 1233 tests, 60 Playwright checks, coverage90.3%, normal Sonar gate and Android candidate passed.
+- Scoped optional-chain rewrite plus null-sale regression; two suites / 21 tests, TypeScript, strict Deno, scoped lint and diff check PASS. No accounting/SQL/auth/gate changes, suppression, full local coverage or deployment. Existing Edge v29 remains functionally compatible.
+- Owner requested diagnosis/update after the red run. Corrective commit/push handover and actual SHA recorded in Drive; no post-push CI polling. [Evidence](LOTTERY_TYPES_20261120.md#quality-follow-up--20-november-2026-2026-ist).
+
+---
+
 # 2026-11-20 — Owner-approved scoped recovery release
 
 - Owner approved commit/push and matching Edge deployment. Selected-language popup verified in Bengali/Hindi/English; formerly English-only sync summaries and row states localized. Final related local checks: 13 suites / 107 tests, build/PWA, scoped UI lint and strict Deno PASS. Earlier financial safety checks remain in the task report.
