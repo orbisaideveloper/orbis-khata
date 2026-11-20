@@ -1,4 +1,4 @@
-import type { ExpenseSchedule } from "../../../../../src/expense-profiles/schedule";
+import type { ExpenseSchedule } from "../../../../../src/expense-profiles/schedule.ts";
 export type LotteryPartyType =
   "STOCKIST" | "SERVICE_STOCKIST" | "SELLER" | "CUSTOMER";
 

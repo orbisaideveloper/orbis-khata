@@ -77,8 +77,10 @@ const handler = createKhataGateway({ origins: (env('KHATA_ORIGINS') || 'https://
         const input = operation.input;
         const pagedRead=['report','inventory-report','expense-report'].includes(operation.operation);
         const reportRevision=pagedRead?(await tx`select public.khata_report_revision_v1(${String(input.company)}::uuid) as version`)[0].version:undefined;
+        // The gateway parses/validates JSON before execute. These JSONValue annotations
+        // preserve the existing postgres serializer, parameters and transaction behavior.
         if(operation.operation==='party-sharing') {
-            const rows=await tx`select orbis_khata.party_sharing_v1(${tx.json(input)}::jsonb) as data`;
+            const rows=await tx`select orbis_khata.party_sharing_v1(${tx.json(input as postgres.JSONValue)}::jsonb) as data`;
             const shared=rows[0].data;
             if(input.action!=='statement')return shared;
             return readSharedStatement(shared.state,shared.organization,shared.party,String(input.from),String(input.to),Number(input.offset));
@@ -89,7 +91,7 @@ const handler = createKhataGateway({ origins: (env('KHATA_ORIGINS') || 'https://
             const saved=loaded[0].data;
             if(saved.replay)return saved.state;
             const next=await runProfiles(saved.state as ProfileState,command,async payment=>{
-                const result=await tx`select public.khata_expense_post_v1(${tx.json(payment)}::jsonb) as data`;
+                const result=await tx`select public.khata_expense_post_v1(${tx.json(payment as postgres.JSONValue)}::jsonb) as data`;
                 return result[0].data;
             });
             if(command.action==='list')return next;
@@ -99,7 +101,7 @@ const handler = createKhataGateway({ origins: (env('KHATA_ORIGINS') || 'https://
         if(operation.operation==='lottery'){
             const request=input as LotteryInput;
             const load={action:'load',request,...(request.operationId?{operationId:request.operationId}:{})};
-            const rows=await tx `select public.khata_lottery_store_v2(${tx.json(load)}::jsonb) as data`;
+            const rows=await tx `select public.khata_lottery_store_v2(${tx.json(load as postgres.JSONValue)}::jsonb) as data`;
             const saved=rows[0].data;
             if(saved.replay)return saved.result;
             let calculated;
@@ -110,18 +112,18 @@ const handler = createKhataGateway({ origins: (env('KHATA_ORIGINS') || 'https://
             }
             if(!request.operationId&&calculated.changes.length===0)return calculated.result;
             const commit={action:'commit',version:saved.version,changes:calculated.changes,result:calculated.result,request,operationId:request.operationId??crypto.randomUUID()};
-            const result=await tx `select public.khata_lottery_store_v2(${tx.json(commit)}::jsonb) as data`;
+            const result=await tx `select public.khata_lottery_store_v2(${tx.json(commit as postgres.JSONValue)}::jsonb) as data`;
             return result[0].data;
         }
         if((operation.operation==='expense-post'&&input.kind==='reversal')||(operation.operation==='workspace'&&input.action==='correct'&&input.type==='expense')) {
             const exists=await tx`select to_regclass('public.khata_expense_profile_state') as name`;
             if(exists[0].name) {
-                const linked=await tx`select 1 from public.khata_expense_profile_state s cross join lateral jsonb_array_elements(s.state->'payments') payment where s.company_id=${input.company}::uuid and payment->>'id'=${String(input.parent??input.target)} limit 1`;
+                const linked=await tx`select 1 from public.khata_expense_profile_state s cross join lateral jsonb_array_elements(s.state->'payments') payment where s.company_id=${input.company as string}::uuid and payment->>'id'=${String(input.parent??input.target)} limit 1`;
                 if(linked.length)throw Object.assign(new Error('USE_PROFILE_PAYMENT_CANCEL'),{code:'P0001'});
             }
         }
         if (operation.operation === 'workspace') {
-            const result = await tx `select public.khata_workspace_v3(${tx.json(input)}::jsonb) as data`;
+            const result = await tx `select public.khata_workspace_v3(${tx.json(input as postgres.JSONValue)}::jsonb) as data`;
             return result[0].data;
         }
         if (operation.operation === 'retired-companies') {
@@ -173,7 +175,7 @@ const handler = createKhataGateway({ origins: (env('KHATA_ORIGINS') || 'https://
             if(identicalParty(parties.map(p=>({id:String(p.id),name:String(p.name),phone:String(p.phone)})),candidate))throw Object.assign(new Error('PARTY_ALREADY_EXISTS'),{code:'P0001'});
         }
         if (operation.operation === 'party-save' || operation.operation === 'item-save') {
-            const result = await tx `select public.khata_master_save_v2(${operation.operation === 'party-save' ? 'party' : 'item'},${tx.json(input)}::jsonb) as data`;
+            const result = await tx `select public.khata_master_save_v2(${operation.operation === 'party-save' ? 'party' : 'item'},${tx.json(input as postgres.JSONValue)}::jsonb) as data`;
             return result[0].data;
         }
         if (operation.operation === 'party-delete' || operation.operation === 'item-delete') {
@@ -185,11 +187,11 @@ const handler = createKhataGateway({ origins: (env('KHATA_ORIGINS') || 'https://
             return result[0].data;
         }
         if (operation.operation === 'expense-bill') {
-            const result = await tx `select public.khata_expense_bill_v2(${tx.json(input.command)}::jsonb,${tx.json(input.lines)}::jsonb) as data`;
+            const result = await tx `select public.khata_expense_bill_v2(${tx.json(input.command as postgres.JSONValue)}::jsonb,${tx.json(input.lines as postgres.JSONValue)}::jsonb) as data`;
             return result[0].data;
         }
         if (operation.operation === 'inventory-post') {
-            const result = await tx `select public.khata_inventory_post_v1(${tx.json(input)}::jsonb) as data`;
+            const result = await tx `select public.khata_inventory_post_v1(${tx.json(input as postgres.JSONValue)}::jsonb) as data`;
             return result[0].data;
         }
         if (operation.operation === 'inventory-report') {
@@ -197,7 +199,7 @@ const handler = createKhataGateway({ origins: (env('KHATA_ORIGINS') || 'https://
             return {...result[0].data,revision:reportRevision};
         }
         if (operation.operation === 'expense-post') {
-            const result = await tx `select public.khata_expense_post_v2(${tx.json(input)}::jsonb) as data`;
+            const result = await tx `select public.khata_expense_post_v2(${tx.json(input as postgres.JSONValue)}::jsonb) as data`;
             return result[0].data;
         }
         if (operation.operation === 'expense-report') {

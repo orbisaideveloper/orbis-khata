@@ -1,3 +1,13 @@
+# 20 November 2026 — Lottery Deno/Quality repair and ledger diagnostics
+
+- Task `LOTTERY-TYPES-20261120`, Setup 01. Base remote main `db664078`; [detailed evidence and 22 source-line provenance](LOTTERY_TYPES_20261120.md).
+- Reproduced 22 baseline Deno diagnostics; repaired extensionless type imports, explicit validated JSON/SQL boundary types and safe service invocation. Strict Deno now zero errors. Six emitted JavaScript modules including Edge index byte-identical after removing comments; financial formulas/SQL unchanged.
+- Quality #188 actually failed Knip unused export after 1186 tests passed; local Knip repaired. Pinned strict Edge check added to existing GitHub Quality workflow; no relaxed coverage/security gates.
+- Removed duplicate ledger day/count/Open day header rows. Existing dates, financial rows, summary balances and details remain. Brown indicator now exposes read-only owner/company local row party/date/state; actual owner's stuck row not yet identified, no deletion/forced green.
+- Targeted verification: 15 suites / 80 tests, strict Deno, TypeScript, build/PWA, Knip, scoped lint and workflow parsing PASS. Existing vendor warnings remain. No full local coverage/device/owner browser acceptance. Push/deploy status must be verified in Drive; no production data writes, DB migrations or Play release.
+
+---
+
 # 2026-11-20 — Setup 01 Lottery payment and Web-to-Android pull (IMPLEMENTED)
 
 - Task LOTTERY-PULL-20261120. Base main 7d55665. The existing company export

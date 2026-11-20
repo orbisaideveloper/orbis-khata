@@ -51,7 +51,9 @@ export async function runLottery(
       )
         throw new Error("INVALID_BANK_CHANNEL");
     }
-    const result = await service[input.method](input.payload, owner);
+    // lotteryInput allow-lists method names; retain the original receiver and both
+    // arguments (the copied JavaScript service also accepts caller context).
+    const result = await Reflect.apply(service[input.method as keyof typeof service], service, [input.payload, owner]);
     if (input.method === "recordPayment" && input.payload.bankChannel) {
       await store.client.foundationLotteryPayment.update({
         where: { id: result.payment.id },

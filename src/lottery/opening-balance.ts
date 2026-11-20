@@ -1,4 +1,4 @@
-import type { LotteryParty } from "../../vendor/foundation-lottery/src/admin/models/lotteryAccountingTypes";
+import type { LotteryParty } from "../../vendor/foundation-lottery/src/admin/models/lotteryAccountingTypes.ts";
 /** Positive means due in the party's normal direction; negative means advance. */
 export function lotteryOpening(
   party: Pick<LotteryParty, "openingBalancePaise" | "openingBalanceDate"> | undefined,

@@ -15,7 +15,7 @@ function stable(value: unknown): string {
   return JSON.stringify(value) ?? 'null'
 }
 
-export function lotteryStateText(value: unknown): string {
+function lotteryStateText(value: unknown): string {
   if (!object(value)) throw new Error('LOTTERY_EXPORT_INVALID')
   const normalized: Record<string, unknown> = {}
   for (const [model, rows] of Object.entries(value)) {

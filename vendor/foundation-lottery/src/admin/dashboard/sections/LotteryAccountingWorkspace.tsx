@@ -1,3 +1,4 @@
+import {LotterySyncDetails} from "../../../../../../src/lottery/LotterySyncDetails";
 import {useMasterPartyLink} from '../../../../../../src/customer-view/useMasterPartyLink';
 import {MasterPartyLink} from '../../../../../../src/customer-view/MasterPartyLink';
 import {projectedLotteryExpenseBills} from "../../models/lotteryAccountingExpenseBalance";
@@ -949,7 +950,7 @@ export function LotteryAccountingWorkspace({
               </option>
             ))}
           </select>
-          <span className="lottery-sync-dot" aria-label="Accounting local sync status" data-sync={localSyncLabel==='Synced'?'ok':'pending'} title={localSyncLabel}><span aria-hidden="true">●</span><span className="lottery-sr-only">{localSyncLabel}</span></span>
+          <LotterySyncDetails key={navigationScope} label={localSyncLabel} records={sellerWorkingRecords} workspace={workspace} warning={localStoreWarning}/>
           <button
             type="button"
             aria-label="Refresh accounting workspace"
@@ -2472,48 +2473,10 @@ function groupLedgerRowsByDate<T>(
   return groups;
 }
 
-function LedgerDateGroupHeaderRow({
-  date,
-  rowCount,
-  colSpan,
-  onOpenDate,
-}: Readonly<{
-  date: string;
-  rowCount: number;
-  colSpan: number;
-  onOpenDate?: (date: string) => void;
-}>) {
-  return (
-    <tr
-      data-testid="ledger-date-group"
-      className="border-t border-emerald-100 bg-emerald-50/75"
-    >
-      <td colSpan={colSpan} className="p-0">
-        {onOpenDate ? (
-          <button
-            type="button"
-            aria-label={`Open ledger day ${displayDate(date)}`}
-            onClick={() => onOpenDate(date)}
-            className="flex min-h-11 w-full items-center justify-between gap-2 px-2 py-2 text-left text-[8px] font-black uppercase tracking-[0.08em] text-emerald-800"
-          >
-            <span>{displayDate(date)} · {rowCount} entries</span>
-            <span className="text-[7px]">Open day ›</span>
-          </button>
-        ) : (
-          <div className="px-2 py-2 text-[8px] font-black uppercase tracking-[0.08em] text-emerald-800">
-            {displayDate(date)} · {rowCount} entries
-          </div>
-        )}
-      </td>
-    </tr>
-  );
-}
-
 function LedgerDateGroupedBody<T>({
   groups,
   colSpan,
   renderRows,
-  onOpenDate,
 }: Readonly<{
   groups: LedgerDateGroup<T>[];
   colSpan: number;
@@ -2525,12 +2488,6 @@ function LedgerDateGroupedBody<T>({
       {groups.length ? (
         groups.map((group) => (
           <React.Fragment key={group.date}>
-            <LedgerDateGroupHeaderRow
-              date={group.date}
-              rowCount={group.rows.length}
-              colSpan={colSpan}
-              onOpenDate={onOpenDate}
-            />
             {renderRows(group)}
           </React.Fragment>
         ))
