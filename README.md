@@ -28,6 +28,14 @@ Orbis Khata Boi is customer-facing as an independent app, but owner-facing as on
 - Orbis Khata Boi — simple business khata and accounting.
 - Orbis Foundation, Orbis Game and future products — independent applications with explicit integration contracts.
 
+
+## Documentation — start here
+
+- [Documentation index](docs/INDEX.md): **current vs historical** rules, domain guides, SQL/Edge/Android/CI and latest evidence.
+- [Cloud Development (ORBIS WORK Setup 01)](docs/DEVELOPMENT_WORKFLOW.md): targeted local verification, explicit owner push approval and immediate handover.
+- [Work report template](docs/WORK_REPORT_TEMPLATE.md): where to record changes, tests, exact SHA and Google Drive evidence.
+- **Do not confuse** GitHub Actions full quality, phone Termux development (Setup 02), and separate Android test-tablet real-user automation (Setup 03).
+
 ## License
 
 No open-source license has been granted. All rights are reserved until the owner chooses a license.

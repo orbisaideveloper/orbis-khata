@@ -1,110 +1,61 @@
-# Development and Release Workflow
+# Development Workflow — ORBIS WORK Setup 01 (Cloud)
+**Status: ACTIVE** · Updated 2026-11-19 IST · Applies to cloud/local GitHub development only.
 
-## 1. Default lifecycle
+> [Documentation Index](INDEX.md) · [Mandatory Repo Safety](../AGENTS.md) · [ORBIS WORK Setup 01 SOP (complete authoritative procedure)](https://docs.google.com/document/d/1cthC7dM6Ieg7GD1Kx4UpmKJe1_-nKLnRVT4ZdBTJygw/edit) · [Report Template](WORK_REPORT_TEMPLATE.md)
 
-1. Discuss and approve scope.
-2. Inspect current source before planning edits.
-3. Work on local `main` under the owner-approved main-only workflow.
-4. Implement a small coherent slice.
-5. Run changed-area targeted checks.
-6. Save a recoverable checkpoint and update project status.
-7. When the whole requested work is declared finished, run final certification.
-8. Present the exact staged diff, evidence, risks and deployment impact to the owner.
-9. After explicit owner authorization, push the locally verified main commit without a pull request.
-10. Run GitHub Actions and SonarCloud Free main-branch analysis; repair any failure with a reviewed new commit before release.
-11. Deploy from protected main only through an separately approved release action.
-12. Verify migrations/schema and perform production smoke testing.
+## 1. Select the correct execution setup
 
-## 2. Branch and main-update policy
+**Setup 01 — Cloud Development:** Chat Mode or Work Mode with actual cloud-local repo/runtime tools. **Setup 02 — Termux Development:** owner's phone, separate scripts/guarded commands. **Setup 03 — Android Real Automation:** separate test tablet and installed Android app. Do not mix paths, commands, credentials, authority or evidence among setups. Changing Chat/Work mode alone changes neither the setup nor permissions.
 
-- `main` is owner-controlled; remote verification happens after main push, so a failure means main needs a corrective commit.
-- Do not create feature branches by default under the current owner-approved Free plan.
-- Do not push incomplete or unverified changes to `main`; local changes may exist during development.
-- Do not open a PR, trigger PR Preview or create/use staging in the default workflow.
-- Keep main commits focused, reviewable and recoverable; preserve failed CI evidence.
-- Before main push, report scope, exact changed files, tests, migrations, security/tenant impact, visual evidence when useful, known gaps and rollout/rollback notes.
-- The owner authorizes and executes each main push from Termux; CI/Sonar follow the push. Never force push or erase failing history.
-- A PR or staging workflow is allowed only if the owner explicitly requests it for that change.
-- No AI-initiated deployment or production action.
+## 2. One coherent task, root cause first
 
-## 3. Development verification
+1. Read active SOP, current `docs/INDEX.md`, `AGENTS.md`, relevant decisions/current status/Drive handover; verify branch, exact HEAD, origin and existing local changes.
+2. Prepare the complete relevant repository in the cloud-local workspace if supported; do not bypass a missing local runtime with speculative GitHub web edits. Preserve user files.
+3. Before edits, assess affected files, API/Edge/SQL/native/auth/accounting/sync contracts, likely benefits, conflicts/regressions, rollback and expected GitHub Action path triggers.
+4. Reproduce and diagnose the root cause where feasible; distinguish **VERIFIED** from **HYPOTHESIS**. Make one scoped solution locally and review its actual diff.
+5. Run changed-area and risk-required critical tests: accounting invariants, tenant/RLS, migrations on disposable DB, Edge API contracts, affected Playwright/API E2E, sync/backup/native behavior as relevant.
+6. **Never run full repository coverage or the full `khata verify` certification in Setup 01.** Full coverage/general CI/Sonar is GitHub Actions' job. Do not weaken, skip or misrepresent CI gates to get a pass.
+7. If a high-risk test is impossible locally, report **BLOCKED / NOT TESTED**, exact risk and best next action; don't claim green or repeat the same unproductive attempt.
 
-Run only what is relevant to changed code during normal development. Examples after the stack exists:
+## 3. Approval, GitHub and external environments
 
-- unit/component tests for changed accounting/domain/UI areas;
-- targeted typecheck/lint where supported;
-- schema or tenant-policy checks for changed database areas;
-- focused Playwright flows for changed user journeys.
+Present pre-push report with scope, exact diff/files, baseline SHA, risks, migration/Edge impact, local tests and limitations. **Only after explicit owner permission**, push exactly reviewed changes from local source. Never force-push to solve a mismatch. Docs-only temporary direct GitHub write exceptions must be separately explicitly authorized and must not become the default setup.
 
-Do not run unrelated whole-repository quality suites after every small edit.
+After authorized push: verify actual resulting commit SHA/remote state; immediately save Google Drive handover; **STOP**. Do not wait/poll for GitHub Actions, Sonar or Android runs, do not start a corrective push; owner will report results and choose follow-up.
 
-## 4. Final certification
+Git push approval does **not** authorize Render/Edge deployment, database migration/production write, merge, release, Play publishing or tablet user automation. Each needs distinct authorization.
 
-Run only when the owner says the work is finished and ready for `main`. The single `khata verify` order is:
+## 4. Verification and migration/Edge gates
 
-1. Ubuntu preflight/runtime.
-2. KNIP.
-3. JSCPD.
-4. Playwright.
-5. Remaining Termux-compatible gates.
-6. Final consolidated summary.
+| Change | Cloud-local pre-push checks | After push |
+| --- | --- | --- |
+| UI/navigation | Changed component tests, focused browser smoke | GitHub full quality/coverage |
+| Accounting/payments/stock/lottery | Exact amount, balance, correction, idempotency, tenant and critical regression | Full SQL/coverage/Sonar |
+| SQL migrations | Disposable PostgreSQL migration order/dependencies, constraints/RLS, data compatibility, safe rollback plan | Full SQL/concurrency CI; separately approved deployment |
+| Supabase Edge | Local runtime/static validation, auth/tenant/response/errors, SQL contract and retry behavior | Full CI; separately approved Edge deployment |
+| Sync, backup, encryption | Conflict/retry/duplicate-free, integrity/restore tests as relevant | Full quality + triggered Android CI |
+| Android source/build | Targeted build/native checks where actual runtime supports it | Android candidate; separate Setup 03 acceptance only when directed |
+| Workflow config | Local YAML/bash/toolchain/preflight and trigger impact | Appropriate GitHub Actions |
 
-No later passing check erases an earlier failure. The final result is green only if required gates are green or an explicitly approved, evidence-backed exception exists.
+Never pass actual production DB credentials to disposable tests; mocked browser E2E is not genuine installed-device acceptance. Record Git commit, migration version, deployed Edge version and APK/Play version separately.
 
-## 5. Mobile and runtime constraints
+## 5. Documentation update contract
 
-The owner works primarily on Android Termux with Ubuntu through proot-distro.
+Keep stable, code-versioned instructions in GitHub, and detailed dated task/verification evidence in Google Drive. When relevant, update **with the same scoped local code change**:
+- `docs/INDEX.md` for navigation; `README.md` for overview.
+- `AGENTS.md` and this workflow for developer-policy changes.
+- `docs/DECISIONS.md` for durable/superseding decisions (append, don't rewrite history).
+- `docs/PROJECT_STATUS.md` for latest concise checkpoint (older giant log stays intact).
+- Affected existing domain/release docs (e.g. accounting, migration, Android), not all docs reflexively.
+- `ORBIS WORK / 01 CLOUD DEVELOPMENT / <project> / <YYYY-MM> / <YYYY-MM-DD> / <task>` for report/evidence (or existing project-specific archive linked from it).
 
-- Keep commands concise and mobile copy-paste friendly.
-- Provide one complete command block rather than fragmented commands when the user must execute a workflow.
-- Keep long runs interruptible and produce timestamped reports in Downloads.
-- Provide progress updates during long work.
-- Do not run unsupported Prisma engines on Android ARM64.
-- Use Ubuntu/Linux/CI for Prisma, KNIP, JSCPD or other platform-sensitive authoritative gates.
-- Treat confirmed platform incompatibility separately from a code defect.
+The [report template](WORK_REPORT_TEMPLATE.md) defines goal, reason, source SHA, impact, root cause, exact files, targeted checks, approval, push SHA, GitHub CI pending, and next action. Redact secrets, customer data and irrelevant logs. Update status **PASS/FAIL/BLOCKED/NOT TESTED**, never infer outcomes.
 
-## 6. Cloud validation policy
+## 6. History, safeguards and scope
 
-PR Preview and staging are not default gates and must not be created automatically. When a change involves cloud-only risk—such as authentication, database migrations, tenant policies, API integrations, sync, backup or infrastructure—document that risk before the final main update.
+Older workflow instructions in historical logs refer to Termux owner-push and full local certification. For **Setup 01 only**, the later approved ORBIS WORK policy supersedes those particular procedures. This does NOT rewrite Setup 02 Termux certification rules or Setup 03 test-tablet instructions.
+Default Khata path is owner-controlled main only; no PR/staging/release by default. Source and observed evidence take precedence over undated claims. Preserve historic decisions and all SQL/test paths.
 
-Use Ubuntu/Linux local verification, then perform GitHub Actions and SonarCloud Free analysis after the owner-authorized main push. Create a dedicated preview or staging environment only when the owner explicitly requests it.
+**Stop conditions:** unexpected local changes or HEAD movement, unresolved high-risk test, data/tenant risk, migration/deploy authorization missing, ambiguous owner permission, or tooling without an actual local runtime. Explain exact blockers and hand over; no circular retries.
 
-## 7. Production validation
-
-Staging success does not prove production success. For relevant releases verify:
-
-- deployed commit/version;
-- migration and schema version;
-- environment configuration presence without exposing values;
-- login/session;
-- critical database read/write in an approved test tenant;
-- one core accounting flow;
-- sync/backup health when affected;
-- logs/health signals;
-- rollback readiness.
-
-Perform a focused 5–10 minute smoke test after deployment.
-
-## 8. Checkpoint and interruption safety
-
-Every substantial session leaves `docs/PROJECT_STATUS.md` accurate. Checkpoints include:
-
-- branch and commit;
-- completed items;
-- exact file set;
-- verification evidence;
-- blockers/unverified items;
-- next exact action;
-- external environments changed or untouched.
-
-If work approaches two hours, a usage limit or a risky transition, checkpoint before continuing. Temporary chat context is never the only record of completed work.
-
-## 9. Reporting
-
-Reports are created after verification, not as a substitute for verification. When the repository has implementation work, maintain appropriately scoped implementation, release and audit reports. Completion percentages are allowed only when derived from a named, counted checklist.
-
-## 10. Work Mode vs Chat Mode
-
-- Chat Mode: explanations, design discussion, clarifications and short copyable guidance.
-- Work Mode: repository reads/writes, multi-file changes, GitHub operations, tests, audits and live environment checks.
-- Choose the lightest mode that can produce reliable evidence.
+**Owner start instruction:** “ORBIS WORK — Setup 01 — Project: ORBIS Khata — Task: [goal]. Read current master SOP, repository docs/index and Drive handover; inspect whole change impact, work locally, run targeted+critical tests; send pre-push review; require approval; after push immediately save handover and stop.”
