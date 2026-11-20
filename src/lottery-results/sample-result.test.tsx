@@ -5,10 +5,7 @@ import { parseFeed } from './result-feed'
 const sampleResult = (date: string, slot: string) => parseFeed({ schema: 1, results: [sample] }, '2026-11-20').find(row => row.date === date && row.slot === slot) ?? null
 import { LotteryResults } from './LotteryResults'
 
-vi.mock('./useResultFeed', async () => {
-  const { default: result } = await import('./sample-2026-11-20.json')
-  return { useResultFeed: () => ({ results: [result], status: 'ready' }) }
-})
+vi.mock('./useResultFeed', () => import('./result-feed.fixture'))
 
 afterEach(cleanup)
 

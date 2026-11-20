@@ -5,10 +5,7 @@ import { indiaDate } from './result-data'
 import { resolveKhataView } from '../navigation-policy'
 import { readLocation, saveLocation } from '../workspace-location'
 
-vi.mock('./useResultFeed', async () => {
-  const { default: result } = await import('./sample-2026-11-20.json')
-  return { useResultFeed: () => ({ results: [result], status: 'ready' }) }
-})
+vi.mock('./useResultFeed', () => import('./result-feed.fixture'))
 
 afterEach(cleanup)
 

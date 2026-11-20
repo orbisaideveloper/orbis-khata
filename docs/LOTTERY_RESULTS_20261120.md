@@ -68,3 +68,9 @@ Push handover correction: automatic approval review rejected uploading the large
 Owner reported red on source50ae647. Quality run44791363105 / job136479571921 passed204suites /1250tests plus PDF safety/database gates, then failed Knip on one unused export: feedUrl in src/lottery-results/result-feed.ts:6. Chromium and Sonar steps were skipped because of this earlier failure. Android candidate44791363129 passed. Root cause is the unnecessary public export, not result parsing, data integrity or an accounting failure. Scope: remove `export` from that module-internal URL constant; no URL/behavior/gate changes or ignore/suppression added.
 
 Local Knip PASS (two pre-existing configuration hints only), two related suites/six tests PASS, TypeScript/scoped Oxlint/diff PASS. No local coverage. Owner authorized corrective commit/push; actual remote SHA and immediate handover recorded in START HERE after push. No post-push CI polling or deployment. Previous OCR review limitation remains unchanged.
+
+## Duplicate-test-setup follow-up — 21 November 2026 IST
+
+Owner requested another red-run diagnosis/correction. Run44792985318/job136485199707 on9ca2fdd passed Knip, then JSCPD rejected one50-token/six-line duplicate between LotteryResults.test.tsx and sample-result.test.tsx (same mock factory). This is a different subsequent gate; the earlier unused-export issue is resolved. Chromium/Sonar were still skipped after the early failure. Shared deterministic result-feed.fixture.ts replaces both copied mock factories; test assertions and all gate thresholds/ignores remain unchanged. No production logic/accounting/feed/source changes.
+
+Local JSCPD:zero clones PASS; Knip PASS; four result suites/17tests PASS; TypeScript,scoped Oxlint/SonarJS,diff PASS. No local coverage or full certification. Owner authorized corrective push; actual remote SHA recorded in START HERE. No post-push CI polling/deployment, and no historical PROJECT_STATUS payload upload.
