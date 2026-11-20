@@ -7,13 +7,13 @@ const pending = new Map<string, Promise<{ changed: boolean }>>()
 async function checkWorkingRows(actor: string, organizations: string[]) {
   const store = getLotteryAccountingLocalStore()
   if (!store) throw new Error('LOTTERY_SYNC_WORKING_STORAGE_UNAVAILABLE')
-  for (const organization of organizations) {
+  await Promise.all(organizations.map(async organization => {
     const scope = { ownerKind: 'PUBLIC_USER' as const, ownerId: actor, organizationId: organization }
     const [rows, outbox] = await Promise.all([store.listSellerRows(scope), store.listPendingOutbox(scope)])
     if (outbox.length || rows.some(row => row.syncState !== 'SYNCED')) {
       throw new Error('LOTTERY_SYNC_PENDING_ROWS')
     }
-  }
+  }))
 }
 
 export function syncWebLottery(actor: string) {

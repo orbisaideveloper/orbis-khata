@@ -29,3 +29,31 @@ it('blocks both local device drafts and pending outbox before the financial impo
   await expect(syncWebLottery('owner')).rejects.toThrow('LOTTERY_SYNC_PENDING_ROWS')
   expect(fake.save).not.toHaveBeenCalled()
 })
+
+it('starts independent company reads together but never imports before every partition is checked', async () => {
+  fake.state.mockResolvedValue({ organizations: ['local-only'], linked: true })
+  let release: (rows: unknown[]) => void = () => undefined
+  fake.rows.mockImplementation((scope: { organizationId: string }) => scope.organizationId === 'local-only'
+    ? new Promise(resolve => { release = resolve })
+    : Promise.resolve([]))
+  const sync = syncWebLottery('owner')
+  await vi.waitFor(() => expect(fake.rows).toHaveBeenCalledTimes(2))
+  expect(fake.rows.mock.calls.map(([scope]) => scope)).toEqual([
+    { ownerKind: 'PUBLIC_USER', ownerId: 'owner', organizationId: 'local-only' },
+    { ownerKind: 'PUBLIC_USER', ownerId: 'owner', organizationId: 'org' },
+  ])
+  expect(fake.save).not.toHaveBeenCalled()
+  release([])
+  await sync
+  expect(fake.save).toHaveBeenCalledOnce()
+})
+
+it('fails closed when a second company has an unsynced write or storage read fails', async () => {
+  fake.state.mockResolvedValue({ organizations: ['local-only'], linked: true })
+  fake.outbox.mockImplementation((scope: { organizationId: string }) => Promise.resolve(scope.organizationId === 'org' ? [{ id: 'pending' }] : []))
+  await expect(syncWebLottery('owner')).rejects.toThrow('LOTTERY_SYNC_PENDING_ROWS')
+  fake.outbox.mockResolvedValue([])
+  fake.rows.mockRejectedValueOnce(new Error('storage unavailable'))
+  await expect(syncWebLottery('owner')).rejects.toThrow('storage unavailable')
+  expect(fake.save).not.toHaveBeenCalled()
+})

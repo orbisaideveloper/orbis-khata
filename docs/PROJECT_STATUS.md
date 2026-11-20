@@ -1,3 +1,12 @@
+# 20 November 2026 — Root-cause Sonar follow-up
+
+- `LOTTERY-SONAR-20261120`, Setup 01; base remote `bfba9e78`. [Detailed reproduction](LOTTERY_TYPES_20261120.md#follow-up--lottery-sonar-20261120-20-november-2026-ist).
+- Quality run 44691915022 passed 1189 unit tests / 60 mobile-desktop Chromium tests, Deno/Knip/build/SQL, then failed exactly two Sonar rules: S2871 missing sort comparator, S9382 await in loop. Previous run stopped earlier at Knip; this is a downstream finding, not a known financial data error.
+- Fix preserves old byte-stable sync digest and actor/company isolation, parallelizes independent read-only local checks and still blocks import on any pending write/storage error. No financial record deletion, schema/data mutation or force sync.
+- Type-aware targeted Sonar rule check reproduced BOTH findings on old source and ZERO on revised source. Five related suites /29 tests, typecheck, scoped lint, Knip and diff check PASS. No full local coverage/certification; hosted Sonar/new CI unverified after push. No deployment/Play release in this follow-up.
+
+---
+
 # 20 November 2026 — Lottery Deno/Quality repair and ledger diagnostics
 
 - Task `LOTTERY-TYPES-20261120`, Setup 01. Base remote main `db664078`; [detailed evidence and 22 source-line provenance](LOTTERY_TYPES_20261120.md).

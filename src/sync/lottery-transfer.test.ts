@@ -74,3 +74,30 @@ it('establishes a baseline for identical legacy data while retaining local recei
   expect(matched.snapshot.workspaceEvents['android-lottery:receipt:old']).toEqual(current.workspaceEvents['android-lottery:receipt:old'])
   expect(matched.snapshot.workspaceEvents['web-lottery-sync:baseline']).toBeDefined()
 })
+
+it('retains the exact legacy UTF-16 digest despite changed key/row insertion order', async () => {
+  const state = await firstState()
+  const org = state.foundationAccountingOrganization[0]
+  // Mixed-case/non-ASCII keys distinguish byte-stable order from locale collation.
+  Object.assign(org, { Z: 'last in locale', a: 'first in locale', 'é': 'accent', '😀': 'supplementary' })
+  const legacyText = (value: unknown): string => {
+    if (Array.isArray(value)) return '[' + value.map(legacyText).join(',') + ']'
+    if (value && typeof value === 'object') {
+      const object = value as Record<string, unknown>
+      return '{' + Object.keys(object).sort((a, b) => Number(a > b) - Number(a < b)).map(key => JSON.stringify(key) + ':' + legacyText(object[key])).join(',') + '}'
+    }
+    return JSON.stringify(value) ?? 'null'
+  }
+  const normalized = Object.fromEntries(Object.entries(state).filter(([, rows]) => Array.isArray(rows) && rows.length))
+  const digest = Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(legacyText(normalized)))), byte => byte.toString(16).padStart(2, '0')).join('')
+  const current = emptyDeviceLocalSnapshot()
+  current.workspaceEvents[lotteryStateKey] = { payload: '', result: state }
+  current.workspaceEvents['web-lottery-sync:baseline'] = { payload: '', result: { digest, syncedAt: 'legacy' } }
+  const changed = structuredClone(state)
+  changed.foundationAccountingOrganization[0] = Object.fromEntries(Object.entries(org).reverse())
+  changed.foundationAccountingOrganization[0].name = 'Updated safely'
+  const imported = await stageLotteryPull(current, actor, payload(changed))
+  expect(imported.changed).toBe(true)
+  expect(imported.snapshot.workspaceEvents[lotteryStateKey].result).toEqual(changed)
+  expect((await stageLotteryPull(imported.snapshot, actor, payload(changed))).changed).toBe(false)
+})

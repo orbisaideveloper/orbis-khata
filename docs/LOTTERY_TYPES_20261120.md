@@ -63,3 +63,31 @@ Verified source uses local owner/company-scoped IndexedDB seller rows: ERROR, SY
 ## Handover
 
 Owner's standing push authorization applies after relevant checks. No further financial deletion is authorized; owner explicitly wants a report first. Matching live Edge v28 remains deployed; type-only Edge source produces identical JavaScript, so this task does not deploy or change database state. New frontend diagnostic requires updated web deployment/build to use. Signed AAB/Play release not initiated. Push SHA/status recorded in Drive after actual push; do not assume CI green.
+
+
+## Follow-up — LOTTERY-SONAR-20261120 (20 November 2026 IST)
+
+Source: main `bfba9e786279148bd94c208014de10bc18299d4b`, equivalent reviewed local `38e8315ba8aefc75d483843a69d7290442206b4e`; clean worktree before this follow-up. Owner reported new red run and explicitly requested root cause first, then fix. No production/customer writes or deployment in this follow-up.
+
+### Exact failure and chronology
+
+Quality run [44691915022](https://github.com/orbisaideveloper/orbis-khata/actions/runs/44691915022), job 136139457821, failed at Sonar analysis/strict metrics, not Deno/Knip. 197 suites / 1189 unit tests PASS, 60 Chromium mobile/desktop tests PASS; Deno/typecheck/lint/SQL/concurrency/Knip/JSCPD/build steps completed before Sonar. Sonar coverage 90.3%, duplication 0%, security hotspots reviewed 100%, security rating A and maintainability A. New reliability rating D and exactly two open issues caused failure:
+
+- `typescript:S2871`, `src/sync/lottery-transfer.ts:14`: default Object.keys(...).sort() comparator missing. Issue key AaH3ypM7IgZiFB_Gef4s, CRITICAL.
+- `typescript:S9382`, `src/native-local/lottery-sync.ts:12`: await inside organization loop. Issue key AaH3ypOnIgZiFB_Gef4t, MINOR.
+
+Previous run stopped at Knip before Sonar could execute; fixing Knip exposed this downstream gate. These are different gate findings in the same initial Lottery pull implementation, not evidence that live financial records changed or a database conflict occurred.
+
+### Minimal fix and compatibility
+
+Explicit ordinal string comparator preserves exact previous UTF-16 key order; localeCompare is intentionally not used for persistent hashes, because locale collation could invalidate existing baselines. Independently scoped local IndexedDB reads now use Promise.all across company scopes, still awaiting all successful checks before syncNativeLottery. Any pending row/outbox or storage read error rejects without calling financial save. Reads do not mutate customer data. No hash algorithm/baseline schema, account scope, accounting formula, migration or force-overwrite change. Four source/test files plus this report and project checkpoint only. GitHub src paths trigger existing Quality and Android candidate.
+
+### Reproduction and local evidence
+
+Installed eslint-plugin-sonarjs 4.2.2, ESLint 9.39.1 and @typescript-eslint/parser 8.48.1 in a disposable directory outside the app repository, with scripts disabled; no app lockfile/dependency changes. Plugin README maps S9382 to core no-await-in-loop. Executed type-aware sonarjs/no-alphabetical-sort (S2871) and no-await-in-loop on EXACT old HEAD text vs working source: old transfer produces exactly S2871, old pull exactly S9382; revised sources produce zero findings for both rules. This is targeted rule reproduction, not a full hosted Sonar analysis; the hosted gate remains pending new CI.
+
+Local: five relevant suites / 29 tests PASS (transfer/native persistence, local partition checks, diagnostic UI, ledger layout). Added tests for concurrent read barrier, second-company pending data/storage failure and preexisting Unicode/case-sensitive baseline digest compatibility. Typecheck, scoped Oxlint, Knip and diff check PASS; only existing Knip config hints. No local coverage/full certification. Production build/full browser/hosted Sonar/Android remain CI; prior run successes are not claimed as new-commit acceptance.
+
+### Diagnostic location and limitations
+
+Lottery company selector → round sync dot immediately LEFT of refresh. Click opens local party, accounting entry date and sync state, NOT sign-in date. It only exists in the updated frontend; source push alone does not deploy Render. Exact owner-phone pending row still NOT VERIFIED because its IndexedDB is on that browser/device. No row deleted/reset or manually marked synced. No unrelated navigation or accounting UI change in this follow-up.

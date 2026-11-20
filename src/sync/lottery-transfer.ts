@@ -9,9 +9,11 @@ function object(value: unknown): value is Record<string, unknown> {
   return Boolean(value && typeof value === 'object' && !Array.isArray(value))
 }
 
+// Preserve the original UTF-16 key order: locale-dependent ordering would
+// invalidate already stored baseline digests on some devices.
 function stable(value: unknown): string {
   if (Array.isArray(value)) return '[' + value.map(stable).join(',') + ']'
-  if (object(value)) return '{' + Object.keys(value).sort().map(key => JSON.stringify(key) + ':' + stable(value[key])).join(',') + '}'
+  if (object(value)) return '{' + Object.keys(value).sort((left, right) => Number(left > right) - Number(left < right)).map(key => JSON.stringify(key) + ':' + stable(value[key])).join(',') + '}'
   return JSON.stringify(value) ?? 'null'
 }
 
