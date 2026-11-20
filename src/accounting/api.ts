@@ -94,6 +94,10 @@ export async function requestOnlineCustomerView<T>(actor: string, command: Share
     return (await accountGateway(actor))<T>('party-sharing', command);
 }
 
+export async function readOnlineSellerRecovery(actor: string, input: { organizationId: string; partyId: string; occurredAt: string; saleId?: string }): Promise<unknown> {
+    return (await accountGateway(actor))('lottery-seller-recovery', input);
+}
+
 export async function readOnlineLotteryExport(actor: string): Promise<unknown> {
     return (await accountGateway(actor))('lottery-export', {});
 }

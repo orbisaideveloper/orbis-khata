@@ -956,7 +956,7 @@ export function LotteryAccountingWorkspace({
             ))}
           </select>
           <LotterySyncDetails key={navigationScope} label={localSyncLabel} records={sellerWorkingRecords} workspace={workspace} warning={localStoreWarning}
-            onRecover={localScope.ownerKind === "PUBLIC_USER" && workspace?.organization.userLedgerStorage === "CLOUD" && localStore?.resolveSellerRecovery ? async (record, mode) => {
+            onRecover={localScope.ownerKind === "PUBLIC_USER" && workspace?.organization.userLedgerStorage === "CLOUD" && localStore?.resolveSellerRecovery ? async (record, mode, reviewed) => {
               if (recoveringRef.current) throw new Error("RECOVERY_BUSY");
               recoveringRef.current = true;
               try {
@@ -968,16 +968,17 @@ export function LotteryAccountingWorkspace({
               const fallback = sellerRecoveryFallbackToken(organizationId, record.partyId, record.occurredAt);
               const result = await trackSellerPersistence(() => recoverSellerEntry({
                 scope: { ...localScope, organizationId }, store, api,
-                read: () => readSellerRecoveryWorkspace(localScope.ownerId, organizationId),
+                read: () => readSellerRecoveryWorkspace(localScope.ownerId, {organizationId, partyId: record.partyId, occurredAt: record.occurredAt, ...(record.row.saleId ? {saleId: record.row.saleId} : {})}),
                 active: () => recoveryScopeRef.current === expectedScope,
                 beforeResolve: () => resolveSellerRecoveryFallback(organizationId, record.partyId, record.occurredAt, fallback),
-              }, record, mode));
+              }, record, mode, reviewed));
               if (recoveryScopeRef.current !== expectedScope) throw new Error("RECOVERY_SCOPE_INVALID");
-              setRecoveryEpoch(value => value + 1);
-              await refreshWorkspace();
+              removeSellerWorkingRecord(record.partyId, record.occurredAt);
+              if (await refreshWorkspace()) setRecoveryEpoch(value => value + 1);
               return result;
               } finally { recoveringRef.current = false; }
             } : undefined}
+            onInspect={record => readSellerRecoveryWorkspace(localScope.ownerId, {organizationId, partyId: record.partyId, occurredAt: record.occurredAt, ...(record.row.saleId ? {saleId: record.row.saleId} : {})})}
             readFailure={async record => (await localStore?.getSellerSyncOperation?.({ ...localScope, organizationId }, record.occurredAt, record.partyId))?.lastError}
             onReview={async record => {
               if (recoveringRef.current) return false;
@@ -1046,7 +1047,7 @@ export function LotteryAccountingWorkspace({
             </>
           )}
           {tab === "daily" && (
-            <DailyPanel key={recoveryEpoch}
+            <DailyPanel recoveryEpoch={recoveryEpoch}
               workspace={workspace}
               organizationId={organizationId}
               api={api}
@@ -1597,6 +1598,7 @@ function AiCard({ title, text }: Readonly<{ title: string; text: string }>) {
 }
 
 function DailyPanel({
+  recoveryEpoch,
   workspace,
   organizationId,
   api,
@@ -1613,6 +1615,7 @@ function DailyPanel({
   onLocalRowStateChange,
   onLocalRowRemoved,
 }: Readonly<{
+  recoveryEpoch: number;
   workspace: LotteryWorkspace;
   organizationId: string;
   api: LotteryAccountingClient;
@@ -1657,6 +1660,7 @@ function DailyPanel({
 
       {mode === "SELLER" && (
         <DailySellerEntry
+          recoveryEpoch={recoveryEpoch}
           organizationId={organizationId}
           workspace={workspace}
           editRequest={sellerEditRequest}

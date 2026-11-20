@@ -1,3 +1,4 @@
+import { accountingBusinessDate } from '../../vendor/foundation-lottery/src/admin/models/lotteryAccountingBusinessDate.ts';
 import { saveExpenseSchedule } from "./expense-schedule.ts";
 import { scheduledTds, paymentOptions } from "./organization-rules.ts";
 import { savePartyOpening, saveExpenseOpening } from "./party-opening.ts";
@@ -51,6 +52,7 @@ export async function runLottery(
       )
         throw new Error("INVALID_BANK_CHANNEL");
     }
+    if (input.method === "updateDailySellerDraft") await checkSellerDraftIdentity(store.client, input.payload);
     // lotteryInput allow-lists method names; retain the original receiver and both
     // arguments (the copied JavaScript service also accepts caller context).
     const result = await Reflect.apply(service[input.method as keyof typeof service], service, [input.payload, owner]);
@@ -118,4 +120,13 @@ async function saveOrganizationRules(
     where: { id: organization.id },
     data,
   });
+}
+
+async function checkSellerDraftIdentity(client: ReturnType<typeof createLotteryStore>["client"], payload: Record<string, unknown>) {
+  const saved = await client.foundationLotterySale.findUnique({where:{id:payload.saleId}});
+  if (saved && (saved.organizationId !== payload.organizationId ||
+    typeof payload.partyId === 'string' && saved.partyId !== payload.partyId ||
+    typeof payload.occurredAt === 'string' && accountingBusinessDate(saved.occurredAt) !== accountingBusinessDate(payload.occurredAt))) {
+    throw Object.assign(new Error('SELLER_DRAFT_IDENTITY_MISMATCH'), {code:'SELLER_DRAFT_IDENTITY_MISMATCH'});
+  }
 }

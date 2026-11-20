@@ -1,3 +1,4 @@
+import { LotteryLanguage } from './language';
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, expect, it, vi } from 'vitest';
 import { LotterySyncDetails } from './LotterySyncDetails';
@@ -43,4 +44,16 @@ it('preserves the dialog when current save blocks review and never exposes unkno
  await screen.findByRole('status');expect(screen.getByRole('dialog')).toBeInTheDocument();expect(screen.queryByText('private payload')).toBeNull();
  fireEvent(screen.getByRole('dialog'),new Event('cancel',{bubbles:true,cancelable:true}));
  expect(screen.queryByRole('dialog')).toBeNull();
+});
+
+it.each([
+ ['bn','হিসাবের সিঙ্কের অবস্থা','সিঙ্কের অবস্থা','সিঙ্কে সমস্যা','ত্রুটি'],
+ ['hi','खाते की सिंक स्थिति','सिंक की स्थिति','सिंक में समस्या','त्रुटि'],
+ ['en','Accounting local sync status','Sync status','Sync error','ERROR'],
+] as const)('shows popup heading, summary and row state in selected language %s',(language,button,heading,summary,state)=>{
+ render(<LotteryLanguage.Provider value={language}><LotterySyncDetails label="Sync error" records={[record]} workspace={workspace} warning={null}/></LotteryLanguage.Provider>);
+ fireEvent.click(screen.getByRole('button',{name:button}));
+ expect(screen.getByRole('heading',{name:heading})).toBeInTheDocument();
+ expect(screen.getByText(summary,{selector:'.lottery-sync-summary'})).toBeInTheDocument();
+ expect(screen.getByText(`2026-11-15 · ${state}`)).toBeInTheDocument();
 });

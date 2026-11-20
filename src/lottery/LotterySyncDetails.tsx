@@ -1,3 +1,5 @@
+import type { RecoveryMode } from './seller-recovery';
+import type { RecoverySale, SellerRecoverySnapshot } from './seller-recovery-contract';
 import { SellerRecoveryActions } from './SellerRecoveryActions';
 import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
@@ -11,14 +13,15 @@ type Props = Readonly<{
   records: AccountingSellerWorkingRecord[];
   workspace: LotteryWorkspace | null;
   warning: string | null;
-  onRecover?: (record: AccountingSellerWorkingRecord, mode: 'retry' | 'discard') => Promise<'confirmed' | 'discarded'>;
+  onRecover?: (record: AccountingSellerWorkingRecord, mode: RecoveryMode, reviewed?: RecoverySale | null) => Promise<'confirmed' | 'discarded'>;
+  onInspect?: (record: AccountingSellerWorkingRecord) => Promise<SellerRecoverySnapshot>;
   onReview?: (record: AccountingSellerWorkingRecord) => Promise<boolean>;
   readFailure?: (record: AccountingSellerWorkingRecord) => Promise<string | undefined>;
 }>;
-const safeReasons = new Set(['SELLER_DRAFT_CONFLICT', 'SELLER_ENTRY_NOT_SAVED', 'KHATA_LOGIN_REQUIRED', 'KHATA_BUSY', 'KHATA_RATE_LIMITED', 'Failed to fetch', 'NetworkError']);
+const safeReasons = new Set(['SELLER_DRAFT_IDENTITY_MISMATCH', 'SELLER_DRAFT_CONFLICT', 'SELLER_ENTRY_NOT_SAVED', 'KHATA_LOGIN_REQUIRED', 'KHATA_BUSY', 'KHATA_RATE_LIMITED', 'Failed to fetch', 'NetworkError']);
 
 /** Displays local recovery data; never deletes or automatically resubmits a financial write. */
-export function LotterySyncDetails({ label, records, workspace, warning, onReview, readFailure, onRecover }: Props) {
+export function LotterySyncDetails({ label, records, workspace, warning, onReview, readFailure, onRecover, onInspect }: Props) {
   const [result, setResult] = useState('');
   const [open, setOpen] = useState(false);
   const [reviewing, setReviewing] = useState(false);
@@ -27,6 +30,21 @@ export function LotterySyncDetails({ label, records, workspace, warning, onRevie
   const dialog = useRef<HTMLDialogElement>(null);
   const language = useLotteryLanguage();
   const text = (bn: string, hi: string, en: string) => inLanguage(language, bn, hi, en);
+  const statusLabels: Record<string, string> = {
+    'Synced': text('সিঙ্ক সম্পন্ন','सिंक पूरा','Synced'),
+    'Sync error': text('সিঙ্কে সমস্যা','सिंक में समस्या','Sync error'),
+    'Syncing': text('সিঙ্ক হচ্ছে','सिंक जारी है','Syncing'),
+    'Storage warning': text('সংরক্ষণে সতর্কতা','स्टोरेज चेतावनी','Storage warning'),
+    'Device storage error': text('ফোনে সংরক্ষণে সমস্যা','डिवाइस स्टोरेज में समस्या','Device storage error'),
+    'Device storage': text('ফোনের সংরক্ষণ','डिवाइस स्टोरेज','Device storage'),
+    'Saved on device': text('ফোনে সংরক্ষিত','डिवाइस पर सहेजा','Saved on device'),
+    'ERROR': text('ত্রুটি','त्रुटि','ERROR'),
+    'PENDING': text('অপেক্ষমান','लंबित','PENDING'),
+    'SYNCING': text('সিঙ্ক হচ্ছে','सिंक जारी है','SYNCING'),
+    'LOCAL_SAVED': text('ফোনে সংরক্ষিত','डिवाइस पर सहेजा','LOCAL_SAVED'),
+  };
+  const pendingCount = /^Pending sync \((\d+)\)$/u.exec(label)?.[1];
+  const displayLabel = pendingCount ? text(`সিঙ্কের অপেক্ষায় (${pendingCount})`,`लंबित सिंक (${pendingCount})`,label) : statusLabels[label] ?? text('সিঙ্কের অবস্থা','सिंक की स्थिति',label);
   const pending = records.filter(record => record.syncState !== 'SYNCED');
   useEffect(() => {
     if (!open) return;
@@ -49,29 +67,29 @@ export function LotterySyncDetails({ label, records, workspace, warning, onRevie
     setReasons(Object.fromEntries(entries));
   };
   return <>
-    <button type="button" className="lottery-sync-dot lottery-sync-trigger" aria-label="Accounting local sync status"
-      data-sync={label === 'Synced' ? 'ok' : 'pending'} title={label}
+    <button type="button" className="lottery-sync-dot lottery-sync-trigger" aria-label={text('হিসাবের সিঙ্কের অবস্থা','खाते की सिंक स्थिति','Accounting local sync status')}
+      data-sync={label === 'Synced' ? 'ok' : 'pending'} title={displayLabel}
       aria-expanded={open} onClick={() => void show()}>
-      <span aria-hidden="true" className="lottery-sync-light"/><span className="lottery-sr-only">{label}</span>
+      <span aria-hidden="true" className="lottery-sync-light"/><span className="lottery-sr-only">{displayLabel}</span>
     </button>
-    {open && createPortal(<dialog ref={dialog} aria-label="Local sync details" className="lottery-sync-dialog"
+    {open && createPortal(<dialog ref={dialog} aria-label={text('সিঙ্কের বিবরণ','सिंक विवरण','Local sync details')} className="lottery-sync-dialog"
       onCancel={event => { event.preventDefault(); setOpen(false); }}>
       <header className="lottery-sync-heading">
         <h2>{text('সিঙ্কের অবস্থা', 'सिंक की स्थिति', 'Sync status')}</h2>
         <button type="button" aria-label={text('বন্ধ করুন', 'बंद करें', 'Close')} onClick={() => setOpen(false)}>×</button>
       </header>
-      <p className="lottery-sync-summary">{label}</p>
+      <p className="lottery-sync-summary">{displayLabel}</p>
       {warning && <p>{text('ফোনের সংরক্ষিত তথ্য পড়তে বা পরিষ্কার করতে সমস্যা হয়েছে।', 'डिवाइस का डेटा पढ़ने या साफ करने में समस्या है।', 'Local recovery storage needs attention.')}</p>}
       {pending.length > 0 && <ul className="lottery-sync-records">{pending.map(record => <li key={record.key}>
         <strong>{workspace?.parties.find(party => party.id === record.partyId)?.name ?? text('পার্টি পাওয়া যায়নি', 'पार्टी नहीं मिली', 'Party unavailable')}</strong>
-        <p>{record.occurredAt} · {record.syncState}</p>
+        <p>{record.occurredAt} · {statusLabels[record.syncState] ?? record.syncState}</p>
         {reasons[record.key] && <>
           <p>{reasons[record.key] === 'SELLER_DRAFT_CONFLICT'
             ? text('ফোনের এন্ট্রি ও সার্ভারের সংস্করণ মেলেনি। আগে এন্ট্রিটি মিলিয়ে দেখুন।', 'फोन और सर्वर की एंट्री का संस्करण नहीं मिला। पहले जाँचें।', 'The local entry and server version differ. Review the entry first.')
             : text('আগের সেভ নিশ্চিত হয়নি। এন্ট্রি খুলে বার্তাটি পরীক্ষা করুন।', 'पिछला सेव पक्का नहीं हुआ। एंट्री खोलकर संदेश जाँचें।', 'The earlier save was not confirmed. Open the entry to check the message.')}</p>
           <p className="lottery-sync-reason">{reasons[record.key]}</p>
         </>}
-        {onRecover && <SellerRecoveryActions record={record} recover={onRecover} onComplete={setResult}/>}
+        {onRecover && <SellerRecoveryActions inspect={onInspect} record={record} recover={onRecover} onComplete={setResult}/>}
         {onReview && <button type="button" className="lottery-sync-review" disabled={reviewing} onClick={async () => { setReviewing(true); try { if (await onReview(record)) setOpen(false); else setReviewBlocked(true); } catch { setReviewBlocked(true); } finally { setReviewing(false); } }}>{text('এন্ট্রি খুলে যাচাই করুন', 'एंट्री खोलकर जाँचें', 'Review entry')}</button>}
       </li>)}</ul>}
       {reviewBlocked && <output>{text("বর্তমান এন্ট্রির সেভ শেষ করে আবার চেষ্টা করুন।", "मौजूदा एंट्री सेव करके फिर कोशिश करें।", "Finish saving the current entry before opening another date.")}</output>}

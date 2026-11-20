@@ -1,3 +1,21 @@
+# 2026-11-20 — Owner-approved scoped recovery release
+
+- Owner approved commit/push and matching Edge deployment. Selected-language popup verified in Bengali/Hindi/English; formerly English-only sync summaries and row states localized. Final related local checks: 13 suites / 107 tests, build/PWA, scoped UI lint and strict Deno PASS. Earlier financial safety checks remain in the task report.
+- Matching `orbis-khata-data` v29 ACTIVE deployed; 41 runtime files read back exactly, three Deno type-only graph modules appropriately absent from runtime bundle. Existing central authentication preserved, no SQL migration or customer financial write/delete.
+- Scoped source commit/push is authorized and being finalized; actual destination SHA and handover are in Drive after completion. No CI polling, Render frontend deploy or Play release in this step. Matching frontend/new Android assets and actual customer recovery acceptance remain required. [Detailed source/evidence](LOTTERY_TYPES_20261120.md#owner-approved-release-checkpoint--20-november-2026-2009-ist).
+
+---
+
+# 2026-11-20 — Scoped seller conflict recovery (LOCAL VERIFIED; NOT PUSHED)
+
+- Task `LOTTERY-RECOVERY-SCOPED-20261120`, Setup 01. Base remote `de2fa67f`, identical local tree at `4b984db4`. [Root cause, changed paths and verification](LOTTERY_TYPES_20261120.md#scoped-seller-recovery-follow-up--20-november-2026-1815-ist).
+- Reproduced a late acknowledgement attaching an older day's bill identity to the current date; guarded date/view generation and revision, plus client/server party/day identity validation. Neighbour-day bill references are not assumed duplicates.
+- Replaced recovery's oversized whole-owner export with a bounded, authenticated party/day query. Compare phone/server and explicitly keep reviewed phone DRAFT values or archive/discard selected local pending changes. Optimistic revision, deterministic retry, local atomic recovery and no payment auto-submit preserved. Reload avoids losing unsent manual receipt input; indicator reflects actual pending state.
+- PASS: 13 related suites / 101 tests, actual disposable scoped SQL, TypeScript/build/PWA, strict Deno, scoped lint, Knip, zero-clone JSCPD, five-module recommended Sonar checks. No full local coverage/device/owner acceptance. Existing vendor/build warnings remain.
+- No commit/push, financial production write/delete, deployment, migration or release. New matching Edge deployment IS required for this new endpoint/server guard; no SQL migration. Owner pre-push handover and subsequent exact-SHA CI/device acceptance remain next steps. Earlier CI/Render success is historical and does not prove actual recovery success.
+
+---
+
 # 20 November 2026 — Guarded seller pending-entry recovery
 
 - `LOTTERY-RECOVERY-20261120`, Setup01, checkpoint 2026-11-20 17:11:07 IST; base main f10d5c8e. [Detailed safety/test evidence](LOTTERY_TYPES_20261120.md).

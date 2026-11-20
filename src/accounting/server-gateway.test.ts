@@ -73,3 +73,11 @@ it('exports Lottery only for the verified identity and rejects caller-supplied o
   expect((await handle(request(envelope('lottery-export', { actor: uuid })))).status).toBe(400)
   expect(execute).not.toHaveBeenCalled()
 })
+
+it('validates bounded seller recovery scopes and rejects supplied owners and invalid dates',async()=>{
+ const input={organizationId:uuid,partyId:uuid,occurredAt:'2026-11-16',saleId:uuid};
+ const {handle,execute}=gateway();
+ expect((await handle(request(envelope('lottery-seller-recovery',input)))).status).toBe(200);
+ expect(execute).toHaveBeenCalledWith(principal,{operation:'lottery-seller-recovery',input});
+ for(const invalid of [{...input,owner:uuid},{...input,occurredAt:'2026-02-30'},{...input,partyId:'invalid'},{...input,saleId:'invalid'}]) expect(khataOperation(envelope('lottery-seller-recovery',invalid))).toBeNull();
+});

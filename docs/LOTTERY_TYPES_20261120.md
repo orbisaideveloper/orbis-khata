@@ -126,3 +126,64 @@ Six related suites /26 tests PASS: new draft retry, original-ID existing-draft u
 TypeScript, production build/PWA worker, scoped Oxlint, Knip, JSCPD (zero clones) and diff check PASS; existing build/vendor/config warnings remain. SonarJS recommended type-aware checks on all three recovery/diagnostic source components return zero findings. No local coverage/full certification. Local visual Chromium was already blocked by socket permissions in the preceding task; no repeated attempt here. Full GitHub coverage/browser/Sonar/Android candidate expected from src push and NOT polled after push. Actual owner's pending row is NOT asserted recovered before deploying/testing this implementation.
 
 Changed files: seller-recovery.ts + test; SellerRecoveryActions.tsx + test; LotterySyncDetails.tsx; lottery.css; seller-receipt-order.test.tsx; vendor DailySellerEntry.tsx, LotteryAccountingWorkspace.tsx, lotteryAccountingLocalStore.ts; this report and PROJECT_STATUS.md. No dependency/lockfile/auth/deployment changes. No actual production financial writes, deletions, DB reset, Play release or signed AAB dispatch performed. Edge v28 remains adequate for existing read-only export; updated frontend/new Android build required. Owner may review hosted CI and then deploy; keep genuine divergent server values for explicit comparison rather than force overwrite.
+
+
+## Scoped seller recovery follow-up — 20 November 2026, 18:15 IST
+
+Setup 01, task `LOTTERY-RECOVERY-SCOPED-20261120`. Status: **LOCAL VERIFIED; NOT COMMITTED/PUSHED/DEPLOYED**. Remote main independently checked `de2fa67f3252b47de3ce547213c6c73d3726758f`; initial clean local equivalent `4b984db4c0a43e634d2c225301d2c74d49f16b05` has the same tree `5b2ecea61bfff7cbefedd5c0716171f24a4894cd`. Owner requests a complete safe conflict-recovery implementation; no production financial repair has been executed. Customer-specific evidence remains in the private Drive handover, not in this repository.
+
+### Root cause and reproduction
+
+- Read-only inspection distinguished neighbouring-day bill identities and a historical reversed bill. Different day/reference numbers are **not** evidence of duplicate billing. The customer screenshot attaches an earlier-day reference to a later-day pending row; direct phone IndexedDB inspection was unavailable, so the exact historical sequence is unproven.
+- Synthetic delayed-save reproduction demonstrated that `finishSavingRow` unconditionally assigned its acknowledgement identity to whichever day was currently rendered. Before the fix the test failed and could trigger repeated autosaves; after the fix it passes. Date/view generation gates identity assignment; row revision gates final clearance. Newer edits on the same day retain their values and receive the acknowledged ID for the next update, avoiding duplicate create attempts. Known wrong-party/day IDs are also quarantined before client autosave; the server service independently rejects a draft update attempting to move its identity to another party/day.
+- Both previous recovery actions fetched a complete owner export before resolution. The inspected state exceeds 3.22 million characters even with whitespace removed, while the client rejects response text above 2 million. The focused transport test reproduces rejection of a >2M response and success of the bounded response. This is a demonstrated common blocker, not proof that no additional device-specific failure can exist.
+
+### Implemented behavior and financial safety
+
+- Added authenticated `lottery-seller-recovery` read. A single parameterized statement scopes owner, organization, party and business day and optionally includes only the previously referenced sale. At most three candidate sales are read; multiple live same-day bills fail closed. No ledger-wide/export download, customer-supplied owner or response-size-cap removal.
+- Popup compares phone/server date, bill reference, dispatch, returns and commission. A wrongly linked previous bill's actual date/reference is shown separately. Explicit **Keep phone values** confirmation applies sale/return/commission only to this day's reviewed DRAFT with optimistic revision protection and a deterministic recovery operation ID. Repeated/uncertain requests are safe; changed server revision requires a fresh comparison; posted accounting is not overwritten.
+- Explicit **Keep server values** / confirmed pending discard archives just the selected local row/outbox using the existing atomic recovery transaction. Server bills/payments and neighbouring days remain untouched. Identical server values can be acknowledged without repost. All archive/rollback, account/company isolation and newer-local-edit guards remain active.
+- The selected resolved UI record is removed only after successful local resolution. The indicator derives green from actual remaining pending/error state; no forced green. Refresh reloads bill rows without remounting the receipt editor, retaining unsent manually entered payment amounts. Payments remain manual; this is not a server-transaction deletion tool or a general all-module recovery system.
+- HIGH impact: gateway validation and read-only Edge query, shared Lottery service identity checks (web/native), async seller acknowledgement, popup recovery and local outbox. Financial formulas, DB schema, existing IndexedDB version, auth protocol, dependencies/lockfiles and CI thresholds remain unchanged. Rollback source only after review; retain archived local recovery copies and server operation history.
+
+### Targeted verification
+
+- PASS: 13 related suites / **101 tests** (seller recovery, popup, sync indicator, date/receipt preservation, seller receipt, service/domain/transport, gateway scope, disposable SQL, corrections/business invariants and native Lottery sync). Includes old-day/current-day preservation, explicit kept values, changed server revision, duplicate retry, posted immutability, account switch, newer local edits, offline reads, archive write rollback and cross-connection recovery conflict.
+- PASS: actual scoped SQL executed on disposable PGlite PostgreSQL-compatible database, verified owner isolation and no writes. This is not production write or real PostgreSQL multi-client load certification.
+- PASS: TypeScript and production build/PWA worker checks; Deno 2.9.6 strict Edge check; scoped Oxlint (existing vendor warnings); Knip (two existing config hints); JSCPD zero clones; type-aware Sonar recommended checks for five changed first-party production modules; `git diff --check`.
+- NOT RUN: full local coverage/full certification, physical Android or customer's browser/IndexedDB recovery acceptance, local Chromium visual check (previous environment launch restriction). GitHub owns full coverage/Chromium/Sonar/Android candidate after an authorized push. Quality triggers main pushes; Android candidate includes changed `src/**`. No workflow/gate changes.
+- A small final UI-copy check and production rebuild confirm the final comparison labels; no new financial behavior after the 101-test run.
+
+### Changed paths
+
+- `src/accounting/api.ts`
+- `src/accounting/server-gateway.ts`
+- `src/accounting/server-gateway.test.ts`
+- `src/lottery/seller-recovery-contract.ts`
+- `src/lottery/seller-recovery.ts`
+- `src/lottery/seller-recovery.test.ts`
+- `src/lottery/SellerRecoveryActions.tsx`
+- `src/lottery/SellerRecoveryActions.test.tsx`
+- `src/lottery/LotterySyncDetails.tsx`
+- `src/lottery/lottery.css`
+- `src/lottery/seller-receipt-order.test.tsx`
+- `src/lottery/service.ts`
+- `src/lottery/service.test.ts`
+- `supabase/functions/orbis-khata-data/index.ts`
+- `supabase/functions/orbis-khata-data/seller-recovery-read.ts`
+- `tests/lottery/seller-recovery-read.test.ts`
+- `vendor/foundation-lottery/src/admin/dashboard/sections/DailySellerEntry.tsx`
+- `vendor/foundation-lottery/src/admin/dashboard/sections/LotteryAccountingWorkspace.tsx`
+
+Documentation: this task section, `docs/PROJECT_STATUS.md` newest checkpoint, `docs/DECISIONS.md` dated recovery-policy addendum, and one private Drive START HERE task entry. README/INDEX/AGENTS/workflow/Android release policy unchanged (not applicable).
+
+### Deployment and next exact action
+
+Owner approval required before commit/push and separately before matching Edge deployment. **A new matching `orbis-khata-data` Edge deployment is required for this scoped-read endpoint and server identity guard.** The earlier statement that Edge v28 sufficed applied only to the earlier export-based recovery commit. No SQL migration or database reset. Deploy matching Edge before the new frontend/Android assets; an old backend will reject the new read safely. New Android assets require a fresh build, not a claimed existing installed update. After authorized push, record actual SHA in Drive and stop; owner checks CI. Real-device acceptance must resolve the affected pending row through the popup, verify adjacent-day bills/receipt ledger and no duplicates, and confirm the indicator becomes green only when no other error remains. No customer entry has been changed by this development session.
+
+
+### Owner-approved release checkpoint — 20 November 2026, 20:09 IST
+
+Owner explicitly authorized the reviewed scoped commit/push and matching Edge deployment, and required the popup to follow the selected language. Added tests for Bengali, Hindi and English controls/errors and the parent popup heading, summary and row state; localized previously English-only sync summaries. Final related run: 13 suites / 107 tests PASS, production build/PWA, scoped UI lint and strict Deno PASS. These six language cases extend the previous 101-test evidence; no financial behavior changed in this release step. Changed paths now also include `src/lottery/LotterySyncDetails.test.tsx` (22 total including docs).
+
+Deployed the matching `orbis-khata-data` Edge function v29 ACTIVE with the existing custom central authentication and unchanged verify_jwt=false. Uploaded 44 graph files; all 41 runtime-source files returned by deployment readback exactly match local source. Three omitted files are confirmed type-only dependencies in the Deno graph, not missing runtime modules. No SQL migration or financial data write/delete. Commit/push actual SHA belongs in the post-push Drive handover; no claim that CI has run or passed yet. Render frontend/new installed Android acceptance remains separate.

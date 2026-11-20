@@ -1,3 +1,5 @@
+import { readSellerRecovery } from './seller-recovery-read.ts';
+import type { SellerRecoveryRequest } from '../../../src/lottery/seller-recovery-contract.ts';
 import { exportCompany } from './company-export.ts';
 import { createRecoveryEnvelope } from '../../../src/sync/server-recovery-envelope.ts';
 import {identicalParty} from '../../../src/demo/party-match.ts';
@@ -57,6 +59,10 @@ const handler = createKhataGateway({ origins: (env('KHATA_ORIGINS') || 'https://
         const ledgerOwnerId = owners[0]?.id;
         if (typeof ledgerOwnerId !== 'string') {
             throw new Error('KHATA_OWNER_RESOLUTION_FAILED');
+        }
+        if (operation.operation === 'lottery-seller-recovery') {
+            const snapshot = await readSellerRecovery(tx, ledgerOwnerId, operation.input as SellerRecoveryRequest);
+            return {version: 1, actor: principal.orbisIdentityId, snapshot};
         }
         if (operation.operation === 'lottery-export') {
             const rows = await tx`select model, value from public.khata_lottery_records where owner_id=${ledgerOwnerId}::uuid order by ordinal`;

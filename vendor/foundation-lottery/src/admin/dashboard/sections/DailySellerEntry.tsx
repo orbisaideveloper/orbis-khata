@@ -369,6 +369,7 @@ function DailyTotals({
 }
 
 export interface DailySellerEntryProps {
+  recoveryEpoch?: number;
   organizationId: string;
   workspace: LotteryWorkspace;
   onSavePayment?: (payload:Record<string,unknown>)=>Promise<void>;
@@ -400,6 +401,7 @@ export interface DailySellerEntryProps {
 }
 
 export function DailySellerEntry({
+  recoveryEpoch = 0,
   organizationId,
   workspace,
   onSaveDraft,
@@ -438,6 +440,7 @@ export function DailySellerEntry({
   const workspaceRef = useRef(workspace);
   const sellersRef = useRef(sellers);
   const currentDateRef = useRef(selectedDate);
+  const viewGenerationRef = useRef(0);
   const dirtyPartyIdsRef = useRef(new Set<string>());
   const rowVersionsRef = useRef(new Map<string, number>());
   const savingPartyIdsRef = useRef(new Set<string>());
@@ -467,6 +470,7 @@ export function DailySellerEntry({
 
   useEffect(() => {
     let cancelled = false;
+    viewGenerationRef.current += 1;
     const currentWorkspace = workspaceRef.current;
     const nextRows = buildRows({
       parties: sellersRef.current,
@@ -545,7 +549,7 @@ export function DailySellerEntry({
     return () => {
       cancelled = true;
     };
-  }, [accountingScope, localStore, organizationId, selectedDate, sellerKey]);
+  }, [accountingScope, localStore, organizationId, selectedDate, sellerKey, recoveryEpoch]);
 
   useEffect(() => {
     if (!selectedPartyId && sellers[0]) setSelectedPartyId(sellers[0].id);
@@ -735,10 +739,10 @@ export function DailySellerEntry({
     versionAtStart: number,
     operationId: string,
     saved: LotteryDailySellerDraftIdentity | null,
+    generationAtStart: number,
   ) => {
-    const isCurrentRow =
-      currentDateRef.current === entryDate &&
-      (rowVersionsRef.current.get(partyId) || 0) === versionAtStart;
+    const isCurrentView = () => viewGenerationRef.current === generationAtStart && currentDateRef.current === entryDate;
+    const isCurrentRow = () => isCurrentView() && (rowVersionsRef.current.get(partyId) || 0) === versionAtStart;
     if (!saved) return;
 
     const currentRow = rowsRef.current[partyId] || blankRow(partyId);
@@ -751,16 +755,18 @@ export function DailySellerEntry({
       status: "DRAFT",
       syncVersion: acknowledgedVersion,
     };
-    setRows((current) => ({
-      ...current,
-      [partyId]: {
-        ...(current[partyId] || blankRow(partyId)),
-        saleId: saved.id,
-        reference: saved.reference,
-        status: "DRAFT",
-        syncVersion: acknowledgedVersion,
-      },
-    }));
+    if (isCurrentView()) {
+      setRows((current) => ({
+        ...current,
+        [partyId]: {
+          ...(current[partyId] || blankRow(partyId)),
+          saleId: saved.id,
+          reference: saved.reference,
+          status: "DRAFT",
+          syncVersion: acknowledgedVersion,
+        },
+      }));
+    }
 
     try {
       if (localStore?.acknowledgeSellerSync) {
@@ -771,7 +777,7 @@ export function DailySellerEntry({
           operationId,
           { ...saved, syncVersion: acknowledgedVersion },
         );
-      } else if (isCurrentRow && localStore) {
+      } else if (isCurrentRow() && localStore) {
         await localStore.markSellerRowSynced(
           accountingScope,
           entryDate,
@@ -779,6 +785,7 @@ export function DailySellerEntry({
         );
       }
     } catch {
+      if (!isCurrentRow()) return;
       dirtyPartyIdsRef.current.add(partyId);
       onLocalRowStateChange?.(entryDate, acknowledgedRow, "ERROR");
       setLocalError(
@@ -788,10 +795,7 @@ export function DailySellerEntry({
       return;
     }
 
-    if (!isCurrentRow) {
-      setAutosaveVersion((current) => current + 1);
-      return;
-    }
+    if (!isCurrentRow()) return;
 
     onLocalRowStateChange?.(entryDate, acknowledgedRow, "SYNCED");
     clearPendingRow(organizationId, partyId, entryDate);
@@ -897,6 +901,7 @@ export function DailySellerEntry({
     row: DailySellerRow,
     showValidation: boolean,
   ) => {
+    const generationAtStart = viewGenerationRef.current;
     setPartySaving(partyId, true);
     try {
       const actions = actionsRef.current;
@@ -941,6 +946,7 @@ export function DailySellerEntry({
         versionAtStart,
         sync.operationId,
         saved,
+        generationAtStart,
       );
       return true;
     } catch (error) {
@@ -972,6 +978,11 @@ export function DailySellerEntry({
     if (!dirtyPartyIdsRef.current.has(partyId) && saved &&
         JSON.stringify(rowFromSale(saved)) === JSON.stringify(row)) return true;
     const versionAtStart = rowVersionsRef.current.get(partyId) || 0;
+    const identity = [...workspaceRef.current.draftSales, ...workspaceRef.current.sales].find(sale => sale.id === row.saleId);
+    if (identity && (identity.partyId !== partyId || !isSameEntryDate(identity.occurredAt, entryDate))) {
+      handlePersistRowError(new Error("SELLER_DRAFT_IDENTITY_MISMATCH"), partyId, row, entryDate, versionAtStart, showValidation);
+      return false;
+    }
     const storageMode = workspaceRef.current.organization.userLedgerStorage;
 
     if (storageMode === "DEVICE") {

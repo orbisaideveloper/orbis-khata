@@ -1,4 +1,4 @@
-import { readOnlineLotteryExport } from '../accounting/api';
+import { readOnlineSellerRecovery } from '../accounting/api';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { IDBFactory, IDBObjectStore } from 'fake-indexeddb';
 import { recoverSellerEntry, readSellerRecoveryWorkspace } from './seller-recovery';
@@ -6,7 +6,7 @@ import { runLottery } from './service';
 import type { LotteryWorkspace } from '../../vendor/foundation-lottery/src/admin/models/lotteryAccountingTypes';
 import type { LotteryAccountingClient } from '../../vendor/foundation-lottery/src/admin/models/lotteryAccountingClient';
 
-vi.mock('../accounting/api',()=>({readOnlineLotteryExport:vi.fn()}));
+vi.mock('../accounting/api',()=>({readOnlineSellerRecovery:vi.fn()}));
 afterEach(()=>{vi.unstubAllGlobals();vi.restoreAllMocks();});
 const actor='11111111-1111-7111-8111-111111111111';
 beforeEach(()=>{vi.resetModules();vi.stubGlobal('indexedDB',new IDBFactory());});
@@ -75,12 +75,14 @@ it('rolls back local resolution if recovery-copy storage fails',async()=>{
  await expect(f.store.resolveSellerRecovery!(f.scope,f.record,outbox,'discarded')).rejects.toThrow('copy write failed');
  expect(await f.store.listSellerRows(f.scope)).toEqual([f.record]);expect(await f.store.listPendingOutbox(f.scope)).toHaveLength(1);expect(await f.store.listSellerRecoveryCopies!(f.scope)).toEqual([]);
 });
-it('loads a verified read-only owner export and refuses a mismatched export actor',async()=>{
- const f=await fixture();const state=f.getState();const before=JSON.stringify(state);
- vi.mocked(readOnlineLotteryExport).mockResolvedValue({actor,version:1,state});
- expect((await readSellerRecoveryWorkspace(actor,f.scope.organizationId)).organization.id).toBe(f.scope.organizationId);expect(JSON.stringify(state)).toBe(before);
- vi.mocked(readOnlineLotteryExport).mockResolvedValue({actor:'other',version:1,state});
- await expect(readSellerRecoveryWorkspace(actor,f.scope.organizationId)).rejects.toThrow('RECOVERY_SCOPE_INVALID');
+it('reads only the selected party/day and verifies the returned identity',async()=>{
+ const f=await fixture();const workspace=await f.read();const request={organizationId:f.scope.organizationId,partyId:f.row.partyId,occurredAt:f.record.occurredAt};
+ const snapshot={organization:workspace.organization,partyId:f.row.partyId,occurredAt:f.record.occurredAt,draftSales:[],sales:[]};
+ vi.mocked(readOnlineSellerRecovery).mockResolvedValue({actor,version:1,snapshot});
+ expect((await readSellerRecoveryWorkspace(actor,request)).organization.id).toBe(f.scope.organizationId);
+ expect(readOnlineSellerRecovery).toHaveBeenCalledWith(actor,request);
+ vi.mocked(readOnlineSellerRecovery).mockResolvedValue({actor:'other',version:1,snapshot});
+ await expect(readSellerRecoveryWorkspace(actor,request)).rejects.toThrow('RECOVERY_SCOPE_INVALID');
 });
 it('keeps the outbox after an uncertain server acknowledgement and safely confirms on the next retry',async()=>{
  const f=await fixture();let count=0;
@@ -118,4 +120,63 @@ it('retains pending recovery when fallback storage cannot be marked, even after 
  const f=await fixture();await expect(recoverSellerEntry({...f.context,beforeResolve:()=>{throw Error('fallback unavailable')}},f.record,'retry')).rejects.toThrow('fallback unavailable');
  expect(await f.store.listPendingOutbox(f.scope)).toHaveLength(1);expect((await f.read()).draftSales).toHaveLength(1);
  await recoverSellerEntry(f.context,f.record,'retry');expect(f.api.saveDailySellerDraft).toHaveBeenCalledOnce();
+});
+
+it('recovers a wrong-day local bill identity onto the reviewed day without altering neighbouring bills or payments',async()=>{
+ const f=await fixture();
+ const save=async(day:string,commission:string)=> (await f.run('createDailySellerDraft',{organizationId:f.scope.organizationId,partyId:f.row.partyId,occurredAt:day,dispatchQuantity:'10',morningReturnQuantity:'1',dayReturnQuantity:'0',eveningReturnQuantity:'0',commissionPaise:commission})).sale;
+ await save('2026-11-14','0'); const previous=await save('2026-11-15','100'); const target=await save('2026-11-16','0');
+ const mixed={...f.row,saleId:previous.id,reference:previous.reference,syncVersion:previous.syncVersion};
+ await f.store.stageSellerRow(f.scope,'2026-11-16',mixed);
+ const pending=(await f.store.listSellerRows(f.scope))[0];const before=await f.read();
+ await expect(recoverSellerEntry(f.context,pending,'retry')).rejects.toThrow('RECOVERY_SERVER_DIFFERS');
+ const reviewed=before.draftSales.find(sale=>sale.id===target.id)!;
+ await recoverSellerEntry(f.context,pending,'keep-local',reviewed);
+ const after=await f.read();
+ expect(after.draftSales).toHaveLength(3);
+ expect(after.draftSales.filter(sale=>sale.id!==target.id)).toEqual(before.draftSales.filter(sale=>sale.id!==target.id));
+ expect(after.draftSales.find(sale=>sale.id===target.id)?.commissionPaise).toBe('200');
+ expect(after.payments).toEqual(before.payments);
+ expect(f.api.updateDailySellerDraft).toHaveBeenCalledWith(target.id,expect.objectContaining({expectedVersion:target.syncVersion,occurredAt:'2026-11-16'}));
+ expect(await f.store.listPendingOutbox(f.scope)).toHaveLength(0);
+ expect(await f.store.listSellerRecoveryCopies!(f.scope)).toHaveLength(1);
+});
+
+it('refuses keeping phone values when the reviewed server revision changed',async()=>{
+ const f=await fixture();await f.run('createDailySellerDraft',{organizationId:f.scope.organizationId,partyId:f.row.partyId,occurredAt:'2026-11-16',dispatchQuantity:'20',morningReturnQuantity:'0',dayReturnQuantity:'0',eveningReturnQuantity:'0',commissionPaise:'0'});
+ const reviewed=(await f.read()).draftSales[0];
+ await f.run('updateDailySellerDraft',{organizationId:f.scope.organizationId,saleId:reviewed.id,partyId:f.row.partyId,occurredAt:'2026-11-16',dispatchQuantity:'21',morningReturnQuantity:'0',dayReturnQuantity:'0',eveningReturnQuantity:'0',commissionPaise:'0',expectedVersion:reviewed.syncVersion});
+ const before=await f.read();
+ await expect(recoverSellerEntry(f.context,f.record,'keep-local',reviewed)).rejects.toThrow('RECOVERY_SERVER_CHANGED');
+ expect(await f.read()).toEqual(before);expect(await f.store.listSellerRows(f.scope)).toHaveLength(1);
+ expect(f.api.updateDailySellerDraft).not.toHaveBeenCalled();
+});
+
+it('reuses the same recovery operation after a request fails before acknowledgement',async()=>{
+ const f=await fixture();await f.run('createDailySellerDraft',{organizationId:f.scope.organizationId,partyId:f.row.partyId,occurredAt:'2026-11-16',dispatchQuantity:'20',morningReturnQuantity:'0',dayReturnQuantity:'0',eveningReturnQuantity:'0',commissionPaise:'0'});
+ const reviewed=(await f.read()).draftSales[0];
+ vi.mocked(f.api.updateDailySellerDraft).mockRejectedValueOnce(Error('offline'));
+ await expect(recoverSellerEntry(f.context,f.record,'keep-local',reviewed)).rejects.toThrow('offline');
+ await recoverSellerEntry(f.context,f.record,'keep-local',reviewed);
+ const calls=vi.mocked(f.api.updateDailySellerDraft).mock.calls;
+ expect(calls).toHaveLength(2);expect(calls[0][1].operationId).toBe(calls[1][1].operationId);
+ expect((await f.read()).draftSales).toHaveLength(1);
+});
+
+it('keeps posted accounting immutable when phone values differ',async()=>{
+ const f=await fixture();await f.run('recordStockMovement',{organizationId:f.scope.organizationId,type:'RECEIPT',quantity:100});
+ await f.run('recordSale',{organizationId:f.scope.organizationId,partyId:f.row.partyId,occurredAt:'2026-11-16',dispatchQuantity:'20',morningReturnQuantity:'0',dayReturnQuantity:'0',eveningReturnQuantity:'0',commissionPaise:'0'});
+ const before=await f.read();
+ await expect(recoverSellerEntry(f.context,f.record,'keep-local',before.sales[0])).rejects.toThrow('RECOVERY_POSTED_ENTRY');
+ expect(await f.read()).toEqual(before);expect(await f.store.listPendingOutbox(f.scope)).toHaveLength(1);expect(f.api.updateDailySellerDraft).not.toHaveBeenCalled();
+});
+
+it('rejects malformed and cross-scope bounded responses without clearing a local entry',async()=>{
+ const f=await fixture();const request={organizationId:f.scope.organizationId,partyId:f.row.partyId,occurredAt:f.record.occurredAt};
+ const good={organization:{id:f.scope.organizationId,userLedgerStorage:'CLOUD'},partyId:f.row.partyId,occurredAt:f.record.occurredAt,draftSales:[],sales:[]};
+ for(const snapshot of [{...good,partyId:'foreign'},{...good,occurredAt:'2026-11-15'},{...good,organization:{...good.organization,userLedgerStorage:'DEVICE'}},{...good,draftSales:[{id:'invalid',partyId:f.row.partyId}]}]) {
+  vi.mocked(readOnlineSellerRecovery).mockResolvedValue({actor,version:1,snapshot});
+  await expect(readSellerRecoveryWorkspace(actor,request)).rejects.toThrow(/RECOVERY_/);
+ }
+ expect(await f.store.listSellerRows(f.scope)).toHaveLength(1);
 });

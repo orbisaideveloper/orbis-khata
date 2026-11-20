@@ -186,3 +186,13 @@ it('retains the legacy Lottery contract for new Khata-only schedule fields',asyn
  const {saveExpenseSchedule}=await import('./expense-schedule');const base={kind:'BILL',mode:'CALENDAR',start:'2026-11-01',amount:'100',changes:[]};
  for(const schedule of [{...base,mode:'VARIABLE',amount:'0'},{...base,end:'2026-11-30'},{...base,changes:[{date:'2026-11-10',active:false}]}])await expect(saveExpenseSchedule({},'fixture',{organizationId:'fixture',usualAmountPaise:schedule.amount,schedule},owner)).rejects.toThrow('INVALID_EXPENSE_SCHEDULE');
 });
+
+it('refuses an old client moving a daily seller bill identity onto another day or party',async()=>{
+ const {org,seller,stockist}=await fixture();
+ const payload={organizationId:org,partyId:seller.id,occurredAt:'2026-11-15',dispatchQuantity:'10',morningReturnQuantity:'0',dayReturnQuantity:'0',eveningReturnQuantity:'0',commissionPaise:'0',expectedVersion:0};
+ const ack=await run('createDailySellerDraft',payload);const before=JSON.stringify(state);
+ for(const change of [{occurredAt:'2026-11-16'},{partyId:stockist.id}]) {
+  await expect(run('updateDailySellerDraft',{...payload,...change,saleId:ack.sale.id,expectedVersion:ack.sale.syncVersion})).rejects.toThrow('SELLER_DRAFT_IDENTITY_MISMATCH');
+  expect(JSON.stringify(state)).toBe(before);
+ }
+});
