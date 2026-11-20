@@ -3,7 +3,7 @@ import { indiaDate } from './result-data'
 
 export type PublishedResult = typeof sample
 const key = 'orbis.public-lottery-results.v1'
-export const feedUrl = 'https://raw.githubusercontent.com/orbisaideveloper/orbis-khata/main/public/lottery-results/feed.json'
+const feedUrl = 'https://raw.githubusercontent.com/orbisaideveloper/orbis-khata/main/public/lottery-results/feed.json'
 
 function withinWindow(date: string, today: string) {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return false
