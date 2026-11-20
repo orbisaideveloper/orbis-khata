@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { syncWebLottery } from './lottery-sync'
 import { readOnlineCompanyExport } from '../accounting/api'
 
 const pending = new Map<string, Promise<{ changed: boolean; syncedAt: string }>>()
@@ -46,6 +47,15 @@ export function useNativeCompanySync(actor: string | null) {
             }
           }
         }, Promise.resolve())
+        const runtime = await import('./runtime')
+        if (active && !document.querySelector('.lottery-module') && (await runtime.readNativeLotterySyncState(actor)).linked) {
+          try {
+            await syncWebLottery(actor)
+            if (active) setConflict(current => current?.id === 'lottery' ? undefined : current)
+          } catch {
+            if (active) setConflict({ actor, id: 'lottery', name: 'Lottery' })
+          }
+        }
       } catch {
         // An offline lock or a changed account can interrupt a foreground pull.
       } finally {

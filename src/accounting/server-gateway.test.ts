@@ -64,3 +64,12 @@ describe('shared gateway admission',()=>{
   await expect(verify('token')).rejects.toMatchObject({status:429,code:'KHATA_RATE_LIMITED',retryAfter:15});
  });
 });
+
+it('exports Lottery only for the verified identity and rejects caller-supplied owners', async () => {
+  const { handle, execute } = gateway()
+  expect((await handle(request(envelope('lottery-export', {})))).status).toBe(200)
+  expect(execute).toHaveBeenCalledWith(principal, { operation: 'lottery-export', input: {} })
+  execute.mockClear()
+  expect((await handle(request(envelope('lottery-export', { actor: uuid })))).status).toBe(400)
+  expect(execute).not.toHaveBeenCalled()
+})

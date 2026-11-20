@@ -58,6 +58,14 @@ const handler = createKhataGateway({ origins: (env('KHATA_ORIGINS') || 'https://
         if (typeof ledgerOwnerId !== 'string') {
             throw new Error('KHATA_OWNER_RESOLUTION_FAILED');
         }
+        if (operation.operation === 'lottery-export') {
+            const rows = await tx`select model, value from public.khata_lottery_records where owner_id=${ledgerOwnerId}::uuid order by ordinal`;
+            const state: Record<string, unknown[]> = {};
+            for (const row of rows) {
+                (state[String(row.model)] ??= []).push(row.value);
+            }
+            return { version: 1, actor: principal.orbisIdentityId, state };
+        }
         if (operation.operation === 'company-export') {
             const snapshot = await exportCompany(tx, String(operation.input.company), ledgerOwnerId);
             return { ...snapshot, actor: principal.orbisIdentityId };

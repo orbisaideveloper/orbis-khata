@@ -1,3 +1,38 @@
+# 2026-11-20 — Setup 01 Lottery payment and Web-to-Android pull (IMPLEMENTED)
+
+- Task LOTTERY-PULL-20261120. Base main 7d55665. The existing company export
+  omitted the separate Lottery store. Added a verified-owner, read-only
+  lottery-export gateway operation and a guarded whole-Lottery snapshot pull.
+- The local pull validates model fields, relations, uniqueness and balanced
+  ledger transactions, preserves Khata and command receipts, and refuses
+  changed local Lottery state or pending browser seller working rows/outbox.
+  Manual import establishes the baseline; later foreground/online 120-second
+  pulls reuse it. Active Lottery editing defers financial replacement.
+- A synthetic UI reproduction demonstrated that receipt save unnecessarily
+  updated an unchanged saved daily draft, so a draft conflict blocked receipt.
+  Exact matching saved rows now skip that redundant update. The reported live
+  customer conflict has not been independently inspected in production.
+- Impact HIGH: gateway owner scope, domain validation, native persistence,
+  seller UI, foreground sync, IndexedDB working rows. No schema migration.
+  Matching Edge deployment and a new Android build remain external steps.
+- Local checks: 10 focused suites / 73 tests, TypeScript, build/PWA and diff
+  check passed. Scoped lint exits 0 with existing vendor warnings. Deno Edge
+  execution and physical Android acceptance are not verified. Exact changed
+  paths and risk review are in the Setup 01 task handover.
+  Full coverage stays in GitHub. Owner approved scoped push, matching Edge
+  deployment and Android build on 20 Nov. Latest remote SHA and deployment
+  outcome belong to the dated Drive handover after this source checkpoint.
+- Compatibility: 10 additional existing Khata sync tests passed. Deno 2.9.6
+  strict check reports the same 22 baseline errors in old and new Edge
+  sources, with zero added diagnostics. No Deno clean-typecheck claim.
+- Live Edge v27's 39 files matched base 7d55665 byte for byte. Existing DB
+  column metadata matches the read-only export; no migration is needed.
+  Original v27 is reconstructible from the pinned base for rollback.
+- GitHub push starts existing Quality and Android candidate workflows.
+  Signed AAB is a separate manual workflow_dispatch with increasing Play
+  version code. No workflow-dispatch tool or authenticated gh session is
+  available here; do not claim that a signed AAB was started or published.
+
 # 2026-11-18 — Android Real User Acceptance: local ZIP audit and safe diagnostic patch
 
 - Source examined: owner-uploaded latest `orbis-khata-main` ZIP against GitHub main; preserve previous recorded history below. Scope limited to Android acceptance test code, reporter/preflight and documentation. No app business data, central auth server, backend, schema or deployment changes.

@@ -1,3 +1,4 @@
+import { syncWebLottery } from './lottery-sync'
 import { syncWebCompany } from './company-sync'
 import { useState } from 'react'
 import { readOnlineCompanies, readOnlineCompanyExport } from '../accounting/api'
@@ -30,6 +31,21 @@ export function CompanySyncPreview({ actor, language }: Readonly<{ actor: string
   const [busy, setBusy] = useState(false)
   const [failed, setFailed] = useState(false)
   const t = (bn: string, hi: string, en: string) => inLanguage(language, bn, hi, en)
+
+  async function pullLottery() {
+    setBusy(true)
+    setNotice('')
+    try {
+      const result = await syncWebLottery(actor)
+      setNotice(result.changed
+        ? t('লটারির ওয়েব হিসাব এই ফোনে এসেছে।', 'लॉटरी का वेब हिसाब इस फ़ोन पर आ गया।', 'Lottery web accounts imported to this phone.')
+        : t('লটারির হিসাব মিলে গেছে।', 'लॉटरी का हिसाब मिल गया।', 'Lottery accounts match.'))
+    } catch {
+      setNotice(t('লটারি সিঙ্ক থেমেছে। ফোনের অসম্পূর্ণ হিসাব ও সংযোগ পরীক্ষা করুন।', 'लॉटरी सिंक रुका। फ़ोन के अधूरे हिसाब और कनेक्शन जाँचें।', 'Lottery sync stopped. Check pending phone records and the connection.'))
+    } finally {
+      setBusy(false)
+    }
+  }
 
   async function compare() {
     setBusy(true)
@@ -100,6 +116,9 @@ export function CompanySyncPreview({ actor, language }: Readonly<{ actor: string
 
   return <section className="privacy-links">
     <h2>{t('কোম্পানির তালিকা মিলিয়ে দেখুন', 'कंपनियों की सूचियाँ देखें', 'Compare company lists')}</h2>
+    <button type="button" disabled={busy} onClick={() => void pullLottery()}>
+      {t('ওয়েব থেকে লটারি সিঙ্ক করুন', 'वेब से लॉटरी सिंक करें', 'Sync Lottery from web')}
+    </button>
     <p>{t('ওয়েব ও এই ফোনে থাকা সক্রিয় কোম্পানিগুলো দেখুন।', 'वेब और इस फ़ोन की सक्रिय कंपनियाँ देखें।', 'View active companies on the web and on this phone.')}</p>
     <button type="button" disabled={busy} onClick={() => void compare()}>
       {t('তালিকা দেখুন', 'सूचियाँ देखें', 'View company lists')}

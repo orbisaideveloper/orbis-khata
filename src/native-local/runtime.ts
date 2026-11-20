@@ -19,6 +19,7 @@ import { createAndroidHardwareRecordCodec } from '../offline-integration/android
 import { isLotteryRead, lotteryInput } from '../lottery/protocol'
 import { encryptFinancialBackup, inspectFinancialBackup } from '../sync/financial-backup'
 import { restoreSelectedBackupPostings, selectableBackupPostings } from '../sync/selected-backup-restore'
+import { stageLotteryPull } from '../sync/lottery-transfer'
 import { queueNew } from '../sync/outbox-state'
 import { failClosedIfMissingSnapshot } from './snapshot-policy'
 import {
@@ -340,6 +341,32 @@ export function restoreNativeBackupSelection(archive: Uint8Array<ArrayBuffer>, a
     const snapshot = validateDeviceLocalSnapshot(await inspectFinancialBackup(archive, actor, key))
     const current = await readState(scope.db, actor)
     await saveImportedSnapshot(scope, restoreSelectedBackupPostings(current, snapshot, ids))
+  })
+}
+
+export function readNativeLotterySyncState(actor: string) {
+  return ordered(async () => {
+    const scope = assertActive()
+    if (scope.actor !== actor) throw new Error('ANDROID_LOCAL_ACTOR_CHANGED')
+    const current = await readState(scope.db, actor)
+    const state = current.workspaceEvents['android-lottery:state']?.result as Record<string, unknown> | undefined
+    const rows = state?.foundationAccountingOrganization
+    return {
+      linked: Boolean(current.workspaceEvents['web-lottery-sync:baseline']),
+      organizations: Array.isArray(rows) ? rows.map(row => String(row.id)) : [],
+    }
+  })
+}
+
+export function syncNativeLottery(actor: string, payload: unknown) {
+  return ordered(async () => {
+    const scope = assertActive()
+    if (scope.actor !== actor) throw new Error('ANDROID_LOCAL_ACTOR_CHANGED')
+    const current = await readState(scope.db, actor)
+    const staged = await stageLotteryPull(current, actor, payload)
+    if (staged.changed && document.querySelector('.lottery-module')) throw new Error('LOTTERY_SYNC_EDITOR_OPEN')
+    if (staged.snapshot !== current) await saveImportedSnapshot(scope, staged.snapshot)
+    return { changed: staged.changed }
   })
 }
 

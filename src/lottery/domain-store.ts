@@ -109,3 +109,52 @@ export function createLotteryStore(initial:LotteryState={},clock=()=>new Date())
  client.$queryRawUnsafe=(query:string)=>defer(()=>{if(!/^SELECT "id" FROM "Foundation\w+" WHERE .* FOR UPDATE$/u.test(query)){throw new Error('LOTTERY_QUERY_DENIED');}return [];});
  return {client,snapshot:()=>structuredClone(state),changes:():LotteryChange[]=>encodeLottery([...changes.values()])};
 }
+
+function validateTransferField(value:unknown,field:Field):void {
+ if(value===null||value===undefined){
+  if(!field.nullable)throw new Error('LOTTERY_EXPORT_SCHEMA_INCOMPATIBLE');
+  return;
+ }
+ const valid:Record<string,()=>boolean>={
+  String:()=>typeof value==='string',BigInt:()=>typeof value==='bigint',
+  Int:()=>Number.isSafeInteger(value),Boolean:()=>typeof value==='boolean',
+  DateTime:()=>value instanceof Date&&Number.isFinite(value.getTime()),
+ };
+ if(valid[field.type]&&!valid[field.type]())throw new Error('LOTTERY_EXPORT_SCHEMA_INCOMPATIBLE');
+}
+
+function validateTransferRow(row:Row,model:Model,state:LotteryState,checked:Row[]):void {
+ if(!row||typeof row!=='object'||Array.isArray(row)||typeof row.id!=='string'||!row.id)throw new Error('LOTTERY_EXPORT_INVALID');
+ for(const [key,field] of Object.entries(model.fields))validateTransferField(row[key],field);
+ foreignKeys(model,state,row);
+ unique(model,checked,row);
+}
+
+function validateTransferLedger(rows:Row[]):void {
+ const balances=new Map<string,bigint>();
+ for(const row of rows){
+  if((row.side!=='DEBIT'&&row.side!=='CREDIT')||typeof row.amountPaise!=='bigint'||row.amountPaise<0n)throw new Error('LOTTERY_EXPORT_LEDGER_INVALID');
+  const amount=row.side==='DEBIT'?row.amountPaise:-row.amountPaise;
+  const key=JSON.stringify([row.organizationId,row.transactionId]);
+  balances.set(key,(balances.get(key)??0n)+amount);
+ }
+ if([...balances.values()].some(amount=>amount!==0n))throw new Error('LOTTERY_EXPORT_LEDGER_UNBALANCED');
+}
+
+/** Validate transferred records using the same foreign-key and uniqueness contracts as local writes. */
+export function validateLotteryTransferState(encoded: unknown): void {
+ if (!encoded || typeof encoded !== 'object' || Array.isArray(encoded)) throw new Error('LOTTERY_EXPORT_INVALID');
+ const state=decodeLottery(encoded) as LotteryState;
+ for (const name of Object.keys(state)) {
+  if(!Object.hasOwn(models,name)||!Array.isArray(state[name]))throw new Error('LOTTERY_EXPORT_INVALID');
+ }
+ for(const name of Object.keys(models))state[name]??=[];
+ for(const [name,model] of Object.entries(models)){
+  const checked:Row[]=[];
+  for(const row of state[name]){
+   validateTransferRow(row,model,state,checked);
+   checked.push(row);
+  }
+ }
+ validateTransferLedger(state.foundationLotteryLedgerEntry);
+}

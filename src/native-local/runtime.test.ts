@@ -391,3 +391,20 @@ it('rejects foreign scope, bad balances and interrupted snapshot writes without 
   await restarted.restoreNativeOfflineIdentity()
   expect(fixture.state).toEqual(legacy)
 })
+
+it('persists Lottery imports atomically and leaves the old snapshot intact if saving fails', async () => {
+  const runtime = await import('./runtime')
+  const { runLottery } = await import('../lottery/service')
+  await runtime.enrollVerifiedCentralIdentity(actor, displayId)
+  const created = await runLottery({}, { method: 'createOrganization', payload: { name: 'Synthetic Lottery' }, operationId: crypto.randomUUID() }, actor)
+  const payload = { actor, version: 1, state: created.state }
+  const before = structuredClone(fixture.state)
+  fixture.failManifest.mockImplementationOnce(() => { throw new Error('storage unavailable') })
+  await expect(runtime.syncNativeLottery(actor, payload)).rejects.toThrow('storage unavailable')
+  expect(fixture.state).toEqual(before)
+  expect(await runtime.readNativeLotterySyncState(actor)).toEqual({ linked: false, organizations: [] })
+  await expect(runtime.syncNativeLottery(actor, payload)).resolves.toEqual({ changed: true })
+  await expect(runtime.syncNativeLottery(actor, payload)).resolves.toEqual({ changed: false })
+  expect((await runtime.readNativeLotterySyncState(actor)).linked).toBe(true)
+  await expect(runtime.syncNativeLottery('other', payload)).rejects.toThrow('ANDROID_LOCAL_ACTOR_CHANGED')
+})

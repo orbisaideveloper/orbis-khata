@@ -784,6 +784,12 @@ export function LotteryAccountingWorkspace({
     else setTab("masters");
   }, [organizationId, loading, refreshWorkspace]);
 
+  useEffect(() => {
+    const pullCompleted = () => { void loadOrganizations(); void refreshWorkspace(); };
+    window.addEventListener("khata-lottery-synced", pullCompleted);
+    return () => window.removeEventListener("khata-lottery-synced", pullCompleted);
+  }, [loadOrganizations, refreshWorkspace]);
+
   const run: AccountingRun = async (
     key,
     action,

@@ -954,6 +954,10 @@ export function DailySellerEntry({
     const row = rowsRef.current[partyId];
     if (!party || !row) return false;
     const entryDate = currentDateRef.current;
+    const saved = [...workspaceRef.current.draftSales, ...workspaceRef.current.sales]
+      .find(sale => sale.id === row.saleId && sale.partyId === partyId && isSameEntryDate(sale.occurredAt, entryDate));
+    if (!dirtyPartyIdsRef.current.has(partyId) && saved &&
+        JSON.stringify(rowFromSale(saved)) === JSON.stringify(row)) return true;
     const versionAtStart = rowVersionsRef.current.get(partyId) || 0;
     const storageMode = workspaceRef.current.organization.userLedgerStorage;
 

@@ -8,7 +8,7 @@ import { safeBusinessReason } from './business-error.ts';
 import { itemInput, partyInput, masterIdentity } from '../master-input.ts';
 import { billTotal, inventoryCommand } from '../inventory/model.ts';
 import { expenseCommand } from './expense-model.ts';
-type Operation = 'company-export' | 'drive-recovery' | 'party-sharing' | 'expense-profiles' | 'lottery' | 'workspace' | 'retired-companies' | 'masters' | 'party-save' | 'item-save' | 'party-delete' | 'item-delete' | 'party-balance' | 'expense-bill' | 'companies' | 'create' | 'report' | 'post' | 'expense-report' | 'expense-post' | 'inventory-post' | 'inventory-report';
+type Operation = 'lottery-export' | 'company-export' | 'drive-recovery' | 'party-sharing' | 'expense-profiles' | 'lottery' | 'workspace' | 'retired-companies' | 'masters' | 'party-save' | 'item-save' | 'party-delete' | 'item-delete' | 'party-balance' | 'expense-bill' | 'companies' | 'create' | 'report' | 'post' | 'expense-report' | 'expense-post' | 'inventory-post' | 'inventory-report';
 export type KhataPrincipal = {
     orbisIdentityId: string;
     displayId: string;
@@ -72,6 +72,7 @@ function validOperation(operation: unknown, input: Record<string, unknown>): ope
         case 'lottery': return lotteryInput(input);
         case 'expense-profiles': return profileCommand(input);
         case 'workspace': return workspaceInput(input);
+        case 'lottery-export':
         case 'retired-companies': return keys(input, []);
         case 'company-export':
         case 'masters': return keys(input, ['company']) && id(input.company);

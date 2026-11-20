@@ -64,3 +64,18 @@ Next: verify native Actions/Sonar for the pushed commit; live migrations/Edge/fr
 The first pushed source `607b901` passed all ordinary remote gates (732 unit tests, SQL acceptance, 28 browser tests and Sonar Quality Gate). Strict zero-open-issues enforcement then reported nine TypeScript findings: optional chaining, two assertion styles, five FormData object-stringification warnings and an array-index history key.
 
 The correction uses the existing string-only `textValue` helper and precise assertions. History quantities are grouped exactly by item/godown within each immutable document, producing a stable unique key even when a purchase contains repeated identical lines. Financial formulas, SQL, authentication and quality thresholds are unchanged. Related 41 tests, typecheck/lint, local SonarJS, KNIP, zero clones and mobile/desktop production 2/2 passed; the corrective native run is verified separately after push.
+
+
+## 2026-11-20 — Proposed Lottery pull contract (local implementation)
+
+Android Account & Profile exposes Sync Lottery from web. It imports the
+authenticated owner's complete Lottery store separately from Khata companies.
+After a baseline is established, foreground online pulls retry at 120 seconds.
+Local changes or pending seller working rows stop replacement. Manual and
+automatic pulls share one pending operation per owner. An open Lottery editor
+defers replacement. This implements Web-to-Android only.
+
+The read-only lottery-export operation needs the matching orbis-khata-data
+Edge revision deployed before use. No migration is added. Review physical
+Android initial import, repeat pull, Web updates and local conflict behavior
+before marking device acceptance passed.
