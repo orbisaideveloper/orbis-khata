@@ -1,3 +1,13 @@
+# 20 November 2026 — Guarded seller pending-entry recovery
+
+- `LOTTERY-RECOVERY-20261120`, Setup01, checkpoint 2026-11-20 17:11:07 IST; base main f10d5c8e. [Detailed safety/test evidence](LOTTERY_TYPES_20261120.md).
+- Popup pending details + Retry save + confirmed local discard. Identical server entry is acknowledged without repost; unsent draft retries same durable ID/revision and readback. Divergent server values displayed, not silently overwritten. Payments/posted accounting untouched.
+- Local recovery archive and selected row/outbox clearance are one guarded IndexedDB transaction, including cross-browser race/rollback protection. Retained legacy fallback gets exact-value marker, not deletion; old installs need no DB schema upgrade. Owner/company, current-edit and recovery locks retained.
+- Fixed hosted S7776 via Set/has and S6819 via output. Six suites26 tests, typecheck/build/PWA/lint/Knip/JSCPD PASS; targeted Sonar recommended rules zero findings. No full local coverage or real owner/device acceptance. Hosted CI unverified until owner checks after push.
+- Copies retained locally, not uploaded to Drive; no general payment/all-app recovery or archive restore UI claimed. No server schema/deploy, production data mutation or Play release. Actual user pending-row recovery awaits updated frontend/new build test.
+
+---
+
 # 20 November 2026 — Centered sync recovery dialog
 
 - Task `LOTTERY-SYNC-RECOVERY-UI-20261120`; base c3105fc9. [Detailed evidence](LOTTERY_TYPES_20261120.md#sync-diagnostic-recovery-ui--20-november-2026).

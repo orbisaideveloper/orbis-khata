@@ -44,7 +44,7 @@ export interface AccountingSellerWorkingRecord {
   schemaVersion?: 1;
 }
 
-interface AccountingOutboxRecord {
+export interface AccountingOutboxRecord {
   operationId: string;
   partitionKey: string;
   entityKey: string;
@@ -66,7 +66,11 @@ type AccountingLocalMutation =
 
 interface AccountingLocalDriver {
   getAll(store: AccountingStoreName): Promise<unknown[]>;
-  mutate(mutations: AccountingLocalMutation[]): Promise<void>;
+  mutate(mutations: AccountingLocalMutation[], expected?: { working: unknown[]; outbox: unknown[]; key: string }): Promise<void>;
+}
+
+function recoveryGuardRows(records: unknown[], key: string, field: "key" | "entityKey") {
+  return records.filter(value => value && typeof value === "object" && field in value && (value as Record<string, unknown>)[field] === key);
 }
 
 const DATABASE_NAME = "orbis-khata-lottery-local-v1";
@@ -122,18 +126,33 @@ function createIndexedDbAccountingLocalDriver(
       await completed;
       return result;
     },
-    async mutate(mutations) {
+    async mutate(mutations, expected) {
       if (!mutations.length) return;
       const database = await openDatabase();
-      const stores = [...new Set(mutations.map((mutation) => mutation.store))];
+      const stores = expected ? [WORKING_STORE, OUTBOX_STORE] : [...new Set(mutations.map((mutation) => mutation.store))];
       const transaction = database.transaction(stores, "readwrite");
       const completed = transactionDone(transaction);
+      try {
+      if (expected) {
+        const [working, outbox] = await Promise.all([
+          requestResult(transaction.objectStore(WORKING_STORE).getAll()),
+          requestResult(transaction.objectStore(OUTBOX_STORE).getAll()),
+        ]);
+        if (JSON.stringify(recoveryGuardRows(working, expected.key, "key")) !== JSON.stringify(recoveryGuardRows(expected.working, expected.key, "key")) || JSON.stringify(recoveryGuardRows(outbox, expected.key, "entityKey")) !== JSON.stringify(recoveryGuardRows(expected.outbox, expected.key, "entityKey"))) {
+          throw new Error("RECOVERY_LOCAL_CHANGED");
+        }
+      }
       for (const mutation of mutations) {
         const objectStore = transaction.objectStore(mutation.store);
         if (mutation.type === "put") objectStore.put(mutation.value);
         else objectStore.delete(mutation.key);
       }
       await completed;
+      } catch (error) {
+        try { transaction.abort(); } catch { /* Already completed/aborted. */ }
+        await completed.catch(() => undefined);
+        throw error;
+      }
     },
   };
 }
@@ -191,6 +210,9 @@ function isAccountingOutboxRecord(value: unknown): value is AccountingOutboxReco
 }
 
 export interface LotteryAccountingLocalStore {
+  resolveSellerRecovery?(scope: AccountingLocalScope, record: AccountingSellerWorkingRecord,
+    operation: AccountingOutboxRecord | null, resolution: "confirmed" | "discarded"): Promise<void>;
+  listSellerRecoveryCopies?(scope: AccountingLocalScope): Promise<unknown[]>;
   stageSellerRow(
     scope: AccountingLocalScope,
     occurredAt: string,
@@ -444,6 +466,36 @@ function createLotteryAccountingLocalStore(
         "ERROR",
         message,
       );
+    },
+
+    async listSellerRecoveryCopies(scope) {
+      await waitForMutations();
+      const partitionKey = accountingLocalPartitionKey(scope);
+      return (await driver.getAll(WORKING_STORE)).filter((value) => {
+        const copy = value as { entityType?: string; partitionKey?: string };
+        return copy.entityType === "SELLER_RECOVERY" && copy.partitionKey === partitionKey;
+      });
+    },
+
+    async resolveSellerRecovery(scope, record, operation, resolution) {
+      await serializeMutation(async () => {
+        const partitionKey = accountingLocalPartitionKey(scope);
+        const key = accountingSellerWorkingKey(scope, record.partyId, record.occurredAt);
+        if (record.partitionKey !== partitionKey || record.key !== key) throw new Error("RECOVERY_SCOPE_INVALID");
+        const [working, outbox] = await Promise.all([driver.getAll(WORKING_STORE), driver.getAll(OUTBOX_STORE)]);
+        const current = working.filter(isSellerWorkingRecord).find(item => item.key === key);
+        const queued = outbox.filter(isAccountingOutboxRecord).filter(item => item.partitionKey === partitionKey && item.entityKey === key);
+        if (JSON.stringify(current) !== JSON.stringify(record) || queued.length !== (operation ? 1 : 0) ||
+            (operation && JSON.stringify(queued[0]) !== JSON.stringify(operation))) throw new Error("RECOVERY_LOCAL_CHANGED");
+        if (record.syncState === "SYNCING") throw new Error("RECOVERY_BUSY");
+        const archive = { key: key + ":RECOVERY:" + operationId(), partitionKey, entityType: "SELLER_RECOVERY",
+          record: structuredClone(record), operation: structuredClone(operation), resolution, recoveredAt: now() };
+        await driver.mutate([
+          { store: WORKING_STORE, type: "put", value: archive },
+          { store: WORKING_STORE, type: "delete", key },
+          ...queued.map(item => ({ store: OUTBOX_STORE, type: "delete", key: item.operationId } as const)),
+        ], { working, outbox, key });
+      });
     },
 
     async removeSellerRow(scope, partyId, occurredAt) {

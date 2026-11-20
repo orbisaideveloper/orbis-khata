@@ -1,6 +1,6 @@
 import { afterEach, expect, it, vi } from 'vitest'
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
-import { DailySellerEntry } from '../../vendor/foundation-lottery/src/admin/dashboard/sections/DailySellerEntry'
+import { DailySellerEntry, sellerRecoveryFallbackToken, resolveSellerRecoveryFallback } from '../../vendor/foundation-lottery/src/admin/dashboard/sections/DailySellerEntry'
 import type { LotteryWorkspace } from '../../vendor/foundation-lottery/src/admin/models/lotteryAccountingTypes'
 
 afterEach(() => { cleanup(); localStorage.clear() })
@@ -22,3 +22,10 @@ it('records payment against an unchanged saved seller row without updating that 
   await waitFor(() => expect(pay).toHaveBeenCalledOnce(), { timeout: 500 })
   expect(update).not.toHaveBeenCalled()
 })
+
+it('retains the original fallback recovery copy and rejects marking a newer fallback as resolved',()=>{
+ const key='orbis.khata.lottery.pending-seller-row.org.seller.2026-11-16';
+ localStorage.setItem(key,'old pending copy');const token=sellerRecoveryFallbackToken('org','seller','2026-11-16');
+ resolveSellerRecoveryFallback('org','seller','2026-11-16',token);expect(localStorage.getItem(key)).toBe('old pending copy');expect(localStorage.getItem(key+':resolved')).toBe(token);
+ localStorage.setItem(key,'newer edit');expect(()=>resolveSellerRecoveryFallback('org','seller','2026-11-16',token)).toThrow('RECOVERY_LOCAL_CHANGED');expect(localStorage.getItem(key)).toBe('newer edit');
+});

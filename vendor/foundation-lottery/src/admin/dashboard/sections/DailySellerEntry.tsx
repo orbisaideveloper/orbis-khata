@@ -145,6 +145,8 @@ function readPendingRow(
     ) {
       return null;
     }
+    const raw = window.localStorage.getItem(pendingRowStorageKey(organizationId, partyId, occurredAt));
+    if (raw && window.localStorage.getItem(pendingRowStorageKey(organizationId, partyId, occurredAt) + ":resolved") === raw) return null;
     return parsed as DailySellerRow;
   } catch {
     return null;
@@ -158,6 +160,7 @@ function storePendingRow(
   row: DailySellerRow,
 ) {
   try {
+    window.localStorage.removeItem(pendingRowStorageKey(organizationId, partyId, occurredAt) + ":resolved");
     window.localStorage.setItem(
       pendingRowStorageKey(organizationId, partyId, occurredAt),
       JSON.stringify(row),
@@ -165,6 +168,16 @@ function storePendingRow(
   } catch {
     // Browser storage can be unavailable in private mode; the network save still runs.
   }
+}
+
+/** The original fallback is retained; only an exact resolved copy is ignored. */
+export function sellerRecoveryFallbackToken(organizationId: string, partyId: string, occurredAt: string) {
+  return window.localStorage.getItem(pendingRowStorageKey(organizationId, partyId, occurredAt));
+}
+export function resolveSellerRecoveryFallback(organizationId: string, partyId: string, occurredAt: string, expected: string | null) {
+  const key = pendingRowStorageKey(organizationId, partyId, occurredAt);
+  if (window.localStorage.getItem(key) !== expected) throw new Error("RECOVERY_LOCAL_CHANGED");
+  if (expected !== null) window.localStorage.setItem(key + ":resolved", expected);
 }
 
 export function clearPendingRow(

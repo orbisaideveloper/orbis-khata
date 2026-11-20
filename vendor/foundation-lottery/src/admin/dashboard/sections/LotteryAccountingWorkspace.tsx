@@ -1,3 +1,4 @@
+import {recoverSellerEntry, readSellerRecoveryWorkspace} from '../../../../../../src/lottery/seller-recovery';
 import {LotterySyncDetails} from "../../../../../../src/lottery/LotterySyncDetails";
 import {useMasterPartyLink} from '../../../../../../src/customer-view/useMasterPartyLink';
 import {MasterPartyLink} from '../../../../../../src/customer-view/MasterPartyLink';
@@ -22,7 +23,7 @@ import { accountingBusinessDate, accountingToday } from "../../models/lotteryAcc
 import { lotteryExpenseOutstanding } from "../../models/lotteryAccountingExpenseBalance";
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ChevronRight, LoaderCircle, RefreshCw } from "lucide-react";
-import { DailySellerEntry, clearPendingRow } from "./DailySellerEntry";
+import { DailySellerEntry, clearPendingRow, sellerRecoveryFallbackToken, resolveSellerRecoveryFallback } from "./DailySellerEntry";
 import { DailyStockistEntry } from "./DailyStockistEntry";
 import {
   LedgerTransactionDetail,
@@ -599,6 +600,8 @@ export function LotteryAccountingWorkspace({
   localScope = { ownerKind: "ADMIN_REAL", ownerId: "admin-current" },
   localStore = getLotteryAccountingLocalStore(),
 }: Readonly<LotteryAccountingWorkspaceProps>) {
+  const recoveringRef = useRef(false);
+  const [recoveryEpoch, setRecoveryEpoch] = useState(0);
   const [preferences,setPreferences]=useState<'tds'|'payments'|null>(null);
   useEffect(()=>{const open=(event:Event)=>{const value=(event as CustomEvent).detail;if(value==='tds'||value==='payments')setPreferences(value);};window.addEventListener('lottery-settings',open);return()=>window.removeEventListener('lottery-settings',open);},[]);
   const [organizations, setOrganizations] = useState<
@@ -607,6 +610,8 @@ export function LotteryAccountingWorkspace({
   const ownerScope = navigationKey("accounting", localScope.ownerKind, localScope.ownerId);
   const [organizationId, setOrganizationId] = useNavigationState(ownerScope + ":organization", "", navigationString);
   const navigationScope = navigationKey("accounting", localScope.ownerKind, localScope.ownerId, organizationId);
+  const recoveryScopeRef = useRef(navigationScope);
+  recoveryScopeRef.current = navigationScope;
   const [workspace, setWorkspace] = useState<LotteryWorkspace | null>(null);
   const [sellerWorkingRecords, setSellerWorkingRecords] = useState<
     AccountingSellerWorkingRecord[]
@@ -951,8 +956,31 @@ export function LotteryAccountingWorkspace({
             ))}
           </select>
           <LotterySyncDetails key={navigationScope} label={localSyncLabel} records={sellerWorkingRecords} workspace={workspace} warning={localStoreWarning}
+            onRecover={localScope.ownerKind === "PUBLIC_USER" && workspace?.organization.userLedgerStorage === "CLOUD" && localStore?.resolveSellerRecovery ? async (record, mode) => {
+              if (recoveringRef.current) throw new Error("RECOVERY_BUSY");
+              recoveringRef.current = true;
+              try {
+              const expectedScope = navigationScope;
+              const store = localStore;
+              if (!store) throw new Error("RECOVERY_UNAVAILABLE");
+              await sellerPersistenceTailRef.current;
+              if (dailySellerFlushRef.current && !await dailySellerFlushRef.current()) throw new Error("RECOVERY_BUSY");
+              const fallback = sellerRecoveryFallbackToken(organizationId, record.partyId, record.occurredAt);
+              const result = await trackSellerPersistence(() => recoverSellerEntry({
+                scope: { ...localScope, organizationId }, store, api,
+                read: () => readSellerRecoveryWorkspace(localScope.ownerId, organizationId),
+                active: () => recoveryScopeRef.current === expectedScope,
+                beforeResolve: () => resolveSellerRecoveryFallback(organizationId, record.partyId, record.occurredAt, fallback),
+              }, record, mode));
+              if (recoveryScopeRef.current !== expectedScope) throw new Error("RECOVERY_SCOPE_INVALID");
+              setRecoveryEpoch(value => value + 1);
+              await refreshWorkspace();
+              return result;
+              } finally { recoveringRef.current = false; }
+            } : undefined}
             readFailure={async record => (await localStore?.getSellerSyncOperation?.({ ...localScope, organizationId }, record.occurredAt, record.partyId))?.lastError}
             onReview={async record => {
+              if (recoveringRef.current) return false;
               if (dailySellerFlushRef.current && !await dailySellerFlushRef.current()) return false;
               setSellerEditRequest({ partyId: record.partyId, occurredAt: record.occurredAt, token: Date.now() });
               setDailyMode("SELLER");
@@ -1018,7 +1046,7 @@ export function LotteryAccountingWorkspace({
             </>
           )}
           {tab === "daily" && (
-            <DailyPanel
+            <DailyPanel key={recoveryEpoch}
               workspace={workspace}
               organizationId={organizationId}
               api={api}
