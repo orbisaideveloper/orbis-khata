@@ -950,7 +950,15 @@ export function LotteryAccountingWorkspace({
               </option>
             ))}
           </select>
-          <LotterySyncDetails key={navigationScope} label={localSyncLabel} records={sellerWorkingRecords} workspace={workspace} warning={localStoreWarning}/>
+          <LotterySyncDetails key={navigationScope} label={localSyncLabel} records={sellerWorkingRecords} workspace={workspace} warning={localStoreWarning}
+            readFailure={async record => (await localStore?.getSellerSyncOperation?.({ ...localScope, organizationId }, record.occurredAt, record.partyId))?.lastError}
+            onReview={async record => {
+              if (dailySellerFlushRef.current && !await dailySellerFlushRef.current()) return false;
+              setSellerEditRequest({ partyId: record.partyId, occurredAt: record.occurredAt, token: Date.now() });
+              setDailyMode("SELLER");
+              selectWorkspaceTab("daily");
+              return true;
+            }}/>
           <button
             type="button"
             aria-label="Refresh accounting workspace"

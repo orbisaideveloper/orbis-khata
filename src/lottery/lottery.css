@@ -32,3 +32,21 @@
 .lottery-shell[data-theme=blue] .lottery-module{background:linear-gradient(140deg,#f6fcff,#e6f0fa 50%,#f1f4fc)}
 
 .workspace-menu-panel .tutorial-menu-row{justify-content:space-between}.lottery-module input:focus,.lottery-module select:focus{outline:none;box-shadow:none;border-color:#80b4aa}.lottery-module input:focus-visible,.lottery-module select:focus-visible{outline:1px solid #498c80;outline-offset:1px;box-shadow:none}.lottery-preferences{padding:16px;border:1px solid #cbdfe8;border-radius:18px;background:#ffffffeb;display:grid;gap:12px}.lottery-preferences label{display:grid;gap:5px;font-size:13px}.lottery-preferences input,.lottery-preferences textarea,.lottery-preferences select{width:100%;padding:10px;border:1px solid #cddedc;border-radius:10px}.lottery-preferences button{padding:10px;border:1px solid #bbd5cc;border-radius:10px}.lottery-preferences table{width:100%;font-size:12px}.lottery-preferences td,.lottery-preferences th{padding:8px;text-align:left;border-bottom:1px solid #e1ebe7}
+
+/* Sync status is a top-layer dialog, outside the narrow company header. */
+.lottery-company-bar .lottery-sync-trigger{appearance:none;display:grid;place-items:center;width:38px;height:38px;flex:0 0 38px;padding:0;border:0;border-radius:50%;background:transparent;box-shadow:none;cursor:pointer}
+.lottery-sync-trigger:focus-visible{outline:2px solid #087a5b;outline-offset:3px}
+.lottery-sync-light{display:block;width:16px;height:16px;border-radius:50%;background:#16845e;box-shadow:0 0 0 5px #16845e14}
+.lottery-sync-trigger[data-sync=pending] .lottery-sync-light{background:#a06920;box-shadow:0 0 0 5px #a0692014}
+.lottery-sync-dialog{box-sizing:border-box;position:fixed;inset:0;margin:auto;width:min(440px,calc(100vw - 32px));max-height:calc(100dvh - 48px);overflow:auto;border:1px solid #d8e9e2;border-radius:24px;padding:22px;background:#fff;color:#203a34;box-shadow:0 24px 80px #16372d40;font-family:inherit;font-size:15px;line-height:1.5;overflow-wrap:anywhere}
+.lottery-sync-dialog::backdrop{background:#15372f66;backdrop-filter:blur(3px)}
+.lottery-sync-heading{display:flex;align-items:center;justify-content:space-between;gap:16px;margin-bottom:8px}
+.lottery-sync-heading h2{margin:0;font-size:21px;font-weight:750}
+.lottery-sync-heading button{display:grid;place-items:center;flex:0 0 36px;width:36px;height:36px;padding:0;border:0;border-radius:50%;background:#f0f6f3;color:#315b50;font-size:28px;cursor:pointer}
+.lottery-sync-summary{margin:0 0 16px;color:#93631f;font-weight:600}
+.lottery-sync-records{list-style:none;padding:0;margin:0;display:grid;gap:12px}
+.lottery-sync-records li{padding:16px;border:1px solid #e0ebe6;border-radius:16px;background:#f7faf8}
+.lottery-sync-records p{margin:5px 0;color:#63776f;font-size:13px}
+.lottery-sync-review{margin-top:10px;padding:9px 14px;border:0;border-radius:10px;background:#087f5b;color:white;font:inherit;font-size:14px;cursor:pointer}
+.lottery-sync-help{margin:18px 0 0;color:#63776f;font-size:13px}
+.lottery-sync-reason{font-family:monospace}

@@ -1,3 +1,12 @@
+# 20 November 2026 — Centered sync recovery dialog
+
+- Task `LOTTERY-SYNC-RECOVERY-UI-20261120`; base c3105fc9. [Detailed evidence](LOTTERY_TYPES_20261120.md#sync-diagnostic-recovery-ui--20-november-2026).
+- Owner screenshot verifies a local daily seller ERROR row, not sign-in failure. Actual failure reason/server-vs-local financial state not yet established; no deletion/force-sync performed.
+- Borderless larger round light; centered native modal outside clipped header with ×/Escape, safe local error code + explanation, guarded Review entry for exact party/date using existing daily edit route. Current-save guard and manual payments preserved. Opening entry can retry existing bill autosave, disclosed in popup.
+- Related UI/receipt tests6 PASS, final diagnostic tests4 PASS, typecheck/lint/Knip/build/PWA PASS; diagnostic Sonar recommended rules zero findings. Chromium visual smoke blocked by environment socket permission; GitHub browser/coverage/Sonar/Android remain CI. No deployment or customer data mutation.
+
+---
+
 # 20 November 2026 — Root-cause Sonar follow-up
 
 - `LOTTERY-SONAR-20261120`, Setup 01; base remote `bfba9e78`. [Detailed reproduction](LOTTERY_TYPES_20261120.md#follow-up--lottery-sonar-20261120-20-november-2026-ist).

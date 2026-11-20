@@ -1,36 +1,76 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import type { AccountingSellerWorkingRecord } from '../../vendor/foundation-lottery/src/admin/models/lotteryAccountingLocalStore';
 import type { LotteryWorkspace } from '../../vendor/foundation-lottery/src/admin/models/lotteryAccountingTypes';
 import { useLotteryLanguage } from './language';
 import { inLanguage } from '../localize';
 
-/** Read-only view of this owner/company's existing local recovery rows. */
-export function LotterySyncDetails({ label, records, workspace, warning }: Readonly<{
+type Props = Readonly<{
   label: string;
   records: AccountingSellerWorkingRecord[];
   workspace: LotteryWorkspace | null;
   warning: string | null;
-}>) {
+  onReview?: (record: AccountingSellerWorkingRecord) => Promise<boolean>;
+  readFailure?: (record: AccountingSellerWorkingRecord) => Promise<string | undefined>;
+}>;
+const safeReasons = ['SELLER_DRAFT_CONFLICT', 'SELLER_ENTRY_NOT_SAVED', 'KHATA_LOGIN_REQUIRED', 'KHATA_BUSY', 'KHATA_RATE_LIMITED', 'Failed to fetch', 'NetworkError'];
+
+/** Displays local recovery data; never deletes or automatically resubmits a financial write. */
+export function LotterySyncDetails({ label, records, workspace, warning, onReview, readFailure }: Props) {
   const [open, setOpen] = useState(false);
+  const [reviewing, setReviewing] = useState(false);
+  const [reviewBlocked, setReviewBlocked] = useState(false);
+  const [reasons, setReasons] = useState<Record<string, string>>({});
+  const dialog = useRef<HTMLDialogElement>(null);
   const language = useLotteryLanguage();
   const text = (bn: string, hi: string, en: string) => inLanguage(language, bn, hi, en);
   const pending = records.filter(record => record.syncState !== 'SYNCED');
-  return <div className="relative">
-    <button type="button" className="lottery-sync-dot" aria-label="Accounting local sync status"
+  useEffect(() => {
+    if (!open) return;
+    const element = dialog.current;
+    if (element?.showModal) element.showModal();
+    else element?.setAttribute('open', '');
+    return () => element?.close?.();
+  }, [open]);
+  const show = async () => {
+    setReviewBlocked(false);
+    setOpen(true);
+    if (!readFailure) return;
+    const entries = await Promise.all(pending.map(async record => {
+      try {
+        const reason = await readFailure(record);
+        return [record.key, reason && safeReasons.includes(reason) ? reason : ''] as const;
+      } catch { return [record.key, ''] as const; }
+    }));
+    setReasons(Object.fromEntries(entries));
+  };
+  return <>
+    <button type="button" className="lottery-sync-dot lottery-sync-trigger" aria-label="Accounting local sync status"
       data-sync={label === 'Synced' ? 'ok' : 'pending'} title={label}
-      aria-expanded={open} onClick={() => setOpen(value => !value)}>
-      <span aria-hidden="true">●</span><span className="lottery-sr-only">{label}</span>
+      aria-expanded={open} onClick={() => void show()}>
+      <span aria-hidden="true" className="lottery-sync-light"/><span className="lottery-sr-only">{label}</span>
     </button>
-    {open && <section aria-label="Local sync details" className="absolute right-0 z-20 w-72 max-w-[85vw] rounded-xl border border-emerald-100 bg-white p-3 text-sm text-slate-800 shadow-lg">
-      <strong>{text('সিঙ্কের অবস্থা', 'सिंक की स्थिति', 'Sync status')}</strong>
-      <p>{label}</p>
+    {open && createPortal(<dialog ref={dialog} aria-label="Local sync details" className="lottery-sync-dialog"
+      onCancel={event => { event.preventDefault(); setOpen(false); }}>
+      <header className="lottery-sync-heading">
+        <h2>{text('সিঙ্কের অবস্থা', 'सिंक की स्थिति', 'Sync status')}</h2>
+        <button type="button" aria-label={text('বন্ধ করুন', 'बंद करें', 'Close')} onClick={() => setOpen(false)}>×</button>
+      </header>
+      <p className="lottery-sync-summary">{label}</p>
       {warning && <p>{text('ফোনের সংরক্ষিত তথ্য পড়তে বা পরিষ্কার করতে সমস্যা হয়েছে।', 'डिवाइस का डेटा पढ़ने या साफ करने में समस्या है।', 'Local recovery storage needs attention.')}</p>}
-      {pending.length > 0 && <ul>{pending.map(record => <li key={record.key} className="mt-2 border-t border-slate-100 pt-2">
-        <span>{workspace?.parties.find(party => party.id === record.partyId)?.name ?? text('পার্টি পাওয়া যায়নি', 'पार्टी नहीं मिली', 'Party unavailable')}</span>
-        <span className="block">{record.occurredAt} · {record.syncState}</span>
+      {pending.length > 0 && <ul className="lottery-sync-records">{pending.map(record => <li key={record.key}>
+        <strong>{workspace?.parties.find(party => party.id === record.partyId)?.name ?? text('পার্টি পাওয়া যায়নি', 'पार्टी नहीं मिली', 'Party unavailable')}</strong>
+        <p>{record.occurredAt} · {record.syncState}</p>
+        {reasons[record.key] && <>
+          <p>{reasons[record.key] === 'SELLER_DRAFT_CONFLICT'
+            ? text('ফোনের এন্ট্রি ও সার্ভারের সংস্করণ মেলেনি। আগে এন্ট্রিটি মিলিয়ে দেখুন।', 'फोन और सर्वर की एंट्री का संस्करण नहीं मिला। पहले जाँचें।', 'The local entry and server version differ. Review the entry first.')
+            : text('আগের সেভ নিশ্চিত হয়নি। এন্ট্রি খুলে বার্তাটি পরীক্ষা করুন।', 'पिछला सेव पक्का नहीं हुआ। एंट्री खोलकर संदेश जाँचें।', 'The earlier save was not confirmed. Open the entry to check the message.')}</p>
+          <p className="lottery-sync-reason">{reasons[record.key]}</p>
+        </>}
+        {onReview && <button type="button" className="lottery-sync-review" disabled={reviewing} onClick={async () => { setReviewing(true); try { if (await onReview(record)) setOpen(false); else setReviewBlocked(true); } catch { setReviewBlocked(true); } finally { setReviewing(false); } }}>{text('এন্ট্রি খুলে যাচাই করুন', 'एंट्री खोलकर जाँचें', 'Review entry')}</button>}
       </li>)}</ul>}
-      <p className="mt-2">{text('কোনো হিসাব মোছা হয়নি। দৈনিক এন্ট্রিতে এই পার্টি ও তারিখ পরীক্ষা করুন।', 'कोई हिसाब नहीं मिटाया गया। दैनिक एंट्री में यह पार्टी और तारीख जाँचें।', 'No records were deleted. Check the listed party and date in Daily entry.')}</p>
-      <button type="button" onClick={() => setOpen(false)}>{text('বন্ধ করুন', 'बंद करें', 'Close')}</button>
-    </section>}
-  </div>;
+      {reviewBlocked && <p role="status">{text("বর্তমান এন্ট্রির সেভ শেষ করে আবার চেষ্টা করুন।", "मौजूदा एंट्री सेव करके फिर कोशिश करें।", "Finish saving the current entry before opening another date.")}</p>}
+      <p className="lottery-sync-help">{text('তথ্য মুছে ফেলা হয়নি। এন্ট্রি খুললে বিলের অটোসেভ আবার চেষ্টা করতে পারে। পেমেন্ট নিজে থেকে পাঠানো হবে না।', 'डेटा नहीं मिटाया गया। एंट्री खोलने पर बिल का ऑटोसेव फिर कोशिश कर सकता है। भुगतान अपने आप नहीं भेजा जाएगा।', 'Your local entry is preserved. Opening it can retry the existing bill autosave. Payments are never submitted automatically.')}</p>
+    </dialog>, document.body)}
+  </>;
 }

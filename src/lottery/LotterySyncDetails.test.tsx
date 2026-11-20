@@ -1,5 +1,5 @@
-import { cleanup, fireEvent, render, screen } from '@testing-library/react';
-import { afterEach, expect, it } from 'vitest';
+import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { afterEach, expect, it, vi } from 'vitest';
 import { LotterySyncDetails } from './LotterySyncDetails';
 import type { AccountingSellerWorkingRecord } from '../../vendor/foundation-lottery/src/admin/models/lotteryAccountingLocalStore';
 import type { LotteryWorkspace } from '../../vendor/foundation-lottery/src/admin/models/lotteryAccountingTypes';
@@ -22,4 +22,25 @@ it('keeps a genuinely synced indicator green and reports storage warnings withou
  view.rerender(<LotterySyncDetails label="Storage warning" records={[]} workspace={workspace} warning="private-driver-error"/>);
  fireEvent.click(screen.getByRole('button',{name:'Accounting local sync status'}));
  expect(screen.getByText('Local recovery storage needs attention.')).toBeInTheDocument();expect(screen.queryByText('private-driver-error')).toBeNull();
+});
+
+it('opens a centered accessible dialog, shows only safe errors, and reviews the exact row',async()=>{
+ const review=vi.fn().mockResolvedValue(true);
+ render(<LotterySyncDetails label="Sync error" records={[record]} workspace={workspace} warning={null} onReview={review} readFailure={async()=> 'SELLER_DRAFT_CONFLICT'}/>);
+ fireEvent.click(screen.getByRole('button',{name:'Accounting local sync status'}));
+ const modal=await screen.findByRole('dialog',{name:'Local sync details'});
+ expect(modal.parentElement).toBe(document.body);
+ expect(await screen.findByText('SELLER_DRAFT_CONFLICT')).toBeInTheDocument();
+ expect(screen.getByRole('button',{name:'Close'}).textContent).toBe('×');
+ fireEvent.click(screen.getByRole('button',{name:'Review entry'}));
+ await waitFor(()=>expect(review).toHaveBeenCalledWith(record));
+ await waitFor(()=>expect(screen.queryByRole('dialog')).toBeNull());
+});
+it('preserves the dialog when current save blocks review and never exposes unknown raw errors',async()=>{
+ render(<LotterySyncDetails label="Sync error" records={[record]} workspace={workspace} warning={null} onReview={async()=>false} readFailure={async()=> 'private payload'}/>);
+ fireEvent.click(screen.getByRole('button',{name:'Accounting local sync status'}));
+ fireEvent.click(screen.getByRole('button',{name:'Review entry'}));
+ await screen.findByRole('status');expect(screen.getByRole('dialog')).toBeInTheDocument();expect(screen.queryByText('private payload')).toBeNull();
+ fireEvent(screen.getByRole('dialog'),new Event('cancel',{bubbles:true,cancelable:true}));
+ expect(screen.queryByRole('dialog')).toBeNull();
 });
