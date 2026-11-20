@@ -1,0 +1,21 @@
+.phone.results-shell { width: min(100%, 1100px); background: #fff; box-shadow: none; }
+.results-page { color: #202020; background: #fff; padding: clamp(1rem, 3vw, 2.5rem); }
+.results-header { display: grid; grid-template-columns: 3rem 1fr 3rem; align-items: center; gap: .75rem; border-bottom: 1px solid #ddd; padding-bottom: 1rem; }
+.results-header h1 { text-align: center; font-size: clamp(1.15rem, 3vw, 1.7rem); margin: 0; font-weight: 650; }
+.results-header button, .results-sample-button { min-height: 44px; padding: .65rem; border-radius: 8px; border: 1px solid #bbb; background: #fff; color: #222; font: inherit; cursor: pointer; }
+.results-page :focus-visible { outline: 2px solid #222; outline-offset: 3px; }
+.results-controls { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 15rem), 1fr)); gap: 1rem; margin: 1.5rem 0; }
+.results-controls label { display: grid; gap: .5rem; font-weight: 600; }
+.results-controls input, .results-controls select { width: 100%; min-width: 0; box-sizing: border-box; padding: .85rem; min-height: 48px; border: 1px solid #bbb; border-radius: 8px; background: #fff; color: #222; font: inherit; }
+.results-notice, .result-sheet { border: 1px solid #ddd; border-radius: 10px; padding: clamp(.85rem, 3vw, 1.7rem); margin-block: 1.25rem; }
+.results-notice h2 { font-size: 1.15rem; margin-top: 0; }
+.results-notice p, .result-sheet p { line-height: 1.65; }
+.results-source { display: inline-block; padding: .8rem 0; color: #222; overflow-wrap: anywhere; text-underline-offset: .25rem; }
+.result-first { font-size: clamp(1.5rem, 6vw, 2.5rem); font-variant-numeric: tabular-nums; letter-spacing: .06em; }
+.result-number-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(4.3rem, 1fr)); gap: .5rem; font-variant-numeric: tabular-nums; }
+.result-number-grid span { padding: .5rem .2rem; border-bottom: 1px solid #ddd; text-align: center; font-weight: 600; }
+.result-sheet h3 { margin-top: 1.75rem; font-size: 1rem; }
+.results-network { color: #555; font-size: .875rem; }
+.results-ad-slot:empty { display: none; }
+.results-ad-slot { clear: both; margin-block: 2rem; max-width: 100%; overflow: hidden; }
+@media print { .results-header button, .results-controls, .results-sample-button, .results-ad-slot, .results-network { display: none; } .result-sheet { border: 0; padding: 0; } }

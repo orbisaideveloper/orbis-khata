@@ -18,6 +18,8 @@ it('uses the existing default order, appends new cards and restores an owner-spe
   expect(order()).toEqual(['khata', 'farm', 'customer', 'lottery', 'daily', 'results'])
   expect(screen.getByText('Daily accounts')).toBeVisible()
   expect(screen.getByText('Lottery results')).toBeVisible()
+  fireEvent.click(screen.getByRole('button', { name: /^Lottery results\s*Check/ }))
+  expect(open).toHaveBeenCalledWith('results')
   fireEvent.keyDown(screen.getByRole('button', { name: 'Reorder card', description: 'Customer view' }), { key: 'ArrowUp' })
   expect(order()).toEqual(['khata', 'customer', 'farm', 'lottery', 'daily', 'results'])
   fireEvent.click(screen.getByRole('button', { name: /^Customer view\s*Linked/ }))

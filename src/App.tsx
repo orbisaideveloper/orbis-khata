@@ -1,3 +1,4 @@
+import { LotteryResults } from './lottery-results/LotteryResults';
 import { inLanguage } from './localize';
 import { OrbisLogo } from './brand/OrbisLogo';
 import { PrivacyLinks } from './privacy/PrivacyLinks';
@@ -49,7 +50,7 @@ const languagePresentation: Record<Language, {
     en: { title: 'ORBIS Khata Boi', pickerLabel: 'Choose language' },
     hi: { title: 'ORBIS खाताबही', pickerLabel: 'भाषा चुनें' },
 };
-function mainClass(view: View, signedIn: boolean) { if(view==='lottery'){return 'phone lottery-shell';}return view === 'khata' && signedIn ? 'phone kh-app' : 'phone'; }
+function mainClass(view: View, signedIn: boolean) { if(view==='results'){return 'phone results-shell';}if(view==='lottery'){return 'phone lottery-shell';}return view === 'khata' && signedIn ? 'phone kh-app' : 'phone'; }
 function LotteryScene({view,owner,language,onSelect,controls}:Readonly<{view:View;owner:string|null;language:Language;onSelect:(module:ModuleTarget)=>void;controls:ReactNode}>){if(view!=='lottery'||!owner){return null;}return <Suspense fallback={<p>{accountCopy[language].network}</p>}><LotteryPage owner={owner} language={language} onSelect={onSelect} controls={controls}/></Suspense>;}
 const nativeLoginCopy = {
     bn: { signInLabel: 'অনলাইনে আবার লগইন করুন', localError: 'Android লগইন অথবা Offline Storage খোলা যায়নি। নিচের Error Code দেখুন।' },
@@ -154,7 +155,7 @@ function App() {
         return () => window.removeEventListener('popstate', onBack);
     }, [setView, signedIn, view]);
     useNativeBack(view, signedIn, booksPage, backBooks);
-    useEffect(()=>{if(signedIn&&!account.loading&&(view==='khata'||view==='lottery'||view==='customer'||view==='workspace'))saveLocation(sessionId??undefined,{view});},[signedIn,account.loading,view,sessionId]);
+    useEffect(()=>{if(signedIn&&!account.loading&&(view==='khata'||view==='lottery'||view==='customer'||view==='results'||view==='workspace'))saveLocation(sessionId??undefined,{view});},[signedIn,account.loading,view,sessionId]);
     async function logout() {
         if (!authClient) {
             backToWelcome();
@@ -256,6 +257,7 @@ function App() {
 
         </section>)}
 
+      {view === 'results' && signedIn && <LotteryResults language={language} onBack={mainHome}/>}
       <LotteryScene view={view} owner={sessionId} language={language} onSelect={navigate} controls={<WorkspaceMenu moduleMenu onMainHome={mainHome} onAppearance={showAppearance} settings={<><label className="lottery-language-setting"><span>{languagePresentation[language].pickerLabel}</span>{languagePicker()}</label><Themes language={language}/></>} actions={<><button type="button" onClick={()=>navigate('customer')}>{shareCopy(language,'title')}</button>{(['tds','payments'] as const).map(section=><button type="button" key={section} onClick={event=>{event.currentTarget.closest('.workspace-menu')?.removeAttribute('open');window.dispatchEvent(new CustomEvent('lottery-settings',{detail:section}));}}>{section==='tds'?'TDS':{bn:'পেমেন্টের মাধ্যম',en:'Payment methods',hi:'भुगतान के तरीके'}[language]}</button>)}</>} language={language} signedIn={signedIn} tutorial={tutorial} onTutorial={enabled=>{setTutorial(enabled);saveTutorial(enabled);}} onProfile={()=>navigate('profile')} onLogout={()=>void logout()}/>}/>
       {view==='customer'&&signedIn&&<Suspense fallback={<p>{accountCopy[language].network}</p>}><CustomerView key={sessionId} actor={sessionId ?? undefined} language={language} onSelect={navigate} onBack={mainHome} onBooks={()=>navigate('lottery')}/></Suspense>}
       {view === 'drive-backup' && sessionId && androidLocalFirst() && <section className="scene light-scene active profile-page" aria-label={backupLabel}>

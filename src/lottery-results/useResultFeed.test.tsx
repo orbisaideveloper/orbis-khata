@@ -1,0 +1,35 @@
+import { act, cleanup, renderHook } from '@testing-library/react'
+import { afterEach, expect, it, vi } from 'vitest'
+import { useResultFeed } from './useResultFeed'
+import { refreshResults } from './result-feed'
+vi.mock('./result-feed', () => ({ cachedResults: () => [], refreshResults: vi.fn() }))
+afterEach(() => { cleanup(); vi.useRealTimers(); vi.clearAllMocks() })
+it('refreshes on opening, online, foreground and 120 seconds, then cleans up', async () => {
+  vi.useFakeTimers()
+  vi.mocked(refreshResults).mockResolvedValue([])
+  const view = renderHook(useResultFeed)
+  await act(async () => {})
+  expect(view.result.current.status).toBe('ready')
+  expect(refreshResults).toHaveBeenCalledTimes(1)
+  await act(async () => { window.dispatchEvent(new Event('online')) })
+  await act(async () => { document.dispatchEvent(new Event('visibilitychange')) })
+  await act(async () => { vi.advanceTimersByTime(120000) })
+  expect(refreshResults).toHaveBeenCalledTimes(4)
+  view.unmount()
+  window.dispatchEvent(new Event('online'))
+  vi.advanceTimersByTime(120000)
+  expect(refreshResults).toHaveBeenCalledTimes(4)
+})
+it('coalesces overlapping attempts, aborts on unmount and preserves offline state', async () => {
+  let reject: (reason: Error) => void = () => {}
+  vi.mocked(refreshResults).mockImplementation(() => new Promise((_, fail) => { reject = fail }))
+  const view = renderHook(useResultFeed)
+  window.dispatchEvent(new Event('online'))
+  expect(refreshResults).toHaveBeenCalledTimes(1)
+  await act(async () => { reject(new Error('offline')) })
+  expect(view.result.current.status).toBe('offline')
+  await act(async () => { window.dispatchEvent(new Event('online')) })
+  const signal = vi.mocked(refreshResults).mock.calls[1][0]
+  view.unmount()
+  expect(signal.aborted).toBe(true)
+})
