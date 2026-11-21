@@ -146,7 +146,7 @@ function useCardDrag(root: React.RefObject<HTMLDivElement | null>, onMove: (sour
   return { dragging, hover }
 }
 
-export function WorkspaceCards({ owner, language, onOpen }: Readonly<{ owner: string | null; language: Language; onOpen: (target: ModuleTarget | 'results') => void }>) {
+export function WorkspaceCards({ owner, language, onOpen }: Readonly<{ owner: string | null; language: Language; onOpen: (target: ModuleTarget) => void }>) {
   const titleId = useId()
   const key = 'orbis.khata.workspace.cards.v1:' + (owner ?? 'guest')
   const [order, setOrder] = useState(() => readOrder(key))

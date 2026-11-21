@@ -63,3 +63,46 @@ it('handles permission denial and unrecognized QR without following embedded lin
   expect(screen.getByText(/Unrecognized QR format/)).toBeVisible()
   expect(checkTicket).not.toHaveBeenCalled()
 })
+
+it('centers scanning in a modal, consumes Android back and restores page scrolling', async () => {
+  document.body.style.overflow = 'auto'
+  view()
+  const opener = screen.getByRole('button', { name: 'Scan QR' })
+  opener.focus()
+  fireEvent.click(opener)
+  await act(async () => {})
+  expect(screen.getByRole('dialog', { name: 'Scan your ticket' })).toHaveAttribute('open')
+  expect(document.body.style.overflow).toBe('hidden')
+  const stopTrack = vi.fn()
+  const camera = screen.getByLabelText('QR camera') as HTMLVideoElement
+  camera.srcObject = { getTracks: () => [{ stop: stopTrack }] } as unknown as MediaStream
+  const back = new Event('orbis-native-back', { cancelable: true })
+  act(() => { expect(window.dispatchEvent(back)).toBe(false) })
+  expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+  expect(document.body.style.overflow).toBe('auto')
+  expect(qr.stop).toHaveBeenCalled()
+  expect(checkTicket).not.toHaveBeenCalled()
+  expect(opener).toHaveFocus()
+  expect(stopTrack).toHaveBeenCalledOnce()
+})
+it('closes camera with the dialog cancel action without changing typed ticket values', async () => {
+  view(); fill()
+  fireEvent.click(screen.getByRole('button', { name: 'Scan QR' }))
+  await act(async () => {})
+  fireEvent(screen.getByRole('dialog'), new Event('cancel', { cancelable: true }))
+  expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+  expect(screen.getByRole('textbox', { name: 'Ticket number' })).toHaveValue('00220')
+  expect(checkTicket).not.toHaveBeenCalled()
+})
+
+it('translates a current failure after a language change without losing the typed ticket', async () => {
+  vi.mocked(checkTicket).mockRejectedValueOnce(new Error('TICKET_BUSY'))
+  const rendered = view(); fill()
+  fireEvent.click(screen.getByRole('button', { name: 'Check number' }))
+  await act(async () => {})
+  expect(screen.getByText('Checks are busy. Please try again shortly.')).toBeVisible()
+  rendered.rerender(<TicketSearch date={ticket.date} slot={ticket.slot} language="bn"/>)
+  expect(screen.getByText('যাচাই ব্যস্ত আছে। একটু পরে আবার চেষ্টা করুন।')).toBeVisible()
+  expect(screen.getByRole('textbox', { name: 'টিকিট নম্বর' })).toHaveValue('00220')
+  expect(checkTicket).toHaveBeenCalledOnce()
+})

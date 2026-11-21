@@ -85,7 +85,7 @@ function useNativeBack(view: View, signedIn: boolean, booksPage: BooksPage, back
     const enabled = view === 'khata' && signedIn;
     useEffect(() => {
         const onNativeBack = (event: Event) => {
-            const menu = document.querySelector<HTMLDetailsElement>('.workspace-menu[open]');
+            const menu = document.querySelector<HTMLDetailsElement>('.workspace-menu[open], .module-picker[open]');
             if (menu) {
                 menu.open = false;
                 event.preventDefault();
@@ -257,7 +257,7 @@ function App() {
 
         </section>)}
 
-      {view === 'results' && signedIn && <LotteryResults language={language} onBack={mainHome}/>}
+      {view === 'results' && signedIn && <LotteryResults language={language} onBack={mainHome} onSelect={navigate} languageControl={languagePicker(true)}/>}
       <LotteryScene view={view} owner={sessionId} language={language} onSelect={navigate} controls={<WorkspaceMenu moduleMenu onMainHome={mainHome} onAppearance={showAppearance} settings={<><label className="lottery-language-setting"><span>{languagePresentation[language].pickerLabel}</span>{languagePicker()}</label><Themes language={language}/></>} actions={<><button type="button" onClick={()=>navigate('customer')}>{shareCopy(language,'title')}</button>{(['tds','payments'] as const).map(section=><button type="button" key={section} onClick={event=>{event.currentTarget.closest('.workspace-menu')?.removeAttribute('open');window.dispatchEvent(new CustomEvent('lottery-settings',{detail:section}));}}>{section==='tds'?'TDS':{bn:'পেমেন্টের মাধ্যম',en:'Payment methods',hi:'भुगतान के तरीके'}[language]}</button>)}</>} language={language} signedIn={signedIn} tutorial={tutorial} onTutorial={enabled=>{setTutorial(enabled);saveTutorial(enabled);}} onProfile={()=>navigate('profile')} onLogout={()=>void logout()}/>}/>
       {view==='customer'&&signedIn&&<Suspense fallback={<p>{accountCopy[language].network}</p>}><CustomerView key={sessionId} actor={sessionId ?? undefined} language={language} onSelect={navigate} onBack={mainHome} onBooks={()=>navigate('lottery')}/></Suspense>}
       {view === 'drive-backup' && sessionId && androidLocalFirst() && <section className="scene light-scene active profile-page" aria-label={backupLabel}>

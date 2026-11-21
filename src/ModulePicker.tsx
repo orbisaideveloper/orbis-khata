@@ -1,7 +1,7 @@
 import {shareCopy} from "./customer-view/copy";
 import { inLanguage } from "./localize";
 import { translations, type Language } from "./i18n";
-export type ModuleTarget = "khata" | "lottery" | "customer";
+export type ModuleTarget = "khata" | "lottery" | "customer" | "results";
 export function ModulePicker({
   language,
   active,
@@ -26,7 +26,7 @@ export function ModulePicker({
           "Choose module",
         )}
       >
-        {(["khata", "lottery", "customer"] as const).map((module) => (
+        {(["khata", "lottery", "customer", "results"] as const).map((module) => (
           <button
             key={module}
             type="button"
@@ -36,10 +36,14 @@ export function ModulePicker({
               onSelect(module);
             }}
           >
-            {({khata:t.khata,lottery:t.lot,customer:shareCopy(language,"title")})[module]}
+            {({khata:t.khata,lottery:t.lot,customer:shareCopy(language,"title"),results:inLanguage(language,"লটারি রেজাল্ট","लॉटरी नतीजे","Lottery results")})[module]}
             <span aria-hidden="true">→</span>
           </button>
         ))}
+        <button type="button" disabled>
+          {inLanguage(language,"দৈনিক হিসাব","दैनिक हिसाब","Daily accounts")}
+          <small>{t.later}</small>
+        </button>
         <button type="button" disabled>
           {t.farm}
           <small>{t.later}</small>

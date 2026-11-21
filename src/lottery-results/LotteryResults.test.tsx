@@ -27,9 +27,8 @@ describe('independent lottery result view', () => {
   it('does not invent a result or enable payment entry', () => {
     render(<LotteryResults language="en" onBack={vi.fn()}/>)
     fireEvent.change(screen.getByRole('combobox'), { target: { value: '6pm' } })
-    expect(screen.getByText('Lottery Sambad PDF not available yet')).toBeVisible()
+    expect(screen.getAllByText('Awaiting publication')).toHaveLength(2)
     expect(screen.getByText('Dear · Sikkim')).toBeVisible()
-    expect(screen.getByText('Official PDF for this draw not available yet')).toBeVisible()
     expect(screen.queryByRole('button', { name: /save receipt|save row|payment/i })).not.toBeInTheDocument()
   })
   it('uses the Indian date when UTC is still the previous day', () => {
@@ -63,4 +62,17 @@ it('opens today despite older cached results and preserves manual selection', ()
   view.rerender(<LotteryResults language="en" onBack={vi.fn()}/>)
   expect(screen.getByLabelText('Draw date')).toHaveValue('2026-11-20')
   vi.useRealTimers()
+})
+
+it.each(['bn', 'hi', 'en'] as const)('keeps ticket entry above documents and a highlighted warning before future ads in %s', language => {
+  const { container } = render(<LotteryResults language={language} onBack={vi.fn()} onSelect={vi.fn()} languageControl={<select aria-label="Test language"><option>Language</option></select>}/>)
+  const ticket = container.querySelector('.ticket-search')!
+  const documents = container.querySelector('.result-sheet')!
+  expect(ticket.compareDocumentPosition(documents) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+  const warning = container.querySelector('.results-disclaimer')!
+  expect(warning).toBeVisible()
+  expect(warning.textContent).toMatch(/গ্যাজেট|गज़ट|gazette/)
+  expect(warning.compareDocumentPosition(container.querySelector('.results-ad-slot')!) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+  expect(screen.getByLabelText('Test language').closest('.results-header')).not.toBeNull()
+  expect(screen.getByAltText('Dear Lotteries')).toHaveAttribute('src', expect.stringContaining('dear-lottery-logo.png'))
 })
