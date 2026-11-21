@@ -85,3 +85,13 @@ The same pre-push review cleared seven additional local SonarJS findings in
 relay client/source and tests: explicit condition blocks, standalone sorting
 and unnested sign/test selection. Calculations and transport behavior are
 unchanged; these frontend/test-only corrections require no Edge deployment.
+
+### Subsequent cloud Sonar findings
+
+Quality44939867054 on e32b866 passed all64 browser cases and the earlier SQL,
+native concurrency and unit checks. It then failed on three cloud Sonar rules:
+S9011 implicit submit button, and S6671 nullable IndexedDB rejection reasons.
+Use explicit submit/button types and wrap request/transaction failures in Error
+objects with the original cause, including null native errors. Read/write/abort
+failures still reject; no successful save or ACK is invented. This is frontend
+code only; no migration or Edge redeployment is required.

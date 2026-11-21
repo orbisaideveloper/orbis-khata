@@ -1,5 +1,5 @@
 import { afterEach,expect,it,vi } from 'vitest'
-import { indexedDB, IDBObjectStore } from 'fake-indexeddb'
+import { indexedDB, IDBObjectStore, IDBDatabase } from 'fake-indexeddb'
 import { readRelayCache,saveRelayCache } from './storage'
 vi.mock('../../native-local/route',()=>({androidLocalFirst:()=>false}))
 afterEach(()=>{vi.unstubAllGlobals();vi.restoreAllMocks()})
@@ -22,4 +22,20 @@ it('does not report a successful save when browser storage rejects the write',as
  vi.stubGlobal('indexedDB',indexedDB)
  vi.spyOn(IDBObjectStore.prototype,'put').mockImplementation(()=>{throw new Error('quota')})
  await expect(saveRelayCache('full',{version:1,links:{}})).rejects.toThrow('quota')
+})
+
+it.each([null,new DOMException('synthetic read error','UnknownError')])('normalizes IndexedDB open failures to an Error, including a missing native reason',async error=>{
+ const request:{error:DOMException|null;onerror:(()=>void)|null}={error,onerror:null}
+ vi.stubGlobal('indexedDB',{open:()=>{queueMicrotask(()=>request.onerror?.());return request}})
+ await expect(readRelayCache('failed-open')).rejects.toMatchObject({message:'SHARE_STORAGE_READ_FAILED',cause:error})
+})
+it.each(['onerror','onabort'] as const)('never reports durable success after a transaction %s with a null native error',async event=>{
+ vi.stubGlobal('indexedDB',indexedDB)
+ const original=IDBDatabase.prototype.transaction
+ vi.spyOn(IDBDatabase.prototype,'transaction').mockImplementation(function(this:IDBDatabase,...args:Parameters<typeof original>){
+  if(args[1]!=='readwrite')return original.apply(this,args)
+  const tx:{error:null;onerror:(()=>void)|null;onabort:(()=>void)|null;objectStore:()=>unknown}={error:null,onerror:null,onabort:null,objectStore:()=>({put:()=>queueMicrotask(()=>tx[event]?.())})}
+  return tx as unknown as ReturnType<typeof original>
+ })
+ await expect(saveRelayCache('failed-'+event,{version:1,links:{}})).rejects.toMatchObject({message:event==='onerror'?'SHARE_STORAGE_WRITE_FAILED':'SHARE_SAVE_ABORTED',cause:null})
 })

@@ -7,7 +7,7 @@ function parse(value: unknown): Cache {
   if(cache.version!==1 || !cache.links || typeof cache.links!=='object' || Array.isArray(cache.links)) throw new Error('SHARE_LOCAL_CORRUPTED')
   return structuredClone(cache)
 }
-function result<T>(request: IDBRequest<T>): Promise<T> { return new Promise((resolve,reject)=>{request.onsuccess=()=>resolve(request.result);request.onerror=()=>reject(request.error)}) }
+function result<T>(request: IDBRequest<T>): Promise<T> { return new Promise((resolve,reject)=>{request.onsuccess=()=>resolve(request.result);request.onerror=()=>reject(new Error('SHARE_STORAGE_READ_FAILED',{cause:request.error}))}) }
 async function browserStore(actor: string, value?: Cache): Promise<Cache> {
   const opening=indexedDB.open('orbis-customer-relay-v1',1)
   opening.onupgradeneeded=()=>opening.result.createObjectStore('sealed')
@@ -24,7 +24,7 @@ async function browserStore(actor: string, value?: Cache): Promise<Cache> {
     const iv=crypto.getRandomValues(new Uint8Array(12))
     const data=await crypto.subtle.encrypt({name:'AES-GCM',iv},key,new TextEncoder().encode(JSON.stringify(value)))
     const tx=db.transaction('sealed','readwrite')
-    const finished=new Promise<void>((resolve,reject)=>{tx.oncomplete=()=>resolve();tx.onerror=()=>reject(tx.error);tx.onabort=()=>reject(tx.error??new Error('SHARE_SAVE_ABORTED'))})
+    const finished=new Promise<void>((resolve,reject)=>{tx.oncomplete=()=>resolve();tx.onerror=()=>reject(new Error('SHARE_STORAGE_WRITE_FAILED',{cause:tx.error}));tx.onabort=()=>reject(new Error('SHARE_SAVE_ABORTED',{cause:tx.error}))})
     tx.objectStore('sealed').put({key,iv,data},actor)
     await finished // ACK is forbidden until the transaction completes.
     return value
