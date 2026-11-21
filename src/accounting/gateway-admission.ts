@@ -14,8 +14,8 @@ export function createIngressGuard(maximum=24){
   return ()=>{if(!released){released=true;active--;}};
  };
 }
-/** Preserve the existing 16K character envelope while bounding UTF-8 bytes and read time. */
-export async function boundedGatewayBody(request:Request,timeoutMs=5000):Promise<string>{
+/** Preserve the normal 16K envelope; the isolated relay route has its own bounded allowance. */
+export async function boundedGatewayBody(request:Request,timeoutMs=5000,relay=false):Promise<string>{
  const reader=request.body?.getReader();
  if(!reader){return '';}
  const chunks:Uint8Array[]=[];let size=0,timer:ReturnType<typeof setTimeout>|undefined;
@@ -28,13 +28,13 @@ export async function boundedGatewayBody(request:Request,timeoutMs=5000):Promise
    const {done,value}=await Promise.race([reader.read(),deadline]);
    if(done){break;}
    size+=value.byteLength;
-   if(size>65536){throw new GatewayRejection(413,'KHATA_INPUT_TOO_LARGE');}
+   if(size>(relay?900000:65536)){throw new GatewayRejection(413,'KHATA_INPUT_TOO_LARGE');}
    chunks.push(value);
   }
   const bytes=new Uint8Array(size);let offset=0;
   for(const chunk of chunks){bytes.set(chunk,offset);offset+=chunk.byteLength;}
   const text=new TextDecoder().decode(bytes);
-  if(text.length>16384){throw new GatewayRejection(413,'KHATA_INPUT_TOO_LARGE');}
+  if(text.length>(relay?800000:16384)){throw new GatewayRejection(413,'KHATA_INPUT_TOO_LARGE');}
   return text;
  }catch(error){void reader.cancel().catch(()=>{});throw error;}
  finally{if(timer!==undefined){clearTimeout(timer);}reader.releaseLock();}

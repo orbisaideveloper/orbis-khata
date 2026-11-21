@@ -1,3 +1,4 @@
+import { RelayPanel } from './relay/RelayPanel';
 import { androidLocalFirst } from '../native-local/route';
 import {ModulePicker,type ModuleTarget} from '../ModulePicker';
 import { useCallback, useEffect, useRef, useState } from 'react';
@@ -142,6 +143,7 @@ export default function CustomerView({ actor, language, onBack, onBooks, onSelec
  <div className="customer-period-presets"><button type="button" disabled={busy} onClick={() => changePeriod(recentFrom, today)}>{t('last30')}</button><button type="button" disabled={busy} onClick={() => changePeriod(today.slice(0, 7) + '-01', today)}>{t('thisMonth')}</button><button type="button" disabled={busy} onClick={previousMonth}>{t('previousMonth')}</button></div>
  <label>{t('from')}<input type="date" required disabled={busy} value={from} max={to} onChange={event => changePeriod(event.target.value, to)}/></label><label>{t('to')}<input type="date" required disabled={busy} value={to} min={from} onChange={event => changePeriod(from, event.target.value)}/></label><button type="submit" disabled={busy}>{t('apply')}</button><small>{t('periodHint')}</small></form>}
  {statement && <><p className="customer-checked">{t('checked')}: {checkedAt?.toLocaleString({bn:'bn-IN',hi:'hi-IN',en:'en-IN'}[language], {timeZone:'Asia/Kolkata'})} IST · {t('refreshHint')}</p><StatementView statement={statement} language={language} busy={busy} offset={offset} onPage={page => void perform(() => open(active!, page))}/></>}
+ {actor && <RelayPanel key={actor} actor={actor} language={language}/>}
  <footer className="customer-own-books"><p>{t('ownHint')}</p><button type="button" onClick={onBooks}>{t('own')}</button></footer>
  </section>;
 }

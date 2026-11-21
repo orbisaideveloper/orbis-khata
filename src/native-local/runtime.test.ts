@@ -408,3 +408,19 @@ it('persists Lottery imports atomically and leaves the old snapshot intact if sa
   expect((await runtime.readNativeLotterySyncState(actor)).linked).toBe(true)
   await expect(runtime.syncNativeLottery('other', payload)).rejects.toThrow('ANDROID_LOCAL_ACTOR_CHANGED')
 })
+
+it('persists customer statements in encrypted local storage before acknowledgement and isolates actors',async()=>{
+ const runtime=await import('./runtime')
+ await runtime.enrollVerifiedCentralIdentity(actor,displayId)
+ expect(await runtime.readNativeStatementRelay(actor)).toBeNull()
+ const value={version:1,links:{synthetic:{revision:1,dataset:{scope:{company:'Synthetic'},rows:[]}}}}
+ await runtime.saveNativeStatementRelay(actor,value)
+ expect(await runtime.readNativeStatementRelay(actor)).toEqual(value)
+ await expect(runtime.readNativeStatementRelay('other')).rejects.toThrow('ANDROID_LOCAL_ACTOR_CHANGED')
+ await expect(runtime.saveNativeStatementRelay('other',value)).rejects.toThrow('ANDROID_LOCAL_ACTOR_CHANGED')
+ vi.resetModules();fixture.state=emptyDeviceLocalSnapshot()
+ const reopened=await import('./runtime');await reopened.restoreNativeOfflineIdentity()
+ expect(await reopened.readNativeStatementRelay(actor)).toEqual(value)
+ reopened.lockNativeOfflineIdentity()
+ await expect(reopened.readNativeStatementRelay(actor)).rejects.toThrow('ANDROID_LOCAL_UNLOCK_REQUIRED')
+})

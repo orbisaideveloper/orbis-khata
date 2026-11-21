@@ -16,7 +16,9 @@ export function createKhataDataClient(options: {
     const cached=new Map<string,{value:unknown;until:number}>();let generation=0;let previousToken:string|null=null;
     const invalidate=()=>{generation++;pending.clear();cached.clear();};
     async function send<T>(operation:string,input:unknown,token:string):Promise<T>{
-        const response = await (options.fetchImpl ?? fetch)(endpoint.href, {
+        const target = new URL(endpoint.href);
+        if(operation==='customer-relay') target.pathname=target.pathname.replace(/\/$/,'')+'/customer-relay';
+        const response = await (options.fetchImpl ?? fetch)(target.href, {
             method: 'POST', credentials: 'omit', redirect: 'error', cache: 'no-store', signal: AbortSignal.timeout(15000),
             headers: { 'content-type': 'application/json', authorization: 'Bearer ' + token },
             body: JSON.stringify({ version: 'orbis.khata.data.v1', operation, input }),
@@ -137,3 +139,7 @@ export function rejected(error: unknown): boolean {
 }
 export async function expenseReport(company: string, from: string, to: string, offset: number): Promise<import('./expense-model').ExpenseReport> { return requestKhata('expense-report', { company, from, to, offset }); }
 export async function postExpense(command: import('./expense-model').ExpenseCommand): Promise<void> { await requestKhata('expense-post', command); }
+
+export async function requestStatementRelay<T>(actor: string, command: import('../customer-view/relay/model').RelayCommand): Promise<T> {
+    return (await accountGateway(actor))<T>('customer-relay', command);
+}

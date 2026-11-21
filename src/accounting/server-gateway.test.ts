@@ -81,3 +81,14 @@ it('validates bounded seller recovery scopes and rejects supplied owners and inv
  expect(execute).toHaveBeenCalledWith(principal,{operation:'lottery-seller-recovery',input});
  for(const invalid of [{...input,owner:uuid},{...input,occurredAt:'2026-02-30'},{...input,partyId:'invalid'},{...input,saleId:'invalid'}]) expect(khataOperation(envelope('lottery-seller-recovery',invalid))).toBeNull();
 });
+
+it('dedicated relay path accepts bounded statements but rejects unrelated financial operations',async()=>{
+ const {handle,execute}=gateway()
+ const body=envelope('customer-relay',{action:'list'})
+ const headers={authorization:'Bearer central.access',origin:'https://khata.example.test'}
+ expect((await handle(new Request('https://gateway.example.test/customer-relay',{method:'POST',headers,body:JSON.stringify(body)}))).status).toBe(200)
+ expect(execute).toHaveBeenCalledWith(principal,{operation:'customer-relay',input:{action:'list'}})
+ execute.mockClear()
+ expect((await handle(new Request('https://gateway.example.test/customer-relay',{method:'POST',headers,body:JSON.stringify(envelope('companies',{}))}))).status).toBe(400)
+ expect(execute).not.toHaveBeenCalled()
+})

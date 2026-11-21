@@ -1,5 +1,6 @@
 import { isAccountRecovery } from '../sync/account-recovery.ts';
 import {boundedGatewayBody,createIngressGuard,GatewayRejection,type AdmissionDecision} from './gateway-admission.ts';
+import {relayCommand} from '../customer-view/relay/model.ts';
 import {shareCommand} from '../customer-view/contract.ts';
 import { profileCommand } from "../expense-profiles/model.ts";
 import {lotteryInput} from '../lottery/protocol.ts';
@@ -8,7 +9,7 @@ import { safeBusinessReason } from './business-error.ts';
 import { itemInput, partyInput, masterIdentity } from '../master-input.ts';
 import { billTotal, inventoryCommand } from '../inventory/model.ts';
 import { expenseCommand } from './expense-model.ts';
-type Operation = 'lottery-seller-recovery' | 'lottery-export' | 'company-export' | 'drive-recovery' | 'party-sharing' | 'expense-profiles' | 'lottery' | 'workspace' | 'retired-companies' | 'masters' | 'party-save' | 'item-save' | 'party-delete' | 'item-delete' | 'party-balance' | 'expense-bill' | 'companies' | 'create' | 'report' | 'post' | 'expense-report' | 'expense-post' | 'inventory-post' | 'inventory-report';
+type Operation = 'customer-relay' | 'lottery-seller-recovery' | 'lottery-export' | 'company-export' | 'drive-recovery' | 'party-sharing' | 'expense-profiles' | 'lottery' | 'workspace' | 'retired-companies' | 'masters' | 'party-save' | 'item-save' | 'party-delete' | 'item-delete' | 'party-balance' | 'expense-bill' | 'companies' | 'create' | 'report' | 'post' | 'expense-report' | 'expense-post' | 'inventory-post' | 'inventory-report';
 export type KhataPrincipal = {
     orbisIdentityId: string;
     displayId: string;
@@ -64,6 +65,7 @@ function pagedReportInput(input: Record<string, unknown>) {
 }
 function validOperation(operation: unknown, input: Record<string, unknown>): operation is Operation {
     switch (operation) {
+        case 'customer-relay': return relayCommand(input);
         case 'drive-recovery':
             return id(input.actor) && (
                 input.action === 'read' && keys(input, ['actor', 'action']) ||
@@ -223,7 +225,9 @@ export function createKhataGateway(options: {
         let stage = 'input';let release:(()=>void)|undefined;
         try {
             release=acquire();
-            const operation = parseGatewayOperation(await boundedGatewayBody(request));
+            const relayPath=new URL(request.url).pathname.endsWith('/customer-relay');
+            const operation = parseGatewayOperation(await boundedGatewayBody(request,5000,relayPath));
+            if(relayPath && operation.operation!=='customer-relay') throw new GatewayRejection(400,'KHATA_INPUT_INVALID');
             stage = 'central-session';
             const principal = await options.verify(token);
             if (!principal || !identity.test(principal.orbisIdentityId)) {

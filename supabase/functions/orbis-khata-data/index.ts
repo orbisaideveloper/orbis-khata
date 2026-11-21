@@ -85,6 +85,10 @@ const handler = createKhataGateway({ origins: (env('KHATA_ORIGINS') || 'https://
         const reportRevision=pagedRead?(await tx`select public.khata_report_revision_v1(${String(input.company)}::uuid) as version`)[0].version:undefined;
         // The gateway parses/validates JSON before execute. These JSONValue annotations
         // preserve the existing postgres serializer, parameters and transaction behavior.
+        if(operation.operation==='customer-relay') {
+            const rows=await tx`select orbis_khata.statement_relay_v1(${tx.json(input as postgres.JSONValue)}::jsonb) as data`;
+            return rows[0].data;
+        }
         if(operation.operation==='party-sharing') {
             const rows=await tx`select orbis_khata.party_sharing_v1(${tx.json(input as postgres.JSONValue)}::jsonb) as data`;
             const shared=rows[0].data;

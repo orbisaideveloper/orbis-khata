@@ -17,6 +17,8 @@
 
 Current feature checkpoint: [Lottery Results foundation and source gate](LOTTERY_RESULTS_20261120.md). Current result delivery, ticket service activation and scheduler contract: [Lottery Results runtime](LOTTERY_RESULTS_RUNTIME.md).
 
+Customer statement delivery review candidate: [Android/web statement relay](CUSTOMER_STATEMENT_RELAY.md).
+
 ## 2. Current operational documentation
 
 | Purpose | Canonical location |

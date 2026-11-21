@@ -28,3 +28,12 @@ it('coalesces only simultaneous identical reads and re-fetches after writes and 
 it('reuses short-lived masters only in memory and invalidates before/after writes and explicit refresh',async()=>{let version=0;const fetchImpl=vi.fn(async()=>new Response(JSON.stringify({data:{version:++version}})));const call=createKhataDataClient({url:'https://khata.example.test/data',token:async()=>'token',fetchImpl});const first=await call<{version:number}>('masters',{company:'a'});first.version=99;expect(await call('masters',{company:'a'})).toEqual({version:1});expect(fetchImpl).toHaveBeenCalledTimes(1);call.invalidate();expect(await call('masters',{company:'a'})).toEqual({version:2});await call('party-save',{company:'a'});expect(await call('masters',{company:'a'})).toEqual({version:4});});
 
 it('never caches shared statements, including after revocation',async()=>{const fetchImpl=vi.fn().mockResolvedValueOnce(new Response(JSON.stringify({data:{balance:'500'}}))).mockResolvedValueOnce(new Response(JSON.stringify({code:'P0001'}),{status:422}));const call=createKhataDataClient({url:'https://khata.example.test/data',token:async()=>'central.token',fetchImpl});expect(await call('party-sharing',{action:'statement',id:'link'})).toEqual({balance:'500'});await expect(call('party-sharing',{action:'statement',id:'link'})).rejects.toThrow();expect(fetchImpl).toHaveBeenCalledTimes(2);});
+
+it('uses a dedicated bounded relay route without changing the normal accounting endpoint',async()=>{
+ const fetchImpl=vi.fn<typeof fetch>(async()=>Response.json({data:{saved:true}}))
+ const client=createKhataDataClient({url:'https://khata.example.test/functions/v1/orbis-khata-data',token:async()=> 'central.token',fetchImpl})
+ await client('customer-relay',{action:'list'})
+ expect(fetchImpl.mock.calls[0][0]).toBe('https://khata.example.test/functions/v1/orbis-khata-data/customer-relay')
+ await client('companies',{})
+ expect(fetchImpl.mock.calls[1][0]).toBe('https://khata.example.test/functions/v1/orbis-khata-data')
+})

@@ -18,3 +18,10 @@ describe('gateway resource admission',()=>{
   const acquire=createIngressGuard(1),release=acquire();expect(acquire).toThrow('KHATA_BUSY');release();release();expect(acquire).not.toThrow();
  });
 });
+
+it('bounds the dedicated statement transport without enlarging normal accounting requests',async()=>{
+ const body='x'.repeat(20000)
+ await expect(boundedGatewayBody(new Request('https://example.test',{method:'POST',body}))).rejects.toMatchObject({status:413})
+ expect(await boundedGatewayBody(new Request('https://example.test/customer-relay',{method:'POST',body}),5000,true)).toBe(body)
+ await expect(boundedGatewayBody(new Request('https://example.test/customer-relay',{method:'POST',body:'x'.repeat(900001)}),5000,true)).rejects.toMatchObject({status:413})
+})

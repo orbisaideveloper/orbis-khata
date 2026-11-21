@@ -581,3 +581,25 @@ export const nativeLocalBooksServices = {
   }),
   expenseBill:(command:ExpenseCommand,lines:Parameters<typeof saveDemoExpenseBill>[1])=>commit(()=>saveDemoExpenseBill(command,lines),{operation:'expense-bill',input:{command,lines},companyId:command.company}),
 }
+
+/** Read-only sharing cache is encrypted with the actor's existing durable snapshot. */
+export function readNativeStatementRelay(actor: string): Promise<unknown> {
+  return ordered(() => {
+    if (assertActive().actor !== actor) throw new Error('ANDROID_LOCAL_ACTOR_CHANGED')
+    return readDeviceLocalSnapshot().workspaceEvents['customer-relay:v1']?.result ?? null
+  })
+}
+export function saveNativeStatementRelay(actor: string, value: unknown): Promise<void> {
+  return commit(() => {
+    if (assertActive().actor !== actor) throw new Error('ANDROID_LOCAL_ACTOR_CHANGED')
+    const snapshot = readDeviceLocalSnapshot()
+    snapshot.workspaceEvents['customer-relay:v1'] = { payload: '', result: structuredClone(value) }
+    restoreDeviceLocalSnapshot(snapshot)
+  })
+}
+export function readNativeStatementSource(actor: string, scope: import('../customer-view/relay/model').Scope): Promise<import('../customer-view/relay/model').Dataset> {
+  return ordered(async () => {
+    if (assertActive().actor !== actor) throw new Error('ANDROID_LOCAL_ACTOR_CHANGED')
+    return (await import('../customer-view/relay/source')).khataProjection(readDeviceLocalSnapshot(), scope)
+  })
+}

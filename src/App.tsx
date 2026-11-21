@@ -1,3 +1,4 @@
+import { useStatementRelay } from './customer-view/relay/foreground';
 import { LotteryResults } from './lottery-results/LotteryResults';
 import { inLanguage } from './localize';
 import { OrbisLogo } from './brand/OrbisLogo';
@@ -127,6 +128,7 @@ function App() {
     }, [view, booksPage]);
     const syncConflict = useNativeCompanySync(androidLocalFirst() ? sessionId : null);
     const signedIn = Boolean(account.session);
+    useStatementRelay(signedIn ? sessionId : null);
     useForegroundDriveAutoBackup(androidLocalFirst() && signedIn ? sessionId : null);
     const [logoutError, setLogoutError] = useState(false);
     const guestEntered = useRef(false);
