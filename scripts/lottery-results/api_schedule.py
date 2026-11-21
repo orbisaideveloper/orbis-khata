@@ -51,11 +51,37 @@ def attach_official_link(date, slot):
         return False
 
 
+def latest_due(now):
+    local = now.astimezone(IST)
+    slots = [(hour, slot) for hour, slot in ((13, '1pm'), (18, '6pm'), (20, '8pm')) if local.hour >= hour]
+    return (local.date().strftime('%d-%m-%Y'), slots[-1][1]) if slots else None
+
+
+def already_published(date, slot):
+    from pathlib import Path
+    try:
+        feed = json.loads(Path('public/lottery-results/documents.json').read_text())
+        iso = dt.datetime.strptime(date, '%d-%m-%Y').date().isoformat()
+        return any(row.get('date') == iso and row.get('slot') == slot and row.get('sambadUrl') for row in feed['documents'])
+    except (OSError, ValueError, KeyError, TypeError):
+        return False
+
+
 def collect_scheduled(token, now=lambda: dt.datetime.now(IST), pause=time.sleep):
     target = draw_window(now())
     if target is None:
-        return {'state': 'OUTSIDE_DRAW_WINDOW'}
+        due = latest_due(now())
+        if due is None:
+            return {'state': 'OUTSIDE_DRAW_WINDOW'}
+        date, slot = due
+        if already_published(date, slot):
+            return {'state': 'ALREADY_PUBLISHED', 'date': date, 'slot': slot}
+        # A delayed GitHub job must not lose today's draw. One catch-up, no late polling.
+        result = collect_manual(token, date, [slot])
+        return {'state': 'LATE_SINGLE_CHECK', 'result': result}
     date, slot, end = target
+    if already_published(date, slot):
+        return {'state': 'ALREADY_PUBLISHED', 'date': date, 'slot': slot}
     tries = 0
     while now() <= end and tries < 41:
         tries += 1
@@ -91,13 +117,23 @@ def collect_manual(token, date, slots):
     return {'state': 'MANUAL_CHECK_COMPLETE', 'results': results}
 
 
+def manual_selection():
+    date = os.environ.get('DRAW_DATE') or india_today().strftime('%d-%m-%Y')
+    slots = os.environ.get('DRAW_SLOT') or 'auto'
+    if slots == 'auto':
+        due = latest_due(dt.datetime.now(IST))
+        return date, [due[1] if due else '1pm']
+    return date, slots.split(',')
+
+
 if __name__ == '__main__':
     try:
         token = os.environ.get('SAMBAD_API_TOKEN', '')
         if os.environ.get('DRAW_MODE') == 'scheduled':
             result = collect_scheduled(token)
         else:
-            result = collect_manual(token, os.environ.get('DRAW_DATE') or (india_today() - dt.timedelta(days=1)).strftime('%d-%m-%Y'), os.environ.get('DRAW_SLOT', '6pm,8pm').split(','))
+            date, slots = manual_selection()
+            result = collect_manual(token, date, slots)
         print(json.dumps(result))
     except ProbeError as error:
         print('COLLECTION_FAILED: ' + str(error))

@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import type { Language } from '../i18n'
 import { inLanguage } from '../localize'
-import { drawSlots, indiaDate, type DrawSlot } from './result-data'
+import { drawSlots, indiaDate, currentDraw, type DrawSlot } from './result-data'
 import './results.css'
 import { useResultFeed } from './useResultFeed'
 import { ResultSheet } from './ResultSheet'
@@ -9,10 +9,7 @@ import { TicketSearch } from './TicketSearch'
 
 export function LotteryResults({ language, onBack }: Readonly<{ language: Language; onBack: () => void }>) {
   const feed = useResultFeed()
-  const [selection, setSelection] = useState(() => {
-    const latest = [...feed.documents].sort((a, b) => b.date.localeCompare(a.date) || drawSlots.indexOf(b.slot as DrawSlot) - drawSlots.indexOf(a.slot as DrawSlot))[0]
-    return { date: latest?.date ?? indiaDate(), slot: (latest?.slot ?? '1pm') as DrawSlot }
-  })
+  const [selection, setSelection] = useState(currentDraw)
   const { date, slot } = selection
   const copy = (bn: string, hi: string, en: string) => inLanguage(language, bn, hi, en)
   const document = feed.documents.find(row => row.date === date && row.slot === slot)

@@ -33,6 +33,8 @@ it('does not substitute the sample for a different draw', () => {
 
 it.each(['bn', 'hi', 'en'] as const)('shows compact exact-draw PDF links without the old number grid in %s', language => {
   render(<LotteryResults language={language} onBack={vi.fn()}/>)
+  fireEvent.change(screen.getByLabelText(/ড্রয়ের তারিখ|ड्रॉ की तारीख|Draw date/), { target: { value: '2026-11-20' } })
+  fireEvent.change(screen.getByRole('combobox'), { target: { value: '8pm' } })
   expect(screen.getByRole('combobox')).toHaveValue('8pm')
   expect(screen.getByRole('status').tagName).toBe('OUTPUT')
   expect(screen.getByRole('link', { name: /মূল সরকারি|मूल आधिकारिक|Original official/ })).toHaveAttribute('href', 'https://nagalandlotteries.com/old_results/EN201126.PDF')

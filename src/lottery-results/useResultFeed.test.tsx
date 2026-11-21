@@ -6,7 +6,7 @@ import { refreshDocuments } from './document-feed'
 vi.mock('./document-feed', () => ({ cachedDocuments: () => [], refreshDocuments: vi.fn(async () => []) }))
 vi.mock('./result-feed', () => ({ cachedResults: () => [], refreshResults: vi.fn() }))
 afterEach(() => { cleanup(); vi.useRealTimers(); vi.clearAllMocks() })
-it('refreshes on opening, online, foreground and 120 seconds, then cleans up', async () => {
+it('refreshes on opening, online, foreground and 30 seconds, then cleans up', async () => {
   vi.useFakeTimers()
   vi.mocked(refreshResults).mockResolvedValue([])
   const view = renderHook(() => useResultFeed(true))
@@ -15,11 +15,11 @@ it('refreshes on opening, online, foreground and 120 seconds, then cleans up', a
   expect(refreshResults).toHaveBeenCalledTimes(1)
   await act(async () => { window.dispatchEvent(new Event('online')) })
   await act(async () => { document.dispatchEvent(new Event('visibilitychange')) })
-  await act(async () => { vi.advanceTimersByTime(120000) })
+  await act(async () => { vi.advanceTimersByTime(30000) })
   expect(refreshResults).toHaveBeenCalledTimes(4)
   view.unmount()
   window.dispatchEvent(new Event('online'))
-  vi.advanceTimersByTime(120000)
+  vi.advanceTimersByTime(30000)
   expect(refreshResults).toHaveBeenCalledTimes(4)
 })
 it('coalesces overlapping attempts, aborts on unmount and preserves offline state', async () => {
@@ -54,4 +54,16 @@ it('does not download the unused winning-number feed in the compact PDF view', a
   await act(async () => {})
   expect(refreshResults).not.toHaveBeenCalled()
   expect(view.result.current.results).toEqual([])
+})
+
+it('receives a newly published draw on the next thirty-second refresh', async () => {
+  vi.useFakeTimers()
+  const links = [{ date: '2026-11-21', slot: '1pm', sambadUrl: 'https://sambad.com/current.pdf' }]
+  vi.mocked(refreshDocuments).mockResolvedValueOnce([]).mockResolvedValue(links)
+  const view = renderHook(() => useResultFeed())
+  await act(async () => {})
+  expect(view.result.current.documents).toEqual([])
+  await act(async () => { vi.advanceTimersByTime(30000) })
+  expect(view.result.current.documents).toEqual(links)
+  view.unmount()
 })

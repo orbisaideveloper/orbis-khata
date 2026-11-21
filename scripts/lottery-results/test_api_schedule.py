@@ -26,7 +26,7 @@ class ScheduleSafety(unittest.TestCase):
 
     def test_late_start_no_network_and_completed_draw_no_more_retries(self):
         with patch.object(module, 'probe') as probe:
-            self.assertEqual(module.collect_scheduled('test', now=lambda: self.at(13, 31))['state'], 'OUTSIDE_DRAW_WINDOW')
+            self.assertEqual(module.collect_scheduled('test', now=lambda: self.at(12, 59))['state'], 'OUTSIDE_DRAW_WINDOW')
             probe.assert_not_called()
         with patch.object(module, 'probe', return_value={'publication': 'PDF_LINK_ONLY'}) as probe, patch.object(module, 'attach_official_link', return_value=False), patch.object(module.time, 'sleep') as pause:
             result = module.collect_scheduled('test', now=lambda: self.at(18, 15), pause=pause)
@@ -90,6 +90,29 @@ class ScheduleSafety(unittest.TestCase):
             with patch.object(module, 'verify_sikkim_pdf', return_value=False):
                 self.assertFalse(module.attach_official_link('20-11-2026', '6pm'))
             self.assertEqual(path.read_bytes(), before)
+
+class DelayedCollection(unittest.TestCase):
+    def test_delayed_job_checks_today_once_and_skips_already_published(self):
+        now = lambda: dt.datetime(2026, 11, 21, 13, 35, tzinfo=module.IST)
+        with patch.object(module, 'already_published', return_value=False), patch.object(module, 'collect_manual', return_value={}) as collect:
+            self.assertEqual(module.collect_scheduled('test', now=now)['state'], 'LATE_SINGLE_CHECK')
+            collect.assert_called_once_with('test', '21-11-2026', ['1pm'])
+        with patch.object(module, 'already_published', return_value=True), patch.object(module, 'probe') as probe:
+            self.assertEqual(module.collect_scheduled('test', now=now)['state'], 'ALREADY_PUBLISHED')
+            probe.assert_not_called()
+
+    def test_saved_draw_skip_is_scoped_by_date_and_slot(self):
+        with tempfile.TemporaryDirectory() as folder, chdir(folder):
+            path = Path('public/lottery-results/documents.json')
+            path.parent.mkdir(parents=True)
+            path.write_text(json.dumps({'schema': 1, 'documents': [{'date': '2026-11-20', 'slot': '1pm', 'sambadUrl': 'https://sambad.com/old.pdf'}]}))
+            self.assertTrue(module.already_published('20-11-2026', '1pm'))
+            self.assertFalse(module.already_published('21-11-2026', '1pm'))
+            self.assertFalse(module.already_published('20-11-2026', '6pm'))
+
+    def test_manual_default_is_today_and_current_slot_not_yesterday(self):
+        with patch.dict(module.os.environ, {'DRAW_DATE': '', 'DRAW_SLOT': 'auto'}), patch.object(module, 'india_today', return_value=dt.date(2026, 11, 21)), patch.object(module, 'latest_due', return_value=('21-11-2026', '1pm')):
+            self.assertEqual(module.manual_selection(), ('21-11-2026', ['1pm']))
 
 
 if __name__ == '__main__':

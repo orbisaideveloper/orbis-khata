@@ -1,7 +1,7 @@
 import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { LotteryResults } from './LotteryResults'
-import { indiaDate } from './result-data'
+import { currentDraw, indiaDate } from './result-data'
 import { resolveKhataView } from '../navigation-policy'
 import { readLocation, saveLocation } from '../workspace-location'
 
@@ -43,4 +43,24 @@ describe('independent lottery result view', () => {
     expect(readLocation('results-owner').view).toBe('results')
     expect(readLocation('different-owner').view).toBe('workspace')
   })
+})
+
+it.each([
+  ['2026-11-20T18:31:00Z', '2026-11-21', '1pm'],
+  ['2026-11-21T07:30:00Z', '2026-11-21', '1pm'],
+  ['2026-11-21T12:29:59Z', '2026-11-21', '1pm'],
+  ['2026-11-21T12:30:00Z', '2026-11-21', '6pm'],
+  ['2026-11-21T14:30:00Z', '2026-11-21', '8pm'],
+])('selects today and the current IST draw at %s', (time, date, slot) => {
+  expect(currentDraw(new Date(time))).toEqual({ date, slot })
+})
+it('opens today despite older cached results and preserves manual selection', () => {
+  vi.useFakeTimers(); vi.setSystemTime(new Date('2026-11-21T07:48:00Z'))
+  const view = render(<LotteryResults language="en" onBack={vi.fn()}/>)
+  expect(screen.getByLabelText('Draw date')).toHaveValue('2026-11-21')
+  expect(screen.getByRole('combobox')).toHaveValue('1pm')
+  fireEvent.change(screen.getByLabelText('Draw date'), { target: { value: '2026-11-20' } })
+  view.rerender(<LotteryResults language="en" onBack={vi.fn()}/>)
+  expect(screen.getByLabelText('Draw date')).toHaveValue('2026-11-20')
+  vi.useRealTimers()
 })

@@ -25,7 +25,7 @@ export function useResultFeed(includeNumbers = false) {
     }
     const wake = () => { void refresh() }
     wake()
-    const timer = window.setInterval(wake, 120000)
+    const timer = window.setInterval(wake, 30000)
     window.addEventListener('online', wake)
     document.addEventListener('visibilitychange', wake)
     return () => { current = false; controller?.abort(); window.clearInterval(timer); window.removeEventListener('online', wake); document.removeEventListener('visibilitychange', wake) }
