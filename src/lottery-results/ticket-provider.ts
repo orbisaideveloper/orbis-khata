@@ -8,18 +8,14 @@ export function createTicketLookup(options: ProviderOptions) {
   let nextRequest = 0
   const fetchDraw = async (ticket: TicketInput): Promise<TicketVerdict> => {
     const token = options.token()
-    if (!token || token.length > 4096) throw new Error('TICKET_NOT_CONFIGURED')
+    if (!token.trim() || token.length > 4096) throw new Error('TICKET_NOT_CONFIGURED')
     const now = (options.now ?? Date.now)()
     if (now < nextRequest) throw new Error('TICKET_BUSY')
     nextRequest = now + 1100
     const date = ticket.date.split('-').reverse().join('-')
     const query = new URLSearchParams({ lottery: 'dear', date, slot: ticket.slot, series: ticket.series, number: ticket.number, 'access-token': token })
     const response = await (options.fetchImpl ?? fetch)('https://api.sambad.com/v2/ticket/check?' + query, { redirect: 'error', credentials: 'omit', cache: 'no-store', signal: AbortSignal.timeout(10000), headers: { accept: 'application/json' } })
-    if (response.status === 429) throw new Error('TICKET_BUSY')
-    if (!response.ok) throw new Error('TICKET_PROVIDER_UNAVAILABLE')
-    if (Number(response.headers.get('content-length')) > 32768) throw new Error('TICKET_RESPONSE_TOO_LARGE')
-    const text = await readTicketText(response.body, 32768)
-    const body = JSON.parse(text)
+    const body = await providerBody(response)
     const value = body?.data
     if (body?.success !== true || value?.lottery !== 'dear' || value.date !== date || value.slot !== ticket.slot || value.ticket?.series !== ticket.series || value.ticket?.number !== ticket.number) throw new Error('TICKET_RESPONSE_MISMATCH')
     return parseVerdict({ ...ticket, status: value.status, prize: value.prize === null ? null : { tier: value.prize?.tier, amount: value.prize?.amount } }, ticket)
@@ -42,4 +38,13 @@ export function createTicketLookup(options: ProviderOptions) {
       return value
     } finally { pending.delete(key) }
   }
+}
+
+async function providerBody(response: Response) {
+  if (response.status === 429) throw new Error('TICKET_BUSY')
+  if (response.status === 401 || response.status === 403) throw new Error('TICKET_PROVIDER_AUTH_REJECTED')
+  if (!response.ok) throw new Error('TICKET_PROVIDER_UNAVAILABLE')
+  if (Number(response.headers.get('content-length')) > 32768) throw new Error('TICKET_RESPONSE_TOO_LARGE')
+  const text = await readTicketText(response.body, 32768)
+  try { return JSON.parse(text) } catch { throw new Error('TICKET_RESPONSE_INVALID') }
 }

@@ -7,6 +7,7 @@ from api_probe import ProbeError, india_today, probe
 from collect import download, publication_links, ORIGIN
 from sikkim_source import verify_sikkim_pdf
 import urllib.parse
+import urllib.error
 
 IST = dt.timezone(dt.timedelta(hours=5, minutes=30))
 
@@ -21,19 +22,26 @@ def draw_window(now):
     return None
 
 
+def official_pending(date, slot, reason):
+    print(json.dumps({'event': 'OFFICIAL_PDF_RETRY', 'date': date, 'slot': slot, 'reason': reason}))
+    return False
+
+
 def attach_official_link(date, slot):
     """Attach only an actual same-draw publication indexed by the government."""
     parsed = dt.datetime.strptime(date, '%d-%m-%Y').date()
     try:
         if slot == '6pm':
             if not verify_sikkim_pdf(date):
-                return False
+                return official_pending(date, slot, 'OFFICIAL_SIKKIM_NOT_READY')
             official = {'officialSource': 'sikkim-6pm'}
         else:
             html = download(ORIGIN + 'getContent.php', urllib.parse.urlencode({'id': date}).encode()).decode()
             url = publication_links(html, parsed).get(slot)
-            if not url or not download(url).startswith(b'%PDF-'):
-                return False
+            if not url:
+                return official_pending(date, slot, 'OFFICIAL_INDEX_NOT_READY')
+            if not download(url).startswith(b'%PDF-'):
+                return official_pending(date, slot, 'OFFICIAL_NOT_PDF')
             official = {'officialUrl': url}
         from pathlib import Path
         path = Path('public/lottery-results/documents.json')
@@ -46,9 +54,14 @@ def attach_official_link(date, slot):
         temporary.write_text(json.dumps(feed, indent=2) + '\n')
         temporary.replace(path)
         return True
-    except (OSError, ValueError, StopIteration, ProbeError):
-        # Missing government publication never substitutes another draw's PDF.
-        return False
+    except (OSError, ValueError, StopIteration, ProbeError) as error:
+        # Public draw metadata and classified reason only; never HTML/body or arbitrary error text.
+        reason = 'OFFICIAL_PUBLICATION_UNAVAILABLE'
+        if isinstance(error, urllib.error.HTTPError):
+            reason = 'OFFICIAL_HTTP_' + str(error.code)
+        elif isinstance(error, OSError):
+            reason = 'OFFICIAL_NETWORK_UNAVAILABLE'
+        return official_pending(date, slot, reason)
 
 
 def latest_due(now):
@@ -75,13 +88,13 @@ def collect_scheduled(token, now=lambda: dt.datetime.now(IST), pause=time.sleep)
             return {'state': 'OUTSIDE_DRAW_WINDOW'}
         date, slot = due
         if already_published(date, slot):
-            return {'state': 'ALREADY_PUBLISHED', 'date': date, 'slot': slot}
+            return {'state': 'ALREADY_PUBLISHED', 'date': date, 'slot': slot, 'official_link_found': attach_official_link(date, slot)}
         # A delayed GitHub job must not lose today's draw. One catch-up, no late polling.
         result = collect_manual(token, date, [slot])
         return {'state': 'LATE_SINGLE_CHECK', 'result': result}
     date, slot, end = target
     if already_published(date, slot):
-        return {'state': 'ALREADY_PUBLISHED', 'date': date, 'slot': slot}
+        return {'state': 'ALREADY_PUBLISHED', 'date': date, 'slot': slot, 'official_link_found': attach_official_link(date, slot)}
     tries = 0
     while now() <= end and tries < 41:
         tries += 1
@@ -117,6 +130,20 @@ def collect_manual(token, date, slots):
     return {'state': 'MANUAL_CHECK_COMPLETE', 'results': results}
 
 
+def refresh_missing_official():
+    """Independent bounded government-only reconciliation; never calls paid provider API."""
+    from pathlib import Path
+    feed = json.loads(Path('public/lottery-results/documents.json').read_text())
+    minimum = (india_today() - dt.timedelta(days=29)).isoformat()
+    pending = [row for row in feed['documents'] if minimum <= row['date'] <= india_today().isoformat() and row.get('sambadUrl') and not (row.get('officialUrl') or row.get('officialSource'))]
+    pending.sort(key=lambda row: (row['date'], row['slot']), reverse=True)
+    results = []
+    for row in pending[:6]:
+        date = dt.date.fromisoformat(row['date']).strftime('%d-%m-%Y')
+        results.append({'date': row['date'], 'slot': row['slot'], 'official_link_found': attach_official_link(date, row['slot'])})
+    return {'state': 'OFFICIAL_RECHECK_COMPLETE', 'results': results, 'remaining_candidates': max(0, len(pending) - 6)}
+
+
 def manual_selection():
     date = os.environ.get('DRAW_DATE') or india_today().strftime('%d-%m-%Y')
     slots = os.environ.get('DRAW_SLOT') or 'auto'
@@ -129,7 +156,9 @@ def manual_selection():
 if __name__ == '__main__':
     try:
         token = os.environ.get('SAMBAD_API_TOKEN', '')
-        if os.environ.get('DRAW_MODE') == 'scheduled':
+        if os.environ.get('DRAW_MODE') == 'official':
+            result = refresh_missing_official()
+        elif os.environ.get('DRAW_MODE') == 'scheduled':
             result = collect_scheduled(token)
         else:
             date, slots = manual_selection()

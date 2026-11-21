@@ -13,6 +13,11 @@ spec.loader.exec_module(module)
 
 
 class ScheduleSafety(unittest.TestCase):
+    def setUp(self):
+        guard = patch.object(module, 'already_published', return_value=False)
+        guard.start()
+        self.addCleanup(guard.stop)
+
     def at(self, hour, minute, second=0):
         return dt.datetime(2026, 11, 21, hour, minute, second, tzinfo=module.IST)
 
@@ -97,7 +102,7 @@ class DelayedCollection(unittest.TestCase):
         with patch.object(module, 'already_published', return_value=False), patch.object(module, 'collect_manual', return_value={}) as collect:
             self.assertEqual(module.collect_scheduled('test', now=now)['state'], 'LATE_SINGLE_CHECK')
             collect.assert_called_once_with('test', '21-11-2026', ['1pm'])
-        with patch.object(module, 'already_published', return_value=True), patch.object(module, 'probe') as probe:
+        with patch.object(module, 'already_published', return_value=True), patch.object(module, 'attach_official_link', return_value=False), patch.object(module, 'probe') as probe:
             self.assertEqual(module.collect_scheduled('test', now=now)['state'], 'ALREADY_PUBLISHED')
             probe.assert_not_called()
 
@@ -113,6 +118,36 @@ class DelayedCollection(unittest.TestCase):
     def test_manual_default_is_today_and_current_slot_not_yesterday(self):
         with patch.dict(module.os.environ, {'DRAW_DATE': '', 'DRAW_SLOT': 'auto'}), patch.object(module, 'india_today', return_value=dt.date(2026, 11, 21)), patch.object(module, 'latest_due', return_value=('21-11-2026', '1pm')):
             self.assertEqual(module.manual_selection(), ('21-11-2026', ['1pm']))
+
+
+class IndependentOfficialRetry(unittest.TestCase):
+    def test_published_provider_does_not_skip_official_retry(self):
+        now = lambda: dt.datetime(2026, 11, 21, 13, 20, tzinfo=module.IST)
+        with patch.object(module, 'already_published', return_value=True), patch.object(module, 'attach_official_link', return_value=True) as official, patch.object(module, 'probe') as probe:
+            result = module.collect_scheduled('fixture', now=now)
+            self.assertTrue(result['official_link_found'])
+            official.assert_called_once_with('21-11-2026', '1pm')
+            probe.assert_not_called()
+
+    def test_official_only_is_bounded_preserves_existing_and_never_calls_provider(self):
+        with tempfile.TemporaryDirectory() as folder, chdir(folder), patch.object(module, 'india_today', return_value=dt.date(2026, 11, 21)):
+            path = Path('public/lottery-results/documents.json')
+            path.parent.mkdir(parents=True)
+            rows = [{'date': '2026-11-'+str(day), 'slot': '1pm', 'sambadUrl': 'https://sambad.com/draw.pdf'} for day in range(10, 19)]
+            rows.append({'date': '2026-11-21', 'slot': '6pm', 'sambadUrl': 'https://sambad.com/six.pdf', 'officialSource': 'sikkim-6pm'})
+            path.write_text(json.dumps({'schema': 1, 'documents': rows}))
+            before = path.read_bytes()
+            with patch.object(module, 'attach_official_link', return_value=False) as official, patch.object(module, 'probe') as probe:
+                result = module.refresh_missing_official()
+                self.assertEqual(official.call_count, 6)
+                self.assertEqual(result['remaining_candidates'], 3)
+                probe.assert_not_called()
+            self.assertEqual(path.read_bytes(), before)
+
+    def test_government_404_does_not_publish_placeholder_or_damage_provider_link(self):
+        import urllib.error
+        with patch.object(module, 'download', side_effect=urllib.error.HTTPError('https://nagalandlotteries.com/old_results/MN211126.PDF', 404, 'missing', {}, None)):
+            self.assertFalse(module.attach_official_link('21-11-2026', '1pm'))
 
 
 if __name__ == '__main__':

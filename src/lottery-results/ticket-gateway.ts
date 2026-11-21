@@ -3,7 +3,7 @@ import { readTicketText, parseTicket, parseVerdict, type TicketInput, type Ticke
 type Options = { origins: string[]; verify: (token: string) => Promise<{ orbisIdentityId: string } | null>; lookup: (ticket: TicketInput) => Promise<TicketVerdict>; now?: () => number }
 
 function ticketFailure(error: unknown) {
-  return error instanceof Error && error.message === 'TICKET_BUSY'
+  return error instanceof Error && ['TICKET_BUSY', 'KHATA_RATE_LIMITED'].includes(error.message)
 }
 
 function admitTicket(attempts: Map<string, number>, identity: string, now: number) {
@@ -30,6 +30,8 @@ export function createTicketGateway(options: Options) {
     if (request.method !== 'POST') return reply(405, 'TICKET_METHOD_DENIED')
     const authorization = request.headers.get('authorization') ?? ''
     if (!/^Bearer [^\s]{1,8192}$/.test(authorization)) return reply(401, 'TICKET_LOGIN_REQUIRED')
+    let stage = 'session-verification'
+    const requestId = crypto.randomUUID()
     try {
       const actor = await options.verify(authorization.slice(7))
       if (!actor) return reply(401, 'TICKET_LOGIN_REQUIRED')
@@ -41,8 +43,21 @@ export function createTicketGateway(options: Options) {
       try { text = await readTicketText(request.body, 1024) } catch { return reply(413, 'TICKET_INPUT_TOO_LARGE') }
       let ticket: TicketInput
       try { ticket = parseTicket(JSON.parse(text)) } catch { return reply(400, 'TICKET_INPUT_INVALID') }
+      stage = 'provider-lookup'
       const result = parseVerdict(await options.lookup(ticket), ticket)
       return new Response(JSON.stringify(result), { headers })
-    } catch (error) { return ticketFailure(error) ? reply(429, 'TICKET_BUSY') : reply(503, 'TICKET_UNAVAILABLE') }
+    } catch (error) {
+      const code = ticketDiagnostic(error)
+      console.warn('LOTTERY_TICKET_FAILURE', { stage, code, requestId })
+      headers.set('x-orbis-request-id', requestId)
+      return ticketFailure(error) ? reply(429, 'TICKET_BUSY') : reply(503, 'TICKET_UNAVAILABLE')
+    }
   }
+}
+
+function ticketDiagnostic(error: unknown) {
+  const known = ['TICKET_BUSY', 'TICKET_NOT_CONFIGURED', 'TICKET_PROVIDER_AUTH_REJECTED', 'TICKET_PROVIDER_UNAVAILABLE', 'TICKET_RESPONSE_MISMATCH', 'TICKET_RESPONSE_INVALID', 'TICKET_RESPONSE_TOO_LARGE', 'TICKET_BODY_TOO_LARGE', 'CENTRAL_UNAVAILABLE', 'CENTRAL_RESPONSE_INVALID', 'KHATA_RATE_LIMITED']
+  if (error instanceof Error && known.includes(error.message)) return error.message
+  if (error instanceof Error && ['AbortError', 'TimeoutError'].includes(error.name)) return 'UPSTREAM_TIMEOUT'
+  return 'UNEXPECTED_UPSTREAM_FAILURE'
 }
