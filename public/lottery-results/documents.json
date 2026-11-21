@@ -1,7 +1,16 @@
 {
   "schema": 1,
   "documents": [
-    { "date": "2026-11-20", "slot": "1pm", "officialUrl": "https://nagalandlotteries.com/old_results/MN201126.PDF" },
-    { "date": "2026-11-20", "slot": "8pm", "officialUrl": "https://nagalandlotteries.com/old_results/EN201126.PDF" }
+    {
+      "date": "2026-11-20",
+      "slot": "1pm",
+      "officialUrl": "https://nagalandlotteries.com/old_results/MN201126.PDF"
+    },
+    {
+      "date": "2026-11-20",
+      "slot": "8pm",
+      "officialUrl": "https://nagalandlotteries.com/old_results/EN201126.PDF",
+      "sambadUrl": "https://sambad.com/api-files/lottery-sambad-8pm-20-11-2026-HlMwJS.pdf"
+    }
   ]
 }
