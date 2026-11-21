@@ -9,12 +9,13 @@
     {
       "date": "2026-11-20",
       "slot": "8pm",
-      "officialUrl": "https://nagalandlotteries.com/old_results/EN201126.PDF",
-      "sambadUrl": "https://sambad.com/api-files/lottery-sambad-8pm-20-11-2026-HlMwJS.pdf"
+      "sambadUrl": "https://sambad.com/api-files/lottery-sambad-8pm-20-11-2026-HlMwJS.pdf",
+      "officialUrl": "https://nagalandlotteries.com/old_results/EN201126.PDF"
     },
     {
       "date": "2026-11-20",
       "slot": "6pm",
+      "sambadUrl": "https://sambad.com/api-files/lottery-sambad-6pm-20-11-2026-m587io.pdf",
       "officialSource": "sikkim-6pm"
     }
   ]
