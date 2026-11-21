@@ -20,15 +20,15 @@ describe('independent lottery result view', () => {
     expect(date.value).toBe('2026-11-14')
     fireEvent.change(screen.getByRole('combobox'), { target: { value: '8pm' } })
     expect(screen.getByRole('combobox')).toHaveValue('8pm')
-    expect(screen.getByRole('link')).toHaveAttribute('href', 'https://nagalandlotteries.com/results.php')
+    expect(screen.queryByRole('link')).not.toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: /Back to main home|মূল হোমে ফিরুন|मुख्य होम पर वापस जाएँ/ }))
     expect(back).toHaveBeenCalledOnce()
   })
   it('does not invent a result or enable payment entry', () => {
     render(<LotteryResults language="en" onBack={vi.fn()}/>)
     fireEvent.change(screen.getByRole('combobox'), { target: { value: '6pm' } })
-    expect(screen.getByText('Verified result not available yet')).toBeVisible()
-    expect(screen.getByText(/A reviewed result for this draw has not been downloaded/)).toBeVisible()
+    expect(screen.getByText('Lottery Sambad PDF not available yet')).toBeVisible()
+    expect(screen.getByText('Official PDF for this draw not available yet')).toBeVisible()
     expect(screen.queryByRole('button', { name: /save|payment|scan|check/i })).not.toBeInTheDocument()
   })
   it('uses the Indian date when UTC is still the previous day', () => {

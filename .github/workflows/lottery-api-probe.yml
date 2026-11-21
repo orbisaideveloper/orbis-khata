@@ -1,0 +1,49 @@
+name: Lottery API PDF check
+on:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/lottery-api-probe.yml', 'scripts/lottery-results/api_probe.py', 'scripts/lottery-results/test_api_probe.py']
+  workflow_dispatch:
+    inputs:
+      date:
+        description: Draw date (DD-MM-YYYY)
+        required: true
+        default: '20-11-2026'
+        type: string
+      slot:
+        description: Draw time (IST)
+        required: true
+        default: '8pm'
+        type: choice
+        options: ['1pm', '6pm', '8pm']
+permissions:
+  contents: write
+concurrency:
+  group: lottery-api-pdf-check
+  cancel-in-progress: false
+jobs:
+  probe:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: main
+      - name: Verify probe safety without credentials
+        run: python3 -m unittest discover -s scripts/lottery-results -p 'test_api_probe.py'
+      - name: Check one draw and publish its public PDF link only
+        env:
+          SAMBAD_API_TOKEN: ${{ secrets.SAMBAD_API_TOKEN }}
+          PUBLISH_PDF_LINK: '1'
+          DRAW_DATE: ${{ inputs.date || '20-11-2026' }}
+          DRAW_SLOT: ${{ inputs.slot || '8pm' }}
+        run: python3 scripts/lottery-results/api_probe.py
+      - name: Save validated PDF link metadata only
+        run: |
+          set -euo pipefail
+          git add public/lottery-results/documents.json
+          if git diff --cached --quiet; then exit 0; fi
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git commit -m 'data(lottery): save API-checked draw PDF link'
+          git push origin HEAD:main

@@ -1,8 +1,10 @@
 import { useEffect, useState } from 'react'
 import { cachedResults, refreshResults } from './result-feed'
+import { cachedDocuments, refreshDocuments } from './document-feed'
 
 export function useResultFeed() {
   const [results, setResults] = useState(cachedResults)
+  const [documents, setDocuments] = useState(cachedDocuments)
   const [status, setStatus] = useState<'loading' | 'ready' | 'offline'>('loading')
   useEffect(() => {
     let current = true
@@ -12,8 +14,12 @@ export function useResultFeed() {
       controller = new AbortController()
       const timer = window.setTimeout(() => controller?.abort(), 15000)
       try {
-        const records = await refreshResults(controller.signal)
-        if (current) { setResults(records); setStatus('ready') }
+        const [records, links] = await Promise.allSettled([refreshResults(controller.signal), refreshDocuments(controller.signal)])
+        if (current) {
+          if (records.status === 'fulfilled') setResults(records.value)
+          if (links.status === 'fulfilled') setDocuments(links.value)
+          setStatus(links.status === 'fulfilled' ? 'ready' : 'offline')
+        }
       } catch { if (current) setStatus('offline') }
       finally { window.clearTimeout(timer); controller = undefined }
     }
@@ -24,5 +30,5 @@ export function useResultFeed() {
     document.addEventListener('visibilitychange', wake)
     return () => { current = false; controller?.abort(); window.clearInterval(timer); window.removeEventListener('online', wake); document.removeEventListener('visibilitychange', wake) }
   }, [])
-  return { results, status }
+  return { results, documents, status }
 }

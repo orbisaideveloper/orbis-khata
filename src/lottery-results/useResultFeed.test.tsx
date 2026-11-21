@@ -2,6 +2,8 @@ import { act, cleanup, renderHook } from '@testing-library/react'
 import { afterEach, expect, it, vi } from 'vitest'
 import { useResultFeed } from './useResultFeed'
 import { refreshResults } from './result-feed'
+import { refreshDocuments } from './document-feed'
+vi.mock('./document-feed', () => ({ cachedDocuments: () => [], refreshDocuments: vi.fn(async () => []) }))
 vi.mock('./result-feed', () => ({ cachedResults: () => [], refreshResults: vi.fn() }))
 afterEach(() => { cleanup(); vi.useRealTimers(); vi.clearAllMocks() })
 it('refreshes on opening, online, foreground and 120 seconds, then cleans up', async () => {
@@ -21,6 +23,7 @@ it('refreshes on opening, online, foreground and 120 seconds, then cleans up', a
   expect(refreshResults).toHaveBeenCalledTimes(4)
 })
 it('coalesces overlapping attempts, aborts on unmount and preserves offline state', async () => {
+  vi.mocked(refreshDocuments).mockRejectedValue(new Error('offline'))
   let reject: (reason: Error) => void = () => {}
   vi.mocked(refreshResults).mockImplementation(() => new Promise((_, fail) => { reject = fail }))
   const view = renderHook(useResultFeed)
@@ -28,8 +31,19 @@ it('coalesces overlapping attempts, aborts on unmount and preserves offline stat
   expect(refreshResults).toHaveBeenCalledTimes(1)
   await act(async () => { reject(new Error('offline')) })
   expect(view.result.current.status).toBe('offline')
+  expect(view.result.current.results).toEqual([])
   await act(async () => { window.dispatchEvent(new Event('online')) })
   const signal = vi.mocked(refreshResults).mock.calls[1][0]
   view.unmount()
   expect(signal.aborted).toBe(true)
+})
+
+it('can refresh PDF links while the legacy number feed is unavailable', async () => {
+  vi.mocked(refreshResults).mockRejectedValue(new Error('unavailable'))
+  const documents = [{ date: '2026-11-20', slot: '8pm', sambadUrl: 'https://sambad.com/draw.pdf' }]
+  vi.mocked(refreshDocuments).mockResolvedValue(documents)
+  const view = renderHook(useResultFeed)
+  await act(async () => {})
+  expect(view.result.current.documents).toEqual(documents)
+  expect(view.result.current.status).toBe('ready')
 })

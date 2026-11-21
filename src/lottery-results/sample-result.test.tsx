@@ -4,6 +4,7 @@ import sample from './sample-2026-11-20.json'
 import { parseFeed } from './result-feed'
 const sampleResult = (date: string, slot: string) => parseFeed({ schema: 1, results: [sample] }, '2026-11-20').find(row => row.date === date && row.slot === slot) ?? null
 import { LotteryResults } from './LotteryResults'
+import { ResultSheet } from './ResultSheet'
 
 vi.mock('./useResultFeed', () => import('./result-feed.fixture'))
 
@@ -30,13 +31,22 @@ it('does not substitute the sample for a different draw', () => {
   expect(sampleResult('2026-11-20', '8pm')).toBeNull()
 })
 
-it.each(['bn', 'hi', 'en'] as const)('opens the sample with its exact official proof in %s', language => {
+it.each(['bn', 'hi', 'en'] as const)('shows compact exact-draw PDF links without the old number grid in %s', language => {
   render(<LotteryResults language={language} onBack={vi.fn()}/>)
-  fireEvent.click(screen.getByRole('button', { name: /নমুনা দেখুন|नमूना देखें|View sample/ }))
-  expect(screen.getByText('35B 45879')).toBeVisible()
+  expect(screen.getByRole('combobox')).toHaveValue('8pm')
   expect(screen.getByRole('status').tagName).toBe('OUTPUT')
-  expect(screen.getByText('0022')).toBeVisible()
-  expect(screen.getByRole('link', { name: /মূল সরকারি|मूल आधिकारिक|Original official/ })).toHaveAttribute('href', 'https://nagalandlotteries.com/old_results/MN201126.PDF')
-  fireEvent.change(screen.getByRole('combobox'), { target: { value: '6pm' } })
+  expect(screen.getByRole('link', { name: /মূল সরকারি|मूल आधिकारिक|Original official/ })).toHaveAttribute('href', 'https://nagalandlotteries.com/old_results/EN201126.PDF')
   expect(screen.queryByText('35B 45879')).not.toBeInTheDocument()
+  expect(screen.queryByRole('button', { name: /নমুনা দেখুন|नमूना देखें|View sample/ })).not.toBeInTheDocument()
+  fireEvent.change(screen.getByRole('combobox'), { target: { value: '1pm' } })
+  expect(screen.getByRole('link')).toHaveAttribute('href', sample.officialUrl)
+  fireEvent.change(screen.getByRole('combobox'), { target: { value: '6pm' } })
+  expect(screen.queryByRole('link')).not.toBeInTheDocument()
+})
+
+it('opens the exact API PDF directly without the provider website or number list', () => {
+  const url = 'https://sambad.com/api-files/lottery-sambad-8pm-20-11-2026-fixture.pdf'
+  render(<ResultSheet document={{ date: '2026-11-20', slot: '8pm', sambadUrl: url }} date="2026-11-20" slot="8pm" language="en"/>)
+  expect(screen.getByRole('link', { name: /Lottery Sambad PDF/ })).toHaveAttribute('href', url)
+  expect(screen.queryByRole('button')).not.toBeInTheDocument()
 })
