@@ -16,7 +16,7 @@ export function parseTicket(input: unknown, today = indiaDate()): TicketInput {
 
 export function parseVerdict(input: unknown, ticket: TicketInput): TicketVerdict {
   const value = input as TicketVerdict | null
-  if (!value || value.date !== ticket.date || value.slot !== ticket.slot || value.series !== ticket.series || value.number !== ticket.number) throw new Error('TICKET_RESPONSE_MISMATCH')
+  if (value?.date !== ticket.date || value.slot !== ticket.slot || value.series !== ticket.series || value.number !== ticket.number) throw new Error('TICKET_RESPONSE_MISMATCH')
   if (!['win', 'no_prize', 'pending', 'upcoming', 'not_found', 'invalid'].includes(value.status)) throw new Error('TICKET_RESPONSE_INVALID')
   let prize: TicketVerdict['prize'] = null
   if (value.status === 'win') {
