@@ -12,7 +12,8 @@ export function createDrawWorker(rpc: DrawRpc, load: ReturnType<typeof createDra
       if (await rpc('lottery_worker_authorized', { p_token: authorization.slice(7) }) !== true) return reply(403, 'WORKER_DENIED')
       const rows = await rpc('lottery_draw_candidates', {})
       if (!Array.isArray(rows) || rows.length > 1) throw new Error('WORKER_QUEUE_INVALID')
-      for (const row of rows) {
+      if (rows.length === 1) {
+        const row = rows[0]
         const draw = parseTicket({ date: row.date, slot: row.slot, series: '35B', number: '00000' })
         await load(draw.date, draw.slot, true)
       }

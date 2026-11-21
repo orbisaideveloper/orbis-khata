@@ -62,12 +62,14 @@ async function verifyPdf(url: string, fetchImpl: typeof fetch) {
   const reader = response.body?.getReader()
   try {
     if (!response.ok || !reader || Number(response.headers.get('content-length')) > 12000000) throw new Error('PDF_PENDING')
-    let signature = ''
-    while (signature.length < 5) {
-      const chunk = await reader.read()
-      if (chunk.done) throw new Error('PDF_PENDING')
-      signature += new TextDecoder().decode(chunk.value.slice(0, 5 - signature.length))
-    }
+    const signature = await readPdfSignature(reader)
     if (signature !== '%PDF-') throw new Error('PDF_PENDING')
   } finally { await reader?.cancel().catch(() => {}); reader?.releaseLock() }
+}
+
+async function readPdfSignature(reader: ReadableStreamDefaultReader<Uint8Array>, signature = ''): Promise<string> {
+  if (signature.length >= 5) return signature
+  const chunk = await reader.read()
+  if (chunk.done) throw new Error('PDF_PENDING')
+  return readPdfSignature(reader, signature + new TextDecoder().decode(chunk.value.slice(0, 5 - signature.length)))
 }

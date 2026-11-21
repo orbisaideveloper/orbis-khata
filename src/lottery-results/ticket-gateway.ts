@@ -41,19 +41,12 @@ export function createTicketGateway(options: Options) {
       if (Number(request.headers.get('content-length')) > 1024) return reply(413, 'TICKET_INPUT_TOO_LARGE')
       let text: string
       try { text = await readTicketText(request.body, 1024) } catch { return reply(413, 'TICKET_INPUT_TOO_LARGE') }
-      let ticket: TicketInput
-      let input
-      try {
-        input = JSON.parse(text)
-        if (input?.action === 'document' && options.document) {
-          const draw = parseTicket({ date: input.date, slot: input.slot, series: '35B', number: '00000' })
-          ticket = draw
-        } else {
-          ticket = parseTicket(input)
-        }
-      } catch { return reply(400, 'TICKET_INPUT_INVALID') }
+      let parsed: ReturnType<typeof gatewayInput>
+      try { parsed = gatewayInput(text, Boolean(options.document)) }
+      catch { return reply(400, 'TICKET_INPUT_INVALID') }
+      const { ticket, documentAction } = parsed
       stage = 'provider-lookup'
-      if (input?.action === 'document' && options.document) return new Response(JSON.stringify(await options.document(ticket.date, ticket.slot)), { headers })
+      if (documentAction && options.document) return new Response(JSON.stringify(await options.document(ticket.date, ticket.slot)), { headers })
       const result = parseVerdict(await options.lookup(ticket), ticket)
       return new Response(JSON.stringify(result), { headers })
     } catch (error) {
@@ -70,4 +63,11 @@ function ticketDiagnostic(error: unknown) {
   if (error instanceof Error && known.includes(error.message)) return error.message
   if (error instanceof Error && ['AbortError', 'TimeoutError'].includes(error.name)) return 'UPSTREAM_TIMEOUT'
   return 'UNEXPECTED_UPSTREAM_FAILURE'
+}
+
+function gatewayInput(text: string, documentsEnabled: boolean) {
+  const input = JSON.parse(text)
+  const documentAction = input?.action === 'document' && documentsEnabled
+  const ticket = parseTicket(documentAction ? { date: input.date, slot: input.slot, series: '35B', number: '00000' } : input)
+  return { ticket, documentAction }
 }

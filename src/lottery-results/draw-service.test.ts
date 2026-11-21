@@ -29,8 +29,8 @@ it('rejects concurrent waits and wrong/incomplete JSON without no-prize or leake
     const rpc = vi.fn().mockResolvedValueOnce({ state: 'claim', lease: 'lease' }).mockResolvedValueOnce(true)
     const load = createDrawService({ rpc, fetchImpl: async () => response, token: () => 'private' })
     await expect(load(date, slot)).rejects.toThrow()
-    expect(rpc.mock.calls[1][1].p_payload).toBe(null)
-    expect(rpc.mock.calls[1][1].p_pdf).toBe(null)
+    expect(rpc.mock.calls[1][1].p_payload).toBeNull()
+    expect(rpc.mock.calls[1][1].p_pdf).toBeNull()
   }
 })
 it('keeps valid JSON usable if the PDF is unavailable; a stale completion is never served', async () => {
@@ -40,4 +40,18 @@ it('keeps valid JSON usable if the PDF is unavailable; a stale completion is nev
   expect(rpc.mock.calls[1][1].p_reason).toBe('PDF_PENDING')
   const stale = vi.fn().mockResolvedValueOnce({ state: 'claim', lease: 'lease' }).mockResolvedValueOnce(false)
   await expect(createDrawService({ rpc: stale, fetchImpl: async () => Response.json({ success: true, data: { ...drawFixture(), files: {} } }), token: () => 'private' })(date, slot)).rejects.toThrow('TICKET_BUSY')
+})
+
+it('reads a fragmented PDF signature and rejects a truncated stream', async () => {
+  for (const chunks of [['%', 'P', 'D', 'F', '-'], ['%', 'P']]) {
+    const rpc = vi.fn().mockResolvedValueOnce({ state: 'claim', lease: 'lease' }).mockResolvedValueOnce(true)
+    const stream = new ReadableStream({ start(controller) {
+      for (const chunk of chunks) controller.enqueue(new TextEncoder().encode(chunk))
+      controller.close()
+    } })
+    const fetchImpl = vi.fn<typeof fetch>().mockResolvedValueOnce(Response.json({ success: true, data: drawFixture() })).mockResolvedValueOnce(new Response(stream))
+    const result = await createDrawService({ rpc, fetchImpl, token: () => 'private' })(date, slot, true)
+    expect(result.pdf).toBe(chunks.length === 5 ? 'https://sambad.com/draw.pdf' : null)
+    expect(result.draw.prizes).toHaveLength(6)
+  }
 })

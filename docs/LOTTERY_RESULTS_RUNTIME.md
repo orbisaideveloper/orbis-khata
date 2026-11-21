@@ -55,3 +55,15 @@ Provider documentation supports private database storage but restricts dataset/A
 The full Phase2 migration-chain acceptance harness uses the same explicit Vault/Cron/net test doubles as the dedicated scheduler test when applying the scheduler migration under PGlite. Only its two exact extension-install statements are replaced; the scheduler tables, function bodies and permission statements still execute. No production migration is skipped or changed. Native PostgreSQL concurrency and live Cron evidence remain separate gates.
 
 Native cache concurrency setup reserves one PostgreSQL connection while executing the migration's explicit BEGIN/COMMIT, then releases it before the32-connection race. Applying transaction-control SQL directly through a multi-connection pool is rejected by postgres.js as UNSAFE_TRANSACTION; the pool remains32 for the actual contention assertions.
+
+### Quality run 44930533181 follow-up
+
+All SQL, native concurrency, coverage and Chromium gates passed; strict Sonar
+stopped on eight source findings (coverage 90.5%, duplication 0%). Clarify popup
+cleanup control flow, use implicit output status and dedicated null assertions,
+replace the single-candidate worker loop with an explicit branch, read the
+bounded PDF signature recursively, and extract gateway input parsing. The
+request contract, cache leases and security checks remain unchanged. Targeted
+regressions include fragmented and truncated PDF streams. No database migration
+is required. Runtime Edge sources should be included in the next deployment
+after CI review; this corrective push does not deploy live services.

@@ -24,7 +24,10 @@ export function ResultSheet({ document, date, slot, language }: Readonly<{ docum
       if (controller.signal.aborted) { popup?.close(); return }
       if (result?.sambadUrl) { setRecovered(result); setState('idle'); if (popup) popup.location.href = result.sambadUrl }
       else { setState('pending'); popup?.close() }
-    } catch { if (!controller.signal.aborted) setState('error'); popup?.close() }
+    } catch {
+      if (!controller.signal.aborted) setState('error')
+      popup?.close()
+    }
     finally { window.clearTimeout(timer); if (active.current === controller) active.current = null }
   }, [date, slot])
   useEffect(() => {
@@ -40,10 +43,11 @@ export function ResultSheet({ document, date, slot, language }: Readonly<{ docum
   return <article className="result-sheet" aria-label={copy('ড্রয়ের রেজাল্ট PDF', 'ड्रॉ रिज़ल्ट PDF', 'Draw result PDFs')}>
     <h2>{copy('রেজাল্টের নথি', 'रिज़ल्ट दस्तावेज़', 'Result documents')}</h2>
     <div className="results-document-links">
-      {current?.sambadUrl ? <a className="results-source" aria-label={copy('এই ড্রয়ের লটারি সংবাদ PDF', 'इस ड्रॉ का लॉटरी संवाद PDF', 'Lottery Sambad PDF for this draw')} href={current.sambadUrl} target="_blank" rel="noopener noreferrer"><DocumentLabel official={false} language={language}/></a> : <button className="results-source" type="button" disabled={state === 'busy'} onClick={() => { const popup = window.open('about:blank', '_blank'); if (popup) popup.opener = null; void recover(popup) }}><DocumentLabel official={false} language={language}/></button>}
+      {current?.sambadUrl ? <a className="results-source" aria-label={copy('এই ড্রয়ের লটারি সংবাদ PDF', 'इस ड्रॉ का लॉटरी संवाद PDF', 'Lottery Sambad PDF for this draw')} href={current.sambadUrl} target="_blank" rel="noopener noreferrer"><DocumentLabel official={false} language={language}/></a> : <button className="results-source" type="button" disabled={state === 'busy'} onClick={() => { const popup = window.open('about:blank', '_blank'); if (popup) { popup.opener = null }
+        void recover(popup) }}><DocumentLabel official={false} language={language}/></button>}
       <OfficialDocument document={document} date={date} language={language}/>
     </div>
-    {!current?.sambadUrl && <output role="status">{message}</output>}
+    {!current?.sambadUrl && <output>{message}</output>}
   </article>
 }
 
