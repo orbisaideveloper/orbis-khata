@@ -49,3 +49,7 @@ Local SQL acceptance runs in isolated PGlite. Native32-request lease concurrency
 ApprovedB uses a light top and soft blue depth toward the bottom, one continuous background, compact header/back/Modules/language, ticket search above PDF actions and a persistent translated prize-verification disclaimer. Dear logo is the unmodified distributor asset from `https://tigerassociates.in/assets/img/dear-lottery-logo.png`. The ad slot remains empty until a separately approved integration. Scanner remains a centered modal with focus restoration, native-back handling and media cleanup; no scan photo is uploaded.
 
 Provider documentation supports private database storage but restricts dataset/API/feed redistribution. This implementation returns only a single verdict or public link, never the stored result dataset. Attribution/license text and API overview differ; no new legal agreement is accepted by this source change. Full phone/offline dataset delivery is outside this scope.
+
+### SQL fixture integration
+
+The full Phase2 migration-chain acceptance harness uses the same explicit Vault/Cron/net test doubles as the dedicated scheduler test when applying the scheduler migration under PGlite. Only its two exact extension-install statements are replaced; the scheduler tables, function bodies and permission statements still execute. No production migration is skipped or changed. Native PostgreSQL concurrency and live Cron evidence remain separate gates.

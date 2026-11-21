@@ -1,3 +1,4 @@
+import { setupLotterySchedulerFixture, lotterySchedulerFixtureSql } from './lottery-scheduler-fixture.mjs'
 import { PGlite } from '@electric-sql/pglite'
 import { readFile } from 'node:fs/promises'
 import assert from 'node:assert/strict'
@@ -5,15 +6,8 @@ const db = new PGlite()
 try {
  await db.exec('create role anon;create role authenticated;create role service_role;')
  await db.exec(await readFile('supabase/migrations/20261121145334_lottery_draw_cache.sql','utf8'))
- // PGlite lacks network/cron/Vault: these test doubles validate SQL/registration only.
- await db.exec(`create schema vault;create schema cron;create schema net;
- create table vault.secrets(secret text,name text unique);
- create view vault.decrypted_secrets as select secret as decrypted_secret,name from vault.secrets;
- create function vault.create_secret(text,text,text) returns uuid language plpgsql as $$begin insert into vault.secrets values($1,$2);return gen_random_uuid();end$$;
- create table cron.jobs(name text primary key,schedule text,command text);
- create function cron.schedule(text,text,text) returns bigint language plpgsql as $$begin insert into cron.jobs values($1,$2,$3) on conflict(name) do update set schedule=excluded.schedule,command=excluded.command;return 1;end$$;
- create function net.http_post(url text,headers jsonb,body jsonb,timeout_milliseconds integer) returns bigint language sql as $$select 1::bigint$$;`)
- const migration=(await readFile('supabase/migrations/20261121145730_lottery_scheduler.sql','utf8')).replace(/^create extension .*;$/gm,'')
+ await setupLotterySchedulerFixture(db)
+ const migration=lotterySchedulerFixtureSql(await readFile('supabase/migrations/20261121145730_lottery_scheduler.sql','utf8'))
  await db.exec(migration)
  assert.equal((await db.query('select count(*)::int as n from cron.jobs')).rows[0].n,0,'Migration must not activate cron before Edge deployment')
  await assert.rejects(db.query("select lottery_private.start_scheduler('http://evil.test')"),/INVALID_PROJECT_URL/)
