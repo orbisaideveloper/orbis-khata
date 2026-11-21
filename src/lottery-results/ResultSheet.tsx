@@ -5,7 +5,7 @@ import type { PublishedResult } from './result-feed'
 export function ResultSheet({ result, language }: Readonly<{ result: PublishedResult; language: Language }>) {
   const copy = (bn: string, hi: string, en: string) => inLanguage(language, bn, hi, en)
   return <article className="result-sheet" aria-label={copy('নমুনা রেজাল্ট', 'नमूना नतीजा', 'Sample result')}>
-    <p role="status">{copy('নমুনা · দুই উৎস হাতে মিলিয়ে যাচাই করা', 'नमूना · दो स्रोतों से मैन्युअल मिलान', 'Sample · manually compared with two sources')}</p>
+    <p><output>{copy('নমুনা · দুই উৎস হাতে মিলিয়ে যাচাই করা', 'नमूना · दो स्रोतों से मैन्युअल मिलान', 'Sample · manually compared with two sources')}</output></p>
     <h2>{result.name}</h2>
     <p>{result.date} · {{'1pm': '1 PM', '6pm': '6 PM', '8pm': '8 PM'}[result.slot] ?? result.slot} IST · {copy('ড্র', 'ड्रॉ', 'Draw')} {result.draw}</p>
     <h3>{copy('প্রথম পুরস্কার', 'पहला पुरस्कार', 'First prize')}</h3>

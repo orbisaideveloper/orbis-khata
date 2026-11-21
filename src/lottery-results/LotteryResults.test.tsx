@@ -14,6 +14,7 @@ describe('independent lottery result view', () => {
     const back = vi.fn()
     const { container } = render(<LotteryResults language={language} onBack={back}/>)
     expect(screen.getByRole('status')).toBeVisible()
+    expect(screen.getByRole('status').tagName).toBe('OUTPUT')
     const date = container.querySelector('input')!
     fireEvent.change(date, { target: { value: '2026-11-14' } })
     expect(date.value).toBe('2026-11-14')

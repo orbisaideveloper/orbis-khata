@@ -34,6 +34,7 @@ it.each(['bn', 'hi', 'en'] as const)('opens the sample with its exact official p
   render(<LotteryResults language={language} onBack={vi.fn()}/>)
   fireEvent.click(screen.getByRole('button', { name: /নমুনা দেখুন|नमूना देखें|View sample/ }))
   expect(screen.getByText('35B 45879')).toBeVisible()
+  expect(screen.getByRole('status').tagName).toBe('OUTPUT')
   expect(screen.getByText('0022')).toBeVisible()
   expect(screen.getByRole('link', { name: /মূল সরকারি|मूल आधिकारिक|Original official/ })).toHaveAttribute('href', 'https://nagalandlotteries.com/old_results/MN201126.PDF')
   fireEvent.change(screen.getByRole('combobox'), { target: { value: '6pm' } })
