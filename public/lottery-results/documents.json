@@ -17,6 +17,11 @@
       "slot": "6pm",
       "sambadUrl": "https://sambad.com/api-files/lottery-sambad-6pm-20-11-2026-m587io.pdf",
       "officialSource": "sikkim-6pm"
+    },
+    {
+      "date": "2026-11-21",
+      "slot": "1pm",
+      "sambadUrl": "https://sambad.com/api-files/lottery-sambad-1pm-21-11-2026-g446Rz.pdf"
     }
   ]
 }
