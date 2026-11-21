@@ -1,3 +1,4 @@
+import { emptyStatementRelay } from './statement-relay-fixture';
 import { expect, test, type Page } from '@playwright/test';
 // These test-only protocol responses prove browser wiring, never live Auth or SQL.
 const customer = { orbisIdentityId: '11111111-1111-7111-8111-111111111111', displayId: 'ORB-U-23456789' };
@@ -41,6 +42,8 @@ async function backend(page: Page) {
         await route.fulfill({ status: state.revoked && path === 'session' ? 401 : 200, headers, json: value });
     });
     await page.route('https://data.example.test/**', async (route) => {
+        if(await emptyStatementRelay(route)) return;
+
         if (route.request().method() === 'OPTIONS') {
             await route.fulfill({ status: 204, headers });
             return;

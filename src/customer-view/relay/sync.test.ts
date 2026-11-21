@@ -33,7 +33,9 @@ it('never ACKs a failed disk commit and can recover on the next attempt',async()
  expect(f.disk().links[link.id].revision).toBe(1)
 })
 it('retains the durable copy across a lost ACK response',async()=>{
- const f=setup();f.request.mockImplementation(async command=>{if(command.action==='list')return [link];if(command.action==='pull')return envelope;throw new Error('offline')})
+ const f=setup();f.request.mockImplementation(async command=>{if(command.action==='list'){return [link]}
+ if(command.action==='pull'){return envelope}
+ throw new Error('offline')})
  await expect(exchange(f.ports)).rejects.toThrow('offline')
  expect(f.disk().links[link.id].dataset?.rows).toEqual([row])
 })
@@ -99,7 +101,11 @@ it('validates every command boundary and malformed patch without throwing',()=>{
  }
 })
 it('recovers a missing incremental base without ACKing it; rejects malformed deliveries',async()=>{
- const f=setup();f.request.mockImplementation(async command=>command.action==='list'?[link]:command.action==='pull'?{revision:2,base:1,patch:{...envelope.patch,reset:false}}:{revision:1})
+ const f=setup();f.request.mockImplementation(async command=>{
+  if(command.action==='list') return [link]
+  if(command.action==='pull') return {revision:2,base:1,patch:{...envelope.patch,reset:false}}
+  return {revision:1}
+ })
  await exchange(f.ports)
  expect(f.request).toHaveBeenCalledWith({action:'resync',id:link.id})
  expect(f.request.mock.calls.some(([c])=>c.action==='ack')).toBe(false)

@@ -1,3 +1,4 @@
+import { emptyStatementRelay } from './statement-relay-fixture';
 import {booksLabels} from '../src/books-navigation';
 import {accountingPolicyCopy} from '../src/accounting/policy/copy';
 import {translations} from '../src/i18n';
@@ -21,6 +22,8 @@ for(const language of ['bn','en','hi'] as const){
   await page.addInitScript(({customer,language})=>{localStorage.setItem('orbis.central.customer.v1',JSON.stringify({version:1,customer,accessToken:'test.access',refreshToken:'test.refresh',expiresAt:Date.now()+3600000}));localStorage.setItem('orbis-khata-ui-language-v1',language);},{customer,language});
   await page.route('https://admin.example.test/**',r=>r.fulfill({headers,json:{version:'orbis.customer.v1',customer}}));
   await page.route('https://data.example.test/**',async route=>{
+        if(await emptyStatementRelay(route)) return;
+
    if(route.request().method()==='OPTIONS'){await route.fulfill({status:204,headers});return;}
    const {operation,input:command}=route.request().postDataJSON();let data:unknown;
    if(operation==='companies')data=[{id:company,name:'Report fixture'}];

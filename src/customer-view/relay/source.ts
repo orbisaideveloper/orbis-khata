@@ -10,7 +10,8 @@ import { validPatch, type Scope, type Dataset, type Row } from './model'
 const accounts = ['receivable','payable','expense_payable'] as const
 function checked(scope: Scope,rows: Row[]): Dataset {
   if(!validPatch({reset:true,scope,upsert:rows,remove:[]})) throw new Error('SHARE_PROJECTION_INVALID')
-  return {scope,rows:rows.sort((a,b)=>a.id.localeCompare(b.id))}
+  rows.sort((a,b)=>a.id.localeCompare(b.id))
+  return {scope,rows}
 }
 /** Same minor-unit journal signs as the books; reversals remain explicit rows. */
 export function khataProjection(snapshot: Pick<DeviceLocalSnapshot,'companies'|'parties'|'entries'|'expenses'>,scope: Scope): Dataset {
@@ -41,7 +42,8 @@ function addExpenses(snapshot: Pick<DeviceLocalSnapshot,'parties'|'expenses'>,sc
   for(const entry of expenses) {
     const original=entry.kind==='reversal'?expenses.find(row=>row.id===entry.parent):entry
     if(!original) throw new Error('SHARE_SOURCE_INVALID')
-    const sign=original.kind==='charge'?(original.method?0n:1n):-1n
+    let sign=-1n
+    if(original.kind==='charge') sign=original.method?0n:1n
     rows.push({id:'expense:'+entry.id,date:entry.date,reference:entry.reference,kind:sign?entry.kind:'cash_'+entry.kind,account:'expense_payable',value:entry.amount,amount:String(BigInt(entry.amount)*sign*(entry.kind==='reversal'?-1n:1n))})
   }
 }

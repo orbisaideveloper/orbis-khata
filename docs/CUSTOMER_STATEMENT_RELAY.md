@@ -63,3 +63,25 @@ fixture, changed-area unit/UI/native persistence tests, strict Deno and build.
 `verify-statement-relay-concurrency.mjs` is guarded to the disposable localhost
 CI database: 32 publishers/receivers, repeated ACKs and old-ACK/new-publish race.
 It requires native PostgreSQL and is not represented by PGlite tests.
+
+## Browser fixture correction after relay release
+
+Quality run 44937721041 on 1f09f7f passed SQL, native 32-client relay
+concurrency and 1,344 unit tests, then failed browser smoke because the old
+account mock rejected the foreground `customer-relay` list request. Other
+scenario mocks also needed to isolate that new background request.
+
+Unrelated browser scenarios now share an authenticated empty-inbox fixture.
+It accepts only the dedicated path, exact version and read-only list action;
+unexpected relay mutations still fail. Existing accounting assertions remain.
+The dedicated stateful relay scenario inspects the committed encrypted browser
+record when ACK arrives and checks saved data after a reload with the relay
+unavailable. It is browser/fixture evidence, not production or native-phone
+acceptance. Local Chromium launch remains environment-blocked; CI runs both
+mobile and desktop scenarios. This test-only correction needs no migration,
+Edge redeployment or replacement Android APK.
+
+The same pre-push review cleared seven additional local SonarJS findings in
+relay client/source and tests: explicit condition blocks, standalone sorting
+and unnested sign/test selection. Calculations and transport behavior are
+unchanged; these frontend/test-only corrections require no Edge deployment.

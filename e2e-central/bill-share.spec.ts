@@ -1,3 +1,4 @@
+import { emptyStatementRelay } from './statement-relay-fixture';
 import {defaultSettings} from '../src/accounting/workspace-contract';
 import { test, expect } from '@playwright/test';
 test('bill settings stay collapsed and export the selected Bengali invoice as a PDF', async ({ page }) => {
@@ -15,6 +16,8 @@ test('bill settings stay collapsed and export the selected Bengali invoice as a 
     await page.route('https://admin.example.test/**', route => route.fulfill({ headers, json: { version: 'orbis.customer.v1', customer } }));
     let savedBill: Record<string, any> | null = null
   await page.route('https://data.example.test/**', async (route) => {
+        if(await emptyStatementRelay(route)) return;
+
         if (route.request().method() === 'OPTIONS') {
             await route.fulfill({ status: 204, headers });
             return;

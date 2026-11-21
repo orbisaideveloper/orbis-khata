@@ -1,3 +1,4 @@
+import { emptyStatementRelay } from './statement-relay-fixture';
 import {test,expect} from '@playwright/test';
 import {runLottery,type LotteryInput} from '../src/lottery/service';
 test('independent lottery creates masters, saves daily formulas, receives split payment and restores after reload',async({page})=>{
@@ -12,6 +13,8 @@ test('independent lottery creates masters, saves daily formulas, receives split 
  await page.addInitScript(customer=>{localStorage.setItem('orbis.central.customer.v1',JSON.stringify({version:1,customer,accessToken:'test.access',refreshToken:'test.refresh',expiresAt:Date.now()+3600000}));localStorage.setItem('orbis-khata-ui-language-v1','en');},customer);
  await page.route('https://admin.example.test/**',r=>r.fulfill({headers,json:{version:'orbis.customer.v1',customer}}));
  await page.route('https://data.example.test/**',async route=>{
+        if(await emptyStatementRelay(route)) return;
+
   if(route.request().method()==='OPTIONS'){await route.fulfill({headers,status:204});return;}
   const {operation,input}=route.request().postDataJSON();if(operation==='companies'||operation==='retired-companies'){await route.fulfill({headers,json:{data:[]}});return;}if(operation==='party-sharing'){
    if(input.action==='list'){await route.fulfill({headers,json:{data:shares}});return;}

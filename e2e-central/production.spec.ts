@@ -1,3 +1,4 @@
+import { emptyStatementRelay } from './statement-relay-fixture';
 import {test,expect} from '@playwright/test';
 import {defaultSettings} from '../src/accounting/workspace-contract';
 test('company production mode routes purchases and receives own milk without duplicate posting',async({page})=>{
@@ -10,6 +11,8 @@ test('company production mode routes purchases and receives own milk without dup
  await page.addInitScript(customer=>{localStorage.setItem('orbis.central.customer.v1',JSON.stringify({version:1,customer,accessToken:'test.access',refreshToken:'test.refresh',expiresAt:Date.now()+3600000}));localStorage.setItem('orbis-khata-ui-language-v1','en');},customer);
  await page.route('https://admin.example.test/**',r=>r.fulfill({headers,json:{version:'orbis.customer.v1',customer}}));
  await page.route('https://data.example.test/**',async route=>{
+        if(await emptyStatementRelay(route)) return;
+
   if(route.request().method()==='OPTIONS'){await route.fulfill({headers,status:204});return;}
   const {operation,input}=route.request().postDataJSON();let data:unknown;
   if(operation==='companies')data=[{id:company,name:'Production farm'}];

@@ -1,3 +1,4 @@
+import { emptyStatementRelay } from './statement-relay-fixture';
 import {test,expect} from '@playwright/test';
 import {defaultSettings} from '../src/accounting/workspace-contract';
 test('negative stock and excess bill receipt remain valid, with compact company/modules and precise errors',async({page})=>{
@@ -10,6 +11,8 @@ test('negative stock and excess bill receipt remain valid, with compact company/
  await page.route('https://admin.example.test/**',r=>r.fulfill({headers,json:{version:'orbis.customer.v1',customer}}));
  let saves=0;
  await page.route('https://data.example.test/**',async route=>{
+        if(await emptyStatementRelay(route)) return;
+
  if(route.request().method()==='OPTIONS'){await route.fulfill({status:204,headers});return;}
  const {operation,input}=route.request().postDataJSON();let data:unknown;
  if(operation==='companies')data=[company];

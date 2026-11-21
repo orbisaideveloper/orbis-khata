@@ -1,3 +1,4 @@
+import { emptyStatementRelay } from './statement-relay-fixture';
 import {test,expect} from '@playwright/test'
 test('cloud masters survive reload and require two delete confirmations',async({page})=>{
  test.setTimeout(60000)
@@ -8,6 +9,8 @@ test('cloud masters survive reload and require two delete confirmations',async({
  await page.addInitScript(({customer})=>{localStorage.setItem('orbis.central.customer.v1',JSON.stringify({version:1,customer,accessToken:'test.access',refreshToken:'test.refresh',expiresAt:Date.now()+3600000}));localStorage.setItem('orbis-khata-ui-language-v1','en')},{customer})
  await page.route('https://admin.example.test/**',route=>route.fulfill({headers,json:{version:'orbis.customer.v1',customer}}))
  await page.route('https://data.example.test/**',async route=>{
+        if(await emptyStatementRelay(route)) return;
+
   if(route.request().method()==='OPTIONS'){await route.fulfill({status:204,headers});return}
   const {operation,input}=route.request().postDataJSON();let data:unknown=null
   if(operation==='companies')data=[company,{id:'77777777-7777-4777-8777-777777777777',name:'Second company'}]

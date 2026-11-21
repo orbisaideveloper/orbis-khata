@@ -1,3 +1,4 @@
+import { emptyStatementRelay } from './statement-relay-fixture';
 import { test, expect } from '@playwright/test';
 test('summary cards open due lists and scoped ledgers while the independent Ledger remains available', async ({ page }) => {
     const customer = { orbisIdentityId: '11111111-1111-7111-8111-111111111111', displayId: 'ORB-U-23456789' };
@@ -19,6 +20,8 @@ test('summary cards open due lists and scoped ledgers while the independent Ledg
     }, { customer });
     await page.route('https://admin.example.test/**', route => route.fulfill({ headers, json: { version: 'orbis.customer.v1', customer } }));
     await page.route('https://data.example.test/**', async (route) => {
+        if(await emptyStatementRelay(route)) return;
+
         if (route.request().method() === 'OPTIONS') {
             await route.fulfill({ status: 204, headers });
             return;
