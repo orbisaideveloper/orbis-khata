@@ -97,8 +97,15 @@ def probe(date, slot, token, publish_path=None):
         documents.append({'bytes': len(content), 'sha256': hashlib.sha256(content).hexdigest()})
     if publish_path is not None:
         publish_link(publish_path, parsed_date.isoformat(), slot, next(iter(links)))
+    # Inspect the already-received full result privately; never publish its dataset.
+    from result_json import normalize_draw, DrawJsonError
+    try:
+        normalize_draw(result, date, slot)
+        complete_json_validated = True
+    except DrawJsonError:
+        complete_json_validated = False
     # No raw response, token, winning numbers or private fields in logs.
-    return {'probe': 'API_AND_PDF_RETRIEVED', 'date': date, 'slot': slot, 'result_object_received': bool(result), 'pdfs': documents, 'official_comparison': 'NOT_PERFORMED', 'publication': 'PDF_LINK_ONLY' if publish_path is not None else 'NOT_PERFORMED'}
+    return {'probe': 'API_AND_PDF_RETRIEVED', 'date': date, 'slot': slot, 'result_object_received': bool(result), 'complete_json_validated': complete_json_validated, 'pdfs': documents, 'official_comparison': 'NOT_PERFORMED', 'publication': 'PDF_LINK_ONLY' if publish_path is not None else 'NOT_PERFORMED'}
 
 
 def india_today():

@@ -27,7 +27,8 @@ describe('independent lottery result view', () => {
   it('does not invent a result or enable payment entry', () => {
     render(<LotteryResults language="en" onBack={vi.fn()}/>)
     fireEvent.change(screen.getByRole('combobox'), { target: { value: '6pm' } })
-    expect(screen.getAllByText('Awaiting publication')).toHaveLength(2)
+    expect(screen.getByText('Awaiting publication')).toBeVisible()
+    expect(screen.getByRole('button', { name: /Sambad PDF/ })).toBeVisible()
     expect(screen.getByText('Dear · Sikkim')).toBeVisible()
     expect(screen.queryByRole('button', { name: /save receipt|save row|payment/i })).not.toBeInTheDocument()
   })

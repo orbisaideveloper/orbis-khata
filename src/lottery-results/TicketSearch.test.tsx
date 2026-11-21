@@ -106,3 +106,15 @@ it('translates a current failure after a language change without losing the type
   expect(screen.getByRole('textbox', { name: 'টিকিট নম্বর' })).toHaveValue('00220')
   expect(checkTicket).toHaveBeenCalledOnce()
 })
+
+
+it('shows the selected paper-ticket draw and sends exactly that date and slot', async () => {
+  vi.mocked(checkTicket).mockResolvedValue({ ...ticket, status: 'no_prize', prize: null })
+  view(); fill()
+  expect(screen.getByText('2026-11-20 · 8PM IST')).toBeVisible()
+  expect(screen.getByText(/Numbers are checked only against this selected draw/)).toBeVisible()
+  fireEvent.click(screen.getByRole('button', { name: 'Check number' }))
+  await act(async () => {})
+  expect(vi.mocked(checkTicket).mock.calls[0][0]).toEqual(ticket)
+  expect(screen.getByText('No prize match in this draw')).toBeVisible()
+})

@@ -21,10 +21,15 @@ test('compact PDF links and ticket checks stay isolated from accounts', async ({
   }, documents)
   await page.route('https://admin.example.test/**', route => route.fulfill({ json: { version: 'orbis.customer.v1', customer: { orbisIdentityId: '11111111-1111-7111-8111-111111111111', displayId: 'ORB-U-23456789' } } }))
   await page.route('https://data.example.test/**', route => route.fulfill({ json: { data: [] } }))
+  await page.route('https://data.example.test/orbis-lottery-ticket/document', async route => {
+    const input = route.request().method() === 'POST' ? route.request().postDataJSON() : {}
+    await route.fulfill({ status: route.request().method() === 'OPTIONS' ? 204 : 200, headers: { 'access-control-allow-origin': '*', 'access-control-allow-headers': 'content-type' }, ...(route.request().method() === 'POST' ? { json: { date: input.date, slot: input.slot, sambadUrl: null } } : {}) })
+  })
   await page.route('https://data.example.test/orbis-lottery-ticket', async route => {
     const headers = { 'access-control-allow-origin': '*', 'access-control-allow-headers': 'authorization, content-type', 'access-control-allow-methods': 'POST, OPTIONS' }
     if (route.request().method() === 'OPTIONS') { await route.fulfill({ status: 204, headers }); return }
     const input = route.request().postDataJSON()
+    if (input.action === 'document') { await route.fulfill({ headers, json: { date: input.date, slot: input.slot, sambadUrl: null } }); return }
     await route.fulfill({ headers, json: { ...input, status: 'win', prize: { tier: '5th', amount: 120 } } })
   })
   await page.route('https://raw.githubusercontent.com/**', route => route.fulfill({ json: route.request().url().endsWith('/documents.json') ? documents : { schema: 1, results: [sample] } }))

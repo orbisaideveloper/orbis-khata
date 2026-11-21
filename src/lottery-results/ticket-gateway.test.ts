@@ -78,3 +78,18 @@ it('logs only safe failure stage/code/reference, never raw upstream messages or 
   expect(logs).not.toContain('test-session')
   warn.mockRestore()
 })
+
+it('authenticates PDF recovery and returns only selected public link metadata', async () => {
+  const { verify, lookup } = setup()
+  const document = vi.fn(async (date: string, slot: string) => ({ date, slot, sambadUrl: 'https://sambad.com/result.pdf' }))
+  const handler = createTicketGateway({ origins: ['https://app.example'], verify, lookup, document })
+  const request = () => new Request('https://data.example/ticket', { method: 'POST', headers: { origin: 'https://app.example', authorization: 'Bearer test', 'content-type': 'application/json' }, body: JSON.stringify({ action: 'document', date: ticket.date, slot: ticket.slot }) })
+  const response = await handler(request())
+  expect(response.status).toBe(200)
+  expect(await response.json()).toEqual({ date: ticket.date, slot: ticket.slot, sambadUrl: 'https://sambad.com/result.pdf' })
+  expect(document).toHaveBeenCalledWith(ticket.date, ticket.slot)
+  expect(lookup).not.toHaveBeenCalled()
+  vi.advanceTimersByTime(3001)
+  document.mockRejectedValueOnce(new Error('DRAW_CACHE_UNAVAILABLE'))
+  expect((await handler(request())).status).toBe(503)
+})

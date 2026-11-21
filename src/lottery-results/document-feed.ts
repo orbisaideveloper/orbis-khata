@@ -3,6 +3,7 @@ import { indiaDate } from './result-data'
 
 export type DrawDocument = { date: string; slot: string; officialUrl?: string; officialSource?: 'sikkim-6pm'; sambadUrl?: string }
 const key = 'orbis.public-lottery-documents.v1'
+const recoveredKey = 'orbis.public-lottery-recovered-documents.v1'
 
 function safePdf(value: unknown, official: boolean, slot = ''): value is string {
   if (typeof value !== 'string' || value.length > 2000) return false
@@ -30,8 +31,36 @@ export function parseDocuments(input: unknown, today = indiaDate()): DrawDocumen
 }
 
 export function cachedDocuments(): DrawDocument[] {
-  try { return parseDocuments(JSON.parse(localStorage.getItem(key) ?? JSON.stringify(seed))) }
-  catch { return parseDocuments(seed) }
+  try { return mergeDocuments(parseDocuments(JSON.parse(localStorage.getItem(key) ?? JSON.stringify(seed))), recoveredDocuments()) }
+  catch { return mergeDocuments(parseDocuments(seed), recoveredDocuments()) }
+}
+
+
+export function rememberDocument(row: DrawDocument): DrawDocument {
+  const verified = parseDocuments({ schema: 1, documents: [row] })[0]
+  if (!verified) throw new Error('INVALID_DOCUMENT_DATE')
+  const previous = cachedDocuments().find(item => item.date === verified.date && item.slot === verified.slot)
+  const merged = mergeDocuments(previous ? [previous] : [], [verified])[0]
+  saveDocuments(mergeDocuments(recoveredDocuments(), [merged]), recoveredKey)
+  return merged
+}
+
+function mergeDocuments(previous: DrawDocument[], next: DrawDocument[]): DrawDocument[] {
+  const records = new Map(previous.map(row => [row.date + row.slot, row]))
+  for (const row of next) {
+    const id = row.date + row.slot
+    const value = { ...records.get(id), ...Object.fromEntries(Object.entries(row).filter(([, item]) => item !== undefined)) } as DrawDocument
+    if (row.officialUrl) delete value.officialSource
+    if (row.officialSource) delete value.officialUrl
+    records.set(id, value)
+  }
+  return parseDocuments({ schema: 1, documents: [...records.values()] })
+}
+function recoveredDocuments(): DrawDocument[] {
+  try { return parseDocuments(JSON.parse(localStorage.getItem(recoveredKey) ?? '{"schema":1,"documents":[]}')) } catch { return [] }
+}
+function saveDocuments(documents: DrawDocument[], storageKey = key) {
+  try { localStorage.setItem(storageKey, JSON.stringify({ schema: 1, documents })) } catch { /* Session-only when storage is unavailable. */ }
 }
 
 export async function refreshDocuments(signal: AbortSignal): Promise<DrawDocument[]> {
@@ -39,7 +68,7 @@ export async function refreshDocuments(signal: AbortSignal): Promise<DrawDocumen
   if (!response.ok) throw new Error('DOCUMENT_DOWNLOAD_UNAVAILABLE')
   const body = await response.text()
   if (body.length > 100000) throw new Error('DOCUMENT_FEED_TOO_LARGE')
-  const documents = parseDocuments(JSON.parse(body))
-  try { localStorage.setItem(key, JSON.stringify({ schema: 1, documents })) } catch { /* Session-only when storage is unavailable. */ }
+  const documents = mergeDocuments(parseDocuments(JSON.parse(body)), recoveredDocuments())
+  saveDocuments(documents)
   return documents
 }

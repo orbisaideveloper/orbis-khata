@@ -5,7 +5,8 @@
     "vendor/foundation-lottery/runtime/lottery-accounting-service.d.ts",
     "public/legal.css",
     "tests/local-db/pwa-vault-browser-test.cjs",
-    "tests/offline-integration/pwa-atomic-browser-test.cjs"
+    "tests/offline-integration/pwa-atomic-browser-test.cjs",
+    "supabase/functions/orbis-lottery-collector/index.ts"
   ],
   "playwright": {
     "config": [

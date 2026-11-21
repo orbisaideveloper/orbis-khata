@@ -74,7 +74,7 @@ export function TicketSearch({ date, slot, language }: Readonly<{ date: string; 
     const controller = new AbortController()
     request.current = controller
     setBusy(true)
-    const timer = window.setTimeout(() => controller.abort(), 15000)
+    const timer = window.setTimeout(() => controller.abort(), 30000)
     try {
       const result = await checkTicket(input, controller.signal)
       if (current === generation.current) setVerdict(result)
@@ -85,10 +85,12 @@ export function TicketSearch({ date, slot, language }: Readonly<{ date: string; 
     } finally { window.clearTimeout(timer); if (current === generation.current) { request.current = null; setBusy(false) } }
   }
   let statusText = copy('এই টিকিটের ফল এখনও নিশ্চিত করা যায়নি', 'इस टिकट का नतीजा अभी तय नहीं है', 'This ticket result is not confirmed yet')
+  if (verdict?.status === 'pending' || verdict?.status === 'upcoming') statusText = copy('এই ড্রয়ের ফল এখনও নিশ্চিতভাবে পাওয়া যায়নি', 'इस ड्रॉ का नतीजा अभी उपलब्ध नहीं है', 'The result for this draw is not available yet')
   if (verdict?.status === 'win') statusText = copy('পুরস্কারের মিল পাওয়া গেছে', 'पुरस्कार का मिलान मिला', 'Prize match found')
   if (verdict?.status === 'no_prize') statusText = copy('এই ড্রয়ে পুরস্কারের মিল পাওয়া যায়নি', 'इस ड्रॉ में पुरस्कार का मिलान नहीं मिला', 'No prize match in this draw')
   return <section className="ticket-search" aria-labelledby="ticket-search-title">
     <div className="results-section-heading"><h2 id="ticket-search-title">{copy('টিকিট যাচাই', 'टिकट जाँच', 'Check a ticket')}</h2><ScanLine size={20} aria-hidden="true"/></div>
+    <p className="ticket-draw-context" role="note"><strong>{date} · {slot.toUpperCase()} IST</strong><br/>{copy('এই নির্বাচিত তারিখ ও সময়ের ফলেই নম্বর যাচাই হবে। কাগজের টিকিটের তারিখ ও সময় মিলিয়ে নিন।', 'नंबर केवल इस चुनी हुई तारीख और समय के नतीजे से जाँचा जाएगा। कागज़ के टिकट की तारीख और समय मिलाएँ।', 'Numbers are checked only against this selected draw. Match the date and time printed on your ticket.')}</p>
     <form onSubmit={submit}>
       <div className="ticket-fields"><label>{copy('সিরিজ', 'सीरीज़', 'Series')}<input aria-label={copy('টিকিট সিরিজ', 'टिकट सीरीज़', 'Ticket series')} value={series} maxLength={3} autoCapitalize="characters" autoComplete="off" placeholder="35B" onChange={event => { invalidate(); setSeries(event.target.value.toUpperCase()) }}/></label><label>{copy('টিকিট নম্বর', 'टिकट नंबर', 'Ticket number')}<input value={number} inputMode="numeric" maxLength={5} autoComplete="off" placeholder="00000" onChange={event => { invalidate(); setNumber(event.target.value.replace(/\D/g, '')) }}/></label></div>
       <div className="ticket-actions"><button type="submit" className="results-action-primary" disabled={busy}><Search size={17} aria-hidden="true"/>{busy ? copy('যাচাই হচ্ছে…', 'जाँच जारी…', 'Checking…') : copy('নম্বর যাচাই', 'नंबर जाँचें', 'Check number')}</button><button type="button" onClick={() => { void startCamera() }} disabled={scanning}><ScanLine size={17} aria-hidden="true"/>{copy('QR স্ক্যান', 'QR स्कैन', 'Scan QR')}</button></div>

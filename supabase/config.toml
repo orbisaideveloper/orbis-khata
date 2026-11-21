@@ -1,0 +1,6 @@
+
+[functions.orbis-lottery-collector]
+verify_jwt = false
+
+[functions.orbis-lottery-ticket]
+verify_jwt = false

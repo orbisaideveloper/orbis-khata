@@ -1,6 +1,6 @@
 import { afterEach, expect, it, vi } from 'vitest'
 import seed from '../../public/lottery-results/documents.json'
-import { cachedDocuments, parseDocuments, refreshDocuments } from './document-feed'
+import { cachedDocuments, parseDocuments, refreshDocuments, rememberDocument } from './document-feed'
 
 afterEach(() => { vi.unstubAllGlobals(); localStorage.clear(); vi.useRealTimers() })
 const record = { date: '2026-11-20', slot: '8pm', officialUrl: 'https://nagalandlotteries.com/old_results/EN201126.PDF', sambadUrl: 'https://sambad.com/api-files/draw.pdf' }
@@ -42,4 +42,15 @@ it('supports verified Sikkim archive forms only for the six PM draw and never mi
   const sikkim = { date: '2026-11-20', slot: '6pm', officialSource: 'sikkim-6pm' }
   expect(parseDocuments({ schema: 1, documents: [sikkim] }, '2026-11-21')).toEqual([sikkim])
   for (const row of [{ ...sikkim, slot: '1pm' }, { ...sikkim, officialSource: 'other' }, { ...sikkim, officialUrl: record.officialUrl }, { ...record, slot: '6pm' }, { ...record, officialUrl: 'https://www.sikkimlotteries.com/other.pdf' }]) expect(() => parseDocuments({ schema: 1, documents: [row] }, '2026-11-21')).toThrow()
+})
+
+
+it('retains a recovered selected-draw link when the older public manifest has not caught up', async () => {
+  vi.useFakeTimers(); vi.setSystemTime(new Date('2026-11-21T12:00:00Z'))
+  const recovered = { date: '2026-11-21', slot: '6pm', sambadUrl: 'https://sambad.com/new.pdf' }
+  rememberDocument(recovered)
+  vi.stubGlobal('fetch', vi.fn(async () => Response.json({ schema: 1, documents: [record] })))
+  expect(await refreshDocuments(new AbortController().signal)).toEqual(expect.arrayContaining([record, recovered]))
+  expect(cachedDocuments().find(row => row.date === recovered.date && row.slot === recovered.slot)?.sambadUrl).toBe(recovered.sambadUrl)
+  expect(cachedDocuments().find(row => row.date === recovered.date && row.slot === '8pm')).toBeUndefined()
 })

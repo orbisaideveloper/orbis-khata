@@ -1,6 +1,6 @@
 import { readTicketText, parseTicket, parseVerdict, type TicketInput, type TicketVerdict } from './ticket.ts'
 
-type Options = { origins: string[]; verify: (token: string) => Promise<{ orbisIdentityId: string } | null>; lookup: (ticket: TicketInput) => Promise<TicketVerdict>; now?: () => number }
+type Options = { origins: string[]; verify: (token: string) => Promise<{ orbisIdentityId: string } | null>; lookup: (ticket: TicketInput) => Promise<TicketVerdict>; document?: (date: string, slot: string) => Promise<{ date: string; slot: string; sambadUrl: string | null }>; now?: () => number }
 
 function ticketFailure(error: unknown) {
   return error instanceof Error && ['TICKET_BUSY', 'KHATA_RATE_LIMITED'].includes(error.message)
@@ -42,8 +42,18 @@ export function createTicketGateway(options: Options) {
       let text: string
       try { text = await readTicketText(request.body, 1024) } catch { return reply(413, 'TICKET_INPUT_TOO_LARGE') }
       let ticket: TicketInput
-      try { ticket = parseTicket(JSON.parse(text)) } catch { return reply(400, 'TICKET_INPUT_INVALID') }
+      let input
+      try {
+        input = JSON.parse(text)
+        if (input?.action === 'document' && options.document) {
+          const draw = parseTicket({ date: input.date, slot: input.slot, series: '35B', number: '00000' })
+          ticket = draw
+        } else {
+          ticket = parseTicket(input)
+        }
+      } catch { return reply(400, 'TICKET_INPUT_INVALID') }
       stage = 'provider-lookup'
+      if (input?.action === 'document' && options.document) return new Response(JSON.stringify(await options.document(ticket.date, ticket.slot)), { headers })
       const result = parseVerdict(await options.lookup(ticket), ticket)
       return new Response(JSON.stringify(result), { headers })
     } catch (error) {
@@ -56,7 +66,7 @@ export function createTicketGateway(options: Options) {
 }
 
 function ticketDiagnostic(error: unknown) {
-  const known = ['TICKET_BUSY', 'TICKET_NOT_CONFIGURED', 'TICKET_PROVIDER_AUTH_REJECTED', 'TICKET_PROVIDER_UNAVAILABLE', 'TICKET_RESPONSE_MISMATCH', 'TICKET_RESPONSE_INVALID', 'TICKET_RESPONSE_TOO_LARGE', 'TICKET_BODY_TOO_LARGE', 'CENTRAL_UNAVAILABLE', 'CENTRAL_RESPONSE_INVALID', 'KHATA_RATE_LIMITED']
+  const known = ['TICKET_UNAVAILABLE', 'DRAW_PENDING', 'DRAW_CACHE_UNAVAILABLE', 'INVALID_DRAW_JSON', 'TICKET_BUSY', 'TICKET_NOT_CONFIGURED', 'TICKET_PROVIDER_AUTH_REJECTED', 'TICKET_PROVIDER_UNAVAILABLE', 'TICKET_RESPONSE_MISMATCH', 'TICKET_RESPONSE_INVALID', 'TICKET_RESPONSE_TOO_LARGE', 'TICKET_BODY_TOO_LARGE', 'CENTRAL_UNAVAILABLE', 'CENTRAL_RESPONSE_INVALID', 'KHATA_RATE_LIMITED']
   if (error instanceof Error && known.includes(error.message)) return error.message
   if (error instanceof Error && ['AbortError', 'TimeoutError'].includes(error.name)) return 'UPSTREAM_TIMEOUT'
   return 'UNEXPECTED_UPSTREAM_FAILURE'

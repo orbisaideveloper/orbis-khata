@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
-import { checkTicket } from './ticket-client'
+import { checkTicket, recoverDocument } from './ticket-client'
 const auth = vi.hoisted(() => ({ accessToken: vi.fn(async () => 'central-test-token') }))
 vi.mock('../auth/client', () => ({ authClient: { central: auth } }))
 const ticket = { date: '2026-11-20', slot: '8pm' as const, series: '35B', number: '00220' }
@@ -22,4 +22,19 @@ it('fails closed on login, unavailable service, rate limit and wrong-ticket resp
   await expect(checkTicket(ticket, new AbortController().signal)).rejects.toThrow('TICKET_LOGIN_REQUIRED')
   vi.stubEnv('VITE_KHATA_DATA_URL', 'http://data.example/other')
   await expect(checkTicket(ticket, new AbortController().signal)).rejects.toThrow('TICKET_NOT_CONFIGURED')
+})
+
+
+it('recovers only public PDF metadata for the exact selected draw and rejects wrong or unsafe links', async () => {
+  auth.accessToken.mockClear()
+  const fetchImpl = vi.fn<typeof fetch>(async () => Response.json({ date: ticket.date, slot: ticket.slot, sambadUrl: 'https://sambad.com/draw.pdf' }))
+  vi.stubGlobal('fetch', fetchImpl)
+  expect((await recoverDocument(ticket.date, ticket.slot, new AbortController().signal))?.sambadUrl).toBe('https://sambad.com/draw.pdf')
+  expect(fetchImpl.mock.calls[0][1]?.body).toBe(JSON.stringify({ action: 'document', date: ticket.date, slot: ticket.slot }))
+  expect(fetchImpl.mock.calls[0][0]).toBe('https://data.example/functions/v1/orbis-lottery-ticket/document')
+  expect(auth.accessToken).not.toHaveBeenCalled()
+  for (const value of [{ date: '2026-11-19', slot: ticket.slot, sambadUrl: null }, { date: ticket.date, slot: ticket.slot, sambadUrl: 'https://evil.test/a.pdf' }]) {
+    vi.stubGlobal('fetch', vi.fn(async () => Response.json(value)))
+    await expect(recoverDocument(ticket.date, ticket.slot, new AbortController().signal)).rejects.toThrow()
+  }
 })

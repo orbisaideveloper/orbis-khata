@@ -1,27 +1,7 @@
-name: Lottery API PDF check
+name: Lottery official PDF recheck
 on:
-  push:
-    branches: [main]
-    paths: ['.github/workflows/lottery-api-probe.yml', 'scripts/lottery-results/api_probe.py', 'scripts/lottery-results/test_api_probe.py', 'scripts/lottery-results/api_schedule.py', 'scripts/lottery-results/test_api_schedule.py', 'scripts/lottery-results/sikkim_source.py', 'scripts/lottery-results/test_sikkim_source.py']
-  schedule:
-    # IST :10 and :20 starts, plus :35 single catch-up. Published draws skip provider calls.
-    - cron: '40,50 7,12,14 * * *'
-    - cron: '5 8,13,15 * * *'
-    # Independent official-only retry after a later government publication (no provider token).
-    - cron: '15 * * * *'
+  # Automatic result collection now belongs to Supabase Cron and the shared private cache.
   workflow_dispatch:
-    inputs:
-      date:
-        description: Draw date (DD-MM-YYYY), blank means today IST
-        required: false
-        default: ''
-        type: string
-      slot:
-        description: Draw time (IST)
-        required: true
-        default: 'auto'
-        type: choice
-        options: ['auto', '1pm', '6pm', '8pm', '6pm,8pm']
 permissions:
   contents: write
 concurrency:
@@ -39,14 +19,6 @@ jobs:
         run: python3 -m unittest discover -s scripts/lottery-results -p 'test_*.py'
       - name: Recheck missing government PDFs without provider credentials
         run: DRAW_MODE=official python3 scripts/lottery-results/api_schedule.py
-      - name: Check one draw and publish its public PDF link only
-        if: ${{ github.event.schedule != '15 * * * *' }}
-        env:
-          SAMBAD_API_TOKEN: ${{ secrets.SAMBAD_API_TOKEN }}
-          DRAW_MODE: ${{ github.event_name == 'schedule' && 'scheduled' || 'manual' }}
-          DRAW_DATE: ${{ inputs.date }}
-          DRAW_SLOT: ${{ inputs.slot || 'auto' }}
-        run: python3 scripts/lottery-results/api_schedule.py
       - name: Save validated PDF link metadata only
         run: |
           set -euo pipefail
@@ -54,5 +26,5 @@ jobs:
           if git diff --cached --quiet; then exit 0; fi
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git commit -m 'data(lottery): save API-checked draw PDF link'
+          git commit -m 'data(lottery): recheck official draw PDF links'
           git push origin HEAD:main
