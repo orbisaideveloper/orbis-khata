@@ -49,12 +49,21 @@ class ReaderSafety(unittest.TestCase):
             path = Path(directory)
             expired = dict(self.sample, date='2026-10-21')
             (path / 'feed.json').write_text(json.dumps({'results': [self.sample, expired]}))
-            html = b'<a data-id="MN201126.PDF">1 PM</a>'
+            html = b'<a data-id="MN201126.PDF">DEAR 1:00 PM WEEKLY</a>'
             with patch.object(collector, 'download', side_effect=[html, b'%PDF-new']), patch.object(collector, 'extract', side_effect=ValueError('OCR_READINGS_DIFFER')):
                 collector.collect(path, dt.date(2026, 11, 20))
             result = json.loads((path / 'feed.json').read_text())
             self.assertEqual(result['results'], [])
             self.assertEqual(result['pending'][0]['reason'], 'OCR_READINGS_DIFFER')
+
+    def test_official_label_prevents_laxmi_file_from_becoming_six_pm(self):
+        html = '<a data-id="MN201126.PDF">DEAR 1:00 PM WEEKLY</a><a data-id="DG201126.PDF">DEAR LAXMI WEEKLY</a><a data-id="EN201126.PDF">DEAR 8:00 PM WEEKLY</a>'
+        result = collector.publication_links(html, dt.date(2026, 11, 20))
+        self.assertEqual(set(result), {'1pm', '8pm'})
+        self.assertNotIn('6pm', result)
+        self.assertEqual(collector.publication_links(html, dt.date(2026, 11, 19)), {})
+        with self.assertRaisesRegex(ValueError, 'AMBIGUOUS_OFFICIAL_DRAW'):
+            collector.publication_links(html + '<a data-id="XX201126.PDF">DEAR 8:00 PM WEEKLY</a>', dt.date(2026, 11, 20))
 
     def test_untrusted_download_is_blocked(self):
         with self.assertRaisesRegex(ValueError, 'UNTRUSTED_SOURCE'):

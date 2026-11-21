@@ -50,3 +50,13 @@ it('opens the exact API PDF directly without the provider website or number list
   expect(screen.getByRole('link', { name: /Lottery Sambad PDF/ })).toHaveAttribute('href', url)
   expect(screen.queryByRole('button')).not.toBeInTheDocument()
 })
+
+it('submits only the selected draw date to the official Sikkim six PM PDF archive', () => {
+  const { container } = render(<ResultSheet document={{ date: '2026-11-20', slot: '6pm', officialSource: 'sikkim-6pm' }} date="2026-11-20" slot="6pm" language="en"/>)
+  const form = container.querySelector('form')!
+  expect(form).toHaveAttribute('method', 'post')
+  expect(form).toHaveAttribute('action', 'https://www.sikkimlotteries.com/old_result.php')
+  expect(new FormData(form).get('deardbpdf')).toBe('20/11/2026')
+  expect(new FormData(form).get('deardb_pdf_btn')).toBe('Download')
+  expect(screen.getByRole('button', { name: /Original official gazette/ })).toBeVisible()
+})

@@ -15,7 +15,7 @@
 
 **Precedence:** owner's current explicit direction → currently approved ORBIS WORK setup policy → verified current source/observed results → current repository-specific documentation → dated historical plans. Surface any unsafe conflicts; never silently erase historical decisions.
 
-Current feature checkpoint: [Lottery Results foundation and source gate](LOTTERY_RESULTS_20261120.md).
+Current feature checkpoint: [Lottery Results foundation and source gate](LOTTERY_RESULTS_20261120.md). Current result delivery, ticket service activation and scheduler contract: [Lottery Results runtime](LOTTERY_RESULTS_RUNTIME.md).
 
 ## 2. Current operational documentation
 

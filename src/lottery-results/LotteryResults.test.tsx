@@ -28,8 +28,9 @@ describe('independent lottery result view', () => {
     render(<LotteryResults language="en" onBack={vi.fn()}/>)
     fireEvent.change(screen.getByRole('combobox'), { target: { value: '6pm' } })
     expect(screen.getByText('Lottery Sambad PDF not available yet')).toBeVisible()
+    expect(screen.getByText('Dear · Sikkim')).toBeVisible()
     expect(screen.getByText('Official PDF for this draw not available yet')).toBeVisible()
-    expect(screen.queryByRole('button', { name: /save|payment|scan|check/i })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /save receipt|save row|payment/i })).not.toBeInTheDocument()
   })
   it('uses the Indian date when UTC is still the previous day', () => {
     expect(indiaDate(new Date('2026-11-19T20:00:00Z'))).toBe('2026-11-20')

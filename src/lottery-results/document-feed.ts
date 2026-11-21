@@ -1,14 +1,15 @@
 import seed from '../../public/lottery-results/documents.json'
 import { indiaDate } from './result-data'
 
-export type DrawDocument = { date: string; slot: string; officialUrl?: string; sambadUrl?: string }
+export type DrawDocument = { date: string; slot: string; officialUrl?: string; officialSource?: 'sikkim-6pm'; sambadUrl?: string }
 const key = 'orbis.public-lottery-documents.v1'
 
-function safePdf(value: unknown, official: boolean): value is string {
+function safePdf(value: unknown, official: boolean, slot = ''): value is string {
   if (typeof value !== 'string' || value.length > 2000) return false
   try {
     const url = new URL(value)
-    return url.protocol === 'https:' && !url.username && !url.password && !url.search && !url.hash && !url.port && /\.pdf$/i.test(url.pathname) && (official ? url.hostname === 'nagalandlotteries.com' : url.hostname === 'sambad.com' || url.hostname.endsWith('.sambad.com'))
+    const officialHost = slot === '6pm' ? 'www.sikkimlotteries.com' : 'nagalandlotteries.com'
+    return url.protocol === 'https:' && !url.username && !url.password && !url.search && !url.hash && !url.port && /\.pdf$/i.test(url.pathname) && (official ? url.hostname === officialHost : url.hostname === 'sambad.com' || url.hostname.endsWith('.sambad.com'))
   } catch { return false }
 }
 
@@ -21,9 +22,10 @@ export function parseDocuments(input: unknown, today = indiaDate()): DrawDocumen
     const time = Date.parse(row.date + 'T00:00:00Z')
     if (!Number.isFinite(time) || new Date(time).toISOString().slice(0, 10) !== row.date || seen.has(row.date + row.slot)) throw new Error('INVALID_DOCUMENT_DATE')
     seen.add(row.date + row.slot)
-    if ((row.officialUrl !== undefined && !safePdf(row.officialUrl, true)) || (row.sambadUrl !== undefined && !safePdf(row.sambadUrl, false))) throw new Error('INVALID_DOCUMENT_URL')
+    if ((row.officialUrl !== undefined && !safePdf(row.officialUrl, true, row.slot)) || (row.sambadUrl !== undefined && !safePdf(row.sambadUrl, false))) throw new Error('INVALID_DOCUMENT_URL')
+    if (row.officialSource !== undefined && (row.officialSource !== 'sikkim-6pm' || row.slot !== '6pm' || row.officialUrl !== undefined)) throw new Error('INVALID_OFFICIAL_SOURCE')
     // Keep only public link metadata; never persist an unexpected provider dataset.
-    return { date: row.date, slot: row.slot, officialUrl: row.officialUrl, sambadUrl: row.sambadUrl }
+    return { date: row.date, slot: row.slot, officialUrl: row.officialUrl, officialSource: row.officialSource, sambadUrl: row.sambadUrl }
   }).filter(row => { const days = (Date.parse(today) - Date.parse(row.date)) / 86400000; return days >= 0 && days < 30 })
 }
 

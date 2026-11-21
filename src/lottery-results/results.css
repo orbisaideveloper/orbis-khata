@@ -17,3 +17,39 @@
 .results-ad-slot:empty { display: none; }
 .results-ad-slot { clear: both; margin-block: 2rem; max-width: 100%; overflow: hidden; }
 @media print { .results-header button, .results-controls, .results-ad-slot, .results-network { display: none; } .result-sheet { border: 0; padding: 0; } }
+
+/* Compact monochrome result tools; keep source and action typography consistent. */
+.results-page { padding: clamp(.85rem, 2.5vw, 1.5rem); font-size: .925rem; }
+.results-header { grid-template-columns: 2.5rem 1fr 2.5rem; padding-bottom: .8rem; }
+.results-header h1 { font-size: clamp(1.1rem, 2vw, 1.35rem); }
+.results-header button { min-height: 40px; border-color: #ddd; }
+.results-network { font-size: .75rem; margin-bottom: .6rem; }
+.results-controls { grid-template-columns: 1.35fr 1fr; gap: .75rem; margin: 1rem 0; }
+.results-controls label { display: flex; align-items: center; gap: .4rem; min-width: 0; font-size: .8rem; }
+.results-controls input, .results-controls select { flex: 1; padding: .5rem .3rem; min-height: 44px; font-size: .8rem; }
+.result-sheet, .ticket-search { border: 1px solid #dedede; border-radius: 14px; padding: 1rem; margin-block: 1rem; background: #fff; }
+.result-sheet h2, .ticket-search h2 { font-size: .95rem; font-weight: 650; margin: 0 0 .85rem; }
+.results-document-links { gap: .5rem; }
+.results-document-links .results-source { display: flex; align-items: center; gap: .6rem; padding: .7rem .8rem; text-decoration: none; border-radius: 10px; font-size: .85rem; line-height: 1.5; }
+.results-source span { flex: 1; }
+.results-source svg { flex-shrink: 0; }
+.results-source:hover { background: #f6f6f6; border-color: #999; }
+.results-caption { color: #666; font-size: .75rem; line-height: 1.6; margin: .8rem 0 0; }
+.results-section-heading { display: flex; align-items: baseline; justify-content: space-between; }
+.ticket-fields { display: grid; grid-template-columns: 1fr 2fr; gap: .75rem; }
+.ticket-fields label { display: grid; gap: .4rem; font-size: .8rem; color: #444; }
+.ticket-fields input { width: 100%; min-width: 0; box-sizing: border-box; border: 1px solid #ccc; border-radius: 9px; min-height: 44px; padding: .65rem; font: inherit; font-variant-numeric: tabular-nums; background: #fff; color: #222; }
+.ticket-actions { display: flex; flex-wrap: wrap; gap: .6rem; margin-top: .8rem; }
+.ticket-actions button, .ticket-camera button { display: inline-flex; align-items: center; justify-content: center; gap: .45rem; border: 1px solid #ccc; border-radius: 9px; min-height: 44px; padding: .6rem .8rem; background: #fff; color: #222; font: inherit; font-size: .85rem; cursor: pointer; }
+.ticket-actions .results-action-primary { background: #202020; border-color: #202020; color: #fff; }
+.ticket-actions button:disabled { cursor: wait; opacity: .6; }
+.ticket-camera { position: relative; margin-top: 1rem; }
+.ticket-camera video { display: block; width: 100%; max-height: 260px; border-radius: 10px; background: #111; }
+.ticket-camera button { position: absolute; top: .5rem; right: .5rem; padding: .4rem; }
+.ticket-message, .ticket-verdict { font-size: .85rem; line-height: 1.6; padding: .75rem; background: #f5f5f5; border-radius: 10px; margin: .8rem 0 0; }
+.ticket-verdict output { display: grid; gap: .3rem; }
+@media (min-width: 760px) { .results-page { max-width: 740px; margin-inline: auto; } .results-document-links { grid-template-columns: 1fr 1fr; } }
+@media print { .ticket-search { display: none; } }
+
+.results-document-links form { margin: 0; }
+.results-document-links button.results-source { width: 100%; text-align: left; background: #fff; color: #222; font-family: inherit; cursor: pointer; }

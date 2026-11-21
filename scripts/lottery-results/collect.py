@@ -1,6 +1,7 @@
 """Read-only official gazette collection. Ambiguous OCR never publishes a result."""
 import datetime as dt
 import hashlib
+import html as html_entities
 import json
 import re
 import subprocess
@@ -74,6 +75,20 @@ def extract(pdf, date, slot, directory):
     return candidates[0]
 
 
+def publication_links(html, date):
+    """Use the official index's draw label, never infer a draw from a filename prefix."""
+    links = {}
+    for filename, label in re.findall(r'<a\b[^>]*data-id="([A-Z]{2}\d{6}\.PDF)"[^>]*>(.*?)</a>', html, re.S | re.I):
+        title = re.sub(r'<[^>]+>', '', html_entities.unescape(label)).strip()
+        match = re.fullmatch(r'DEAR\s+(1|6|8):00\s*PM\s+WEEKLY', title, re.I)
+        if match and filename[2:8] == date.strftime('%d%m%y'):
+            slot = match[1] + 'pm'
+            if slot in links:
+                raise ValueError('AMBIGUOUS_OFFICIAL_DRAW')
+            links[slot] = ORIGIN + 'old_results/' + filename
+    return links
+
+
 def collect(destination, today=None):
     today = today or TODAY()
     destination.mkdir(parents=True, exist_ok=True)
@@ -89,12 +104,7 @@ def collect(destination, today=None):
         except (OSError, ValueError) as error:
             pending.append({'date': date.isoformat(), 'slot': 'all', 'reason': type(error).__name__})
             continue
-        files = re.findall(r'data-id="([A-Z]{2}\d{6}\.PDF)"', html)
-        for filename in files:
-            slot = {'MN': '1pm', 'DG': '6pm', 'EN': '8pm'}.get(filename[:2])
-            if not slot or filename[2:8] != date.strftime('%d%m%y'):
-                continue
-            url = ORIGIN + 'old_results/' + filename
+        for slot, url in publication_links(html, date).items():
             try:
                 pdf = download(url)
                 digest = hashlib.sha256(pdf).hexdigest()

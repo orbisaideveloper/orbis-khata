@@ -35,5 +35,11 @@ it('caches only validated metadata and preserves it on failed or malformed downl
   await expect(refreshDocuments(new AbortController().signal)).rejects.toThrow()
   expect(cachedDocuments()).toEqual([record])
   localStorage.setItem('orbis.public-lottery-documents.v1', 'bad')
-  expect(cachedDocuments()).toEqual(seed.documents)
+  expect(cachedDocuments()).toEqual(parseDocuments(seed))
+})
+
+it('supports verified Sikkim archive forms only for the six PM draw and never mixes state sources', () => {
+  const sikkim = { date: '2026-11-20', slot: '6pm', officialSource: 'sikkim-6pm' }
+  expect(parseDocuments({ schema: 1, documents: [sikkim] }, '2026-11-21')).toEqual([sikkim])
+  for (const row of [{ ...sikkim, slot: '1pm' }, { ...sikkim, officialSource: 'other' }, { ...sikkim, officialUrl: record.officialUrl }, { ...record, slot: '6pm' }, { ...record, officialUrl: 'https://www.sikkimlotteries.com/other.pdf' }]) expect(() => parseDocuments({ schema: 1, documents: [row] }, '2026-11-21')).toThrow()
 })
