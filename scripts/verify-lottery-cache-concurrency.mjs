@@ -6,7 +6,14 @@ assert(['localhost','127.0.0.1'].includes(url.hostname) && url.pathname === '/kh
 const sql = postgres(url.toString(), { max: 32, connection: { statement_timeout: 15000 } })
 try {
  assert.equal((await sql`select count(*)::int as n from information_schema.schemata where schema_name='lottery_private'`)[0].n,0,'New isolated cache schema required')
- await sql.unsafe(await readFile('supabase/migrations/20261121145334_lottery_draw_cache.sql','utf8'))
+ // Migration contains BEGIN/COMMIT: reserve one connection for the whole script.
+ // Keep the pool at32 for the real contention checks below.
+ const bootstrap = await sql.reserve()
+ try {
+  await bootstrap.unsafe(await readFile('supabase/migrations/20261121145334_lottery_draw_cache.sql','utf8'))
+ } finally {
+  try { await bootstrap.unsafe('rollback') } finally { bootstrap.release() }
+ }
  const date=(await sql`select (clock_timestamp() at time zone 'Asia/Kolkata')::date::text as d`)[0].d
  const claim=()=>sql.begin(async tx=>{await tx.unsafe('set local role service_role');return (await tx`select public.lottery_draw_claim(${date}::date,'1pm') as r`)[0].r})
  const results=await Promise.all(Array.from({length:32},claim))

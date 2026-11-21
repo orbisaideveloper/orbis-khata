@@ -53,3 +53,5 @@ Provider documentation supports private database storage but restricts dataset/A
 ### SQL fixture integration
 
 The full Phase2 migration-chain acceptance harness uses the same explicit Vault/Cron/net test doubles as the dedicated scheduler test when applying the scheduler migration under PGlite. Only its two exact extension-install statements are replaced; the scheduler tables, function bodies and permission statements still execute. No production migration is skipped or changed. Native PostgreSQL concurrency and live Cron evidence remain separate gates.
+
+Native cache concurrency setup reserves one PostgreSQL connection while executing the migration's explicit BEGIN/COMMIT, then releases it before the32-connection race. Applying transaction-control SQL directly through a multi-connection pool is rejected by postgres.js as UNSAFE_TRANSACTION; the pool remains32 for the actual contention assertions.
