@@ -21,12 +21,19 @@
     {
       "date": "2026-11-21",
       "slot": "1pm",
-      "sambadUrl": "https://sambad.com/api-files/lottery-sambad-1pm-21-11-2026-g446Rz.pdf"
+      "sambadUrl": "https://sambad.com/api-files/lottery-sambad-1pm-21-11-2026-g446Rz.pdf",
+      "officialUrl": "https://nagalandlotteries.com/old_results/MN211126.PDF"
     },
     {
       "date": "2026-11-21",
       "slot": "6pm",
       "sambadUrl": "https://sambad.com/api-files/lottery-sambad-6pm-21-11-2026-J1Xc6D.pdf"
+    },
+    {
+      "date": "2026-11-21",
+      "slot": "8pm",
+      "sambadUrl": "https://sambad.com/api-files/lottery-sambad-8pm-21-11-2026-nccplP.pdf",
+      "officialUrl": "https://nagalandlotteries.com/old_results/EN211126.PDF"
     }
   ]
 }
