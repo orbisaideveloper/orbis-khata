@@ -57,7 +57,7 @@ jobs:
           node scripts/audit-advisory-gate.mjs 2>&1 | tee quality-reports/audit.txt
           npm run lint 2>&1 | tee quality-reports/lint.txt
           npm run typecheck 2>&1 | tee quality-reports/typecheck.txt
-          npx --yes deno@2.9.6 check --no-config --node-modules-dir=manual supabase/functions/orbis-khata-data/index.ts supabase/functions/orbis-lottery-ticket/index.ts supabase/functions/orbis-lottery-collector/index.ts 2>&1 | tee quality-reports/edge-types.txt
+          npx --yes deno@2.9.6 check --no-config --node-modules-dir=manual supabase/functions/orbis-khata-data/index.ts supabase/functions/orbis-lottery-ticket/index.ts supabase/functions/orbis-lottery-collector/index.ts supabase/functions/orbis-lottery-live/index.ts 2>&1 | tee quality-reports/edge-types.txt
           node --test scripts/check-sonar.test.mjs 2>&1 | tee quality-reports/sonar-report-tests.txt
           node scripts/verify-lottery-scheduler.mjs 2>&1 | tee quality-reports/lottery-scheduler-sql.txt
           node scripts/verify-statement-relay.mjs 2>&1 | tee quality-reports/statement-relay-sql.txt

@@ -29,7 +29,7 @@ describe('independent lottery result view', () => {
     fireEvent.change(screen.getByRole('combobox'), { target: { value: '6pm' } })
     expect(screen.getByText('Awaiting publication')).toBeVisible()
     expect(screen.getByRole('button', { name: /Sambad PDF/ })).toBeVisible()
-    expect(screen.getByText('Dear · Sikkim')).toBeVisible()
+    expect(screen.getByText('Dear Lottery Results')).toBeVisible()
     expect(screen.queryByRole('button', { name: /save receipt|save row|payment/i })).not.toBeInTheDocument()
   })
   it('uses the Indian date when UTC is still the previous day', () => {
@@ -76,4 +76,16 @@ it.each(['bn', 'hi', 'en'] as const)('keeps ticket entry above documents and a h
   expect(warning.compareDocumentPosition(container.querySelector('.results-ad-slot')!) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
   expect(screen.getByLabelText('Test language').closest('.results-header')).not.toBeNull()
   expect(screen.getByAltText('Dear Lotteries')).toHaveAttribute('src', expect.stringContaining('dear-lottery-logo.png'))
+})
+
+it('uses the approved headings and keeps unverified live video separate from historical PDFs', () => {
+  render(<LotteryResults language="en" onBack={vi.fn()}/>)
+  expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent('ORBIS Khata')
+  expect(screen.queryByText('Result documents')).not.toBeInTheDocument()
+  const live = screen.getByRole('region', { name: 'Live draw' })
+  const context = live.textContent
+  fireEvent.change(screen.getByLabelText('Draw date'), { target: { value: '2026-11-01' } })
+  expect(live.textContent).toBe(context)
+  expect(screen.getByRole('button', { name: /Watch live draw/ })).toBeDisabled()
+  expect(screen.getByText('Live video is not confirmed yet.')).toBeVisible()
 })

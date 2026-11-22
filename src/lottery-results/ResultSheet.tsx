@@ -6,7 +6,7 @@ import { inLanguage } from '../localize'
 import type { DrawDocument } from './document-feed'
 
 function DocumentLabel({ official, language }: Readonly<{ official: boolean; language: Language }>) {
-  return <><FileText size={17} aria-hidden="true"/><span>{official ? inLanguage(language, 'সরকারি PDF', 'सरकारी PDF', 'Official PDF') : inLanguage(language, 'সংবাদ PDF', 'संवाद PDF', 'Sambad PDF')}</span><ArrowUpRight size={15} aria-hidden="true"/></>
+  return <><FileText size={17} aria-hidden="true"/><span>{official ? inLanguage(language, 'সরকারি গ্যাজেট', 'सरकारी गज़ट', 'Government Gazette') : inLanguage(language, 'সংবাদ PDF', 'संवाद PDF', 'Sambad PDF')}</span><ArrowUpRight size={15} aria-hidden="true"/></>
 }
 
 export function ResultSheet({ document, date, slot, language }: Readonly<{ document?: DrawDocument; date: string; slot: string; language: Language }>) {
@@ -41,7 +41,6 @@ export function ResultSheet({ document, date, slot, language }: Readonly<{ docum
   if (state === 'busy') message = copy('ফল খোঁজা হচ্ছে…', 'नतीजा खोज रहे हैं…', 'Checking for the result…')
   if (state === 'error') message = copy('এখন সংগ্রহ করা যায়নি। আবার চেষ্টা করুন।', 'अभी प्राप्त नहीं हुआ। फिर कोशिश करें।', 'Could not collect now. Please retry.')
   return <article className="result-sheet" aria-label={copy('ড্রয়ের রেজাল্ট PDF', 'ड्रॉ रिज़ल्ट PDF', 'Draw result PDFs')}>
-    <h2>{copy('রেজাল্টের নথি', 'रिज़ल्ट दस्तावेज़', 'Result documents')}</h2>
     <div className="results-document-links">
       {current?.sambadUrl ? <a className="results-source" aria-label={copy('এই ড্রয়ের লটারি সংবাদ PDF', 'इस ड्रॉ का लॉटरी संवाद PDF', 'Lottery Sambad PDF for this draw')} href={current.sambadUrl} target="_blank" rel="noopener noreferrer"><DocumentLabel official={false} language={language}/></a> : <button className="results-source" type="button" disabled={state === 'busy'} onClick={() => { const popup = window.open('about:blank', '_blank'); if (popup) { popup.opener = null }
         void recover(popup) }}><DocumentLabel official={false} language={language}/></button>}

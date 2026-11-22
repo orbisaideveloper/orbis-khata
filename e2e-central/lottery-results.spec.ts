@@ -21,6 +21,7 @@ test('compact PDF links and ticket checks stay isolated from accounts', async ({
   }, documents)
   await page.route('https://admin.example.test/**', route => route.fulfill({ json: { version: 'orbis.customer.v1', customer: { orbisIdentityId: '11111111-1111-7111-8111-111111111111', displayId: 'ORB-U-23456789' } } }))
   await page.route('https://data.example.test/**', route => route.fulfill({ json: { data: [] } }))
+  await page.route('https://data.example.test/orbis-lottery-live', route => route.fulfill({ headers: { 'access-control-allow-origin': '*' }, json: { date: '2026-11-21', slot: '1pm', video: null } }))
   await page.route('https://data.example.test/orbis-lottery-ticket/document', async route => {
     const input = route.request().method() === 'POST' ? route.request().postDataJSON() : {}
     await route.fulfill({ status: route.request().method() === 'OPTIONS' ? 204 : 200, headers: { 'access-control-allow-origin': '*', 'access-control-allow-headers': 'content-type' }, ...(route.request().method() === 'POST' ? { json: { date: input.date, slot: input.slot, sambadUrl: null } } : {}) })
@@ -64,6 +65,9 @@ test('compact PDF links and ticket checks stay isolated from accounts', async ({
     await page.setViewportSize(viewport)
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true)
     expect(await page.locator('.results-header, .results-controls, .ticket-fields, .results-document-links, .results-source > span:first-of-type').evaluateAll(elements => elements.every(element => element.scrollWidth <= element.clientWidth))).toBe(true)
+    const [modules, language] = await Promise.all([page.locator('.results-header .module-picker summary').boundingBox(), page.locator('.results-language').boundingBox()])
+    expect(Math.abs(modules!.width - language!.width)).toBeLessThan(1)
+    expect(Math.abs(modules!.height - language!.height)).toBeLessThan(1)
     const warning = page.locator('.results-disclaimer')
     await expect(warning).toBeVisible()
     const [ticketBox, docBox] = await Promise.all([page.locator('.ticket-search').boundingBox(), page.locator('.result-sheet').boundingBox()])

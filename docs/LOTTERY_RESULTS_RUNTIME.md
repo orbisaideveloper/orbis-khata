@@ -104,3 +104,46 @@ and the PWA's previously installed static shell include the decoder. A first-eve
 web visit still needs the shell downloaded. Ticket result verification currently
 needs the authenticated server; the private complete-draw JSON is not downloaded
 to the phone, and offline QR recognition is not offline prize verification.
+
+## Approved B design — local checkpoint, 22 November 2026
+
+Header reads ORBIS Khata; the Dear brand row reads Dear Lottery Results and
+30-day results/Sync (or honest offline status). Results-only CSS gives Modules
+and Language identical responsive width and44px height. Native date/time controls
+cover their full field, keep the system calendar/options and use an outer
+focus-within ring rather than an inner square. Their Android interaction and
+actual visual dimensions still require browser/device acceptance.
+
+The documents heading is removed; Sambad PDF and Government Gazette remain paired.
+LiveDraw appears above them and uses the current IST day independently of selected
+historical results. Its visible target switches to6PM at17:50 and8PM at19:50;
+the morning target is1PM, including12:50. A15second timer and visibility refresh
+update the label, never the user's ticket/PDF selection. This is a target label,
+not evidence that a video is live. Existing QR dialog and exact-draw ticket checks
+are unchanged; no accounting or shared module CSS is modified.
+
+VIDEO ACTIVATION LOCAL IMPLEMENTATION READY: owner reports YOUTUBE_DATA_API_KEY
+saved in Khata Edge Secrets. New orbis-lottery-live endpoint and private singleton
+live_cache migration are released after owner approval: migration20261122112424 applied, Edgev1 ACTIVE. Shared35second lease,
+60second refresh and10minute failure cooldown protect cross-isolate quota.
+Search for upcoming/live videos only in each draw's -10/+20minute window;
+outside it use channel uploads plus batched video metadata. Maximum90 shared
+searches/day if constantly requested (project quota still applies). Responses
+must match channel,title date/slot,public embeddable video and actual/scheduled
+start window. Ambiguous/missing metadata is unavailable, never inferred live.
+Front-end checks exact draw/ID and90second freshness, opens a modal YouTube iframe,
+labels upcoming/live/ended separately and removes the player on close. No raw
+video download/rehosting. Live status includes broadcaster pre-show; actual game
+start is not inferred. Public endpoint is metadata-only, no financial/auth changes.
+Real provider acceptance returned today1PM videoGt05c6Akz8k as completed; actualStart2026-11-22T07:25:28Z (12:55:28IST). This is broadcast/pre-show start, not proven game start. Frontend Render deploy remains owner-operated.
+
+Setup: create/select a Google Cloud project, enable YouTube Data API v3, create
+an API key restricted to that API, then keep it only in the future server/Edge
+secret YOUTUBE_DATA_API_KEY, never VITE variables or source. The consumer is implemented locally but not yet deployed. See Google's
+https://developers.google.com/youtube/data/getting-started . No key is required
+for local layout tests. One shared server lookup/cache should serve many viewers;
+actual/scheduled start times must remain distinct from upload publication times.
+
+Owner subsequently approved commit/push, migration and Edge release. Detailed local
+checks and remaining live/device acceptance are recorded in the existing Drive
+Runtime, CI Repairs & Release Log; Start Here is not expanded.
