@@ -1,7 +1,7 @@
 <!-- LIVE-CACHE-RELIABILITY-20261122 -->
 ## 2026-11-22 — Live Draw reliability (local implementation)
 
-Baseline main `96b42c1`; per-draw private metadata cache, bounded shared discovery, persistent player snapshot and focused regression tests prepared. One new migration `20261122135944` plus live Edge update and frontend deployment required after separate approval. Production remains unchanged. See [runtime contract](LOTTERY_RESULTS_RUNTIME.md) and canonical Drive runtime report for exact verification/handover; GitHub CI pending after authorized push. Real-device long playback and CDN hit effectiveness unverified.
+Baseline main `96b42c1`; per-draw private metadata cache, bounded shared discovery, persistent player snapshot and focused regression tests prepared. Owner-authorized migration `20261122142011` applied and live Edge v2 ACTIVE; native output accessibility repair prepared after strict Sonar S6819 failure. Frontend Render deployment remains owner action. See [runtime contract](LOTTERY_RESULTS_RUNTIME.md) and canonical Drive runtime report for exact verification/handover; GitHub CI pending after authorized push. Real-device long playback and CDN hit effectiveness unverified.
 
 # 2026-11-20 — Strict Quality follow-up: optional chaining
 

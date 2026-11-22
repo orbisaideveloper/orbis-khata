@@ -5,7 +5,7 @@ const db = new PGlite()
 try {
  await db.exec('create role anon;create role authenticated;create role service_role bypassrls;create schema lottery_private;grant usage on schema lottery_private to service_role;create schema cron;create table cron.jobs(command text);create function cron.schedule(text,text,text) returns bigint language sql as $$insert into cron.jobs values($3);select 1::bigint$$;')
  await db.exec(await readFile('supabase/migrations/20261122112424_lottery_live_cache.sql','utf8'))
- await db.exec(await readFile('supabase/migrations/20261122135944_lottery_live_per_draw.sql','utf8'))
+ await db.exec(await readFile('supabase/migrations/20261122142011_lottery_live_per_draw.sql','utf8'))
  const date = (await db.query("select (now() at time zone 'Asia/Kolkata')::date::text as date")).rows[0].date
  await db.query("insert into lottery_private.live_draw_cache(draw_date,slot,payload) values($1,'1pm',$2)",[date,JSON.stringify({date,slot:'1pm',videoId:'abcdefghijk',channelId:'UCX7bj5Fv2uBpAy1dRC1IhTw',status:'live'})])
  await db.exec('set role service_role')

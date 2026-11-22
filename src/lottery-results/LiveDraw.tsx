@@ -74,8 +74,8 @@ function LivePlayer({ video, onClose, language }: Readonly<{ video: LiveVideo; o
   const title = inLanguage(language, 'ড্রয়ের সম্প্রচার', 'ड्रॉ प्रसारण', 'Draw broadcast')
   return createPortal(<dialog ref={ref} className="results-player" aria-label={title} onCancel={event => { event.preventDefault(); onClose() }}>
     <header><strong>{video.date} · {video.slot.toUpperCase()} IST</strong><button type="button" onClick={onClose} aria-label={inLanguage(language, 'বন্ধ করুন', 'बंद करें', 'Close broadcast')}><X size={20}/></button></header>
-    {offline && <p role="status">{inLanguage(language, 'ভিডিও দেখতে ইন্টারনেট প্রয়োজন। সংযোগ ফিরলে আবার চেষ্টা করুন।', 'वीडियो के लिए इंटरनेट चाहिए। कनेक्शन आने पर फिर कोशिश करें।', 'Internet is needed for video. Try again when connected.')}</p>}
-    {!loaded && <p role="status">{inLanguage(language, slow ? 'ভিডিও দেরি করছে। YouTube-এ খুলতে পারেন।' : 'ভিডিও লোড হচ্ছে…', slow ? 'वीडियो में देर है। YouTube पर खोलें।' : 'वीडियो लोड हो रहा है…', slow ? 'Video is taking longer. Try Open on YouTube.' : 'Loading video…')}</p>}
+    {offline && <output>{inLanguage(language, 'ভিডিও দেখতে ইন্টারনেট প্রয়োজন। সংযোগ ফিরলে আবার চেষ্টা করুন।', 'वीडियो के लिए इंटरनेट चाहिए। कनेक्शन आने पर फिर कोशिश करें।', 'Internet is needed for video. Try again when connected.')}</output>}
+    {!loaded && <output>{inLanguage(language, slow ? 'ভিডিও দেরি করছে। YouTube-এ খুলতে পারেন।' : 'ভিডিও লোড হচ্ছে…', slow ? 'वीडियो में देर है। YouTube पर खोलें।' : 'वीडियो लोड हो रहा है…', slow ? 'Video is taking longer. Try Open on YouTube.' : 'Loading video…')}</output>}
     <iframe onLoad={() => setLoaded(true)} title={title} src={`https://www.youtube.com/embed/${video.videoId}?playsinline=1`} allow="fullscreen; encrypted-media; picture-in-picture" allowFullScreen referrerPolicy="strict-origin-when-cross-origin"/>
     <a href={`https://www.youtube.com/watch?v=${video.videoId}`} target="_blank" rel="noopener noreferrer">{inLanguage(language, 'YouTube-এ খুলুন', 'YouTube पर खोलें', 'Open on YouTube')}</a>
   </dialog>, document.body)
