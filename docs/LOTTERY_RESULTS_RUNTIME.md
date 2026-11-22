@@ -147,3 +147,7 @@ actual/scheduled start times must remain distinct from upload publication times.
 Owner subsequently approved commit/push, migration and Edge release. Detailed local
 checks and remaining live/device acceptance are recorded in the existing Drive
 Runtime, CI Repairs & Release Log; Start Here is not expanded.
+
+### 2026-11-22 — Strict Sonar follow-up for B live layout
+
+Quality run 45017348136 on 6ead187 failed only the strict zero-open-issues step: four CSS S4666 duplicate selectors, TypeScript S6582 optional chaining, and S7773 Number.NaN. The Sonar quality gate, mobile smoke, and Android candidate passed; coverage was 90.4%, duplication 0%, and unreviewed hotspots 0. Consolidated the four selectors while retaining their effective property values and replaced the two TypeScript expressions with equivalent forms. Gate thresholds and exclusions remain unchanged. This repair needs no database migration or runtime configuration change. Local targeted tests: 25/25; TypeScript and scoped lint passed. Remote certification remains pending after the repair push.

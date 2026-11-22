@@ -4,7 +4,7 @@ import { readTicketText } from './ticket'
 
 export function parseLiveVideo(value: unknown, draw: { date: string; slot: DrawSlot }, now = new Date()): LiveVideo | null {
   const row = value as LiveVideo | null
-  if (!row || row.date !== draw.date || row.slot !== draw.slot || !/^[\w-]{11}$/.test(row.videoId) || !['live', 'upcoming', 'completed'].includes(row.status)) return null
+  if (row?.date !== draw.date || row.slot !== draw.slot || !/^[\w-]{11}$/.test(row.videoId) || !['live', 'upcoming', 'completed'].includes(row.status)) return null
   const age = now.getTime() - Date.parse(row.checkedAt)
   if (!Number.isFinite(age) || age < 0 || age > 90000) return null
   if (row.status === 'live' && (!row.actualStart || !Number.isFinite(Date.parse(row.actualStart)) || Date.parse(row.actualStart) > now.getTime())) return null

@@ -30,7 +30,7 @@ export function selectLiveVideo(items: Video[], date: string, slot: DrawSlot, no
 function broadcastStatus(row: Video, now: Date): LiveVideo['status'] | null {
     const details = row.liveStreamingDetails
     const actualStart = details?.actualStartTime ?? null, scheduledStart = details?.scheduledStartTime ?? null
-    const actual = actualStart ? Date.parse(actualStart) : NaN
+    const actual = actualStart ? Date.parse(actualStart) : Number.NaN
     let status: LiveVideo['status']
     if (details?.actualEndTime && Number.isFinite(actual) && Date.parse(details.actualEndTime) >= actual && Date.parse(details.actualEndTime) <= now.getTime()) status = 'completed'
     else if (row.snippet?.liveBroadcastContent === 'live' && Number.isFinite(actual) && actual <= now.getTime() && !details?.actualEndTime) status = 'live'
