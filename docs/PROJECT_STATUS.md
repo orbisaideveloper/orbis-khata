@@ -1,3 +1,8 @@
+<!-- LIVE-CACHE-RELIABILITY-20261122 -->
+## 2026-11-22 — Live Draw reliability (local implementation)
+
+Baseline main `96b42c1`; per-draw private metadata cache, bounded shared discovery, persistent player snapshot and focused regression tests prepared. One new migration `20261122135944` plus live Edge update and frontend deployment required after separate approval. Production remains unchanged. See [runtime contract](LOTTERY_RESULTS_RUNTIME.md) and canonical Drive runtime report for exact verification/handover; GitHub CI pending after authorized push. Real-device long playback and CDN hit effectiveness unverified.
+
 # 2026-11-20 — Strict Quality follow-up: optional chaining
 
 - Base `bdc0bdf4`; Quality run `44756140598` failed only strict zero-open-Sonar-issues on `typescript:S6582`, recovery contract line22. CI 200 suites / 1233 tests, 60 Playwright checks, coverage90.3%, normal Sonar gate and Android candidate passed.

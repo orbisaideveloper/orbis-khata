@@ -31,6 +31,16 @@ it('discovers current broadcasts directly instead of depending on archived uploa
   vi.useFakeTimers({ toFake: ['Date'] }); vi.setSystemTime(now)
   const fetcher = vi.fn<typeof fetch>().mockResolvedValueOnce(Response.json({ items: [{ id: { videoId: row.id } }] })).mockResolvedValueOnce(Response.json({ items: [row] }))
   expect((await fetchLiveVideo('key', '2026-11-22', '1pm', fetcher))?.status).toBe('live')
-  expect(String(fetcher.mock.calls[0][0])).toContain('eventType=live')
+  expect(String(fetcher.mock.calls[0][0])).toContain('q=22.11.2026')
   expect(fetcher).toHaveBeenCalledTimes(2)
+})
+
+it('revalidates a cached identity with one videos call and no discovery search', async () => {
+ vi.useFakeTimers({ toFake: ['Date'] }); vi.setSystemTime(now)
+ const fetcher = vi.fn<typeof fetch>().mockResolvedValue(Response.json({ items: [row] }))
+ const observe = vi.fn()
+ expect((await fetchLiveVideo('key', '2026-11-22', '1pm', fetcher, row.id, observe))?.videoId).toBe(row.id)
+ expect(fetcher).toHaveBeenCalledTimes(1)
+ expect(String(fetcher.mock.calls[0][0])).toContain('/videos?')
+ expect(observe).toHaveBeenCalledWith('videos')
 })

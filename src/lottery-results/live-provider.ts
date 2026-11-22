@@ -2,7 +2,7 @@ import { indiaDate, type DrawSlot } from './result-data.ts'
 import { readTicketText } from './ticket.ts'
 
 import { liveChannel } from './live-channel.ts'
-export type LiveVideo = { date: string; slot: DrawSlot; videoId: string; status: 'live' | 'upcoming' | 'completed'; checkedAt: string; scheduledStart: string | null; actualStart: string | null }
+export type LiveVideo = { date: string; slot: DrawSlot; videoId: string; channelId?: string; status: 'live' | 'upcoming' | 'completed'; checkedAt: string; scheduledStart: string | null; actualStart: string | null }
 type Video = { id?: string; snippet?: { channelId?: string; title?: string; liveBroadcastContent?: string }; status?: { embeddable?: boolean; privacyStatus?: string }; liveStreamingDetails?: { scheduledStartTime?: string; actualStartTime?: string; actualEndTime?: string } }
 
 export function selectLiveVideo(items: Video[], date: string, slot: DrawSlot, now: Date): LiveVideo | null {
@@ -21,7 +21,7 @@ export function selectLiveVideo(items: Video[], date: string, slot: DrawSlot, no
     if (indiaDate(new Date(start)) !== date) continue
     const target = Date.parse(date + 'T' + { '1pm': '13', '6pm': '18', '8pm': '20' }[slot] + ':00:00+05:30')
     if (Date.parse(start) < target - 15 * 60000 || Date.parse(start) > target + 30 * 60000) continue
-    selected.push({ date, slot, videoId: row.id!, status, checkedAt: now.toISOString(), scheduledStart, actualStart })
+    selected.push({ date, slot, videoId: row.id!, channelId: liveChannel, status, checkedAt: now.toISOString(), scheduledStart, actualStart })
   }
   // Multiple conflicting candidates must never silently choose the wrong draw.
   return selected.length === 1 ? selected[0] : null
@@ -39,9 +39,10 @@ function broadcastStatus(row: Video, now: Date): LiveVideo['status'] | null {
     return status
 }
 
-export async function fetchLiveVideo(key: string, date: string, slot: DrawSlot, fetchImpl: typeof fetch = fetch): Promise<LiveVideo | null> {
+export async function fetchLiveVideo(key: string, date: string, slot: DrawSlot, fetchImpl: typeof fetch = fetch, knownId?: string, observe: (resource: string) => void = () => {}): Promise<LiveVideo | null> {
   if (!key.trim()) throw new Error('LIVE_NOT_CONFIGURED')
   const api = async <T>(resource: string, query: Record<string, string>): Promise<{ items?: T[] }> => {
+    observe(resource)
     const response = await fetchImpl('https://www.googleapis.com/youtube/v3/' + resource + '?' + new URLSearchParams(query), { headers: { 'x-goog-api-key': key, accept: 'application/json' }, redirect: 'error', signal: AbortSignal.timeout(8000) })
     if (!response.ok) throw new Error(response.status === 403 ? 'LIVE_PROVIDER_LIMIT' : 'LIVE_PROVIDER_UNAVAILABLE')
     return JSON.parse(await readTicketText(response.body, 65536))
@@ -49,10 +50,11 @@ export async function fetchLiveVideo(key: string, date: string, slot: DrawSlot, 
   const target = Date.parse(date + 'T' + { '1pm': '13', '6pm': '18', '8pm': '20' }[slot] + ':00:00+05:30')
   const offset = Date.now() - target
   let ids: string[]
-  if (offset >= -10 * 60000 && offset < 20 * 60000) {
+  if (knownId && /^[\w-]{11}$/.test(knownId)) ids = [knownId]
+  else if (offset >= -10 * 60000 && offset < 20 * 60000) {
     // Upcoming/current broadcasts may not yet be in the uploads playlist.
     // One search per shared minute, only in the three 30-minute draw windows.
-    const found = await api<{ id?: { videoId?: string } }>('search', { part: 'snippet', channelId: liveChannel, type: 'video', eventType: offset < 0 ? 'upcoming' : 'live', maxResults: '10', fields: 'items(id/videoId)' })
+    const found = await api<{ id?: { videoId?: string } }>('search', { part: 'snippet', channelId: liveChannel, type: 'video', q: date.split('-').reverse().join('.') + ' ' + slot.toUpperCase(), order: 'date', maxResults: '10', fields: 'items(id/videoId)' })
     ids = found.items?.map(row => row.id?.videoId).filter((id): id is string => typeof id === 'string' && /^[\w-]{11}$/.test(id)) ?? []
   } else {
   const channel = await api<{ contentDetails?: { relatedPlaylists?: { uploads?: string } } }>('channels', { part: 'contentDetails', id: liveChannel, fields: 'items(contentDetails/relatedPlaylists/uploads)' })

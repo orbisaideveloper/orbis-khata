@@ -34,3 +34,38 @@ it('aborts an in-flight metadata request when the page closes', async () => {
   view.unmount()
   expect(signal.aborted).toBe(true)
 })
+
+it('keeps the same iframe through stale status, failures and the next draw, then reopens cached video', async () => {
+  vi.useRealTimers(); vi.useFakeTimers()
+  vi.setSystemTime(new Date('2026-11-22T12:19:00Z'))
+  lookup.mockResolvedValue({ ...metadata, checkedAt: new Date().toISOString() })
+  render(<LiveDraw language="en"/>)
+  await act(async () => {})
+  fireEvent.click(screen.getByRole('button', { name: /Watch live draw/ }))
+  const iframe = screen.getByTitle('Draw broadcast')
+  lookup.mockRejectedValue(new Error('network'))
+  await act(async () => { await vi.advanceTimersByTimeAsync(120000) })
+  expect(screen.getByTitle('Draw broadcast')).toBe(iframe)
+  expect(screen.getByText('2026-11-22 · 6PM IST')).toBeVisible()
+  window.dispatchEvent(new Event('orbis-native-back', { cancelable: true }))
+  await act(async () => {})
+  expect(screen.queryByTitle('Draw broadcast')).not.toBeInTheDocument()
+})
+
+it('discovers a pending video without reloading and keeps its identity after a failed poll', async () => {
+  vi.useRealTimers(); vi.useFakeTimers(); vi.setSystemTime(new Date(metadata.checkedAt))
+  lookup.mockResolvedValueOnce(null).mockResolvedValueOnce(metadata).mockRejectedValue(new Error('network'))
+  render(<LiveDraw language="en"/>)
+  await act(async () => {})
+  expect(screen.getByRole('button', { name: /Watch live draw/ })).toBeDisabled()
+  await act(async () => { await vi.advanceTimersByTimeAsync(30000) })
+  expect(screen.getByRole('button', { name: /Watch live draw/ })).toBeEnabled()
+  await act(async () => { await vi.advanceTimersByTimeAsync(300000) })
+  expect(screen.getByText('Video available · Current status unverified')).toBeVisible()
+  for (let i = 0; i < 2; i++) {
+    fireEvent.click(screen.getByRole('button', { name: /Watch live draw/ }))
+    expect(screen.getByTitle('Draw broadcast')).toHaveAttribute('allowFullScreen')
+    expect(screen.getByRole('link', { name: 'Open on YouTube' })).toHaveAttribute('href', 'https://www.youtube.com/watch?v=abcdefghijk')
+    fireEvent.click(screen.getByRole('button', { name: 'Close broadcast' }))
+  }
+})
