@@ -93,3 +93,14 @@ This changes frontend code only: no new migration or Edge deployment is required
 Image decoding/unit tests do not certify a live Android camera; physical-device
 acceptance is still required before a signed release. Exact local checks and pushed
 SHA belong to the existing Runtime, CI Repairs & Release Log in Drive.
+
+### Quality duplication follow-up and offline boundary
+
+Quality44980700886 passed its tests but stopped at JSCPD: two scanner test
+setups repeated76tokens. Extract their shared camera-start helper; keep every
+assertion and the zero-duplication gate. A navigator-offline regression verifies
+QR field extraction without calling the ticket service. Installed Android assets
+and the PWA's previously installed static shell include the decoder. A first-ever
+web visit still needs the shell downloaded. Ticket result verification currently
+needs the authenticated server; the private complete-draw JSON is not downloaded
+to the phone, and offline QR recognition is not offline prize verification.

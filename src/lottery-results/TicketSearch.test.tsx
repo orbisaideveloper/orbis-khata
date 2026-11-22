@@ -10,6 +10,12 @@ vi.mock('./ticket-client', () => ({ checkTicket: vi.fn() }))
 const ticket = { date: '2026-11-20', slot: '8pm' as const, series: '35B', number: '00220' }
 beforeEach(() => { vi.useFakeTimers({ toFake: ['Date'] }); vi.setSystemTime(new Date('2026-11-21T05:00:00Z')); vi.clearAllMocks(); qr.decode.mockResolvedValue({ stop: qr.stop }) })
 afterEach(() => { cleanup(); vi.useRealTimers() })
+async function openScanner() {
+  fireEvent.click(screen.getByRole('button', { name: 'Scan QR' }))
+  await waitFor(() => expect(qr.decode).toHaveBeenCalled())
+  await act(async () => {})
+  return qr.decode.mock.calls[0][2]
+}
 const view = () => render(<TicketSearch date={ticket.date} slot={ticket.slot} language="en"/>)
 const fill = () => { fireEvent.change(screen.getByRole('textbox', { name: 'Ticket series' }), { target: { value: ticket.series } }); fireEvent.change(screen.getByRole('textbox', { name: 'Ticket number' }), { target: { value: ticket.number } }) }
 it('checks one selected ticket explicitly and never turns a missing result into no prize', async () => {
@@ -43,10 +49,7 @@ it('blocks malformed tickets and cancels stale results after an edit or unmount'
 })
 it('reads QR text locally, requires explicit draw confirmation and stops camera on exit', async () => {
   const rendered = view()
-  fireEvent.click(screen.getByRole('button', { name: 'Scan QR' }))
-  await waitFor(() => expect(qr.decode).toHaveBeenCalled())
-  await act(async () => {})
-  const callback = qr.decode.mock.calls[0][2]
+  const callback = await openScanner()
   act(() => callback({ getText: () => '35B00220' }, null, { stop: qr.stop }))
   expect(screen.getByRole('textbox', { name: 'Ticket series' })).toHaveValue('35B')
   expect(screen.getByRole('textbox', { name: 'Ticket number' })).toHaveValue('00220')
@@ -144,10 +147,7 @@ it('selects a decoded paper-ticket draw, preserves its numbers and checks only a
 
 it('keeps scanning after an unrelated QR and rejects an out-of-window ticket', async () => {
   view()
-  fireEvent.click(screen.getByRole('button', { name: 'Scan QR' }))
-  await waitFor(() => expect(qr.decode).toHaveBeenCalled())
-  await act(async () => {})
-  const callback = qr.decode.mock.calls[0][2]
+  const callback = await openScanner()
   act(() => callback({ getText: () => 'https://untrusted.test/' }, null, { stop: qr.stop }))
   expect(qr.stop).not.toHaveBeenCalled()
   expect(screen.getByRole('dialog')).toBeVisible()
@@ -183,4 +183,15 @@ it('ignores late camera callbacks after closing and blocks an unapplied decoded 
   act(() => qr.decode.mock.calls[1][2]({ getText: () => 'SK DR EMPIRE 6PM 60 201126 TKT NO: 94B 00340' }, null, { stop: qr.stop }))
   fireEvent.click(screen.getByRole('button', { name: 'Check number' }))
   expect(checkTicket).not.toHaveBeenCalled()
+})
+
+it('decodes the ticket locally while offline without making a result request', async () => {
+  const offline = vi.spyOn(navigator, 'onLine', 'get').mockReturnValue(false)
+  try {
+    view()
+    const decoded = await openScanner()
+    act(() => decoded({ getText: () => '35B00220' }, null, { stop: qr.stop }))
+    expect(screen.getByRole('textbox', { name: 'Ticket number' })).toHaveValue('00220')
+    expect(checkTicket).not.toHaveBeenCalled()
+  } finally { offline.mockRestore() }
 })
