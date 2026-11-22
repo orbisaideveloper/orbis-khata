@@ -67,3 +67,29 @@ request contract, cache leases and security checks remain unchanged. Targeted
 regressions include fragmented and truncated PDF streams. No database migration
 is required. Runtime Edge sources should be included in the next deployment
 after CI review; this corrective push does not deploy live services.
+
+## Physical ticket QR recognition — 22 November 2026
+
+The scanner now recognizes structured printed Dear ticket text (state, game,
+IST draw time, draw number, DDMMYY date, series and five-digit ticket number).
+The supplied Sikkim6PM sample was decoded locally and matched its printed fields;
+its valuable ticket image is not included in this public repository. Raw QR text
+is bounded and parsed locally, never followed as a URL. Malformed dates/series,
+wrong state/slot combinations and tickets outside the30-day window are rejected.
+Other physical ticket formats remain unverified until samples are available.
+
+A structured scan selects its date/slot in the result page, retains the decoded
+series/number and displays confirmation. The user explicitly presses Check number.
+A bare series/number QR still uses the visibly selected paper-ticket draw. A
+structured scan cannot be checked under a different unapplied draw. Changing draw
+resets ticket state and aborts stale work; existing verdict validation rejects any
+response with a different date, slot, series or number. Service failure remains
+unknown, never a losing ticket.
+
+Camera capture requests rear-facing high-resolution video, decodes the central
+square guide before the full frame, and continues after unrelated QR text. Modal
+feedback, playback, close/back/hidden-page cleanup and late-callback guards remain.
+This changes frontend code only: no new migration or Edge deployment is required.
+Image decoding/unit tests do not certify a live Android camera; physical-device
+acceptance is still required before a signed release. Exact local checks and pushed
+SHA belong to the existing Runtime, CI Repairs & Release Log in Drive.

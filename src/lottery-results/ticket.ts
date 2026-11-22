@@ -26,9 +26,22 @@ export function parseVerdict(input: unknown, ticket: TicketInput): TicketVerdict
   return { ...ticket, status: value.status, prize }
 }
 
-export function ticketFromQr(raw: string): { series: string; number: string } | null {
-  // QR content is untrusted text: never navigate a URL or silently change the selected draw.
-  const match = /^(\d{2}[ABCDEGHJKL])\s*(\d{5})$/.exec(raw.trim().toUpperCase())
+export type ScannedTicket = { series: string; number: string; date?: string; slot?: DrawSlot }
+
+export function ticketFromQr(raw: string): ScannedTicket | null {
+  // Parse text locally; never navigate or fetch an embedded QR URL.
+  if (raw.length > 512) return null
+  const text = raw.trim().toUpperCase()
+  const printed = /^(SK|NL) DR ([A-Z]+) (1PM|6PM|8PM) (\d{1,3}) (\d{2})(\d{2})(\d{2}) TKT NO: (\d{2}[ABCDEGHJKL]) (\d{5})$/.exec(text)
+  if (printed) {
+    const [, state, , time, , day, month, year, series, number] = printed
+    const slot = time.toLowerCase() as DrawSlot
+    if ((state === 'SK') !== (slot === '6pm')) return null
+    const date = `20${year}-${month}-${day}`
+    try { return parseTicket({ date, slot, series, number }, date) }
+    catch { return null }
+  }
+  const match = /^(\d{2}[ABCDEGHJKL])\s*(\d{5})$/.exec(text)
   if (!match) return null
   const series = match[1], number = match[2]
   return /^(?:3[4-9]|[4-9]\d)[ABCDEGHJKL]$/.test(series) ? { series, number } : null

@@ -1,6 +1,8 @@
-import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 import { TicketSearch } from './TicketSearch'
+import { LotteryResults } from './LotteryResults'
+vi.mock('./useResultFeed', () => import('./result-feed.fixture'))
 import { checkTicket } from './ticket-client'
 const qr = vi.hoisted(() => ({ decode: vi.fn(), stop: vi.fn() }))
 vi.mock('@zxing/browser', () => ({ BrowserQRCodeReader: class { decodeFromConstraints = qr.decode } }))
@@ -42,6 +44,7 @@ it('blocks malformed tickets and cancels stale results after an edit or unmount'
 it('reads QR text locally, requires explicit draw confirmation and stops camera on exit', async () => {
   const rendered = view()
   fireEvent.click(screen.getByRole('button', { name: 'Scan QR' }))
+  await waitFor(() => expect(qr.decode).toHaveBeenCalled())
   await act(async () => {})
   const callback = qr.decode.mock.calls[0][2]
   act(() => callback({ getText: () => '35B00220' }, null, { stop: qr.stop }))
@@ -55,9 +58,11 @@ it('handles permission denial and unrecognized QR without following embedded lin
   qr.decode.mockRejectedValueOnce(new Error('NotAllowedError'))
   view()
   fireEvent.click(screen.getByRole('button', { name: 'Scan QR' }))
+  await waitFor(() => expect(qr.decode).toHaveBeenCalled())
   await act(async () => {})
   expect(screen.getByText(/Camera unavailable/)).toBeVisible()
   fireEvent.click(screen.getByRole('button', { name: 'Scan QR' }))
+  await waitFor(() => expect(qr.decode).toHaveBeenCalled())
   await act(async () => {})
   act(() => qr.decode.mock.calls[1][2]({ getText: () => 'https://evil.test/' }, null, { stop: qr.stop }))
   expect(screen.getByText(/Unrecognized QR format/)).toBeVisible()
@@ -88,6 +93,7 @@ it('centers scanning in a modal, consumes Android back and restores page scrolli
 it('closes camera with the dialog cancel action without changing typed ticket values', async () => {
   view(); fill()
   fireEvent.click(screen.getByRole('button', { name: 'Scan QR' }))
+  await waitFor(() => expect(qr.decode).toHaveBeenCalled())
   await act(async () => {})
   fireEvent(screen.getByRole('dialog'), new Event('cancel', { cancelable: true }))
   expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
@@ -117,4 +123,64 @@ it('shows the selected paper-ticket draw and sends exactly that date and slot', 
   await act(async () => {})
   expect(vi.mocked(checkTicket).mock.calls[0][0]).toEqual(ticket)
   expect(screen.getByText('No prize match in this draw')).toBeVisible()
+})
+
+it('selects a decoded paper-ticket draw, preserves its numbers and checks only after confirmation', async () => {
+  const onDrawChange = vi.fn()
+  const rendered = render(<TicketSearch date={ticket.date} slot="1pm" language="en" onDrawChange={onDrawChange}/> )
+  fireEvent.click(screen.getByRole('button', { name: 'Scan QR' }))
+  await waitFor(() => expect(qr.decode).toHaveBeenCalled())
+  await act(async () => {})
+  act(() => qr.decode.mock.calls[0][2]({ getText: () => 'SK DR EMPIRE 6PM 60 201126 TKT NO: 94B 00340' }, null, { stop: qr.stop }))
+  expect(onDrawChange).toHaveBeenCalledWith({ date: '2026-11-20', slot: '6pm', series: '94B', number: '00340' })
+  expect(screen.getByText(/2026-11-20 · 6PM IST · 94B 00340/)).toBeVisible()
+  expect(checkTicket).not.toHaveBeenCalled()
+  rendered.rerender(<TicketSearch date={ticket.date} slot="6pm" language="en" onDrawChange={onDrawChange}/> )
+  vi.mocked(checkTicket).mockResolvedValueOnce({ date: ticket.date, slot: '6pm', series: '94B', number: '00340', status: 'pending', prize: null })
+  fireEvent.click(screen.getByRole('button', { name: 'Check number' }))
+  await act(async () => {})
+  expect(vi.mocked(checkTicket).mock.calls[0][0]).toEqual({ date: ticket.date, slot: '6pm', series: '94B', number: '00340' })
+})
+
+it('keeps scanning after an unrelated QR and rejects an out-of-window ticket', async () => {
+  view()
+  fireEvent.click(screen.getByRole('button', { name: 'Scan QR' }))
+  await waitFor(() => expect(qr.decode).toHaveBeenCalled())
+  await act(async () => {})
+  const callback = qr.decode.mock.calls[0][2]
+  act(() => callback({ getText: () => 'https://untrusted.test/' }, null, { stop: qr.stop }))
+  expect(qr.stop).not.toHaveBeenCalled()
+  expect(screen.getByRole('dialog')).toBeVisible()
+  act(() => callback({ getText: () => 'SK DR EMPIRE 6PM 60 201025 TKT NO: 94B 00340' }, null, { stop: qr.stop }))
+  expect(checkTicket).not.toHaveBeenCalled()
+  expect(screen.getByRole('textbox', { name: 'Ticket number' })).toHaveValue('')
+})
+
+it('updates the page draw and retains the decoded ticket through a draw remount', async () => {
+  render(<LotteryResults language="en" onBack={vi.fn()}/>)
+  fireEvent.click(screen.getByRole('button', { name: 'Scan QR' }))
+  await waitFor(() => expect(qr.decode).toHaveBeenCalled())
+  act(() => qr.decode.mock.calls[0][2]({ getText: () => 'SK DR EMPIRE 6PM 60 201126 TKT NO: 94B 00340' }, null, { stop: qr.stop }))
+  expect(screen.getByLabelText('Draw date')).toHaveValue('2026-11-20')
+  expect(screen.getByLabelText('Draw time (IST)')).toHaveValue('6pm')
+  expect(screen.getByRole('textbox', { name: 'Ticket number' })).toHaveValue('00340')
+  expect(screen.getByRole('textbox', { name: 'Ticket series' })).toHaveValue('94B')
+  expect(checkTicket).not.toHaveBeenCalled()
+  fireEvent.change(screen.getByLabelText('Draw time (IST)'), { target: { value: '8pm' } })
+  expect(screen.getByRole('textbox', { name: 'Ticket number' })).toHaveValue('')
+})
+
+it('ignores late camera callbacks after closing and blocks an unapplied decoded draw', async () => {
+  view()
+  fireEvent.click(screen.getByRole('button', { name: 'Scan QR' }))
+  await waitFor(() => expect(qr.decode).toHaveBeenCalled())
+  const callback = qr.decode.mock.calls[0][2]
+  fireEvent.click(screen.getByRole('button', { name: 'Stop camera' }))
+  act(() => callback({ getText: () => '35B00220' }, null, { stop: qr.stop }))
+  expect(screen.getByRole('textbox', { name: 'Ticket number' })).toHaveValue('')
+  fireEvent.click(screen.getByRole('button', { name: 'Scan QR' }))
+  await waitFor(() => expect(qr.decode).toHaveBeenCalledTimes(2))
+  act(() => qr.decode.mock.calls[1][2]({ getText: () => 'SK DR EMPIRE 6PM 60 201126 TKT NO: 94B 00340' }, null, { stop: qr.stop }))
+  fireEvent.click(screen.getByRole('button', { name: 'Check number' }))
+  expect(checkTicket).not.toHaveBeenCalled()
 })

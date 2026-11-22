@@ -6,12 +6,13 @@ import { inLanguage } from '../localize'
 import type { DrawSlot } from './result-data'
 import { TicketScanner } from './TicketScanner'
 import { checkTicket } from './ticket-client'
-import { parseTicket, ticketFromQr, type TicketVerdict } from './ticket'
+import { parseTicket, ticketFromQr, type TicketInput, type TicketVerdict } from './ticket'
 
-export function TicketSearch({ date, slot, language }: Readonly<{ date: string; slot: DrawSlot; language: Language }>) {
+export function TicketSearch({ date, slot, language, onDrawChange, initialTicket }: Readonly<{ date: string; slot: DrawSlot; language: Language; onDrawChange?: (ticket: TicketInput) => void; initialTicket?: TicketInput }>) {
   const copy = (bn: string, hi: string, en: string) => inLanguage(language, bn, hi, en)
-  const [series, setSeries] = useState('')
-  const [number, setNumber] = useState('')
+  const seed = initialTicket?.date === date && initialTicket.slot === slot ? initialTicket : undefined
+  const [series, setSeries] = useState(seed?.series ?? '')
+  const [number, setNumber] = useState(seed?.number ?? '')
   const [busy, setBusy] = useState(false)
   const [scanning, setScanning] = useState(false)
   const messages = {
@@ -22,15 +23,16 @@ export function TicketSearch({ date, slot, language }: Readonly<{ date: string; 
     busy: copy('যাচাই ব্যস্ত আছে। একটু পরে আবার চেষ্টা করুন।', 'जाँच व्यस्त है। थोड़ी देर बाद कोशिश करें।', 'Checks are busy. Please try again shortly.'),
     unavailable: copy('এখন যাচাই করা যায়নি। সংযোগ ও সার্ভিস চালু আছে কি না দেখুন; পুরস্কার নেই বলা হচ্ছে না।', 'अभी जाँच नहीं हुई। कनेक्शन और सेवा जाँचें; इसका अर्थ कोई इनाम नहीं नहीं है।', 'Could not check now. Check your connection and service availability; this does not mean no prize.')
   }
-  const [message, setMessage] = useState<keyof typeof messages | ''>('')
+  const [message, setMessage] = useState<keyof typeof messages | ''>(seed ? 'qrReady' : '')
   const [verdict, setVerdict] = useState<TicketVerdict | null>(null)
+  const [scanned, setScanned] = useState<TicketInput | null>(seed ?? null)
   const video = useRef<HTMLVideoElement>(null)
   const scanner = useRef<IScannerControls | null>(null)
   const generation = useRef(0)
   const request = useRef<AbortController | null>(null)
   const scanGeneration = useRef(0)
   const stopCamera = useCallback(() => { scanGeneration.current++; scanner.current?.stop(); scanner.current = null; setScanning(false) }, [])
-  const invalidate = () => { generation.current++; request.current?.abort(); request.current = null; setVerdict(null); setMessage(''); setBusy(false) }
+  const invalidate = () => { setScanned(null); generation.current++; request.current?.abort(); request.current = null; setVerdict(null); setMessage(''); setBusy(false) }
   useEffect(() => () => { generation.current++; scanGeneration.current++; request.current?.abort(); scanner.current?.stop() }, [])
   useEffect(() => {
     if (!scanning) return
@@ -45,13 +47,20 @@ export function TicketSearch({ date, slot, language }: Readonly<{ date: string; 
     const scan = ++scanGeneration.current
     setScanning(true)
     try {
-      const { BrowserQRCodeReader } = await import('@zxing/browser')
-      if (scan !== scanGeneration.current || !video.current) return
-      const controls = await new BrowserQRCodeReader().decodeFromConstraints({ audio: false, video: { facingMode: { ideal: 'environment' } } }, video.current, (result, _error, control) => {
+      const { TicketQrReader } = await import('./qr-reader')
+      if (scan !== scanGeneration.current) return
+      if (!video.current) throw new Error('CAMERA_NOT_READY')
+      const controls = await new TicketQrReader().decodeFromConstraints({ audio: false, video: { width: { ideal: 1920 }, height: { ideal: 1080 }, facingMode: { ideal: 'environment' } } }, video.current, (result, _error, control) => {
         if (!result || scan !== scanGeneration.current) return
-        control.stop(); scanGeneration.current++; setScanning(false)
         const ticket = ticketFromQr(result.getText())
         if (!ticket) { setMessage('qrFormat'); return }
+        let input: TicketInput
+        try { input = parseTicket({ ...ticket, date: ticket.date ?? date, slot: ticket.slot ?? slot }) }
+        catch { setMessage('input'); return }
+        control.stop(); scanGeneration.current++; setScanning(false)
+        scanner.current = null
+        setScanned(input)
+        if (ticket.date && ticket.slot) onDrawChange?.(input)
         setSeries(ticket.series); setNumber(ticket.number)
         setMessage('qrReady')
       })
@@ -66,6 +75,7 @@ export function TicketSearch({ date, slot, language }: Readonly<{ date: string; 
   const submit = async (event: { preventDefault: () => void }) => {
     event.preventDefault()
     if (request.current) return
+    if (scanned && (scanned.date !== date || scanned.slot !== slot)) { setMessage('input'); return }
     stopCamera(); invalidate()
     const current = generation.current
     let input
@@ -95,8 +105,9 @@ export function TicketSearch({ date, slot, language }: Readonly<{ date: string; 
       <div className="ticket-fields"><label>{copy('সিরিজ', 'सीरीज़', 'Series')}<input aria-label={copy('টিকিট সিরিজ', 'टिकट सीरीज़', 'Ticket series')} value={series} maxLength={3} autoCapitalize="characters" autoComplete="off" placeholder="35B" onChange={event => { invalidate(); setSeries(event.target.value.toUpperCase()) }}/></label><label>{copy('টিকিট নম্বর', 'टिकट नंबर', 'Ticket number')}<input value={number} inputMode="numeric" maxLength={5} autoComplete="off" placeholder="00000" onChange={event => { invalidate(); setNumber(event.target.value.replace(/\D/g, '')) }}/></label></div>
       <div className="ticket-actions"><button type="submit" className="results-action-primary" disabled={busy}><Search size={17} aria-hidden="true"/>{busy ? copy('যাচাই হচ্ছে…', 'जाँच जारी…', 'Checking…') : copy('নম্বর যাচাই', 'नंबर जाँचें', 'Check number')}</button><button type="button" onClick={() => { void startCamera() }} disabled={scanning}><ScanLine size={17} aria-hidden="true"/>{copy('QR স্ক্যান', 'QR स्कैन', 'Scan QR')}</button></div>
     </form>
-    {scanning && <TicketScanner video={video} onClose={stopCamera} language={language} date={date} slot={slot}/>}
-    {message && <p className="ticket-message"><output>{messages[message]}</output></p>}
+    {scanning && <TicketScanner video={video} onClose={stopCamera} language={language} date={date} slot={slot} feedback={message ? messages[message] : undefined}/>}
+    {scanned && <p className="ticket-message"><output><CircleCheck size={18} aria-hidden="true"/> {scanned.date} · {scanned.slot.toUpperCase()} IST · {scanned.series} {scanned.number}</output></p>}
+    {message && !scanning && <p className="ticket-message"><output>{messages[message]}</output></p>}
     {verdict && <div className="ticket-verdict" data-state={verdict.status}><output><strong>{verdict.status === 'win' && <CircleCheck size={20} aria-hidden="true"/>}{statusText}</strong><span>{verdict.date} · {verdict.slot.toUpperCase()} · {verdict.series} {verdict.number}</span>{verdict.prize && <span>{copy('পুরস্কার', 'पुरस्कार', 'Prize')} · {verdict.prize.tier} · ₹{verdict.prize.amount.toLocaleString('en-IN')}</span>}</output></div>}
 
   </section>

@@ -14,7 +14,7 @@ it('accepts only recognized full ticket QR text and never follows links or chang
 it('validates same-ticket verdicts and distinguishes pending from a losing ticket', () => {
   for (const status of ['no_prize', 'pending', 'upcoming', 'not_found', 'invalid'] as const) expect(parseVerdict({ ...ticket, status, prize: null }, ticket).status).toBe(status)
   expect(parseVerdict({ ...ticket, status: 'win', prize: { tier: '5th', amount: 120 } }, ticket).prize?.amount).toBe(120)
-  for (const change of [{ date: '2026-11-19' }, { slot: '6pm' }, { number: '00221' }, { status: 'unknown' }, { prize: { tier: '5th', amount: -1 } }, { prize: null }]) expect(() => parseVerdict({ ...ticket, status: 'win', prize: { tier: '5th', amount: 120 }, ...change }, ticket)).toThrow()
+  for (const change of [{ date: '2026-11-19' }, { slot: '6pm' }, { series: '36B' }, { number: '00221' }, { status: 'unknown' }, { prize: { tier: '5th', amount: -1 } }, { prize: null }]) expect(() => parseVerdict({ ...ticket, status: 'win', prize: { tier: '5th', amount: 120 }, ...change }, ticket)).toThrow()
   expect(() => parseVerdict({ ...ticket, status: 'pending', prize: { tier: '5th', amount: 120 } }, ticket)).toThrow()
 })
 
@@ -24,4 +24,13 @@ it('bounds streamed bytes and preserves split UTF-8 characters', async () => {
   expect(await readTicketText(stream, 3)).toBe('₹')
   expect(await readTicketText(null, 3)).toBe('')
   await expect(readTicketText(new Response('long').body, 3)).rejects.toThrow('TICKET_BODY_TOO_LARGE')
+})
+
+it('extracts the printed Sikkim QR fields without guessing the selected draw', () => {
+  expect(ticketFromQr('SK DR EMPIRE 6PM 60 201126 TKT NO: 94B 00340')).toEqual({ date: '2026-11-20', slot: '6pm', series: '94B', number: '00340' })
+  for (const value of ['SK DR EMPIRE 6PM 60 311126 TKT NO: 94B 00340', 'SK DR EMPIRE 8PM 60 201126 TKT NO: 94B 00340', 'SK DR EMPIRE 6PM 60 201126 TKT NO: 94F 00340', 'SK DR EMPIRE 6PM 60 201126 TKT NO: 94B 00340 extra']) expect(ticketFromQr(value)).toBeNull()
+})
+
+it('rejects oversized QR text instead of interpreting any embedded number', () => {
+  expect(ticketFromQr(' '.repeat(513) + '35B00220')).toBeNull()
 })
