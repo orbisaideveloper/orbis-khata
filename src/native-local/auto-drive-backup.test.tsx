@@ -34,6 +34,13 @@ afterEach(() => {
   fake.upload.mockReset()
 })
 
+function mountAutoBackup() {
+  return renderHook(() => {
+    useForegroundDriveAutoBackup(fake.actor)
+    return useDriveAutoBackupSetting(fake.actor)
+  })
+}
+
 it('uses local midnight and noon and collapses missed slots to the latest one', () => {
   expect(latestDriveBackupSlot(new Date(2026, 10, 17, 9))).toBe(new Date(2026, 10, 17, 0).getTime())
   expect(latestDriveBackupSlot(new Date(2026, 10, 20, 17))).toBe(new Date(2026, 10, 20, 12).getTime())
@@ -43,10 +50,7 @@ it('waits offline, catches up on reconnect, and uploads the missed slot only onc
   let online = false
   vi.spyOn(navigator, 'onLine', 'get').mockImplementation(() => online)
   fake.connect.mockResolvedValue({ accountEmail: async () => 'test@example.com', hasBackup: async () => false, upload: fake.upload })
-  const { result } = renderHook(() => {
-    useForegroundDriveAutoBackup(fake.actor)
-    return useDriveAutoBackupSetting(fake.actor)
-  })
+  const { result } = mountAutoBackup()
   expect(result.current.on).toBe(false)
   act(() => result.current.toggle(true))
   expect(fake.upload).not.toHaveBeenCalled()
@@ -61,10 +65,7 @@ it('waits offline, catches up on reconnect, and uploads the missed slot only onc
 
 it('shows a missing recovery link and bounds repeated attempts until reconnect', async () => {
   fake.recovery.mockResolvedValue(null)
-  const { result } = renderHook(() => {
-    useForegroundDriveAutoBackup(fake.actor)
-    return useDriveAutoBackupSetting(fake.actor)
-  })
+  const { result } = mountAutoBackup()
   act(() => result.current.toggle(true))
   await waitFor(() => expect(result.current.issue).toBe('BACKUP_NEEDS_RECOVERY_LINK'))
   expect(result.current.verifiedAt).toBe(0)
@@ -82,10 +83,7 @@ it('shows a missing recovery link and bounds repeated attempts until reconnect',
 it('refuses an automatic upload when the existing archive cannot be verified', async () => {
   fake.preview.mockRejectedValueOnce(new Error('FINANCIAL_BACKUP_CONTENT_INVALID'))
   fake.connect.mockResolvedValue({ accountEmail: async () => 'test@example.com', hasBackup: async () => true, latest: async () => fake.archive, upload: fake.upload })
-  const { result } = renderHook(() => {
-    useForegroundDriveAutoBackup(fake.actor)
-    return useDriveAutoBackupSetting(fake.actor)
-  })
+  const { result } = mountAutoBackup()
   act(() => result.current.toggle(true))
   await waitFor(() => expect(result.current.issue).toBe('BACKUP_FAILED'))
   expect(fake.upload).not.toHaveBeenCalled()
