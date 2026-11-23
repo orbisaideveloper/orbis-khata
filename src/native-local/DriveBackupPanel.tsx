@@ -125,6 +125,17 @@ export function DriveBackupPanel({ actor, language }: Readonly<{ actor: string; 
     setLegacyKeyNeeded(false)
     setKey('')
   }
+  async function linkPreview() {
+    if (!preview) return
+    const local = await import('./runtime')
+    const { linked, drive, email } = await openDrive(preview.record.email)
+    if (email !== preview.record.email || (linked && linked.key !== preview.record.key)) throw new Error('KHATA_RECOVERY_LINK_CONFLICT')
+    await local.previewNativeFinancialBackup(await drive.latest(), actor, recoveryKeyBytes(preview.record.key))
+    await link(preview.record)
+    await local.saveNativeDriveRecoveryKey(actor, preview.record.key)
+    setMessage(t('ব্যাকআপ সংযোগ প্রস্তুত। এখন ব্যাকআপ নিন বা অটো ব্যাকআপ চালু করুন।', 'बैकअप कनेक्शन तैयार है। अब बैकअप लें या ऑटो बैकअप चालू करें।', 'Backup recovery linked. Back up now or enable auto backup.'))
+  }
+
   async function openCopy() {
     if (!preview) return
     const local = await import('./runtime')
@@ -164,6 +175,9 @@ export function DriveBackupPanel({ actor, language }: Readonly<{ actor: string; 
         {t('অটো ব্যাকআপ · দুপুর ১২টা ও রাত ১২টা', 'ऑटो बैकअप · दोपहर 12 बजे और रात 12 बजे', 'Auto backup · noon and midnight')}
       </label>
       {autoBackup.on && <p>{t('নির্ধারিত সময় মিস হলে অ্যাপ খোলা ও ইন্টারনেট চালু হলেই ব্যাকআপের চেষ্টা হবে।', 'समय छूटने पर ऐप खुला और इंटरनेट चालू होने पर बैकअप की कोशिश होगी।', 'If a scheduled time is missed, backup will retry when the app is open and online.')}</p>}
+      {autoBackup.on && autoBackup.issue && <output>{autoBackup.issue === 'BACKUP_NEEDS_RECOVERY_LINK'
+        ? t('অটো ব্যাকআপের জন্য আগের ব্যাকআপ দেখে অ্যাকাউন্টের সংযোগ নিশ্চিত করুন।', 'ऑटो बैकअप के लिए पुराने बैकअप का पूर्वावलोकन करके खाता जोड़ें।', 'Preview your existing backup and confirm its recovery link to enable automatic uploads.')
+        : t('অটো ব্যাকআপ অপেক্ষায় আছে। অনলাইনে সাইন ইন ও Google Drive সংযোগ পরীক্ষা করুন। আবার চেষ্টা হবে।', 'ऑटो बैकअप रुका है। ऑनलाइन साइन इन और Google Drive कनेक्शन जाँचें। फिर कोशिश होगी।', 'Automatic backup is waiting. Check online sign-in and Google Drive access. It will retry.')}</output>}
       {autoBackup.verifiedAt > 0 && <p>{t('শেষ সফল ব্যাকআপ', 'आखिरी सफल बैकअप', 'Last verified backup')} · {new Intl.DateTimeFormat(language, { dateStyle: 'medium', timeStyle: 'short' }).format(autoBackup.verifiedAt)}</p>}
       {legacyKeyNeeded && <label className="field">
         {t('পুরোনো রিকভারি চাবি', 'पुरानी रिकवरी कुंजी', 'Previous recovery key')}
@@ -190,6 +204,7 @@ export function DriveBackupPanel({ actor, language }: Readonly<{ actor: string; 
         <p>{preview.record.email} · {new Intl.NumberFormat(language, { style: 'unit', unit: 'kilobyte', maximumFractionDigits: 1 }).format(preview.archive.byteLength / 1000)}</p>
         {preview.version && <p>{new Intl.DateTimeFormat(language, { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(preview.version.createdTime))}</p>}
         <p>{t('কোম্পানি', 'कंपनियाँ', 'Companies')} {preview.companies} · {t('লেজার এন্ট্রি', 'लेजर प्रविष्टियाँ', 'Ledger entries')} {preview.entries}</p>
+        <button type="button" onClick={() => void run(() => withDriveBackupUpload(linkPreview))}>{t('এই অ্যাকাউন্টে ব্যাকআপ সংযোগ নিশ্চিত করুন', 'इस खाते का बैकअप कनेक्शन पुष्ट करें', 'Confirm backup recovery link')}</button>
         <button type="button" onClick={() => void run(openCopy)}>{t('রিকভার করা কপি দেখুন', 'रिकवरी कॉपी देखें', 'Open recovered copy')}</button>
         <button type="button" onClick={() => void run(restore)}>{t('হিসাব ফিরিয়ে আনুন', 'हिसाब वापस लाएँ', 'Restore data')}</button>
       </div>}

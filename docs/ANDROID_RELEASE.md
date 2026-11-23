@@ -136,3 +136,7 @@ for every later Console upload; automatic first-release publication is forbidden
 Pending evidence: owner-approved corrective commit/push, exact-SHA quality and
 Android runs, manual signed run and artifact verification, real phone workflows,
 Play declarations/Internal testing. Local runner self-test does not certify AAB.
+
+### Drive backup legacy-link repair — 23 November 2026
+
+Local repair on main source ecf9db2 adds an explicit Confirm backup recovery link action after authenticated archive preview. It rechecks the latest archive and Google account, uses the existing immutable account recovery link and encrypted device key storage, and does not invoke restore. Legacy archives with no accessible linked/device key still require their old key once. Normal subsequent backups use the linked recovery record. Auto-backup exposes missing-sign-in/recovery-link and generic failure status, retries after five minutes or reconnect, and validates an existing archive before upload. Last verified updates only after upload/read-back success. Schedule is foreground noon/midnight with catch-up. Rebuild the Android app for these UI/runtime changes. Canonical backup P0 Drive task records test evidence and remaining device acceptance.

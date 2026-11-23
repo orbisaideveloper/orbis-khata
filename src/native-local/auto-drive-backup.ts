@@ -13,21 +13,27 @@ export function latestDriveBackupSlot(now: Date): number {
   return slot.getTime()
 }
 
+function recordDriveBackupIssue(actor: string, issue: string) {
+  localStorage.setItem(pref(actor, 'issue'), issue)
+  window.dispatchEvent(new Event(changed))
+}
+
 function enabled(actor: string) {
   return localStorage.getItem(pref(actor, 'auto')) === 'on'
 }
 
 export function recordVerifiedDriveBackup(actor: string, time = Date.now(), slot = time) {
+  localStorage.removeItem(pref(actor, 'issue'))
   localStorage.setItem(pref(actor, 'verified-at'), String(time))
   localStorage.setItem(pref(actor, 'completed-slot'), String(slot))
   window.dispatchEvent(new Event(changed))
 }
 
 export function useDriveAutoBackupSetting(actor: string) {
-  const read = () => ({ on: enabled(actor), verifiedAt: Number(localStorage.getItem(pref(actor, 'verified-at'))) })
+  const read = () => ({ on: enabled(actor), verifiedAt: Number(localStorage.getItem(pref(actor, 'verified-at'))), issue: localStorage.getItem(pref(actor, 'issue')) })
   const [state, setState] = useState(read)
   useEffect(() => {
-    const refresh = () => setState({ on: enabled(actor), verifiedAt: Number(localStorage.getItem(pref(actor, 'verified-at'))) })
+    const refresh = () => setState({ on: enabled(actor), verifiedAt: Number(localStorage.getItem(pref(actor, 'verified-at'))), issue: localStorage.getItem(pref(actor, 'issue')) })
     window.addEventListener(changed, refresh)
     return () => window.removeEventListener(changed, refresh)
   }, [actor])
@@ -63,20 +69,25 @@ export function useForegroundDriveAutoBackup(actor: string | null | undefined) {
       try {
         await withDriveBackupUpload(async () => {
           const session = await authClient?.auth.getSession()
-          if (session?.error || session?.data.session?.user.id !== actor) return
+          if (session?.error || session?.data.session?.user.id !== actor) throw new Error('BACKUP_NEEDS_SIGN_IN')
           const recovery = await requestDriveRecovery(actor)
-          if (!isAccountRecovery(recovery)) return
+          if (!isAccountRecovery(recovery)) throw new Error('BACKUP_NEEDS_RECOVERY_LINK')
           const drive = await connectBackupDrive(actor, recovery.email, true)
           await drive.accountEmail()
           const runtime = await import('./runtime')
           if (!available() || runtime.nativeLocalActor() !== actor) return
-          const archive = await runtime.exportNativeFinancialBackup(recoveryKeyBytes(recovery.key))
+          const secret = recoveryKeyBytes(recovery.key)
+          if (await drive.hasBackup()) await runtime.previewNativeFinancialBackup(await drive.latest(), actor, secret)
+          if (!available() || runtime.nativeLocalActor() !== actor) return
+          const archive = await runtime.exportNativeFinancialBackup(secret)
           if (!available() || runtime.nativeLocalActor() !== actor) return
           await drive.upload(archive)
           recordVerifiedDriveBackup(actor, Date.now(), slot)
         })
-      } catch {
+      } catch (error) {
         retryAt = Date.now() + 5 * 60_000
+        const code = error instanceof Error ? error.message : ''
+        recordDriveBackupIssue(actor, ['BACKUP_NEEDS_SIGN_IN', 'BACKUP_NEEDS_RECOVERY_LINK'].includes(code) ? code : 'BACKUP_FAILED')
       }
     }
     const wake = () => { void check() }
