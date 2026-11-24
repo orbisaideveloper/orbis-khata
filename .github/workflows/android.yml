@@ -59,6 +59,7 @@ jobs:
         run: mkdir -p "$HOME/storage/downloads"
       - run: npm ci --include=optional
       - run: python3 scripts/khata-selftest.py
+      - run: python3 scripts/khata-native-symbols-test.py
       - run: npm test -- src/native src/PwaStatus.test.tsx src/auth/AccountForm.test.tsx src/billing/BillShare.test.tsx src/accounting/ledger-export.test.ts src/accounting/ledger-download.test.ts
       - run: python3 scripts/khata.py test android
       - name: Allow this disposable runner to use KVM
@@ -111,6 +112,23 @@ jobs:
         run: |
           test -n "$KHATA_UPLOAD_KEYSTORE_BASE64"
           python3 scripts/khata.py test android-release
+      - name: Inspect native symbols in verified signed AAB
+        if: success() && github.event_name == 'workflow_dispatch' && inputs.signed_release
+        env:
+          KHATA_ANDROID_VERSION_CODE: ${{ inputs.version_code }}
+        run: |
+          python3 scripts/khata-native-symbols.py \
+            android/app/build/outputs/bundle/release/app-release.aab \
+            --source-sha "$GITHUB_SHA" --version-code "$KHATA_ANDROID_VERSION_CODE" \
+            --require-sqlcipher --report native-symbols.json
+      - name: Preserve native symbol diagnostics
+        if: always() && github.event_name == 'workflow_dispatch' && inputs.signed_release && hashFiles('native-symbols.json') != ''
+        uses: actions/upload-artifact@v5
+        with:
+          name: khata-native-symbols-report-${{ github.sha }}-${{ inputs.version_code }}
+          path: native-symbols.json
+          if-no-files-found: error
+          retention-days: 90
       - name: Preserve verified signed AAB
         if: success() && github.event_name == 'workflow_dispatch' && inputs.signed_release
         uses: actions/upload-artifact@v5
