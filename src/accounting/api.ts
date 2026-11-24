@@ -4,6 +4,24 @@ import { androidLocalFirst } from '../native-local/route';
 import type { AccountRecovery } from '../sync/account-recovery';
 import type { Command, Company, Report } from './model';
 import { workspaceDiagnostic, type WorkspaceDiagnostic } from '../lottery/workspace-diagnostic';
+
+function workspaceFailure(result: unknown): { stage: 'domain' | 'shape'; error: Error } | undefined {
+    if (result && typeof result === 'object' && 'lotteryError' in result) {
+        const reason = typeof result.lotteryError === 'string' && /^[A-Z_]{2,80}$/u.test(result.lotteryError)
+            ? result.lotteryError : 'LOTTERY_COMMAND_REJECTED';
+        return { stage: 'domain', error: Object.assign(new Error(reason), { reason }) };
+    }
+    if (!result || typeof result !== 'object' || !('organization' in result)) {
+        return { stage: 'shape', error: new Error('LOTTERY_WORKSPACE_RESPONSE_INVALID') };
+    }
+}
+
+function workspaceFailureStage(stage: WorkspaceDiagnostic['stage'], cause: unknown): WorkspaceDiagnostic['stage'] {
+    if ((stage === 'fetch' || stage === 'body') && cause && typeof cause === 'object' &&
+        'name' in cause && cause.name === 'TimeoutError') return 'timeout';
+    return stage;
+}
+
 export function createKhataDataClient(options: {
     url: string;
     token: () => Promise<string | null>;
@@ -53,26 +71,17 @@ export function createKhataDataClient(options: {
                 error.reason = typeof value.reason === 'string' ? value.reason : undefined;
                 throw error;
             }
-            if (workspace) {
-                const result = value?.data;
-                if (result && typeof result === 'object' && 'lotteryError' in result) {
-                    stage = 'domain';
-                    const reason = typeof result.lotteryError === 'string' && /^[A-Z_]{2,80}$/u.test(result.lotteryError)
-                        ? result.lotteryError : 'LOTTERY_COMMAND_REJECTED';
-                    throw Object.assign(new Error(reason), { reason });
-                }
-                if (!result || typeof result !== 'object' || !('organization' in result)) {
-                    stage = 'shape';
-                    throw new Error('LOTTERY_WORKSPACE_RESPONSE_INVALID');
-                }
+            const failure = workspace ? workspaceFailure(value?.data) : undefined;
+            if (failure) {
+                stage = failure.stage;
+                throw failure.error;
             }
             return value.data;
         } catch (cause) {
             if (!workspace) throw cause;
             const error = cause instanceof Error ? cause : new Error('LOTTERY_UNAVAILABLE');
-            if ((stage === 'fetch' || stage === 'body') && cause && typeof cause === 'object' &&
-                'name' in cause && cause.name === 'TimeoutError') stage = 'timeout';
-            throw Object.assign(error, { workspaceDiagnostic: workspaceDiagnostic(startedAt, stage, response, decodedChars) });
+            const failureStage = workspaceFailureStage(stage, cause);
+            throw Object.assign(error, { workspaceDiagnostic: workspaceDiagnostic(startedAt, failureStage, response, decodedChars) });
         }
     }
     async function request<T>(operation:string,input:unknown):Promise<T>{

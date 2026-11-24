@@ -43,6 +43,15 @@ function lotteryResponse(method:string,result:unknown){
  if(result&&typeof result==='object'&&'lotteryError' in result)return Response.json({error:{code:result.lotteryError,...('currentVersion' in result?{currentVersion:result.currentVersion}:{})}},{status:422});
  const wrapped=responseKey[method];return Response.json(wrapped?{[wrapped]:result}:result??{});
 }
+function lotteryFailureCode(method: string, error: unknown): string {
+ if (error && typeof error === 'object' && 'reason' in error) return String(error.reason);
+ if (!(error instanceof Error)) return 'LOTTERY_UNAVAILABLE';
+ if (method === 'getWorkspace' &&
+  ['KHATA_DATA_RESPONSE_INVALID', 'LOTTERY_WORKSPACE_RESPONSE_INVALID'].includes(error.message)) return error.message;
+ if (androidLocalFirst() && /^[A-Z][A-Z0-9_]{2,79}$/u.test(error.message)) return error.message;
+ return 'LOTTERY_UNAVAILABLE';
+}
+
 export async function lotteryFetch(path:string,init:RequestInit={}):Promise<Response>{
  const route=resolveRoute(path,init);const owner=await lotteryOwner();
  if(!owner)return Response.json({error:{code:'LOTTERY_LOGIN_REQUIRED'}},{status:401});
@@ -55,12 +64,7 @@ export async function lotteryFetch(path:string,init:RequestInit={}):Promise<Resp
   if(response.ok&&!read)sessionStorage.removeItem(key);
   return response;
  }catch(error){
-  let reason='LOTTERY_UNAVAILABLE';
-  if(error&&typeof error==='object'&&'reason' in error) reason=String(error.reason);
-  else if(route.method==='getWorkspace' && error instanceof Error &&
-    ['KHATA_DATA_RESPONSE_INVALID','LOTTERY_WORKSPACE_RESPONSE_INVALID'].includes(error.message)) reason=error.message;
-  else if(androidLocalFirst() && error instanceof Error && /^[A-Z][A-Z0-9_]{2,79}$/u.test(error.message)) reason=error.message;
   const diagnostic=route.method==='getWorkspace'?workspaceDiagnosticFrom(error):undefined;
-  return Response.json({error:{code:reason,diagnostic}},{status:422});
+  return Response.json({error:{code:lotteryFailureCode(route.method,error),diagnostic}},{status:422});
  }
 }
