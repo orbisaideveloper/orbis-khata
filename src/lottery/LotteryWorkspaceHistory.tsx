@@ -60,13 +60,13 @@ export function LotteryWorkspaceHistory({ organizationId }: Readonly<{ organizat
       </select>
       <input aria-label={inLanguage(language, 'ইতিহাস খুঁজুন', 'इतिहास खोजें', 'Search history')}
         maxLength={100} disabled={loading} value={query} onChange={event => { setQuery(event.target.value); reset() }} />
-      <button disabled={loading}>{inLanguage(language, 'খুঁজুন', 'खोजें', 'Search')}</button>
+      <button type="submit" disabled={loading}>{inLanguage(language, 'খুঁজুন', 'खोजें', 'Search')}</button>
     </form>
     {error && <p role="alert">
       {error === 'LOTTERY_HISTORY_CHANGED'
         ? inLanguage(language, 'হিসাব বদলেছে। শুরু থেকে আবার খুলুন।', 'हिसाब बदला है। शुरू से खोलें।', 'Records changed. Start again from the first page.')
         : inLanguage(language, 'ইতিহাস লোড হয়নি। আবার চেষ্টা করুন।', 'इतिहास लोड नहीं हुआ। फिर प्रयास करें।', 'History did not load. Try again.')}
-      {' '}<button disabled={loading} onClick={() => void load(error === 'LOTTERY_HISTORY_CHANGED' ? null : retryCursor.current)}>
+      {' '}<button type="button" disabled={loading} onClick={() => void load(error === 'LOTTERY_HISTORY_CHANGED' ? null : retryCursor.current)}>
         {inLanguage(language, 'আবার চেষ্টা করুন', 'फिर प्रयास करें', 'Retry')}
       </button>
     </p>}
@@ -75,10 +75,10 @@ export function LotteryWorkspaceHistory({ organizationId }: Readonly<{ organizat
       <pre className="max-h-60 overflow-auto whitespace-pre-wrap break-all text-xs">{entry.json}</pre>
     </details>)}
     {page && <div className="flex gap-2">
-      <button disabled={loading || !page.entries.length} onClick={() => exportPage(page, kind)}>
+      <button type="button" disabled={loading || !page.entries.length} onClick={() => exportPage(page, kind)}>
         {inLanguage(language, 'এই পেজ রপ্তানি', 'यह पेज निर्यात करें', 'Export this page')}
       </button>
-      {page.next && <button disabled={loading || Boolean(error)} onClick={() => void load(page.next)}>
+      {page.next && <button type="button" disabled={loading || Boolean(error)} onClick={() => void load(page.next)}>
         {inLanguage(language, 'পরের পেজ', 'अगला पेज', 'Next page')}
       </button>}
     </div>}
