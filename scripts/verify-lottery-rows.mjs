@@ -2,6 +2,7 @@
 // KHATA_PGLITE_MODULE=/absolute/path/to/@electric-sql/pglite/dist/index.js node scripts/verify-lottery-rows.mjs
 import {readFile} from 'node:fs/promises';
 import assert from 'node:assert/strict';
+import { loadCompactLottery, readLotteryHistory } from '../supabase/functions/orbis-khata-data/lottery-workspace-read.ts';
 const {PGlite}=await import(process.env.KHATA_PGLITE_MODULE??'@electric-sql/pglite');
 const db=new PGlite();
 const owner='11111111-1111-4111-8111-111111111111',other='22222222-2222-4222-8222-222222222222';
@@ -37,4 +38,57 @@ await config(owner);await db.exec("select set_config('orbis.khata.gateway_verifi
 await assert.rejects(rpc({action:'load'}),/LOTTERY_ACCESS_DENIED/);
 assert.deepEqual((await db.query('select state from khata_lottery_state where owner_id=$1',[owner])).rows[0].state,legacy);
 await assert.rejects(db.query('select khata_lottery_store_v1($1)',[{}]),/LOTTERY_GATEWAY_UPGRADE_REQUIRED/);
-await db.close();console.log('PASS: >1.5MB legacy preservation, changed/related rows only, replay/conflict, atomic rollback, write disable, owner/gateway isolation, old gateway blocked.');
+const historyModel = 'foundationLotteryAuditEvent';
+const ledgerModel = 'foundationLotteryLedgerEntry';
+const savedAudit = [
+  ...Array.from({length: 31}, (_, i) => ({id: `audit-${i}`, organizationId:'archive', note:`exact marker ${i}`})),
+  {id:'large-audit', organizationId:'archive', note:'ব'.repeat(72000)},
+];
+const insertRecord = (actor, kind, value) => db.query(
+  'insert into public.khata_lottery_records(owner_id,model,id,value) values ($1,$2,$3,$4)',
+  [actor, kind, value.id, value],
+);
+for (const actor of [owner,other]) {
+  await insertRecord(actor,model,{id:'archive',status:'ACTIVE'});
+  await insertRecord(actor,ledgerModel,{id:'ledger-1',organizationId:'archive',amountPaise:'17500'});
+}
+await insertRecord(owner,historyModel,{id:'unrelated',organizationId:'other-org',note:'not mine'});
+for (const record of savedAudit) await insertRecord(owner,historyModel,record);
+const tx = async (chunks,...args) => (await db.query(chunks.map((chunk,i)=>i?`$${i}`+chunk:chunk).join(''),args)).rows;
+const compact = await loadCompactLottery(tx,owner,'archive');
+assert.deepEqual(compact.state,{[model]:[{id:'archive',status:'ACTIVE'}]});
+const req = {organizationId:'archive',kind:'audit',search:''};
+const firstPage = await readLotteryHistory(tx,owner,req);
+assert.deepEqual(await readLotteryHistory(tx,owner,req),firstPage);
+assert.deepEqual(await readLotteryHistory(tx,other,req),{entries:[],next:null});
+assert.deepEqual(await readLotteryHistory(tx,other,{...req,organizationId:'old'}),{lotteryError:'ORGANIZATION_NOT_FOUND'});
+const assembled = new Map();
+let page = firstPage;
+let count = 0;
+for (;;) {
+  assert(++count <= 20);
+  assert(JSON.stringify(page).length < 2_000_000);
+  for (const entry of page.entries) {
+    const previous = assembled.get(entry.id) ?? {json:'',complete:false};
+    assert.equal([...previous.json].length,entry.offset);
+    assert.equal(previous.complete,false);
+    assembled.set(entry.id,{json:previous.json+entry.json,complete:entry.complete});
+  }
+  if (!page.next) break;
+  page = await readLotteryHistory(tx,owner,{...req,cursor:page.next});
+}
+assert.deepEqual([...assembled.values()].map(row=>{assert(row.complete);return JSON.parse(row.json);}),savedAudit);
+const searched = await readLotteryHistory(tx,owner,{...req,search:'exact marker 30'});
+assert.deepEqual(searched.entries.map(({id})=>id),['audit-30']);
+const ledger = await readLotteryHistory(tx,owner,{...req,kind:'ledger'});
+assert.equal(JSON.parse(ledger.entries[0].json).amountPaise,'17500');
+await db.exec('update khata_write_controls set enabled=true');
+await config(owner);
+const nextWrite = await rpc({ action:'commit',operationId:'77777777-7777-4777-8777-777777777777',
+  version:compact.version,request:{action:'correction'},result:{saved:true},changes:[
+    {model:ledgerModel,id:'ledger-1',value:{id:'ledger-1',organizationId:'archive',amountPaise:'-17500'}},
+  ] });
+assert.deepEqual(nextWrite,{saved:true});
+assert.deepEqual(await readLotteryHistory(tx,owner,{...req,cursor:firstPage.next}),{lotteryError:'LOTTERY_HISTORY_CHANGED'});
+assert.equal(JSON.parse((await readLotteryHistory(tx,owner,{...req,kind:'ledger'})).entries[0].json).amountPaise,'-17500');
+await db.close();console.log('PASS: legacy preservation, write isolation, bounded history, exact IDs and fragments, tenant isolation and correction invalidation.');

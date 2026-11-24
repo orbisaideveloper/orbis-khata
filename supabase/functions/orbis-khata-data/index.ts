@@ -6,6 +6,8 @@ import {identicalParty} from '../../../src/demo/party-match.ts';
 import {readSharedStatement} from '../../../src/customer-view/read-statement.ts';
 import { runProfiles, type ProfileCommand, type ProfileState } from "../../../src/expense-profiles/model.ts";
 import {runLottery,type LotteryInput} from '../../../src/lottery/service.ts';
+import { compactWorkspace, parseHistoryRequest } from '../../../src/lottery/workspace-history.ts';
+import { loadCompactLottery, readLotteryHistory } from './lottery-workspace-read.ts';
 import postgres from 'npm:postgres@3.4.7';
 import { createCentralVerifier, createKhataGateway } from '../../../src/accounting/server-gateway.ts';
 const env = (key: string) => Deno.env.get(key) ?? '';
@@ -60,6 +62,14 @@ const handler = createKhataGateway({ origins: (env('KHATA_ORIGINS') || 'https://
         if (typeof ledgerOwnerId !== 'string') {
             throw new Error('KHATA_OWNER_RESOLUTION_FAILED');
         }
+        const lotteryRequest = operation.operation === 'lottery' ? operation.input as LotteryInput : null;
+        if (lotteryRequest?.method === 'getWorkspaceHistory') {
+            const history = parseHistoryRequest(lotteryRequest.payload);
+            return history ? readLotteryHistory(tx, ledgerOwnerId, history) : { lotteryError: 'LOTTERY_HISTORY_REQUEST_INVALID' };
+        }
+        const compact = lotteryRequest?.method === 'getWorkspace' && lotteryRequest.payload.view === compactWorkspace;
+        const compactState = compact ? await loadCompactLottery(tx, ledgerOwnerId, lotteryRequest.payload.organizationId) : null;
+        if (compactState?.overBudget) return {lotteryError:'LOTTERY_OPERATIONAL_WORKSPACE_TOO_LARGE'};
         if (operation.operation === 'lottery-seller-recovery') {
             const snapshot = await readSellerRecovery(tx, ledgerOwnerId, operation.input as SellerRecoveryRequest);
             return {version: 1, actor: principal.orbisIdentityId, snapshot};
@@ -111,14 +121,16 @@ const handler = createKhataGateway({ origins: (env('KHATA_ORIGINS') || 'https://
         if(operation.operation==='lottery'){
             const request=input as LotteryInput;
             const load={action:'load',request,...(request.operationId?{operationId:request.operationId}:{})};
-            const rows=await tx `select public.khata_lottery_store_v2(${tx.json(load as postgres.JSONValue)}::jsonb) as data`;
-            const saved=rows[0].data;
+            const saved=compactState ?? (await tx `select public.khata_lottery_store_v2(${tx.json(load as postgres.JSONValue)}::jsonb) as data`)[0].data;
             if(saved.replay)return saved.result;
             let calculated;
             try{calculated=await runLottery(saved.state,request,principal.orbisIdentityId);}catch(error){
                 const code=error&&typeof error==='object'&&'code' in error?String(error.code):'LOTTERY_COMMAND_REJECTED';
                 const currentVersion=error&&typeof error==='object'&&'currentVersion' in error?error.currentVersion:undefined;
                 return {lotteryError:/^[A-Z_]{2,80}$/u.test(code)?code:'LOTTERY_COMMAND_REJECTED',...(Number.isSafeInteger(currentVersion)&&Number(currentVersion)>=0?{currentVersion}:{})};
+            }
+            if (compact && JSON.stringify(calculated.result).length > 1_900_000) {
+                return {lotteryError:'LOTTERY_OPERATIONAL_WORKSPACE_TOO_LARGE'};
             }
             if(!request.operationId&&calculated.changes.length===0)return calculated.result;
             const commit={action:'commit',version:saved.version,changes:calculated.changes,result:calculated.result,request,operationId:request.operationId??crypto.randomUUID()};

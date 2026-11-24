@@ -2526,7 +2526,7 @@ function createLotteryAccountingService({ prisma, now = () => new Date() }) {
   }
 
   async function getWorkspace({ organizationId }, options = {}) {
-    const { materializeRecurringExpenses = true } = options;
+    const { materializeRecurringExpenses = true, includeHistory = true } = options;
     const scopedOrganizationId = requiredText(organizationId, "organizationId");
     const organization =
       await prisma.foundationAccountingOrganization.findFirst({
@@ -2598,14 +2598,14 @@ function createLotteryAccountingService({ prisma, now = () => new Date() }) {
         where: { organizationId: scopedOrganizationId },
         orderBy: { createdAt: "desc" },
       }),
-      prisma.foundationLotteryLedgerEntry.findMany({
+      includeHistory ? prisma.foundationLotteryLedgerEntry.findMany({
         where: { organizationId: scopedOrganizationId },
         orderBy: [{ occurredAt: "desc" }, { lineNumber: "asc" }],
-      }),
-      prisma.foundationLotteryAuditEvent.findMany({
+      }) : [],
+      includeHistory ? prisma.foundationLotteryAuditEvent.findMany({
         where: { organizationId: scopedOrganizationId },
         orderBy: { createdAt: "desc" },
-      }),
+      }) : [],
       prisma.foundationLotteryEntryClearance.findMany({
         where: { organizationId: scopedOrganizationId },
         orderBy: { createdAt: "desc" },

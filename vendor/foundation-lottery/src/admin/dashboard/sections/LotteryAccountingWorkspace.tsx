@@ -14,6 +14,7 @@ import {lotteryLabel} from '../../../../../../src/lottery/copy';
 import {useLotteryLanguage} from '../../../../../../src/lottery/language';
 import {inLanguage} from '../../../../../../src/localize';
 import {workspaceDiagnosticFrom, type WorkspaceDiagnostic} from '../../../../../../src/lottery/workspace-diagnostic';
+import {LotteryWorkspaceHistory} from '../../../../../../src/lottery/LotteryWorkspaceHistory';
 import {LotteryCashDetails} from '../../../../../../src/lottery/LotteryCashDetails';
 import {useTutorial} from '../../../../../../src/tutorial';
 import {lotteryOpening} from '../../../../../../src/lottery/opening-balance';
@@ -1146,6 +1147,8 @@ export function LotteryAccountingWorkspace({
               }}
             />
           )}
+          {tab === "ledger" && workspace.historyView === 'compact-v1' &&
+            <LotteryWorkspaceHistory key={navigationScope} organizationId={organizationId} />}
           {tab === "ai" && <AiPanel workspace={workspace} />}
           {tab === "masters" && (
             <MastersPanel key={organizationId}

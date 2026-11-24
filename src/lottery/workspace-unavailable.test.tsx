@@ -74,7 +74,7 @@ it('discards an earlier organization response after a switch and retains the new
   expect(screen.queryByText('Create your first accounting workspace')).not.toBeInTheDocument();
 });
 
-it.each([330_000, 2_100_000, 3_000_000, 4_000_000])(
+it.each([330_000, 2_100_000, 3_000_000, 4_000_000, 6_000_000])(
   'distinguishes local calculation from the remote response boundary at %i audit characters',
   async auditSize => {
     const { organization, state } = await createOrg('Synthetic capacity');
@@ -91,6 +91,17 @@ it.each([330_000, 2_100_000, 3_000_000, 4_000_000])(
     const request = remote('lottery', { method: 'getWorkspace', payload: { organizationId: organization.id } });
     if (auditSize < 2_000_000) await expect(request).resolves.toMatchObject({ organization: { id: organization.id } });
     else await expect(request).rejects.toThrow('KHATA_DATA_RESPONSE_INVALID');
+    const compact = await runLottery(state, {
+      method: 'getWorkspace', payload: { organizationId: organization.id, view: 'compact-v1' },
+    }, owner, clock);
+    expect(compact.result).toEqual({ ...result.result, historyView: 'compact-v1', auditEvents: [], ledgerEntries: [] });
+    expect(compact.state.foundationLotteryAuditEvent).toContainEqual(auditEvent);
+    expect(compact.changes).toEqual(result.changes);
+    const bounded = createKhataDataClient({
+      url: 'https://khata.example.test/data', token: async () => 'synthetic',
+      fetchImpl: async () => Response.json({ data: compact.result }),
+    });
+    await expect(bounded('lottery', { method: 'getWorkspace' })).resolves.toMatchObject({ historyView: 'compact-v1' });
   },
 );
 
@@ -108,4 +119,10 @@ it('loads a synthetic ₹22 lakh receipt with the exact cash balance', async () 
   expect(result.summary.methodBalances.cashPaise).toBe('220000000');
   expect(result.payments[0].id).toBe(receipt.result.payment.id);
   expect(JSON.stringify(result).length).toBeLessThan(2_000_000);
+  const compact = await runLottery(receipt.state, {
+    method: 'getWorkspace', payload: { organizationId: organization.id, view: 'compact-v1' },
+  }, owner, clock);
+  expect(compact.result).toEqual({...result, historyView:'compact-v1', auditEvents:[], ledgerEntries:[]});
+  expect(compact.state.foundationLotteryLedgerEntry).toEqual(receipt.state.foundationLotteryLedgerEntry);
+  expect(compact.changes).toEqual([]);
 });

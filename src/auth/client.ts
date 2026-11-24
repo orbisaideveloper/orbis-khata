@@ -77,7 +77,8 @@ export function createCentralAccount(options: Parameters<typeof createCustomerSe
       async getSession() {
         try { return { data: { session: await restore() }, error: null } }
         catch (error) {
-          return { data: { session: null }, error: error instanceof RecoveryLinkError ? error : new CentralAccountError('CENTRAL_ACCOUNT_UNAVAILABLE') }
+          const rejected = error instanceof CustomerSessionError && error.code === 'CUSTOMER_LOGIN_REQUIRED'
+          return { data: { session: null }, error: error instanceof RecoveryLinkError || rejected ? error : new CentralAccountError('CENTRAL_ACCOUNT_UNAVAILABLE') }
         }
       },
       async getUser() {

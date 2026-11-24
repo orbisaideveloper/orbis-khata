@@ -300,6 +300,7 @@ interface LotteryCustomerBill {
 }
 
 export interface LotteryWorkspace {
+  historyView?: 'compact-v1';
   organization: LotteryOrganization;
   parties: LotteryParty[];
   periods: LotteryPeriod[];

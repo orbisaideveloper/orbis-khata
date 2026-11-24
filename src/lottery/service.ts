@@ -13,6 +13,7 @@ import {
   type LotteryState,
 } from "./domain-store.ts";
 import { lotteryInput, type LotteryInput } from "./protocol.ts";
+import { compactWorkspace } from './workspace-history.ts';
 export { lotteryInput, type LotteryInput } from "./protocol.ts";
 export async function runLottery(
   state: unknown,
@@ -29,6 +30,11 @@ export async function runLottery(
     prisma: store.client,
     now: clock,
   });
+  if (input.method === 'getWorkspace' && input.payload.view === compactWorkspace) {
+    const workspace = await store.client.$transaction(() =>
+      service.getWorkspace({ organizationId: input.payload.organizationId }, { includeHistory: false }));
+    return { result: { ...workspace, historyView: compactWorkspace }, state: encodeLottery(store.snapshot()), changes: store.changes() };
+  }
   // Original cloud/device preference is honored by the copied local projection.
   const result = await store.client.$transaction(async () => {
     if (

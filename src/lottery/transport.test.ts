@@ -13,9 +13,22 @@ it('routes every inherited form into only the Khata lottery gateway with origina
  for(const [call,method] of calls){await call();expect(bridge.request).toHaveBeenLastCalledWith('lottery',expect.objectContaining({method,payload:expect.any(Object)}));}
  bridge.request.mockResolvedValueOnce([{id:'org'}]);expect(await api.listOrganizations()).toEqual([{id:'org'}]);
  bridge.request.mockResolvedValueOnce({organization:{id:'org'}});expect(await api.loadWorkspace('org')).toEqual({organization:{id:'org'}});
+ expect(bridge.request).toHaveBeenLastCalledWith('lottery',{method:'getWorkspace',payload:{organizationId:'org',view:'compact-v1'}});
  bridge.request.mockResolvedValueOnce({sale:{id:'draft'}});expect(await api.saveDailySellerDraft(payload)).toEqual({id:'draft'});
  bridge.request.mockResolvedValueOnce({payment:{id:'payment'}});expect(await api.recordPayment(payload)).toEqual({id:'payment'});
  bridge.request.mockResolvedValueOnce({calculated:{netPayablePaise:'90200'},ledger:[]});expect(await api.previewSale(payload)).toHaveProperty('calculated.netPayablePaise','90200');
+});
+
+it('distinguishes a transient Central session outage from missing credentials and retries with a recovered session',async()=>{
+ bridge.session.mockResolvedValueOnce({data:{session:null},error:{code:'CENTRAL_ACCOUNT_UNAVAILABLE'}});
+ await expect(api.loadWorkspace('org')).rejects.toMatchObject({code:'LOTTERY_SESSION_UNAVAILABLE'});
+ expect(bridge.request).not.toHaveBeenCalled();
+ bridge.session.mockResolvedValueOnce({data:{session:null},error:{code:'CUSTOMER_LOGIN_REQUIRED'}});
+ await expect(api.loadWorkspace('org')).rejects.toMatchObject({code:'LOTTERY_LOGIN_REQUIRED'});
+ expect(bridge.request).not.toHaveBeenCalled();
+ bridge.request.mockResolvedValueOnce({organization:{id:'org'}});
+ await expect(api.loadWorkspace('org')).resolves.toMatchObject({organization:{id:'org'}});
+ expect(bridge.request).toHaveBeenCalledTimes(1);
 });
 it('persists distinct operation IDs for uncertain retries, including simultaneous different payloads',async()=>{
  bridge.request.mockRejectedValueOnce(Error('offline'));

@@ -1,4 +1,4 @@
-const reads=new Set(['listOrganizations','getWorkspace','previewSale','getVerifiedSummary','analyzeVerifiedAccounting','previewAccountingVoid']);
+const reads=new Set(['listOrganizations','getWorkspace','getWorkspaceHistory','previewSale','getVerifiedSummary','analyzeVerifiedAccounting','previewAccountingVoid']);
 const writes=new Set(['createOrganization','createParty','updatePartyProfile','updateOrganizationTdsRate','updateOrganizationPreferences','updateUserLedgerStorage','createPeriod','createFinancialYearPeriod','recordStockMovement','saveDailyStockistEntry','clearDailyEntries','recordSale','createDailySellerDraft','updateDailySellerDraft','deleteDailySellerDraft','postDailySellerDraft','correctPostedSale','correctAccountingTransaction','voidAccountingTransaction','recordPayment','recordSettlement','createExpenseCategory','updateExpenseCategory','deleteExpenseCategory','createExpenseProfile','updateExpenseProfile','recordExpenseBill','recordExpensePayment','recordCustomerBill']);
 export const isLotteryRead = (method:string) => reads.has(method);
 export type LotteryInput={method:string;payload:Record<string,unknown>;operationId?:string};

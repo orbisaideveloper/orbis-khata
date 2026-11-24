@@ -36,6 +36,17 @@ describe('central-only Khata customer account', () => {
     subscription.data.subscription.unsubscribe()
     expect((await account.auth.getUser()).data.user).toBeNull()
   })
+  it('recovers after a transient refresh outage and surfaces a definitive sign-in requirement separately', async () => {
+    const expiring = { ...response, session: { ...response.session, expiresIn: 1 } }
+    const { account, saved, fetchImpl } = setup([expiring, new Response('', { status: 503 }), response, new Response('', { status: 401 })])
+    await account.auth.signInWithPassword({ email: 'a@example.test', password: 'password' })
+    expect((await account.auth.getSession()).error?.code).toBe('CENTRAL_ACCOUNT_UNAVAILABLE')
+    expect(saved.size).toBe(1)
+    expect((await account.auth.getSession()).data.session?.user.id).toBe(customer.orbisIdentityId)
+    expect(fetchImpl.mock.calls.slice(1, 3).map(([url]) => String(url).split('/').pop())).toEqual(['refresh', 'refresh'])
+    expect((await account.auth.getSession()).error?.code).toBe('CUSTOMER_LOGIN_REQUIRED')
+    expect(saved.size).toBe(0)
+  })
   it('fails closed on rejected login and does not use product Auth recovery', async () => {
     const { account } = setup([new Response('{}', { status: 401 })])
     expect((await account.auth.signInWithPassword({ email: 'a@example.test', password: 'bad' })).error?.code).toBe('invalid_credentials')
