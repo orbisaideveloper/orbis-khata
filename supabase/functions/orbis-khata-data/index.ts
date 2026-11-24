@@ -1,3 +1,5 @@
+import { createLotterySyncHandler } from './lottery-sync.ts';
+import { lockPartySave } from './party-save-lock.ts';
 import { readSellerRecovery } from './seller-recovery-read.ts';
 import type { SellerRecoveryRequest } from '../../../src/lottery/seller-recovery-contract.ts';
 import { exportCompany } from './company-export.ts';
@@ -32,6 +34,14 @@ const verify = createCentralVerifier({
     ...(verificationKey ? { verificationKey } : {}),
 });
 const handler = createKhataGateway({ origins: (env('KHATA_ORIGINS') || 'https://orbis-khata.onrender.com,http://127.0.0.1:5173').split(',').map(value => value.trim()).filter(Boolean), verify,
+    ...(env('KHATA_LOTTERY_SYNC_V2') === 'enabled' ? {
+        lotterySync: createLotterySyncHandler(async work => {
+            const { result } = await sql.begin(async tx => ({
+                result: await work((statement, params = []) => tx.unsafe(statement, params)),
+            }));
+            return result;
+        }),
+    } : {}),
     admit:async principal=>{
         const rows=await sql`select orbis_khata.admit_gateway_request(${principal.orbisIdentityId}::uuid) as decision`;
         const decision=rows[0]?.decision;
@@ -190,7 +200,7 @@ const handler = createKhataGateway({ origins: (env('KHATA_ORIGINS') || 'https://
             return result[0].data;
         }
         if(operation.operation==='party-save'){
-            await tx`select pg_advisory_xact_lock(hashtextextended('master:'||${String(input.company)},0))`;
+            await lockPartySave((statement, parameters) => tx.unsafe(statement, parameters), String(input.company));
             const normalizedName=String(input.name).normalize('NFKC').trim().replace(/\s+/gu,' ').toLocaleLowerCase();
             const parties=await tx`select id,name,phone from public.khata_parties where company_id=${String(input.company)}::uuid and lower(btrim(regexp_replace(normalize(name,NFKC),'[[:space:]]+',' ','g')))=${normalizedName}`;
             const candidate={id:String(input.id),name:String(input.name),phone:String(input.phone??'')};

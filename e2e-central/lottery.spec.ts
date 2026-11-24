@@ -4,7 +4,8 @@ import {runLottery,type LotteryInput} from '../src/lottery/service';
 test('independent lottery creates masters, saves daily formulas, receives split payment and restores after reload',async({page})=>{
  // This scenario now also covers appearance settings and both commission editors.
  test.setTimeout(60000);
- const customer={orbisIdentityId:'11111111-1111-7111-8111-111111111111',displayId:'ORB-U-23456789'};let state:unknown={};const methods:string[]=[];let failNextDraft=false;
+ const customer={orbisIdentityId:'11111111-1111-7111-8111-111111111111',displayId:'ORB-U-23456789'};let state:unknown={};const methods:string[]=[];let failNextDraft=false;let losePaymentAck=false;
+ const paymentOperationIds:string[]=[];
  const shares:Record<string,unknown>[]=[];
  const replies=new Map<string,{request:string;result:unknown}>();
  let requestQueue=Promise.resolve();
@@ -25,6 +26,7 @@ test('independent lottery creates masters, saves daily formulas, receives split 
    await route.fulfill({headers,json:{data:{saved:true}}});return;
   }
   expect(operation).toBe('lottery');const request=input as LotteryInput;methods.push(request.method);
+  if(request.method==='recordPayment'&&request.operationId)paymentOperationIds.push(request.operationId);
   // Match the production owner lock: reads and writes share one transaction queue.
   const previous=requestQueue;let unlock!:()=>void;
   requestQueue=new Promise<void>(resolve=>{unlock=resolve;});await previous;
@@ -36,6 +38,7 @@ test('independent lottery creates masters, saves daily formulas, receives split 
    if(prior){expect(prior.request).toBe(JSON.stringify(input));await route.fulfill({headers,json:{data:prior.result}});return;}
    const answer=await runLottery(state,request,customer.orbisIdentityId,()=>new Date('2026-10-30T10:00:00Z'));state=JSON.parse(JSON.stringify(answer.state));
    if(request.operationId)replies.set(request.operationId,{request:JSON.stringify(input),result:answer.result});
+   if(losePaymentAck&&request.method==='recordPayment'){losePaymentAck=false;await route.abort('failed');return;}
    await route.fulfill({headers,json:{data:answer.result}});
   }catch(error){await route.fulfill({headers,json:{data:{lotteryError:error instanceof Error?error.message:'ERROR'}}});}finally{unlock();}
  });
@@ -65,11 +68,18 @@ test('independent lottery creates masters, saves daily formulas, receives split 
  await expect(page.getByLabel('Payment Cash',{exact:true})).toHaveValue('');
  await page.getByLabel('Payment account type',{exact:true}).selectOption('SELLER');
  await page.getByLabel('Payment Cash',{exact:true}).fill('30');
+ losePaymentAck=true;
+ await page.getByRole('button',{name:/^Receive/}).click();
+ await expect(page.getByText(/LOTTERY UNAVAILABLE/)).toBeVisible();
+ await expect(page.getByLabel('Payment Cash',{exact:true})).toHaveValue('30');
+ await page.evaluate(()=>sessionStorage.clear());
  const confirmed=page.waitForResponse(response=>{if(response.request().method()!=='POST')return false;const body=response.request().postDataJSON();return body?.operation==='lottery'&&body.input?.method==='recordPayment'&&body.input.payload?.totalAmountPaise==='3000';});
  await page.getByRole('button',{name:/^Receive/}).click();
  const receipt=await confirmed;expect(receipt.ok()).toBe(true);expect((await receipt.json()).data.payment.totalAmountPaise).toBe('3000');
  await expect(page.getByLabel('Payment Cash',{exact:true})).toHaveValue('');
- expect(methods.filter(m=>m==='recordPayment')).toHaveLength(2);
+ expect(methods.filter(m=>m==='recordPayment')).toHaveLength(3);
+ expect(paymentOperationIds[1]).toBe(paymentOperationIds[2]);
+ expect(paymentOperationIds[0]).not.toBe(paymentOperationIds[1]);
  await page.reload();await expect(page.getByLabel('Accounting organization')).toContainText('Independent lottery');
  await page.getByLabel('Accounting workspace sections').getByRole('button',{name:'Daily entry',exact:true}).click();await expect(page.getByLabel('Test seller dispatch',{exact:true})).toHaveValue('100');
  const result=await runLottery(state,{method:'getWorkspace',payload:{organizationId:(await runLottery(state,{method:'listOrganizations',payload:{}},customer.orbisIdentityId)).result[0].id}},customer.orbisIdentityId,()=>new Date('2026-10-30T10:00:00Z'));

@@ -4,6 +4,7 @@ import {androidLocalFirst} from '../native-local/route';
 import {isLotteryRead} from './protocol';
 import {workspaceDiagnosticFrom} from './workspace-diagnostic';
 import {compactWorkspace} from './workspace-history';
+import { beginPaymentAttempt, confirmPaymentAttempt } from './payment-attempt';
 async function lotteryOwner() {
  if (androidLocalFirst()) return (await import('../native-local/runtime')).nativeLocalActor();
  const session = await authClient?.auth.getSession();
@@ -52,6 +53,7 @@ function lotteryResponse(method:string,result:unknown){
 function lotteryFailureCode(method: string, error: unknown): string {
  if (error && typeof error === 'object' && 'reason' in error) return String(error.reason);
  if (!(error instanceof Error)) return 'LOTTERY_UNAVAILABLE';
+ if (method === 'recordPayment' && error.message === 'LOTTERY_PAYMENT_STORAGE_UNAVAILABLE') return error.message;
  if (method === 'getWorkspace' &&
   ['KHATA_DATA_RESPONSE_INVALID', 'LOTTERY_WORKSPACE_RESPONSE_INVALID'].includes(error.message)) return error.message;
  if (androidLocalFirst() && /^[A-Z][A-Z0-9_]{2,79}$/u.test(error.message)) return error.message;
@@ -69,17 +71,54 @@ async function lotterySession(): Promise<string | Response> {
  }
 }
 
+function legacyAttempt(key: string, signature: string): string | undefined {
+ const raw=sessionStorage.getItem(key);
+ if (raw === null) return undefined;
+ const pending: unknown = JSON.parse(raw);
+ if (pending && typeof pending === 'object' && 'signature' in pending && pending.signature === signature &&
+     'id' in pending && typeof pending.id === 'string') return pending.id;
+ return undefined;
+}
+
+function confirmedPayment(result: unknown): boolean {
+ if (!result || typeof result !== 'object' || !('payment' in result)) return false;
+ const payment = result.payment;
+ return Boolean(payment && typeof payment === 'object' && 'id' in payment &&
+   typeof payment.id === 'string' && payment.id.length > 0);
+}
+
+async function savePayment(route: Route, actor: string, key: string, signature: string): Promise<Response> {
+ if (typeof indexedDB === 'undefined') throw new Error('LOTTERY_PAYMENT_STORAGE_UNAVAILABLE');
+ const legacyId = legacyAttempt(key, signature);
+ const operationId = await beginPaymentAttempt(indexedDB, key, legacyId);
+ // The durable attempt owns recovery once committed, including an older matching tab attempt.
+ if (legacyId) sessionStorage.removeItem(key);
+ const result = await requestKhata<unknown>('lottery', { ...route, operationId }, actor);
+ const response = lotteryResponse(route.method, result);
+ if (!response.ok) return response;
+ if (!confirmedPayment(result)) return Response.json({error:{code:'LOTTERY_PAYMENT_CONFIRMATION_REQUIRED'}},{status:503});
+ await confirmPaymentAttempt(indexedDB, key, operationId);
+ return response;
+}
+
 export async function lotteryFetch(path:string,init:RequestInit={}):Promise<Response>{
  const route=resolveRoute(path,init);
  const owner=await lotterySession();
  if(typeof owner!=='string')return owner;
- const read=isLotteryRead(route.method);const digest=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(JSON.stringify(route.payload)));const signatureKey=Array.from(new Uint8Array(digest),v=>v.toString(16).padStart(2,'0')).join('');const key='orbis.lottery.pending.v1:'+owner+':'+route.method+':'+signatureKey;
- let operationId:string|undefined;
- if(!read){const signature=JSON.stringify(route.payload);let pending;try{pending=JSON.parse(sessionStorage.getItem(key)??'null');}catch{/* Use a fresh operation if storage is unavailable. */}operationId=pending?.signature===signature?pending.id:crypto.randomUUID();sessionStorage.setItem(key,JSON.stringify({id:operationId,signature}));}
- try{
-  const result=await requestKhata<unknown>('lottery',{...route,...(operationId?{operationId}:{})});
+ try {
+  if (isLotteryRead(route.method)) return lotteryResponse(route.method, await requestKhata<unknown>('lottery', route));
+  const signature=JSON.stringify(route.payload);
+  const digest=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(signature));
+  const fingerprint=Array.from(new Uint8Array(digest),value=>value.toString(16).padStart(2,'0')).join('');
+  const key='orbis.lottery.pending.v1:'+owner+':'+route.method+':'+fingerprint;
+  if(route.method==='recordPayment')return await savePayment(route,owner,key,signature);
+  let operationId: string | undefined;
+  try { operationId=legacyAttempt(key,signature); }catch{/* Keep the existing non-payment path. */}
+  operationId??=crypto.randomUUID();
+  sessionStorage.setItem(key,JSON.stringify({id:operationId,signature}));
+  const result=await requestKhata<unknown>('lottery',{...route,operationId});
   const response=lotteryResponse(route.method,result);
-  if(response.ok&&!read)sessionStorage.removeItem(key);
+  if(response.ok)sessionStorage.removeItem(key);
   return response;
  }catch(error){
   const diagnostic=route.method==='getWorkspace'?workspaceDiagnosticFrom(error):undefined;

@@ -1743,7 +1743,7 @@ function DailyPanel({
             await refreshWorkspace();
             return true;
           }}
-          onSavePayment={async payload=>{await api.recordPayment(payload);await refreshWorkspace();}}
+          onSavePayment={async payload=>{await api.recordPayment(payload);void refreshWorkspace();}}
           onRegisterFlush={registerSellerFlush}
         />
       )}
@@ -2302,9 +2302,12 @@ function PaymentPanel({
   const balances = moneyMethodBalances(workspace, date);
   const expenseContext = expensePaymentContext(workspace, kind, accountId, date);
   const resetAmounts = () => setAmounts(emptyPaymentAmounts());
+  const paymentSubmitting = useRef(false);
 
   const submit = (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
+    if (paymentSubmitting.current) return;
+    paymentSubmitting.current = true;
     void saveUniversalPayment({
       kind,
       accountId,
@@ -2319,7 +2322,7 @@ function PaymentPanel({
       resetAmounts,
       onPaymentRecorded,
       bankChannel,
-    });
+    }).finally(() => { paymentSubmitting.current = false; });
   };
 
   return (

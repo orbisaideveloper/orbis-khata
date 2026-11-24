@@ -534,7 +534,8 @@ const readingOperation=(operation:string,input:unknown):boolean => {
   }
   return false
 }
-export async function nativeLocalRequest<T>(operation:string,input:unknown):Promise<T> {
+export async function nativeLocalRequest<T>(operation:string,input:unknown,expectedActor?:string):Promise<T> {
+  if(expectedActor!==undefined&&assertActive().actor!==expectedActor)throw new Error('ANDROID_LOCAL_ACTOR_CHANGED')
   if (!/^[a-z][a-z0-9-]{0,63}$/u.test(operation)) throw new Error('ANDROID_LOCAL_OPERATION_INVALID')
   if (operation==='lottery') {
     if (!lotteryInput(input)) throw new Error('LOTTERY_INPUT_INVALID')

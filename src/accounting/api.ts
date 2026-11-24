@@ -99,14 +99,15 @@ let liveClient:ReturnType<typeof createKhataDataClient>|undefined;
 let liveUrl='';
 function invalidateKhataReads(){liveClient?.invalidate();}
 if(typeof window!=='undefined'){window.addEventListener('khata-refresh',invalidateKhataReads);}
-export async function requestKhata<T>(operation: string, input: unknown): Promise<T> {
+export async function requestKhata<T>(operation: string, input: unknown, expectedActor?: string): Promise<T> {
     if (androidLocalFirst()) {
         // Android local-first never silently falls back to a remote financial POST.
-        return (await import('../native-local/runtime')).nativeLocalRequest<T>(operation, input);
+        return (await import('../native-local/runtime')).nativeLocalRequest<T>(operation, input, expectedActor);
     }
     if (import.meta.env.DEV && import.meta.env.VITE_KHATA_DEMO === 'true') {
         return (await import('../demo/store')).demoRequest<T>(operation, input);
     }
+    if (expectedActor !== undefined) return (await accountGateway(expectedActor))<T>(operation, input);
     return requestRemoteKhata<T>(operation, input);
 }
 

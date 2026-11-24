@@ -20,11 +20,13 @@ export async function runLottery(
   input: LotteryInput,
   owner: string,
   clock = () => new Date(),
+  allocateId?: (model: string) => string,
 ) {
   if (!lotteryInput(input)) throw new Error("LOTTERY_INPUT_INVALID");
   const store = createLotteryStore(
     decodeLottery(state ?? {}) as LotteryState,
     clock,
+    allocateId,
   );
   const service = createLotteryAccountingService({
     prisma: store.client,
