@@ -3,6 +3,7 @@ import { authClient } from '../auth/client';
 import { androidLocalFirst } from '../native-local/route';
 import type { AccountRecovery } from '../sync/account-recovery';
 import type { Command, Company, Report } from './model';
+import { workspaceDiagnostic, type WorkspaceDiagnostic } from '../lottery/workspace-diagnostic';
 export function createKhataDataClient(options: {
     url: string;
     token: () => Promise<string | null>;
@@ -18,30 +19,61 @@ export function createKhataDataClient(options: {
     async function send<T>(operation:string,input:unknown,token:string):Promise<T>{
         const target = new URL(endpoint.href);
         if(operation==='customer-relay') target.pathname=target.pathname.replace(/\/$/,'')+'/customer-relay';
-        const response = await (options.fetchImpl ?? fetch)(target.href, {
-            method: 'POST', credentials: 'omit', redirect: 'error', cache: 'no-store', signal: AbortSignal.timeout(15000),
-            headers: { 'content-type': 'application/json', authorization: 'Bearer ' + token },
-            body: JSON.stringify({ version: 'orbis.khata.data.v1', operation, input }),
-        });
-        const text = await response.text();
-        if (text.length > 2000000) {
-            throw new Error('KHATA_DATA_RESPONSE_INVALID');
-        }
-        const value = JSON.parse(text) as {
-            data: T;
-            code?: string;
-            reason?: string;
-        };
-        if (!response.ok) {
-            const error = new Error('KHATA_DATA_REQUEST_FAILED') as Error & {
+        const workspace = operation === 'lottery' && (input as {method?: unknown} | null)?.method === 'getWorkspace';
+        const startedAt = Date.now();
+        let stage: WorkspaceDiagnostic['stage'] = 'fetch';
+        let response: Response | undefined;
+        let decodedChars: number | null = null;
+        try {
+            response = await (options.fetchImpl ?? fetch)(target.href, {
+                method: 'POST', credentials: 'omit', redirect: 'error', cache: 'no-store', signal: AbortSignal.timeout(15000),
+                headers: { 'content-type': 'application/json', authorization: 'Bearer ' + token },
+                body: JSON.stringify({ version: 'orbis.khata.data.v1', operation, input }),
+            });
+            stage = 'body';
+            const text = await response.text();
+            decodedChars = text.length;
+            stage = 'size';
+            if (text.length > 2000000) {
+                throw new Error('KHATA_DATA_RESPONSE_INVALID');
+            }
+            stage = 'json';
+            const value = JSON.parse(text) as {
+                data: T;
                 code?: string;
                 reason?: string;
             };
-            error.code = typeof value.code === 'string' ? value.code : undefined;
-            error.reason = typeof value.reason === 'string' ? value.reason : undefined;
-            throw error;
+            if (!response.ok) {
+                stage = 'http';
+                const error = new Error('KHATA_DATA_REQUEST_FAILED') as Error & {
+                    code?: string;
+                    reason?: string;
+                };
+                error.code = typeof value.code === 'string' ? value.code : undefined;
+                error.reason = typeof value.reason === 'string' ? value.reason : undefined;
+                throw error;
+            }
+            if (workspace) {
+                const result = value?.data;
+                if (result && typeof result === 'object' && 'lotteryError' in result) {
+                    stage = 'domain';
+                    const reason = typeof result.lotteryError === 'string' && /^[A-Z_]{2,80}$/u.test(result.lotteryError)
+                        ? result.lotteryError : 'LOTTERY_COMMAND_REJECTED';
+                    throw Object.assign(new Error(reason), { reason });
+                }
+                if (!result || typeof result !== 'object' || !('organization' in result)) {
+                    stage = 'shape';
+                    throw new Error('LOTTERY_WORKSPACE_RESPONSE_INVALID');
+                }
+            }
+            return value.data;
+        } catch (cause) {
+            if (!workspace) throw cause;
+            const error = cause instanceof Error ? cause : new Error('LOTTERY_UNAVAILABLE');
+            if ((stage === 'fetch' || stage === 'body') && cause && typeof cause === 'object' &&
+                'name' in cause && cause.name === 'TimeoutError') stage = 'timeout';
+            throw Object.assign(error, { workspaceDiagnostic: workspaceDiagnostic(startedAt, stage, response, decodedChars) });
         }
-        return value.data;
     }
     async function request<T>(operation:string,input:unknown):Promise<T>{
         const token=await options.token();if(!token){invalidate();previousToken=null;throw new Error('AUTH_REQUIRED');}if(token!==previousToken){invalidate();previousToken=token;}

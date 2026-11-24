@@ -37,3 +37,56 @@ it('uses a dedicated bounded relay route without changing the normal accounting 
  await client('companies',{})
  expect(fetchImpl.mock.calls[1][0]).toBe('https://khata.example.test/functions/v1/orbis-khata-data')
 })
+
+it.each([
+ ['size', () => Response.json({data: 'x'.repeat(2_100_000)})],
+ ['json', () => new Response('private financial text, malformed')],
+ ['http', () => Response.json({reason: 'ORGANIZATION_NOT_FOUND'}, {status: 403})],
+ ['domain', () => Response.json({data: {lotteryError: 'LOTTERY_COMMAND_REJECTED'}})],
+ ['shape', () => Response.json({data: {}})],
+ ['timeout', () => { throw new DOMException('private network detail', 'TimeoutError') }],
+] as const)('reports Lottery workspace %s without exposing response or request data', async (stage, reply) => {
+ const client = createKhataDataClient({
+  url: 'https://khata.example.test/data', token: async () => 'private-token', fetchImpl: async () => reply(),
+ })
+ const error = await client('lottery', {method: 'getWorkspace', payload: {organizationId: 'private-org'}}).catch((cause: unknown) => cause)
+ expect(error).toMatchObject({workspaceDiagnostic: {stage}})
+ const diagnostic = (error as {workspaceDiagnostic: unknown}).workspaceDiagnostic
+ expect(JSON.stringify(diagnostic)).not.toMatch(/private|\.example\.test/u)
+ if (stage === 'size') expect(diagnostic).toMatchObject({status: 200, decodedChars: 2_100_011})
+ if (stage === 'timeout') expect(diagnostic).toMatchObject({status: null, decodedChars: null})
+})
+
+it.each([50_000, 330_000, 2_100_000, 3_000_000, 4_000_000, 6_000_000])(
+ 'keeps gzip transfer bytes distinct from %i decoded audit characters',
+ async size => {
+  const audit = 'x'.repeat(size)
+  const body = JSON.stringify({data: {organization: {id: 'fixture'}, audit}})
+  const stream = (bytes: Uint8Array<ArrayBuffer>) => new ReadableStream({
+   start(controller) {
+    controller.enqueue(bytes)
+    controller.close()
+   },
+  })
+  const gzip = stream(new TextEncoder().encode(body)).pipeThrough(new CompressionStream('gzip'))
+  const compressed = await new Response(gzip).arrayBuffer()
+  const fetchImpl = vi.fn(async () => new Response(
+   stream(new Uint8Array(compressed)).pipeThrough(new DecompressionStream('gzip')),
+   {headers: {'content-encoding': 'gzip', 'content-length': String(compressed.byteLength)}},
+  ))
+  const client = createKhataDataClient({url: 'https://khata.example.test/data', token: async () => 'fixture', fetchImpl})
+  const result = client('lottery', {method: 'getWorkspace', payload: {organizationId: 'fixture'}})
+  expect(compressed.byteLength).toBeLessThan(2_000_000)
+  if (body.length <= 2_000_000) {
+   const workspace = await result
+   expect(workspace).toEqual({organization: {id: 'fixture'}, audit})
+  } else {
+   await expect(result).rejects.toMatchObject({
+    message: 'KHATA_DATA_RESPONSE_INVALID',
+    workspaceDiagnostic: {stage: 'size', status: 200, decodedChars: body.length,
+     contentLength: compressed.byteLength, contentEncoding: 'gzip'},
+   })
+  }
+  expect(fetchImpl).toHaveBeenCalledTimes(1)
+ },
+)

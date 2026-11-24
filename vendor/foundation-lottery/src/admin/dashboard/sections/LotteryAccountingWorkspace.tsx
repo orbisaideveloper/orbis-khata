@@ -13,6 +13,7 @@ import {lotteryDashboardBounds,type LotteryDashboardPeriod} from '../../../../..
 import {lotteryLabel} from '../../../../../../src/lottery/copy';
 import {useLotteryLanguage} from '../../../../../../src/lottery/language';
 import {inLanguage} from '../../../../../../src/localize';
+import {workspaceDiagnosticFrom, type WorkspaceDiagnostic} from '../../../../../../src/lottery/workspace-diagnostic';
 import {LotteryCashDetails} from '../../../../../../src/lottery/LotteryCashDetails';
 import {useTutorial} from '../../../../../../src/tutorial';
 import {lotteryOpening} from '../../../../../../src/lottery/opening-balance';
@@ -593,6 +594,12 @@ interface LotteryAccountingWorkspaceProps {
   localStore?: LotteryAccountingLocalStore | null;
 }
 
+function workspaceReadCode(cause: unknown): string {
+  const code = cause instanceof Error && "code" in cause ? cause.code : cause instanceof Error ? cause.message : null;
+  return typeof code === "string" && /^(?:(?:LOTTERY|KHATA_DATA|ANDROID_LOCAL)_[A-Z0-9_]{1,65}|AUTH_REQUIRED|ORGANIZATION_NOT_FOUND)$/u.test(code)
+    ? code : "LOTTERY_UNAVAILABLE";
+}
+
 export function LotteryAccountingWorkspace({
   api = lotteryAccountingClient,
   dashboardGreeting,
@@ -600,6 +607,7 @@ export function LotteryAccountingWorkspace({
   localScope = { ownerKind: "ADMIN_REAL", ownerId: "admin-current" },
   localStore = getLotteryAccountingLocalStore(),
 }: Readonly<LotteryAccountingWorkspaceProps>) {
+  const language = useLotteryLanguage();
   const recoveringRef = useRef(false);
   const [recoveryEpoch, setRecoveryEpoch] = useState(0);
   const [preferences,setPreferences]=useState<'tds'|'payments'|null>(null);
@@ -612,7 +620,8 @@ export function LotteryAccountingWorkspace({
   const navigationScope = navigationKey("accounting", localScope.ownerKind, localScope.ownerId, organizationId);
   const recoveryScopeRef = useRef(navigationScope);
   recoveryScopeRef.current = navigationScope;
-  const [workspace, setWorkspace] = useState<LotteryWorkspace | null>(null);
+  const [loadedWorkspace, setWorkspace] = useState<LotteryWorkspace | null>(null);
+  const workspace = loadedWorkspace?.organization.id === organizationId ? loadedWorkspace : null;
   const [sellerWorkingRecords, setSellerWorkingRecords] = useState<
     AccountingSellerWorkingRecord[]
   >([]);
@@ -629,7 +638,12 @@ export function LotteryAccountingWorkspace({
   const [working, setWorking] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [listError, setListError] = useState<string | null>(null);
+  const [loadError, setLoadError] = useState<{scope: string; code: string; diagnostic?: WorkspaceDiagnostic} | null>(null);
+  const workspaceFailure = loadError?.scope === navigationScope ? loadError : null;
+  const workspaceError = workspaceFailure?.code;
   const refreshRequestRef = useRef(0);
+  useEffect(() => () => { refreshRequestRef.current += 1; }, []);
   const dailySellerFlushRef = useRef<SellerFlush | null>(null);
   const sellerWorkspaceStaleRef = useRef(false);
   const sellerPersistenceTailRef = useRef<Promise<void>>(Promise.resolve());
@@ -648,6 +662,7 @@ export function LotteryAccountingWorkspace({
 
   const loadOrganizations = useCallback(async () => {
     setLoading(true);
+    setListError(null);
     try {
       const next = await api.listOrganizations();
       setOrganizations(next);
@@ -655,7 +670,7 @@ export function LotteryAccountingWorkspace({
         next.some((item) => item.id === current) ? current : next[0]?.id || "",
       );
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : "Accounting unavailable.");
+      setListError(workspaceReadCode(cause));
     } finally {
       setLoading(false);
     }
@@ -663,7 +678,10 @@ export function LotteryAccountingWorkspace({
 
   const refreshWorkspace = useCallback(
     async (nextId = organizationId) => {
+      const requestScope = navigationKey("accounting", localScope.ownerKind, localScope.ownerId, nextId);
+      if (nextId && recoveryScopeRef.current !== requestScope) return false;
       const requestId = ++refreshRequestRef.current;
+      const currentRequest = () => requestId === refreshRequestRef.current && recoveryScopeRef.current === requestScope;
       if (!nextId) {
         setWorkspace(null);
         setSellerWorkingRecords([]);
@@ -681,7 +699,8 @@ export function LotteryAccountingWorkspace({
           api.loadWorkspace(nextId),
           loadSellerWorkingRows(localStore, scope),
         ]);
-        if (requestId === refreshRequestRef.current) {
+        if (currentRequest()) {
+          if (nextWorkspace.organization.id !== nextId) throw new Error("LOTTERY_WORKSPACE_SCOPE_MISMATCH");
           const devicePrimary =
             nextWorkspace.organization.userLedgerStorage === "DEVICE";
           const activeLocalRows = localRows.records.filter((record) => !sellerWorkingRecordVoided(nextWorkspace, record));
@@ -692,6 +711,7 @@ export function LotteryAccountingWorkspace({
                   !sellerWorkingRecordConfirmed(nextWorkspace, record),
               );
           setWorkspace(nextWorkspace);
+          setLoadError(null);
           setSellerWorkingRecords(retainedRecords);
           setLocalStoreWarning(
             localRows.failed
@@ -705,7 +725,7 @@ export function LotteryAccountingWorkspace({
               nextWorkspace,
               localRows.records,
               () => {
-                if (requestId === refreshRequestRef.current) {
+                if (currentRequest()) {
                   setLocalStoreWarning(
                     "A synced local recovery record could not be cleared yet.",
                   );
@@ -715,11 +735,9 @@ export function LotteryAccountingWorkspace({
             );
           }
         }
-        return requestId === refreshRequestRef.current;
+        return currentRequest();
       } catch (cause) {
-        if (requestId === refreshRequestRef.current) {
-          setError(cause instanceof Error ? cause.message : "Accounting unavailable.");
-        }
+        if (currentRequest()) setLoadError({scope: requestScope, code: workspaceReadCode(cause), diagnostic: workspaceDiagnosticFrom(cause)});
         return false;
       } finally {
         if (requestId === refreshRequestRef.current) setRefreshing(false);
@@ -825,7 +843,7 @@ export function LotteryAccountingWorkspace({
   const applyRecordedPayment = useCallback(
     (payment: LotteryRecordedPayment) => {
       setWorkspace((current) => {
-        if (!current) return current;
+        if (!current || current.organization.id !== organizationId) return current;
         const partyName =
           current.parties.find((party) => party.id === payment.partyId)?.name ||
           "Unknown party";
@@ -849,7 +867,7 @@ export function LotteryAccountingWorkspace({
         };
       });
     },
-    [],
+    [organizationId],
   );
 
   const updateSellerWorkingRecord = useCallback<SellerLocalStateChange>(
@@ -924,7 +942,7 @@ export function LotteryAccountingWorkspace({
     }
   };
 
-  if (loading || (Boolean(organizationId) && !workspace && !error)) {
+  if (loading || (organizationId && !loadedWorkspace && !workspaceError && !listError)) {
     return (
       <SectionCard title="Lottery Accounting">
         <p className="flex items-center gap-2 text-xs text-slate-500">
@@ -948,14 +966,14 @@ export function LotteryAccountingWorkspace({
             }}
             className={`${CONTROL} flex-1`}
           >
-            <option value="">Create organization</option>
+            <option value="" disabled={Boolean(listError || workspaceError)}>Create organization</option>
             {organizations.map((item) => (
               <option key={item.id} value={item.id}>
                 {item.name}
               </option>
             ))}
           </select>
-          <LotterySyncDetails key={navigationScope} label={localSyncLabel} records={sellerWorkingRecords} workspace={workspace} warning={localStoreWarning}
+          {workspace && !workspaceError && !listError && <LotterySyncDetails key={navigationScope} label={localSyncLabel} records={sellerWorkingRecords} workspace={workspace} warning={localStoreWarning}
             onRecover={localScope.ownerKind === "PUBLIC_USER" && workspace?.organization.userLedgerStorage === "CLOUD" && localStore?.resolveSellerRecovery ? async (record, mode, reviewed) => {
               if (recoveringRef.current) throw new Error("RECOVERY_BUSY");
               recoveringRef.current = true;
@@ -987,7 +1005,7 @@ export function LotteryAccountingWorkspace({
               setDailyMode("SELLER");
               selectWorkspaceTab("daily");
               return true;
-            }}/>
+            }}/>}
           <button
             type="button"
             aria-label="Refresh accounting workspace"
@@ -1010,7 +1028,26 @@ export function LotteryAccountingWorkspace({
         onSelect={(nextTab) => void selectWorkspaceTab(nextTab)}
       />
 
-      {!workspace ? (
+      {listError || workspaceError ? (
+        <SectionCard title={inLanguage(language, "লটারির হিসাব খোলা যায়নি", "लॉटरी का हिसाब नहीं खुल सका", "Could not load Lottery Accounting")}>
+          <p role="alert" className="text-sm text-slate-700">
+            {inLanguage(language, "আবার চেষ্টা করুন।", "फिर से कोशिश करें।", "Please try again.")}
+            {" "}<code>{listError ?? workspaceError}</code>
+          </p>
+          {!listError && workspaceFailure?.diagnostic && (
+            <details>
+              <summary>{inLanguage(language, "সমস্যার তথ্য", "समस्या की जानकारी", "Diagnostic details")}</summary>
+              <pre className="whitespace-pre-wrap break-all text-xs">{JSON.stringify(workspaceFailure.diagnostic, null, 2)}</pre>
+            </details>
+          )}
+          <button type="button" className={CONTROL} disabled={refreshing}
+            onClick={() => void (listError ? loadOrganizations() : refreshWorkspace())}>
+            {inLanguage(language, "আবার চেষ্টা করুন", "फिर से कोशिश करें", "Retry")}
+          </button>
+        </SectionCard>
+      ) : organizationId && !workspace ? (
+        <p role="status">{inLanguage(language, "হিসাব লোড হচ্ছে…", "हिसाब लोड हो रहा है…", "Loading accounting…")}</p>
+      ) : !workspace ? (
         <MastersPanel key={organizationId}
           workspace={null}
           organizationId=""

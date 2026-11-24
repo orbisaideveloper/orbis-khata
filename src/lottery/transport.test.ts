@@ -36,4 +36,15 @@ it('rejects non-JSON request bodies before accessing the gateway',async()=>{
  expect(bridge.request).not.toHaveBeenCalled();
 });
 
+it('keeps the known workspace size diagnostic and conceals unexpected error details',async()=>{
+ bridge.request.mockRejectedValueOnce(Object.assign(new Error('KHATA_DATA_RESPONSE_INVALID'), {
+  workspaceDiagnostic:{startedAt:'2026-11-24T07:43:00.000Z',stage:'size',status:200,decodedChars:2200000,token:'never copy'},
+ }));
+ const failure=await api.loadWorkspace('org').catch((cause:unknown)=>cause);
+ expect(failure).toMatchObject({code:'KHATA_DATA_RESPONSE_INVALID',workspaceDiagnostic:{stage:'size',status:200,decodedChars:2200000}});
+ expect(JSON.stringify(failure)).not.toContain('never copy');
+ bridge.request.mockRejectedValueOnce(new Error('internal details'));
+ await expect(api.loadWorkspace('org')).rejects.toMatchObject({code:'LOTTERY_UNAVAILABLE'});
+});
+
 it('returns the server-created party identity for a master invitation without a second account lookup',async()=>{bridge.request.mockResolvedValueOnce({id:'created-party'});expect(await api.createParty({name:'New seller'})).toEqual({id:'created-party'});});

@@ -2,6 +2,7 @@ import {requestKhata} from '../accounting/api';
 import {authClient} from '../auth/client';
 import {androidLocalFirst} from '../native-local/route';
 import {isLotteryRead} from './protocol';
+import {workspaceDiagnosticFrom} from './workspace-diagnostic';
 async function lotteryOwner() {
  if (androidLocalFirst()) return (await import('../native-local/runtime')).nativeLocalActor();
  return (await authClient?.auth.getSession())?.data.session?.user.id;
@@ -56,7 +57,10 @@ export async function lotteryFetch(path:string,init:RequestInit={}):Promise<Resp
  }catch(error){
   let reason='LOTTERY_UNAVAILABLE';
   if(error&&typeof error==='object'&&'reason' in error) reason=String(error.reason);
+  else if(route.method==='getWorkspace' && error instanceof Error &&
+    ['KHATA_DATA_RESPONSE_INVALID','LOTTERY_WORKSPACE_RESPONSE_INVALID'].includes(error.message)) reason=error.message;
   else if(androidLocalFirst() && error instanceof Error && /^[A-Z][A-Z0-9_]{2,79}$/u.test(error.message)) reason=error.message;
-  return Response.json({error:{code:reason}},{status:422});
+  const diagnostic=route.method==='getWorkspace'?workspaceDiagnosticFrom(error):undefined;
+  return Response.json({error:{code:reason,diagnostic}},{status:422});
  }
 }

@@ -38,6 +38,7 @@ export default function LotteryPage({
       </header>
       <LotteryLanguage.Provider value={language}>
         <LotteryAccountingWorkspace
+          key={owner}
           localScope={{ ownerKind: "PUBLIC_USER", ownerId: owner }}
         />
       </LotteryLanguage.Provider>

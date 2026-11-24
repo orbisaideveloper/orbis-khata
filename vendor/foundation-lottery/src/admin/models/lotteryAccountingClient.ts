@@ -1,4 +1,5 @@
 import { authenticatedAdminFetch } from "../auth/adminFetch";
+import { readWorkspaceDiagnostic, type WorkspaceDiagnostic } from "../../../../../src/lottery/workspace-diagnostic";
 import type {
   LotteryDailySellerDraftIdentity,
   LotteryDailyStockistEntryIdentity,
@@ -19,12 +20,14 @@ export type LotteryRecordedPayment = Omit<
 class LotteryAccountingRequestError extends Error {
   readonly code: string;
   readonly currentVersion?: number;
+  readonly workspaceDiagnostic?: WorkspaceDiagnostic;
 
-  constructor(code: string, currentVersion?: number) {
+  constructor(code: string, currentVersion?: number, workspaceDiagnostic?: WorkspaceDiagnostic) {
     super(code.replace(/_/g, " "));
     this.name = "LotteryAccountingRequestError";
     this.code = code;
     this.currentVersion = currentVersion;
+    this.workspaceDiagnostic = workspaceDiagnostic;
   }
 }
 
@@ -67,7 +70,10 @@ async function readLotteryResponse<T>(
       body.error.currentVersion >= 0
         ? body.error.currentVersion
         : undefined;
-    throw new LotteryAccountingRequestError(code, currentVersion);
+    const errorDetails = typeof body === "object" && body !== null && "error" in body ? body.error : null;
+    const diagnostic = path.startsWith("/workspace?") && typeof errorDetails === "object" &&
+      errorDetails !== null && "diagnostic" in errorDetails ? readWorkspaceDiagnostic(errorDetails.diagnostic) : undefined;
+    throw new LotteryAccountingRequestError(code, currentVersion, diagnostic);
   }
   return body as T;
 }
