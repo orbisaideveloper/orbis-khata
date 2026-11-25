@@ -1,7 +1,7 @@
 import type { SqlitePort } from '../local-db/sqlite-repository'
 import type { NativeRecordCodec } from '../offline-integration/native-transactional-sync-store'
 import type { LocalFeedCodec, LocalFeedStorage } from './local-feed'
-import { forEachInOrder } from './ordered-work'
+import { forEachInOrder } from './ordered-work.ts'
 
 const STORE = 'grouped-feed-v2'
 type Row = { id: string; sealed: string }
