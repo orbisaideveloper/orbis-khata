@@ -6,11 +6,6 @@ import { liveAuthenticatedExecutableFunctions, liveBackendFunctionCoverage, live
   liveScheduledJobCoverage, gatewayDirectTableWrites } from './phase2a-coverage.ts'
 
 export type EvidenceStatus = 'verified' | 'candidate' | 'blocked'
-export type EvidenceGate = Readonly<{
-  status: EvidenceStatus
-  reason: string
-  requiredProof: string
-}>
 
 /** Exact LIVE authenticated RPC surface, 2026-11-25 read-only ACL recheck.
  * VERIFIED below means only that a particular boundary's native fixture passed;
