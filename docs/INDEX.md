@@ -30,6 +30,7 @@ Customer statement delivery review candidate: [Android/web statement relay](CUST
 | Current implementation checkpoint, older work history | [Project Status](PROJECT_STATUS.md), latest dated entry |
 | Owner decisions, supersession and historical intent | [Decision Log](DECISIONS.md) |
 | Product/API/tenant model | [Architecture](ARCHITECTURE.md), [Accounting Policy](ACCOUNTING_POLICY.md), [Accounting V1](ACCOUNTING_V1.md) |
+| Unified Sync v2 Phase 2A current writer/identity mapping | [Phase 2A source-backed acceptance inventory](UNIFIED_SYNC_V2_PHASE2A_ACCEPTANCE.md), [Writer Register](UNIFIED_SYNC_V2_WRITERS.md) |
 | Requirements, MVP and long-range plans | [Product Blueprint](PRODUCT_BLUEPRINT.md), [MVP Specification](MVP_SPECIFICATION.md) |
 | Central identity/auth | [Auth Setup](AUTH_SETUP.md), [Central Account](CENTRAL-ACCOUNT.md) |
 | SQL and tenant safety | [Concurrency Test](CONCURRENCY_TEST.md), [Phase 2 Security](PHASE2_SECURITY_CHANGES.md), `supabase/migrations/` |

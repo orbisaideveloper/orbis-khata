@@ -1,6 +1,8 @@
 # Unified Sync v2 writer integration register
 
 Frozen contract: <https://docs.google.com/document/d/1rp84i2Cw3AJKvbBAuYL6G8pebelqrdckR2SBwElC33g/edit>.
+
+**Phase 2A source-backed complete current-route catalog and read-only LIVE metadata:** [Phase 2A Acceptance & Identity/Writer Matrix](UNIFIED_SYNC_V2_PHASE2A_ACCEPTANCE.md), validated by `tests/sync-v2/phase2a-coverage.test.ts`. This documents ingress and release blockers; it does not mean 2B/2E runtime adapters or production Sync are ready. Earlier chronological sections below remain historical.
 Recovered baseline: `ef05e137876b5552978b4bb8f8bc8112eaf87505`.
 Integration baseline: GitHub main `4f297dcc3f8069cc733fb6f839200129337b1f49`.
 Entries below identify integration boundaries. Each still requires an end-to-end test against its real domain writer.
