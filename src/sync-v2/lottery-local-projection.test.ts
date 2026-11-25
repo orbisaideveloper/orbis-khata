@@ -50,3 +50,28 @@ it('preserves ordinary request failures and rejects an out-of-scope fallback fra
     action: 'snapshot-part', organization: 'org', offset: 0,
   }))
 })
+
+
+it('rejects duplicate model/ID rows across pages before installing the snapshot', async () => {
+  const install = vi.fn()
+  const duplicate = { ...row, ordinal: '2', projectionJson: JSON.stringify({ id: 'entry', organizationId: 'org', amount: '200' }) }
+  const read = vi.fn()
+    .mockResolvedValueOnce(page)
+    .mockResolvedValueOnce({ ...page, after: '1', next: '2', done: true, rows: [duplicate] })
+  await expect(bootstrapLotteryProjection('org', 'v1', read, install))
+    .rejects.toThrow('SYNC_LOTTERY_SNAPSHOT_INVALID')
+  expect(install).not.toHaveBeenCalled()
+})
+
+it('allows the same row ID in distinct models and installs only after all pages validate', async () => {
+  const install = vi.fn()
+  const differentModel = { ...row, model: 'foundationLotteryPayment', ordinal: '2' }
+  const read = vi.fn()
+    .mockResolvedValueOnce(page)
+    .mockResolvedValueOnce({ ...page, after: '1', next: '2', done: true, rows: [differentModel] })
+  await bootstrapLotteryProjection('org', 'v1', read, install)
+  expect(install).toHaveBeenCalledOnce()
+  expect(install).toHaveBeenCalledWith({ epoch: 'v1', sequence: '5' },
+    expect.arrayContaining([expect.objectContaining({ collection: row.model, id: row.id }),
+      expect.objectContaining({ collection: differentModel.model, id: row.id })]))
+})

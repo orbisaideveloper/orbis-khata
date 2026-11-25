@@ -66,3 +66,27 @@ it('does not send a proof when storage fails or a winning marker cannot be recov
   await expect(pair(ticket)).rejects.toThrow('SYNC_PAIRING_STATE_MISSING')
   expect(request).not.toHaveBeenCalled()
 })
+
+
+it('never rebinds a previously sealed device proof to a different scope or registration', async () => {
+  const sealed = JSON.stringify({ credential, registration })
+  const storage: LocalFeedStorage = { read: vi.fn().mockResolvedValue(sealed), commit: vi.fn() }
+  const request = vi.fn().mockResolvedValueOnce({ ...registration, scope: { ...registration.scope, id: 'other-company' } })
+    .mockResolvedValueOnce({ ...registration, registration: 'another-device' })
+    .mockResolvedValueOnce({ ...registration, scope: { ...registration.scope, epoch: 'v2' } })
+  const pair = createDevicePairing('actor', 'web', storage, codec, request)
+  for (let attempt = 0; attempt < 3; attempt++) {
+    await expect(pair(ticket)).rejects.toThrow('SYNC_PAIRING_BINDING_INVALID')
+  }
+  expect(storage.commit).not.toHaveBeenCalled()
+})
+
+it('allows refreshed write permission and expiry with the same trusted binding', async () => {
+  const sealed = JSON.stringify({ credential, registration })
+  const storage: LocalFeedStorage = { read: vi.fn().mockResolvedValue(sealed), commit: vi.fn() }
+  const changed = { ...registration, canWrite: false, expiresAt: '2099-12-31T00:00:00Z' }
+  const request = vi.fn().mockResolvedValue(changed)
+  await expect(createDevicePairing('actor', 'web', storage, codec, request)(ticket))
+    .resolves.toEqual({ ...changed, credential })
+  expect(storage.commit).not.toHaveBeenCalled()
+})

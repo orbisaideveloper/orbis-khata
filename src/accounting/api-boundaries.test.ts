@@ -60,3 +60,74 @@ it('reads cloud companies with the matching ORBIS session only', async () => {
     vi.doUnmock('../auth/client')
   }
 })
+
+it('routes enrolled Sync v2 over the verified online Central session even on Android local-first', async () => {
+  vi.resetModules()
+  vi.stubEnv('VITE_KHATA_DATA_URL', 'https://data.example/khata')
+  vi.doMock('../native-local/route', () => ({ androidLocalFirst: () => true }))
+  const getSession = vi.fn().mockResolvedValue({ data: { session: { user: { id: 'actor' }, access_token: 'verified.central.token' } } })
+  vi.doMock('../auth/client', () => ({ authClient: { auth: { getSession } } }))
+  const fetcher = vi.fn().mockResolvedValue(Response.json({ data: { from: '0', next: '1', groups: [] } }))
+  vi.stubGlobal('fetch', fetcher)
+  try {
+    const api = await import('./api')
+    await expect(api.requestOnlineLotterySync('wrong-actor', { action: 'feed' })).rejects.toThrow('AUTH_REQUIRED')
+    expect(fetcher).not.toHaveBeenCalled()
+    const input = { action: 'feed', organization: 'org', epoch: 'v1', registration: 'device', credential: 'private-proof', cursor: '0', limit: 250 }
+    await expect(api.requestOnlineLotterySync('actor', input)).resolves.toMatchObject({ from: '0', next: '1' })
+    expect(fetcher).toHaveBeenCalledTimes(1)
+    expect(fetcher.mock.calls[0][1]).toMatchObject({ headers: { authorization: 'Bearer verified.central.token' } })
+    expect(JSON.parse(fetcher.mock.calls[0][1].body)).toEqual({ version: 'orbis.khata.data.v1', operation: 'lottery-sync', input })
+    expect(fetcher.mock.calls[0][0]).toBe('https://data.example/khata')
+  } finally {
+    vi.doUnmock('../native-local/route')
+    vi.doUnmock('../auth/client')
+  }
+})
+
+it('refuses unsupported v2 requests and offline/unverified identity without local fallback', async () => {
+  vi.resetModules()
+  vi.stubEnv('VITE_KHATA_DATA_URL', 'https://data.example/khata')
+  vi.doMock('../native-local/route', () => ({ androidLocalFirst: () => true }))
+  const getSession = vi.fn().mockResolvedValue({ data: { session: null } })
+  vi.doMock('../auth/client', () => ({ authClient: { auth: { getSession } } }))
+  const fetcher = vi.fn()
+  vi.stubGlobal('fetch', fetcher)
+  try {
+    const api = await import('./api')
+    await expect(api.requestOnlineLotterySync('actor', { action: 'unknown-financial-post' }))
+      .rejects.toThrow('SYNC_ACTION_UNSUPPORTED')
+    await expect(api.requestOnlineLotterySync('actor', { action: 'payment' })).rejects.toThrow('AUTH_REQUIRED')
+    expect(fetcher).not.toHaveBeenCalled()
+  } finally {
+    vi.doUnmock('../native-local/route')
+    vi.doUnmock('../auth/client')
+  }
+})
+
+it('connects the existing Lottery v2 transport to the verified online gateway without using legacy lottery posting', async () => {
+  vi.resetModules()
+  vi.stubEnv('VITE_KHATA_DATA_URL', 'https://data.example/khata')
+  vi.doMock('../native-local/route', () => ({ androidLocalFirst: () => true }))
+  const getSession = vi.fn().mockResolvedValue({ data: { session: { user: { id: 'actor' }, access_token: 'bound.token' } } })
+  vi.doMock('../auth/client', () => ({ authClient: { auth: { getSession } } }))
+  const response = { scopeKind: 'lottery-organization', scopeId: 'org', epoch: 'v1', from: '0', next: '1', groups: [] }
+  const fetcher = vi.fn().mockResolvedValue(Response.json({ data: response }))
+  vi.stubGlobal('fetch', fetcher)
+  try {
+    const { requestOnlineLotterySync } = await import('./api')
+    const { createLotteryPaymentTransport } = await import('../sync-v2/lottery-payment-outbox')
+    const binding = { scope: { kind: 'lottery-organization' as const, id: 'org', epoch: 'v1' }, registration: 'reg', credential: 'private-proof' }
+    const transport = createLotteryPaymentTransport(
+      <T>(_operation: string, input: unknown) => requestOnlineLotterySync<T>('actor', input), binding)
+    expect(await transport.feed('0')).toEqual(response)
+    const payload = JSON.parse(fetcher.mock.calls[0][1].body)
+    expect(payload).toEqual({ version: 'orbis.khata.data.v1', operation: 'lottery-sync', input: {
+      action: 'feed', credential: 'private-proof', organization: 'org', epoch: 'v1', registration: 'reg', cursor: '0', limit: 250,
+    } })
+    expect(fetcher).toHaveBeenCalledTimes(1)
+  } finally {
+    vi.doUnmock('../native-local/route')
+    vi.doUnmock('../auth/client')
+  }
+})

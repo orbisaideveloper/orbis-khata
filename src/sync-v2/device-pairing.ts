@@ -52,6 +52,15 @@ export function createDevicePairing(
         typeof registration.canWrite !== 'boolean' || !Number.isFinite(expiry) || expiry <= Date.now()) {
       throw new Error('SYNC_PAIRING_BINDING_INVALID')
     }
+    // The proof belongs to one immutable device/scope/epoch. Never silently
+    // switch financial books after a retry or a changed server response.
+    const saved = state.registration
+    if (saved && (saved.actor !== registration.actor || saved.client !== registration.client ||
+        saved.registration !== registration.registration || saved.scope?.kind !== registration.scope.kind ||
+        saved.scope.id !== registration.scope.id || saved.scope.epoch !== registration.scope.epoch)) {
+      throw new Error('SYNC_PAIRING_BINDING_INVALID')
+    }
+    // Write permission and expiry are server-current, not immutable identity.
     // No ticket or clear proof in account metadata. Same-proof concurrent retry is harmless.
     if (!state.registration) {
       const sealed = await codec.seal(JSON.stringify({ ...state, registration }), context)

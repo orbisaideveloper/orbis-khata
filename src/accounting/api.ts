@@ -131,6 +131,21 @@ async function accountGateway(actor: string) {
     return createKhataDataClient({ url, token: async () => verified.access_token });
 }
 
+/**
+ * Sync v2 always uses a fresh authenticated Central online session, including
+ * on Android. The normal accounting requestKhata() intentionally resolves to
+ * device-local SQLCipher on Android and must never be used for v2 transport.
+ * This boundary does not enroll a device or authorize a server write by itself.
+ */
+export async function requestOnlineLotterySync<T>(actor: string, input: unknown): Promise<T> {
+    const action = input && typeof input === 'object' && !Array.isArray(input) && 'action' in input
+        ? input.action : undefined;
+    if (typeof action !== 'string' || ![
+        'pair-device', 'payment', 'feed', 'snapshot', 'snapshot-part', 'recover-group',
+    ].includes(action)) throw new Error('SYNC_ACTION_UNSUPPORTED');
+    return (await accountGateway(actor))<T>('lottery-sync', input);
+}
+
 export async function requestOnlineCustomerView<T>(actor: string, command: ShareCommand): Promise<T> {
     if (!['list', 'statement', 'accept', 'decline'].includes(command.action)) {
         throw new Error('KHATA_CUSTOMER_ACTION_INVALID');

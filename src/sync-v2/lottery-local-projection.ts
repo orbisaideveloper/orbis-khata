@@ -48,6 +48,9 @@ export async function bootstrapLotteryProjection(
   let after = '0'
   let head: string | null = null
   const records: ProjectionChange[] = []
+  // An initial snapshot represents current rows, not a change history.
+  // Repeated model/ID entries could replay an old value or hide a duplicate row.
+  const seen = new Set<string>()
   let bytes = 0
   const encoder = new TextEncoder()
   async function* pages() {
@@ -59,6 +62,9 @@ export async function bootstrapLotteryProjection(
     let ordinal = BigInt(after)
     for (const input of page.rows) {
       const record = lotteryLocalRow(organization, input)
+      const identity = JSON.stringify([record.collection, record.id])
+      if (seen.has(identity)) throw new Error('SYNC_LOTTERY_SNAPSHOT_INVALID')
+      seen.add(identity)
       const row = record.value as { ordinal?: string } | null
       if (!row?.ordinal || BigInt(row.ordinal) <= ordinal) throw new Error('SYNC_LOTTERY_SNAPSHOT_INVALID')
       ordinal = BigInt(row.ordinal)
