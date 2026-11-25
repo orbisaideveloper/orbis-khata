@@ -38,6 +38,29 @@ function readSnapshotPage(raw: unknown, organization: string, epoch: string, cur
   return { highWater: page.highWater, next: page.next, done: page.done, rows: page.rows as readonly Json[] }
 }
 
+type LotterySnapshotRows = { records: ProjectionChange[]; seen: Set<string>; bytes: number }
+
+/** Keep validation and limits inside one incremental, fail-closed snapshot accumulator. */
+function appendSnapshotRows(
+  organization: string, rows: readonly Json[], after: string,
+  snapshot: LotterySnapshotRows, encoder: TextEncoder,
+) {
+  let ordinal = BigInt(after)
+  for (const input of rows) {
+    const record = lotteryLocalRow(organization, input)
+    const identity = JSON.stringify([record.collection, record.id])
+    if (snapshot.seen.has(identity)) throw new Error('SYNC_LOTTERY_SNAPSHOT_INVALID')
+    snapshot.seen.add(identity)
+    const row = record.value as { ordinal?: string } | null
+    if (!row?.ordinal || BigInt(row.ordinal) <= ordinal) throw new Error('SYNC_LOTTERY_SNAPSHOT_INVALID')
+    ordinal = BigInt(row.ordinal)
+    snapshot.records.push(record)
+    snapshot.bytes += encoder.encode(JSON.stringify(record)).byteLength
+    if (snapshot.records.length > 16000 || snapshot.bytes > 16_777_216) throw new Error('SYNC_LOTTERY_SNAPSHOT_LIMIT')
+  }
+  return ordinal
+}
+
 /** Install only a complete snapshot. A stale or interrupted page leaves existing data in place. */
 export async function bootstrapLotteryProjection(
   organization: string,
@@ -47,11 +70,9 @@ export async function bootstrapLotteryProjection(
 ) {
   let after = '0'
   let head: string | null = null
-  const records: ProjectionChange[] = []
   // An initial snapshot represents current rows, not a change history.
-  // Repeated model/ID entries could replay an old value or hide a duplicate row.
-  const seen = new Set<string>()
-  let bytes = 0
+  // The accumulator rejects duplicate model/ID pairs before installation.
+  const snapshot: LotterySnapshotRows = { records: [], seen: new Set<string>(), bytes: 0 }
   const encoder = new TextEncoder()
   async function* pages() {
     for (let index = 0; index < 16000; index++) yield readPage({ after, head })
@@ -59,21 +80,9 @@ export async function bootstrapLotteryProjection(
   for await (const raw of pages()) {
     const page = readSnapshotPage(raw, organization, epoch, { after, head })
     head = page.highWater
-    let ordinal = BigInt(after)
-    for (const input of page.rows) {
-      const record = lotteryLocalRow(organization, input)
-      const identity = JSON.stringify([record.collection, record.id])
-      if (seen.has(identity)) throw new Error('SYNC_LOTTERY_SNAPSHOT_INVALID')
-      seen.add(identity)
-      const row = record.value as { ordinal?: string } | null
-      if (!row?.ordinal || BigInt(row.ordinal) <= ordinal) throw new Error('SYNC_LOTTERY_SNAPSHOT_INVALID')
-      ordinal = BigInt(row.ordinal)
-      records.push(record)
-      bytes += encoder.encode(JSON.stringify(record)).byteLength
-      if (records.length > 16000 || bytes > 16_777_216) throw new Error('SYNC_LOTTERY_SNAPSHOT_LIMIT')
-    }
+    const ordinal = appendSnapshotRows(organization, page.rows, after, snapshot, encoder)
     if (String(ordinal) !== page.next || (!page.done && page.next === after)) throw new Error('SYNC_LOTTERY_SNAPSHOT_INVALID')
-    if (page.done) return install({ epoch, sequence: head }, records)
+    if (page.done) return install({ epoch, sequence: head }, snapshot.records)
     after = page.next
   }
   throw new Error('SYNC_LOTTERY_SNAPSHOT_LIMIT')
