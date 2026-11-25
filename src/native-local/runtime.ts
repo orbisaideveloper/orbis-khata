@@ -605,18 +605,17 @@ async function applyNativeLotteryV2Page(
 async function catchUpNativeLotteryFeed(
   conn: SqlitePort, actor: string, binding: NativeLotteryBinding,
   local: ReturnType<typeof createLocalFeed>, transport: ReturnType<typeof createLotteryPaymentTransport>,
-) {
-  // A bounded catch-up budget prevents indefinite delay of local accounting.
-  // Incomplete catch-up is an error, never reported as success.
-  for (let pageCount = 0; pageCount < 8; pageCount++) {
-    const cursor = await local.cursor()
-    if (!cursor) throw new Error('SYNC_LOCAL_SNAPSHOT_REQUIRED')
-    const page = await transport.feed(cursor.sequence)
-    if (page.from !== cursor.sequence) throw new Error('SYNC_FEED_SCOPE_OR_CURSOR')
-    if (page.next === page.from) return
-    await applyNativeLotteryV2Page(conn, actor, binding, page)
-  }
-  throw new Error('SYNC_FEED_CATCHUP_INCOMPLETE')
+  pageCount = 0,
+): Promise<void> {
+  // Preserve sequential cursor progression: concurrent feed pages can overwrite finance.
+  if (pageCount >= 8) throw new Error('SYNC_FEED_CATCHUP_INCOMPLETE')
+  const cursor = await local.cursor()
+  if (!cursor) throw new Error('SYNC_LOCAL_SNAPSHOT_REQUIRED')
+  const page = await transport.feed(cursor.sequence)
+  if (page.from !== cursor.sequence) throw new Error('SYNC_FEED_SCOPE_OR_CURSOR')
+  if (page.next === page.from) return
+  await applyNativeLotteryV2Page(conn, actor, binding, page)
+  return catchUpNativeLotteryFeed(conn, actor, binding, local, transport, pageCount + 1)
 }
 
 async function syncNativeLotteryOrganization(
@@ -633,7 +632,11 @@ async function syncNativeLotteryOrganization(
       apply: (page: ScopedPage) => applyNativeLotteryV2Page(conn, actor, binding, page),
     })
   const operations = await outbox.pending()
-  for (const operation of operations) await outbox.resume(operation, transport)
+  // Outbox resume must remain ordered; do not parallelize finance submissions.
+  await operations.reduce(async (previous, operation) => {
+    await previous
+    await outbox.resume(operation, transport)
+  }, Promise.resolve())
   await catchUpNativeLotteryFeed(conn, actor, binding, local, transport)
   return operations.length
 }
@@ -655,10 +658,11 @@ export function syncNativeLotteryV2Pending(actor: string): Promise<{ organizatio
     }
     const { requestOnlineLotterySync } = await import('../accounting/api')
     const request = <T,>(_: string, input: unknown) => requestOnlineLotterySync<T>(actor, input)
-    let count = 0
-    for (const organization of organizations) {
-      count += await syncNativeLotteryOrganization(sc.db, actor, organization, storage, cryptoCodec, request)
-    }
+    // Each scoped feed must finish before the next begins to protect shared RAM state.
+    const count = await organizations.reduce(async (previous, organization) => {
+      const completed = await previous
+      return completed + await syncNativeLotteryOrganization(sc.db, actor, organization, storage, cryptoCodec, request)
+    }, Promise.resolve(0))
     return {organizations:organizations.length,pending:count}
   })
 }
@@ -685,7 +689,9 @@ async function installNativeLotterySnapshot(
   for (const row of rows) {
     if (row.value === null || !row.value || typeof row.value !== 'object' || !('projectionJson' in row.value) ||
         typeof row.value.projectionJson !== 'string') throw new Error('SYNC_LOTTERY_SNAPSHOT_INVALID')
-    ;(combined[row.collection] ??= []).push(JSON.parse(row.value.projectionJson))
+    const collection = combined[row.collection] ?? []
+    collection.push(JSON.parse(row.value.projectionJson))
+    combined[row.collection] = collection
   }
   validateLotteryTransferState(combined)
   const installed = structuredClone(current)
@@ -771,28 +777,32 @@ async function saveNativeV2LotteryPayment(input: LotteryInput, actor: string) {
   }, undefined, true)
 }
 
+async function nativeLotteryRequest<T>(input: LotteryInput): Promise<T> {
+  const { actor, generation } = assertActive()
+  if (isLotteryRead(input.method)) {
+    return ordered(async () => {
+      const output = await deviceLottery(input, actor)
+      if (generation !== storeGeneration) throw new Error('ANDROID_LOCAL_ACTOR_CHANGED')
+      return output as T
+    })
+  }
+  // Never bypass typed v2 commands for an enrolled organization.
+  if (SYNC_V2_PAYMENT_ENABLED && input.method !== 'recordPayment') {
+    await rejectEnrolledLegacyLotteryWriter(input, actor)
+  }
+  if (SYNC_V2_PAYMENT_ENABLED && input.method === 'recordPayment') {
+    return saveNativeV2LotteryPayment(input, actor) as Promise<T>
+  }
+  // The legacy receipt and Lottery state live in the encrypted local snapshot.
+  return commit(async () => await deviceLottery(input, actor) as T)
+}
+
 export async function nativeLocalRequest<T>(operation:string,input:unknown,expectedActor?:string):Promise<T> {
   if(expectedActor!==undefined&&assertActive().actor!==expectedActor)throw new Error('ANDROID_LOCAL_ACTOR_CHANGED')
   if (!/^[a-z][a-z0-9-]{0,63}$/u.test(operation)) throw new Error('ANDROID_LOCAL_OPERATION_INVALID')
   if (operation==='lottery') {
     if (!lotteryInput(input)) throw new Error('LOTTERY_INPUT_INVALID')
-    const { actor, generation } = assertActive()
-    if (isLotteryRead(input.method)) {
-      return ordered(async () => {
-        const output = await deviceLottery(input, actor)
-        if (generation !== storeGeneration) throw new Error('ANDROID_LOCAL_ACTOR_CHANGED')
-        return output as T
-      })
-    }
-    // In a flagged cohort, unknown writers may not bypass the typed v2 ledger.
-    if (SYNC_V2_PAYMENT_ENABLED && !isLotteryRead(input.method) && input.method !== 'recordPayment') {
-      await rejectEnrolledLegacyLotteryWriter(input, actor)
-    }
-    if (SYNC_V2_PAYMENT_ENABLED && input.method === 'recordPayment') {
-      return saveNativeV2LotteryPayment(input, actor) as Promise<T>
-    }
-    // The legacy receipt and Lottery state live in the encrypted local snapshot.
-    return commit(async () => await deviceLottery(input, actor) as T)
+    return nativeLotteryRequest<T>(input)
   }
   if (operation==='masters') {
     const p=input as {company?:unknown}|null

@@ -42,7 +42,7 @@ export function nativeLotteryPaymentContext(db: SqlitePort, envelope: NativeReco
   const queue = (storage: import('../sync-v2/local-feed.ts').LocalFeedStorage) => createLotteryPaymentOutbox(actor, scope, registration, storage, codec, sessionFeed(storage))
   const counterId = ['sync-v2-native-payment', actor, scope.id, scope.epoch, registration, 'counter'].join(':')
   const counterContext = 'sync-v2-native-counter:' + counterId
-  const allocateCommand = async (input: LotteryInput) => {
+  const allocateCommand = (input: LotteryInput) => {
     if (input.method !== 'recordPayment' || !uuid.test(input.operationId ?? '')) throw new Error('SYNC_LOTTERY_PAYMENT_INVALID')
     const p = input.payload
     if (p.organizationId !== scope.id) throw new Error('SYNC_LOTTERY_BINDING_UNVERIFIED')
@@ -62,12 +62,12 @@ export function nativeLotteryPaymentContext(db: SqlitePort, envelope: NativeReco
       calculate: (allocateId: (model: string) => string) => Promise<unknown>,
       persistWithinTransaction: () => Promise<void>,
     ) {
-      const payment = await allocateCommand(input)
+      const payment = allocateCommand(input)
       let output: unknown
       await withSqliteLocalFeedTransaction(db, async storage => {
         const feed = sessionFeed(storage)
         const cursor = await feed.cursor()
-        if (!cursor || cursor.epoch !== scope.epoch) throw new Error('SYNC_LOCAL_SNAPSHOT_REQUIRED')
+        if (cursor?.epoch !== scope.epoch) throw new Error('SYNC_LOCAL_SNAPSHOT_REQUIRED')
         const pending = queue(storage)
         const previous = await pending.status(payment.operationId)
         if (previous !== 'missing') throw new Error('SYNC_LOTTERY_OPERATION_ALREADY_COMMITTED')

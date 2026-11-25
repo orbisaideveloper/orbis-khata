@@ -2,9 +2,10 @@ import { act, cleanup, fireEvent, renderHook, waitFor } from '@testing-library/r
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 import { syncWebCompany, useNativeCompanySync } from './company-sync'
 
-const api = vi.hoisted(() => ({ read: vi.fn(), save: vi.fn(), list: vi.fn() }))
+const api = vi.hoisted(() => ({ read: vi.fn(), save: vi.fn(), list: vi.fn(), syncV2: vi.fn(), legacyLottery: vi.fn() }))
 vi.mock('../accounting/api', () => ({ readOnlineCompanyExport: api.read }))
-vi.mock('./runtime', () => ({ syncNativeCompany: api.save, readNativeSyncCompanies: api.list }))
+vi.mock('./runtime', () => ({ syncNativeCompany: api.save, readNativeSyncCompanies: api.list,
+  syncNativeLotteryV2Pending: api.syncV2, readNativeLotterySyncState: api.legacyLottery }))
 
 const result = { changed: true, syncedAt: '2026-11-16T06:00:00Z' }
 beforeEach(() => {
@@ -12,8 +13,10 @@ beforeEach(() => {
   api.read.mockResolvedValue({ from: 'web' })
   api.save.mockResolvedValue(result)
   api.list.mockResolvedValue([{ id: 'company', name: 'Test store' }])
+  api.syncV2.mockResolvedValue({ organizations: 1, pending: 0 })
+  api.legacyLottery.mockResolvedValue({ linked: false })
 })
-afterEach(() => { cleanup(); vi.restoreAllMocks(); vi.useRealTimers() })
+afterEach(() => { cleanup(); vi.restoreAllMocks(); vi.unstubAllEnvs(); vi.useRealTimers() })
 
 it('shares one active transfer per company and refreshes only after a change', async () => {
   const refreshed = vi.fn()
@@ -95,4 +98,28 @@ it('retries every 120 seconds only while visible and shares the automatic pull w
   expect(api.read).toHaveBeenCalledOnce()
   await act(async () => { await vi.advanceTimersByTimeAsync(1) })
   expect(api.read).toHaveBeenCalledTimes(2)
+})
+
+it('runs the flagged v2 Lottery sync after the company pull and never falls back to legacy', async () => {
+  vi.stubEnv('VITE_KHATA_SYNC_V2_LOTTERY_PAYMENT', 'enabled')
+  const onSynced = vi.fn()
+  window.addEventListener('khata-lottery-synced', onSynced)
+  try {
+    renderHook(() => useNativeCompanySync('owner'))
+    await waitFor(() => expect(api.syncV2).toHaveBeenCalledExactlyOnceWith('owner'))
+    expect(api.save).toHaveBeenCalledExactlyOnceWith('owner', 'company', { from: 'web' })
+    expect(api.legacyLottery).not.toHaveBeenCalled()
+    expect(onSynced).toHaveBeenCalledOnce()
+  } finally {
+    window.removeEventListener('khata-lottery-synced', onSynced)
+  }
+})
+
+it('reports a flagged v2 failure rather than silently switching to legacy Lottery', async () => {
+  vi.stubEnv('VITE_KHATA_SYNC_V2_LOTTERY_PAYMENT', 'enabled')
+  api.syncV2.mockRejectedValue(new Error('SYNC_FEED_SCOPE_OR_CURSOR'))
+  const hook = renderHook(() => useNativeCompanySync('owner'))
+  await waitFor(() => expect(hook.result.current).toBe('Lottery secure sync'))
+  expect(api.syncV2).toHaveBeenCalledOnce()
+  expect(api.legacyLottery).not.toHaveBeenCalled()
 })

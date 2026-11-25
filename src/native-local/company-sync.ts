@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, type Dispatch, type SetStateAction } from 'react'
 import { syncWebLottery } from './lottery-sync'
 import { readOnlineCompanyExport } from '../accounting/api'
 
@@ -22,8 +22,49 @@ export function syncWebCompany(actor: string, company: string) {
   return task
 }
 
+type NativeSyncConflict = { actor: string; id: string; name: string }
+type ConflictSetter = Dispatch<SetStateAction<NativeSyncConflict | undefined>>
+
+async function syncNativeCompanies(actor: string, active: () => boolean, setConflict: ConflictSetter) {
+  const { readNativeSyncCompanies } = await import('./runtime')
+  const companies = await readNativeSyncCompanies(actor)
+  // Serial company transfers preserve cancellation and order.
+  await companies.reduce(async (previous, company) => {
+    await previous
+    if (!active()) return
+    try {
+      await syncWebCompany(actor, company.id)
+      if (active()) setConflict(current => current?.actor === actor && current.id === company.id ? undefined : current)
+    } catch (error) {
+      if (active() && error instanceof Error && error.message === 'KHATA_COMPANY_SYNC_CONFLICT') {
+        setConflict({ actor, id: company.id, name: company.name })
+      }
+    }
+  }, Promise.resolve())
+}
+
+async function syncNativeLottery(actor: string, active: () => boolean, setConflict: ConflictSetter) {
+  const runtime = await import('./runtime')
+  if (!active()) return
+  if (import.meta.env.VITE_KHATA_SYNC_V2_LOTTERY_PAYMENT === 'enabled') {
+    try {
+      await runtime.syncNativeLotteryV2Pending(actor)
+      if (active()) window.dispatchEvent(new Event('khata-lottery-synced'))
+    } catch {
+      if (active()) setConflict({ actor, id: 'lottery-v2', name: 'Lottery secure sync' })
+    }
+  } else if (!document.querySelector('.lottery-module') && (await runtime.readNativeLotterySyncState(actor)).linked) {
+    try {
+      await syncWebLottery(actor)
+      if (active()) setConflict(current => current?.id === 'lottery' ? undefined : current)
+    } catch {
+      if (active()) setConflict({ actor, id: 'lottery', name: 'Lottery' })
+    }
+  }
+}
+
 export function useNativeCompanySync(actor: string | null) {
-  const [conflict, setConflict] = useState<{ actor: string; id: string; name: string }>()
+  const [conflict, setConflict] = useState<NativeSyncConflict>()
   useEffect(() => {
     if (!actor) return
     let active = true
@@ -32,37 +73,8 @@ export function useNativeCompanySync(actor: string | null) {
       if (!active || running || !navigator.onLine || document.visibilityState === 'hidden') return
       running = true
       try {
-        const { readNativeSyncCompanies } = await import('./runtime')
-        const companies = await readNativeSyncCompanies(actor)
-        // Queue one company at a time to bound requests and preserve cancellation.
-        await companies.reduce(async (previous, company) => {
-          await previous
-          if (!active) return
-          try {
-            await syncWebCompany(actor, company.id)
-            if (active) setConflict(current => current?.actor === actor && current.id === company.id ? undefined : current)
-          } catch (error) {
-            if (active && error instanceof Error && error.message === 'KHATA_COMPANY_SYNC_CONFLICT') {
-              setConflict({ actor, id: company.id, name: company.name })
-            }
-          }
-        }, Promise.resolve())
-        const runtime = await import('./runtime')
-        if (active && import.meta.env.VITE_KHATA_SYNC_V2_LOTTERY_PAYMENT === 'enabled') {
-          try {
-            await runtime.syncNativeLotteryV2Pending(actor)
-            if (active) window.dispatchEvent(new Event('khata-lottery-synced'))
-          } catch {
-            if (active) setConflict({ actor, id: 'lottery-v2', name: 'Lottery secure sync' })
-          }
-        } else if (active && !document.querySelector('.lottery-module') && (await runtime.readNativeLotterySyncState(actor)).linked) {
-          try {
-            await syncWebLottery(actor)
-            if (active) setConflict(current => current?.id === 'lottery' ? undefined : current)
-          } catch {
-            if (active) setConflict({ actor, id: 'lottery', name: 'Lottery' })
-          }
-        }
+        await syncNativeCompanies(actor, () => active, setConflict)
+        await syncNativeLottery(actor, () => active, setConflict)
       } catch {
         // An offline lock or a changed account can interrupt a foreground pull.
       } finally {
