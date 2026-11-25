@@ -1,3 +1,9 @@
+## 2026-11-25 — Phase 2B/2E integrated company SQL review candidate (LOCAL, NOT PUSHED)
+
+- Current reviewed GitHub baseline `50117dbe1471ece6d2ed648866a28d7166528fe5`; exact Git tree verified. New `supabase/review-candidates/20261125_private_company_financial_capture.review.sql` combines legacy lock-order fixes, private atomic capture/receipt/feed, master/expense/invoice/stock/production/settings emitters, global company ID fence, scheduled purge tombstone, and extra pre-delete owner-authority guard. This is **not an applied migration**.
+- PGlite installs 7 checked-in v2/legacy dependency migrations followed by the one-transaction candidate. New 16/16 guarded tests PASS; broader 9 suites/59 PASS; Typecheck/Lint/Build/PWA PASS. Actual real paid purchase, master edit/delete, production output, settings, cash/stock, same-ID retry, rollback and retired/foreign-scope denial tested locally.
+- **2B and 2E remain INCOMPLETE**: real native PostgreSQL concurrency, all 19 authenticated legacy RPC / 26 triggers / cron/Edge ingress, all typed financial adapters, large complete authorized snapshots, historical migration and physical Android/Web acceptance not proved. No production SQL/Edge/Render/Play action, source push, feature activation or real data modification. See [the explicit acceptance/gap report](UNIFIED_SYNC_V2_PHASE2B2E_COMPANY_REVIEW.md).
+
 ## 2026-11-25 — Phase 2B/2E server capture safety (local, not full phase acceptance)
 
 - Source baseline `7dd4cdba39bcb2755c24d5e0814fb67b877559b4`; root cause reproduced in disposable PostgreSQL: legacy Expense and Lottery financial writes could succeed after enrolled scope retirement while emitting no Sync feed. Native v2 group/receipt changes were not presumed to cover external writers.
