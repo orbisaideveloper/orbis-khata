@@ -16,6 +16,8 @@ const command: Command = {
 }
 
 beforeAll(async () => {
+  // Match the disposable Supabase fixture roles before loading its private grants.
+  await db.exec('create role anon; create role authenticated; create role service_role;')
   await db.exec(kernel)
   await db.exec(`create table test_ledger (id text primary key, amount bigint not null);
     insert into sync_v2.scope(actor_id,kind,scope_id,epoch,lifecycle)
