@@ -42,11 +42,13 @@ it('rejects invalid pairing inputs without sending the stored proof', async () =
   expect(request).not.toHaveBeenCalled()
 })
 
-it('does not store a binding for another actor or an expired device', async () => {
+it('does not store a binding for another actor or an invalid expiry', async () => {
   const storage: LocalFeedStorage = { read: vi.fn().mockResolvedValue(marker), commit: vi.fn() }
   const request = vi.fn().mockResolvedValueOnce({ ...registration, actor: 'other' })
     .mockResolvedValueOnce({ ...registration, expiresAt: '2000-01-01T00:00:00Z' })
+    .mockResolvedValueOnce({ ...registration, expiresAt: 'invalid-date' })
   const pair = createDevicePairing('actor', 'web', storage, codec, request)
+  await expect(pair(ticket)).rejects.toThrow('SYNC_PAIRING_BINDING_INVALID')
   await expect(pair(ticket)).rejects.toThrow('SYNC_PAIRING_BINDING_INVALID')
   await expect(pair(ticket)).rejects.toThrow('SYNC_PAIRING_BINDING_INVALID')
   expect(storage.commit).not.toHaveBeenCalled()

@@ -18,6 +18,12 @@ describe('v2 command identity', () => {
     await expect(commandDigest({ ...command, payload: { amount: 0.1 } })).rejects.toThrow('NON_CANONICAL')
   })
 
+  it('retains the previously issued digest for keys that collate differently by locale', async () => {
+    const payload = { z: 'last Latin', A: 'uppercase', a: 'lowercase', ä: 'accent', খাতা: 'ledger' }
+    await expect(commandDigest({ ...command, payload }))
+      .resolves.toBe('85511301bd9d0490f1c7a2670fcaa3fa8bff6a234f4af438d405a492a458b52e')
+  })
+
   it('holds dependent work while leaving independent work eligible', () => {
     const dependent = { ...command, operationId: 'dependent', dependsOn: [command.operationId] }
     const independent = { ...command, operationId: 'independent' }

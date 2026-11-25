@@ -26,7 +26,9 @@ function canonical(value: Json): string {
   if (Array.isArray(value)) return '[' + Array.from(value, canonical).join(',') + ']'
   if (typeof value === 'object' && Object.getPrototypeOf(value) === Object.prototype) {
     const record = value as Record<string, Json>
-    return '{' + Object.keys(record).sort().map(key => JSON.stringify(key) + ':' + canonical(record[key])).join(',') + '}'
+    // Receipt digests must retain JavaScript's original UTF-16 key ordering in every locale.
+    return '{' + Object.keys(record).sort((left, right) => left < right ? -1 : Number(left > right))
+      .map(key => JSON.stringify(key) + ':' + canonical(record[key])).join(',') + '}'
   }
   throw new Error('SYNC_V2_NON_CANONICAL_VALUE')
 }

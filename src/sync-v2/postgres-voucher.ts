@@ -72,17 +72,17 @@ export function createPostgresVoucherTransaction(begin: Begin, authorizeDevice: 
     })
   })
 
-  return async work => {
-    // PostgreSQL guarantees both failures aborted the transaction. For any
-    // ambiguous outcome (e.g. connection loss), the caller must replay the operation.
-    for (let attempt = 1; ; attempt++) {
-      try {
-        return await run(work)
-      } catch (error) {
-        const code = typeof error === 'object' && error !== null && 'code' in error ? error.code : undefined
-        if (attempt >= 3 || (code !== '40P01' && code !== '40001')) throw error
-        await new Promise(resolve => setTimeout(resolve, attempt * 15 + Math.random() * 15))
-      }
-    }
+  return work => retryTransaction(() => run(work))
+}
+
+async function retryTransaction<T>(run: () => Promise<T>, attempt = 1): Promise<T> {
+  // Retry only errors that PostgreSQL guarantees aborted the transaction.
+  try {
+    return await run()
+  } catch (error) {
+    const code = typeof error === 'object' && error !== null && 'code' in error ? error.code : undefined
+    if (attempt >= 3 || (code !== '40P01' && code !== '40001')) throw error
+    await new Promise(resolve => setTimeout(resolve, attempt * 15 + Math.random() * 15))
+    return retryTransaction(run, attempt + 1)
   }
 }

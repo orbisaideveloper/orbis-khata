@@ -1,4 +1,5 @@
 import type { Json } from './command.ts'
+import { forEachInOrder } from './ordered-work.ts'
 
 type Event = Readonly<{ seq: string; operationId: string | null; change: Json }>
 type Group = Readonly<{ first: string; last: string; events: readonly Event[] }>
@@ -16,8 +17,24 @@ export type GroupedFeedStore = Readonly<{
 }>
 
 function sequence(value: string): bigint {
-  if (!/^(0|[1-9][0-9]{0,18})$/u.test(value)) throw new Error('SYNC_FEED_SEQUENCE_INVALID')
+  if (!/^(0|[1-9]\d{0,18})$/u.test(value)) throw new Error('SYNC_FEED_SEQUENCE_INVALID')
   return BigInt(value)
+}
+
+function countValidatedEvents(page: GroupedPage, limit: number): number {
+  let expected = sequence(page.from)
+  let count = 0
+  for (const group of page.groups) {
+    if (!group.events.length || sequence(group.first) !== expected + 1n) throw new Error('SYNC_FEED_GROUP_INVALID')
+    for (const event of group.events) {
+      expected += 1n
+      count += 1
+      if (sequence(event.seq) !== expected || count > limit) throw new Error('SYNC_FEED_GROUP_INVALID')
+    }
+    if (sequence(group.last) !== expected) throw new Error('SYNC_FEED_GROUP_INVALID')
+  }
+  if (sequence(page.next) !== expected) throw new Error('SYNC_FEED_CURSOR_MISMATCH')
+  return count
 }
 
 /** The adapter must compare the stored cursor and persist projection and cursor together. */
@@ -29,19 +46,7 @@ export async function applyGroupedPage(
   const pageCopy = structuredClone(page)
   if (recovered && pageCopy.groups.length !== 1) throw new Error('SYNC_FEED_GROUP_INVALID')
   if (pageCopy.epoch !== epoch || pageCopy.from !== cursor) throw new Error('SYNC_FEED_SCOPE_OR_CURSOR')
-  let expected = sequence(cursor)
-  let count = 0
-  for (const group of pageCopy.groups) {
-    if (!group.events.length || sequence(group.first) !== expected + 1n) throw new Error('SYNC_FEED_GROUP_INVALID')
-    for (const event of group.events) {
-      expected += 1n
-      count += 1
-      if (sequence(event.seq) !== expected || count > (recovered ? 16000 : 500)) throw new Error('SYNC_FEED_GROUP_INVALID')
-    }
-    if (sequence(group.last) !== expected) throw new Error('SYNC_FEED_GROUP_INVALID')
-  }
-  if (sequence(pageCopy.next) !== expected) throw new Error('SYNC_FEED_CURSOR_MISMATCH')
-  if (count) await commit(pageCopy)
+  if (countValidatedEvents(pageCopy, recovered ? 16000 : 500)) await commit(pageCopy)
 }
 
 /** The caller binds the store to the same authorized scope as the verified page. */
@@ -51,12 +56,10 @@ export function persistGroupedPage(page: GroupedPage, expected: Cursor, store: G
     if (current.epoch !== validated.epoch || current.sequence !== validated.from) {
       throw new Error('SYNC_FEED_STORAGE_CURSOR_CHANGED')
     }
-    for (const group of validated.groups) {
-      for (const event of group.events) {
-        await tx.recordInbox(event)
-        await tx.project(event)
-      }
-    }
+    await forEachInOrder(validated.groups.flatMap(group => group.events), async event => {
+      await tx.recordInbox(event)
+      await tx.project(event)
+    })
     await tx.writeCursor({ epoch: validated.epoch, sequence: validated.next })
   }), recovered)
 }

@@ -3,7 +3,7 @@ import { commandDigest, type BuiltInScopeKind, type Command, type Json, type Sco
 type Receipt = Readonly<{ digest: string; sequence: string; result: Json }>
 
 /** Implementations must keep all calls on one transaction/connection. */
-interface SyncTransaction<Kind extends string = BuiltInScopeKind> {
+export interface SyncTransaction<Kind extends string = BuiltInScopeKind> {
   lockAuthorizedScope(actorId: string, registrationId: string, scope: Scope<Kind>): Promise<void>
   findReceipt(operationId: string): Promise<Receipt | null>
   assertPreconditions(command: Command<Kind>): Promise<void>

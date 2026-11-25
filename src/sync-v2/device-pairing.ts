@@ -44,11 +44,12 @@ export function createDevicePairing(
     const state = JSON.parse(await codec.open(marker, context)) as PairingState
     if (!/^[a-f0-9]{64}$/u.test(state.credential)) throw new Error('SYNC_DEVICE_PROOF_INVALID')
     const registration = await request('lottery-sync', { action: 'pair-device', ticket, credential: state.credential }) as Registration
-    if (!registration || registration.actor !== actor || registration.client !== client ||
+    const expiry = Date.parse(registration?.expiresAt)
+    if (registration?.actor !== actor || registration.client !== client ||
         !identifier(registration.registration) || !registration.scope ||
         !['company','lottery-organization'].includes(registration.scope.kind) ||
         ![registration.scope.id, registration.scope.epoch].every(identifier) ||
-        typeof registration.canWrite !== 'boolean' || !(Date.parse(registration.expiresAt) > Date.now())) {
+        typeof registration.canWrite !== 'boolean' || !Number.isFinite(expiry) || expiry <= Date.now()) {
       throw new Error('SYNC_PAIRING_BINDING_INVALID')
     }
     // No ticket or clear proof in account metadata. Same-proof concurrent retry is harmless.

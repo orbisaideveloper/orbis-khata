@@ -1,6 +1,7 @@
 import { persistGroupedPage, type GroupedPage } from './grouped-feed.ts'
 import { assembleRecoveryTransfer, type RecoveryTransfer, type RecoveryFragment } from './recovery-assembly.ts'
 import type { Json, Scope } from './command.ts'
+import { forEachInOrder } from './ordered-work.ts'
 
 type Cursor = { epoch: string; sequence: string }
 type InstalledCursor = Cursor & { image: string }
@@ -51,15 +52,18 @@ export function createLocalFeed(
       return
     }
     const generation = crypto.randomUUID()
-    let count = 0
+    const chunks: string[] = []
     for (let start = 0; start < json.length;) {
       let end = Math.min(json.length, start + chunkLength)
       if (end < json.length && /[\uD800-\uDBFF]/u.test(json[end - 1])) end--
-      const part = id + ':' + generation + ':' + count++
-      writes.set(part, await codec.seal(json.slice(start, end), await context(part)))
+      chunks.push(json.slice(start, end))
       start = end
     }
-    writes.set(id, chunkTag + await codec.seal(JSON.stringify({ generation, count }), aad))
+    const pending = chunks.map((chunk, index) => ({ chunk, part: id + ':' + generation + ':' + index }))
+    await forEachInOrder(pending, async ({ chunk, part }) => {
+      writes.set(part, await codec.seal(chunk, await context(part)))
+    })
+    writes.set(id, chunkTag + await codec.seal(JSON.stringify({ generation, count: chunks.length }), aad))
   }
   async function read<T>(id: string, sealed: string): Promise<T> {
     const aad = await context(id)
@@ -70,12 +74,12 @@ export function createLocalFeed(
       throw new Error('SYNC_LOCAL_CHUNK_MANIFEST')
     }
     const parts: string[] = []
-    for (let index = 0; index < manifest.count; index++) {
-      const part = id + ':' + manifest.generation + ':' + index
+    const names = Array.from({ length: manifest.count }, (_, index) => id + ':' + manifest.generation + ':' + index)
+    await forEachInOrder(names, async part => {
       const value = await storage.read(part)
       if (value === null) throw new Error('SYNC_LOCAL_CHUNK_MISSING')
       parts.push(await codec.open(value, await context(part)))
-    }
+    })
     return JSON.parse(parts.join('')) as T
   }
   function projectionId(image: string, collection: string, id: string) {
@@ -100,7 +104,7 @@ export function createLocalFeed(
           async project(event) {
             const changes = project(event)
             if (!changes.length) throw new Error('SYNC_LOCAL_PROJECTION_UNSUPPORTED')
-            for (const row of changes) await stage(writes, projectionId(cursor.image, row.collection, row.id), row.value)
+            await forEachInOrder(changes, row => stage(writes, projectionId(cursor.image, row.collection, row.id), row.value))
           },
           writeCursor: next => stage(writes, cursorId, { ...next, image: cursor.image }),
         })
@@ -132,7 +136,7 @@ export function createLocalFeed(
     },
     // Scope bootstrap is separate. A null cursor cannot be treated as a complete empty snapshot.
     async installSnapshot(cursor: Cursor, snapshot: readonly ProjectionChange[], expected?: Cursor): Promise<void> {
-      if (cursor.epoch !== epoch || !/^(0|[1-9][0-9]{0,18})$/u.test(cursor.sequence)) {
+      if (cursor.epoch !== epoch || !/^(0|[1-9]\d{0,18})$/u.test(cursor.sequence)) {
         throw new Error('SYNC_LOCAL_SNAPSHOT_CURSOR_INVALID')
       }
       if (snapshot.length > 16000) throw new Error('SYNC_LOCAL_SNAPSHOT_SIZE')
@@ -146,11 +150,11 @@ export function createLocalFeed(
       }
       const writes = new Map<string, string>()
       await stage(writes, cursorId, next)
-      for (const row of rows) {
+      await forEachInOrder(rows, async row => {
         const id = projectionId(next.image, row.collection, row.id)
         if (writes.has(id)) throw new Error('SYNC_LOCAL_SNAPSHOT_DUPLICATE')
         await stage(writes, id, row.value)
-      }
+      })
       await storage.commit(cursorId, previous, [...writes].map(([id, sealed]) => ({ id, sealed })))
     },
     async projection(collection: string, entity: string): Promise<Json | undefined> {

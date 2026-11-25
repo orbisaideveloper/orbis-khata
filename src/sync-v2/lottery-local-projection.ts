@@ -6,7 +6,7 @@ import type { ProjectionChange } from './local-feed.ts'
 export function lotteryLocalRow(organization: string, input: Json): ProjectionChange {
   if (input === null || typeof input !== 'object' || !('model' in input) ||
       typeof input.model !== 'string' || !('id' in input) || typeof input.id !== 'string' ||
-      !('ordinal' in input) || typeof input.ordinal !== 'string' || !/^[1-9][0-9]{0,18}$/u.test(input.ordinal) ||
+      !('ordinal' in input) || typeof input.ordinal !== 'string' || !/^[1-9]\d{0,18}$/u.test(input.ordinal) ||
       !('projectionJson' in input) || (input.projectionJson !== null && typeof input.projectionJson !== 'string')) {
     throw new Error('SYNC_LOCAL_LOTTERY_ROW_INVALID')
   }
@@ -22,6 +22,21 @@ export function lotteryLocalRow(organization: string, input: Json): ProjectionCh
 }
 
 type LotterySnapshotCursor = { after: string; head: string | null }
+type SnapshotPage = {
+  projection: string; scopeId: string; epoch: string; highWater: string;
+  after: string; next: string; done: boolean; rows: readonly Json[];
+}
+
+function readSnapshotPage(raw: unknown, organization: string, epoch: string, cursor: LotterySnapshotCursor) {
+  const page = raw as Partial<SnapshotPage> | null
+  const sequence = /^(0|[1-9]\d{0,18})$/u
+  if (page?.projection !== 'lottery-organization-v1' || page.scopeId !== organization ||
+      page.epoch !== epoch || page.after !== cursor.after || typeof page.highWater !== 'string' ||
+      !sequence.test(page.highWater) || (cursor.head !== null && page.highWater !== cursor.head) ||
+      typeof page.next !== 'string' || !sequence.test(page.next) || typeof page.done !== 'boolean' ||
+      !Array.isArray(page.rows) || page.rows.length > 200) throw new Error('SYNC_LOTTERY_SNAPSHOT_INVALID')
+  return { highWater: page.highWater, next: page.next, done: page.done, rows: page.rows as readonly Json[] }
+}
 
 /** Install only a complete snapshot. A stale or interrupted page leaves existing data in place. */
 export async function bootstrapLotteryProjection(
@@ -34,17 +49,12 @@ export async function bootstrapLotteryProjection(
   let head: string | null = null
   const records: ProjectionChange[] = []
   let bytes = 0
-  const sequence = /^(0|[1-9]\d{0,18})$/u
   const encoder = new TextEncoder()
-  for (let pages = 0; pages < 16000; pages++) {
-    const raw = await readPage({ after, head })
-    const page = raw as { projection?: unknown; scopeId?: unknown; epoch?: unknown; highWater?: unknown;
-      after?: unknown; next?: unknown; done?: unknown; rows?: readonly Json[] } | null
-    if (!page || page.projection !== 'lottery-organization-v1' || page.scopeId !== organization ||
-        page.epoch !== epoch || page.after !== after || typeof page.highWater !== 'string' ||
-        !sequence.test(page.highWater) || (head !== null && page.highWater !== head) ||
-        typeof page.next !== 'string' || !sequence.test(page.next) || typeof page.done !== 'boolean' ||
-        !Array.isArray(page.rows) || page.rows.length > 200) throw new Error('SYNC_LOTTERY_SNAPSHOT_INVALID')
+  async function* pages() {
+    for (let index = 0; index < 16000; index++) yield readPage({ after, head })
+  }
+  for await (const raw of pages()) {
+    const page = readSnapshotPage(raw, organization, epoch, { after, head })
     head = page.highWater
     let ordinal = BigInt(after)
     for (const input of page.rows) {
@@ -57,10 +67,7 @@ export async function bootstrapLotteryProjection(
       if (records.length > 16000 || bytes > 16_777_216) throw new Error('SYNC_LOTTERY_SNAPSHOT_LIMIT')
     }
     if (String(ordinal) !== page.next || (!page.done && page.next === after)) throw new Error('SYNC_LOTTERY_SNAPSHOT_INVALID')
-    if (page.done) {
-      await install({ epoch, sequence: head }, records)
-      return
-    }
+    if (page.done) return install({ epoch, sequence: head }, records)
     after = page.next
   }
   throw new Error('SYNC_LOTTERY_SNAPSHOT_LIMIT')

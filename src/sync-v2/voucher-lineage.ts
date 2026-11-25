@@ -14,7 +14,7 @@ export async function confirmVoucherProjection(
     throw new Error('SYNC_VOUCHER_RECEIPT_MISMATCH')
   }
   const event = await ledger.appliedEvent(receipt.sequence)
-  if (!event || event.seq !== receipt.sequence ||
+  if (!event?.seq || event.seq !== receipt.sequence ||
       (event.operationId !== null && event.operationId !== command.operationId) ||
       !Array.isArray(event.change)) return false
 

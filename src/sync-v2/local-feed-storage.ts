@@ -1,6 +1,7 @@
 import type { SqlitePort } from '../local-db/sqlite-repository'
 import type { NativeRecordCodec } from '../offline-integration/native-transactional-sync-store'
 import type { LocalFeedCodec, LocalFeedStorage } from './local-feed'
+import { forEachInOrder } from './ordered-work'
 
 const STORE = 'grouped-feed-v2'
 type Row = { id: string; sealed: string }
@@ -32,11 +33,11 @@ export async function openSqliteLocalFeedStorage(db: SqlitePort): Promise<LocalF
     read,
     commit: (cursorId, previous, writes) => db.transaction(async () => {
       if (await read(cursorId) !== previous) throw new Error(STALE)
-      for (const row of writes) {
+      await forEachInOrder(writes, async row => {
         const saved = await db.run(`INSERT INTO sync_v2_feed_cells(id,sealed) VALUES(?,?)
           ON CONFLICT(id) DO UPDATE SET sealed=excluded.sealed`, [row.id, row.sealed])
         if (saved.changes !== 1) throw new Error('SYNC_LOCAL_STORAGE_WRITE_FAILED')
-      }
+      })
     }),
   }
 }
@@ -51,7 +52,7 @@ export async function openIndexedDbLocalFeedStorage(factory: IDBFactory, databas
       if (!opening.result.objectStoreNames.contains(STORE)) opening.result.createObjectStore(STORE, { keyPath: 'id' })
     }
     opening.onblocked = () => { blocked = true; reject(new Error('SYNC_LOCAL_STORAGE_UPGRADE_BLOCKED')) }
-    opening.onerror = () => reject(opening.error)
+    opening.onerror = () => reject(opening.error ?? new Error('SYNC_LOCAL_STORAGE_OPEN_FAILED'))
     opening.onsuccess = () => {
       if (blocked || !opening.result.objectStoreNames.contains(STORE)) {
         opening.result.close()
@@ -67,7 +68,7 @@ export async function openIndexedDbLocalFeedStorage(factory: IDBFactory, databas
     read: id => new Promise((resolve, reject) => {
       const request = db.transaction(STORE, 'readonly').objectStore(STORE).get(id)
       request.onsuccess = () => resolve((request.result as Row | undefined)?.sealed ?? null)
-      request.onerror = () => reject(request.error)
+      request.onerror = () => reject(request.error ?? new Error('SYNC_LOCAL_STORAGE_READ_FAILED'))
     }),
     commit: (cursorId, previous, writes) => new Promise((resolve, reject) => {
       const tx = db.transaction(STORE, 'readwrite', { durability: 'strict' })

@@ -66,21 +66,23 @@ function pagedReportInput(input: Record<string, unknown>) {
 function syncSequence(value: unknown) {
     return typeof value === 'string' && /^(0|[1-9]\d{0,18})$/u.test(value) && BigInt(value) <= 9223372036854775807n;
 }
+function lotteryRecoveryInput(input: Record<string, unknown>) {
+    const validOffset = Number.isInteger(input.offset) && Number(input.offset) >= 0 && Number(input.offset) < 2097152;
+    if (input.action === 'snapshot-part') return syncSequence(input.after) &&
+        (input.head === null || syncSequence(input.head)) && validOffset &&
+        keys(input, ['action', 'credential', 'organization', 'epoch', 'registration', 'after', 'head', 'offset']);
+    return syncSequence(input.cursor) &&
+        (input.item === undefined && input.offset === undefined ||
+         Number.isInteger(input.item) && Number(input.item) >= 1 && Number(input.item) <= 16000 && validOffset) &&
+        keys(input, ['action', 'credential', 'organization', 'epoch', 'registration', 'cursor', 'item', 'offset']);
+}
 function lotterySyncInput(input: Record<string, unknown>) {
     if (typeof input.credential !== 'string' || !/^[0-9a-f]{64}$/u.test(input.credential)) return false;
     if (input.action === 'payment') return keys(input, ['action', 'credential', 'command']) && object(input.command);
     if (input.action === 'pair-device') return typeof input.ticket === 'string' && /^[0-9a-f]{64}$/u.test(input.ticket) &&
         keys(input, ['action', 'credential', 'ticket']);
     if (![input.organization, input.epoch, input.registration].every(value => typeof value === 'string' && /^[\w-]{1,128}$/u.test(value))) return false;
-    if (input.action === 'snapshot-part') return syncSequence(input.after) &&
-        (input.head === null || syncSequence(input.head)) &&
-        Number.isInteger(input.offset) && Number(input.offset) >= 0 && Number(input.offset) < 2097152 &&
-        keys(input, ['action', 'credential', 'organization', 'epoch', 'registration', 'after', 'head', 'offset']);
-    if (input.action === 'recover-group') return syncSequence(input.cursor) &&
-        (input.item === undefined && input.offset === undefined ||
-         Number.isInteger(input.item) && Number(input.item) >= 1 && Number(input.item) <= 16000 &&
-         Number.isInteger(input.offset) && Number(input.offset) >= 0 && Number(input.offset) < 2097152) &&
-        keys(input, ['action', 'credential', 'organization', 'epoch', 'registration', 'cursor', 'item', 'offset']);
+    if (input.action === 'snapshot-part' || input.action === 'recover-group') return lotteryRecoveryInput(input);
     if (typeof input.limit !== 'number' || !Number.isInteger(input.limit) || input.limit < 1) return false;
     if (input.action === 'feed') return input.limit <= 500 && syncSequence(input.cursor) &&
         keys(input, ['action', 'credential', 'organization', 'epoch', 'registration', 'cursor', 'limit']);
