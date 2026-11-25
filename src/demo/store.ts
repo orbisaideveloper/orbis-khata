@@ -858,7 +858,7 @@ export function checkImportedLedger(snapshot: DeviceLocalSnapshot, company: stri
 }
 
 /** The Android runtime serializes calls and saves this projection with its receipt. */
-export async function deviceLottery(input: LotteryInput, actor: string): Promise<unknown> {
+export async function deviceLottery(input: LotteryInput, actor: string, allocateId?: (model: string) => string): Promise<unknown> {
   const { runLottery } = await import('../lottery/service');
   const stateKey = 'android-lottery:state';
   const state = workspaceEvents[stateKey]?.result;
@@ -871,7 +871,7 @@ export async function deviceLottery(input: LotteryInput, actor: string): Promise
     if (receipt.payload !== payload) throw Object.assign(new Error('IDEMPOTENCY_CONFLICT'), { reason: 'IDEMPOTENCY_CONFLICT' });
     return structuredClone(receipt.result);
   }
-  const next = await runLottery(state, input, actor);
+  const next = await runLottery(state, input, actor, () => new Date(), allocateId);
   workspaceEvents[stateKey] = { payload: '', result: next.state };
   workspaceEvents[receiptKey] = { payload, result: structuredClone(next.result) };
   return next.result;

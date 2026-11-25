@@ -27,6 +27,8 @@ export function CompanySyncPreview({ actor, language }: Readonly<{ actor: string
   const [comparison, setComparison] = useState<CompanyComparison>()
   const [preview, setPreview] = useState<ReturnType<typeof parseCompanyExport>>()
   const [notice, setNotice] = useState('')
+  const [pairingTicket, setPairingTicket] = useState('')
+  const syncV2 = import.meta.env.VITE_KHATA_SYNC_V2_LOTTERY_PAYMENT === 'enabled'
   const [diagnostic, setDiagnostic] = useState('')
   const [busy, setBusy] = useState(false)
   const [failed, setFailed] = useState(false)
@@ -45,6 +47,38 @@ export function CompanySyncPreview({ actor, language }: Readonly<{ actor: string
     } finally {
       setBusy(false)
     }
+  }
+
+  async function pairV2() {
+    if (!/^[a-f0-9]{64}$/u.test(pairingTicket)) {
+      setNotice(t('ভুল পেয়ারিং টিকিট।', 'अमान्य पेयरिंग टिकट।', 'Invalid pairing ticket.'))
+      return
+    }
+    setBusy(true)
+    setNotice('')
+    try {
+      const runtime = await import('./runtime')
+      const connected = await runtime.enrollNativeLotteryV2(actor, pairingTicket)
+      setPairingTicket('')
+      setNotice(t('নিরাপদ লটারি সিঙ্ক ডিভাইস যুক্ত হয়েছে।', 'सुरक्षित लॉटरी सिंक डिवाइस जुड़ा।', 'Secure Lottery sync device enrolled.') + ' · ' + connected.organization)
+    } catch {
+      setNotice(t('পেয়ারিং থেমেছে। পুরোনো হিসাব থাকলে আগে নিরাপদ মাইগ্রেশন দরকার।', 'पेयरिंग रुकी। पुराने डेटा के लिए सुरक्षित माइग्रेशन जरूरी है।', 'Enrollment stopped. Existing records require reviewed migration.'))
+    } finally { setBusy(false) }
+  }
+
+  async function syncV2Pending() {
+    setBusy(true)
+    setNotice('')
+    try {
+      const runtime = await import('./runtime')
+      const result = await runtime.syncNativeLotteryV2Pending(actor)
+      setNotice(result.organizations === 0
+        ? t('এখনো কোনো নিরাপদ ডিভাইস যুক্ত হয়নি।', 'अभी कोई सुरक्षित डिवाइस जुड़ा नहीं है।', 'No secure sync device is enrolled.')
+        : t('নিরাপদ লটারি সিঙ্ক সম্পন্ন।', 'सुरक्षित लॉटरी सिंक पूर्ण।', 'Secure Lottery synchronization completed.') + ' · ' + result.organizations)
+      window.dispatchEvent(new Event('khata-lottery-synced'))
+    } catch {
+      setNotice(t('সিঙ্ক অসম্পূর্ণ। কোনো অফলাইন হিসাব মুছে যায়নি।', 'सिंक अधूरा। ऑफलाइन डेटा नहीं मिटाया गया।', 'Sync incomplete. Offline records were preserved.'))
+    } finally { setBusy(false) }
   }
 
   async function compare() {
@@ -116,9 +150,20 @@ export function CompanySyncPreview({ actor, language }: Readonly<{ actor: string
 
   return <section className="privacy-links">
     <h2>{t('কোম্পানির তালিকা মিলিয়ে দেখুন', 'कंपनियों की सूचियाँ देखें', 'Compare company lists')}</h2>
-    <button type="button" disabled={busy} onClick={() => void pullLottery()}>
+    {!syncV2 && <button type="button" disabled={busy} onClick={() => void pullLottery()}>
       {t('ওয়েব থেকে লটারি সিঙ্ক করুন', 'वेब से लॉटरी सिंक करें', 'Sync Lottery from web')}
-    </button>
+    </button>}
+    {syncV2 && <div>
+      <label htmlFor="khata-v2-pair-ticket">{t('নিরাপদ ডিভাইস পেয়ারিং টিকিট', 'सुरक्षित डिवाइस पेयरिंग टिकट', 'Secure device pairing ticket')}</label>
+      <input id="khata-v2-pair-ticket" type="password" autoComplete="off" value={pairingTicket}
+        onChange={event => setPairingTicket(event.target.value)} maxLength={64}/>
+      <button type="button" disabled={busy || pairingTicket.length !== 64} onClick={() => void pairV2()}>
+        {t('সিঙ্ক ডিভাইস যুক্ত করুন', 'सिंक डिवाइस जोड़ें', 'Enroll sync device')}
+      </button>
+      <button type="button" disabled={busy} onClick={() => void syncV2Pending()}>
+        {t('নিরাপদ সিঙ্ক চালান', 'सुरक्षित सिंक चलाएँ', 'Run secure sync')}
+      </button>
+    </div>}
     <p>{t('ওয়েব ও এই ফোনে থাকা সক্রিয় কোম্পানিগুলো দেখুন।', 'वेब और इस फ़ोन की सक्रिय कंपनियाँ देखें।', 'View active companies on the web and on this phone.')}</p>
     <button type="button" disabled={busy} onClick={() => void compare()}>
       {t('তালিকা দেখুন', 'सूचियाँ देखें', 'View company lists')}

@@ -1,6 +1,7 @@
 import { createCentralVerifier } from '../accounting/server-gateway.ts'
 import { runLottery } from '../lottery/service.ts'
 import { parseLotteryPaymentCommand, type PaymentCommand } from './lottery-payment-command.ts'
+import { createLotteryPaymentIds } from './lottery-payment-ids.ts'
 import type { Json } from './command.ts'
 import type { SyncQuery } from './postgres-voucher.ts'
 import { acceptCommand, type SyncTransaction, type WithSyncTransaction } from './transaction.ts'
@@ -9,29 +10,6 @@ import { proofDigest } from './trusted-voucher-gateway.ts'
 function object(value: unknown): Record<string, unknown> {
   if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error('SYNC_DATABASE_RESULT_INVALID')
   return value as Record<string, unknown>
-}
-
-/** Generated identities are stable within each model across an aborted attempt. */
-async function paymentIds(command: PaymentCommand) {
-  const models = [['foundationLotteryPayment', 1], ['foundationLotteryLedgerEntry', 16],
-    ['foundationLotteryAuditEvent', 1], ['foundationLotteryDocumentSequence', 1]] as const
-  const pool = new Map(await Promise.all(models.map(async ([model, count]) => [
-    model,
-    await Promise.all(Array.from({ length: count }, async (_, index) => {
-      if (model === 'foundationLotteryPayment') return command.entityId
-      const key = JSON.stringify(['orbis.lottery-payment.id.v1', command.actorId, command.scope.id, command.scope.epoch, command.operationId, model, index])
-      const hash = new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(key)))
-      hash[6] = (hash[6] & 15) | 128
-      hash[8] = (hash[8] & 63) | 128
-      const hex = Array.from(hash.slice(0, 16), byte => byte.toString(16).padStart(2, '0')).join('')
-      return [hex.slice(0,8),hex.slice(8,12),hex.slice(12,16),hex.slice(16,20),hex.slice(20)].join('-')
-    })),
-  ] as const)))
-  return (model: string) => {
-    const id = pool.get(model as typeof models[number][0])?.shift()
-    if (!id) throw new Error('SYNC_LOTTERY_CHILD_UNSUPPORTED')
-    return id
-  }
 }
 
 type Begin = <T>(work: (query: SyncQuery) => Promise<T>) => Promise<T>
@@ -77,7 +55,7 @@ function lotteryPaymentTransaction(
       }
       const loaded = object(await call({ action: 'load', request, operationId: request.operationId }))
       if (loaded.replay) throw new Error('SYNC_LOTTERY_LEGACY_LINEAGE_REQUIRED')
-      const calculated = await runLottery(loaded.state, request, actorId, () => new Date(), await paymentIds(command))
+      const calculated = await runLottery(loaded.state, request, actorId, () => new Date(), await createLotteryPaymentIds(command))
       const result = await call({ action: 'commit', request, operationId: request.operationId,
         version: loaded.version, changes: calculated.changes, result: calculated.result })
       await query('reset role')

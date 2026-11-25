@@ -48,7 +48,14 @@ export function useNativeCompanySync(actor: string | null) {
           }
         }, Promise.resolve())
         const runtime = await import('./runtime')
-        if (active && !document.querySelector('.lottery-module') && (await runtime.readNativeLotterySyncState(actor)).linked) {
+        if (active && import.meta.env.VITE_KHATA_SYNC_V2_LOTTERY_PAYMENT === 'enabled') {
+          try {
+            await runtime.syncNativeLotteryV2Pending(actor)
+            if (active) window.dispatchEvent(new Event('khata-lottery-synced'))
+          } catch {
+            if (active) setConflict({ actor, id: 'lottery-v2', name: 'Lottery secure sync' })
+          }
+        } else if (active && !document.querySelector('.lottery-module') && (await runtime.readNativeLotterySyncState(actor)).linked) {
           try {
             await syncWebLottery(actor)
             if (active) setConflict(current => current?.id === 'lottery' ? undefined : current)

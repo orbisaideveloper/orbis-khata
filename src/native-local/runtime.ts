@@ -4,7 +4,8 @@
  * - Cold starts require Android screen lock or fresh central sign-in.
  * - SQLCipher is mandatory; hardware-keystore AES-GCM authenticates identity and state.
  * - Every change is persisted before caller sees success; unsupported calls fail closed.
- * - No production sync, remote POST or implicit migration. PWA uses its existing gateway.
+ * - Production sync stays OFF by default. An explicit v2 cohort may use the
+ *   authenticated gateway; legacy data never silently migrates or uploads.
  *
  * NOTE: Release needs real-phone enrollment, reboot, offline, isolation, rollback,
  * low-space and test-update acceptance. Backup/export and restore are separate gates.
@@ -16,7 +17,15 @@ import { createAndroidSqlcipherRuntime } from '../local-db/android-sqlcipher-run
 import { openVerifiedAndroidSqlcipher } from '../local-db/native-cipher-gate'
 import { createLocalSqliteRepository, ensureLocalSchema, type SqlitePort } from '../local-db/sqlite-repository'
 import { createAndroidHardwareRecordCodec } from '../offline-integration/android-hardware-codec'
-import { isLotteryRead, lotteryInput } from '../lottery/protocol'
+import { isLotteryRead, lotteryInput, type LotteryInput } from '../lottery/protocol'
+import { createLocalFeedCodec, openSqliteLocalFeedStorage, withSqliteLocalFeedTransaction } from '../sync-v2/local-feed-storage'
+import { createDevicePairing } from '../sync-v2/device-pairing'
+import { bootstrapLotteryProjection, createLotterySnapshotReader, lotteryLocalRow } from '../sync-v2/lottery-local-projection'
+import { validateLotteryTransferState } from '../lottery/domain-store'
+import { createLotteryPaymentOutbox, createLotteryPaymentTransport } from '../sync-v2/lottery-payment-outbox'
+import type { ScopedPage, LocalFeedStorage, LocalFeedCodec } from '../sync-v2/local-feed'
+import { createLocalFeed } from '../sync-v2/local-feed'
+import { nativeLotteryBindingKey, nativeLotteryPaymentContext, verifyNativeLotteryBinding, type NativeLotteryBinding } from './lottery-v2-session'
 import { encryptFinancialBackup, inspectFinancialBackup } from '../sync/financial-backup'
 import { restoreSelectedBackupPostings, selectableBackupPostings } from '../sync/selected-backup-restore'
 import { stageLotteryPull } from '../sync/lottery-transfer'
@@ -32,6 +41,7 @@ import type { DemoParty, DemoItem } from '../demo/master-model'
 import type { ExpenseCommand } from '../accounting/expense-model'
 
 const DATABASE = 'orbis-khata-local-primary'
+const SYNC_V2_PAYMENT_ENABLED = import.meta.env.VITE_KHATA_SYNC_V2_LOTTERY_PAYMENT === 'enabled'
 const HINT = 'orbis.khata.android.local.actor.v1' // Public identity hint ONLY, never a password/token.
 const IDENTITY = 'verified-identity'
 const STATE = 'account-state'
@@ -178,7 +188,7 @@ async function readState(conn:SqlitePort,actor:string,allowInitialEmpty=false):P
   return JSON.parse(text) as DeviceLocalSnapshot
 }
 type JournalInput = { operation:string; input:unknown; companyId:string }
-async function persistState(conn:SqlitePort,actor:string,state:DeviceLocalSnapshot,journal?:JournalInput):Promise<void> {
+async function persistState(conn:SqlitePort,actor:string,state:DeviceLocalSnapshot,journal?:JournalInput,withinTransaction=false):Promise<void> {
   const text=JSON.stringify(state)
   const bytes=encoder.encode(text).byteLength
   if (bytes>MAX_LOCAL_BYTES) throw new Error('ANDROID_LOCAL_STORAGE_CAPACITY_REACHED')
@@ -208,7 +218,7 @@ async function persistState(conn:SqlitePort,actor:string,state:DeviceLocalSnapsh
     eventJson=JSON.stringify(draft.envelope)
     sealedOperation=await codec.seal(eventJson,`orbis:outbox:${actor}:${operationCompany}:${operationId}`)
   }
-  await conn.transaction(async()=>{
+  const writeRows = async () => {
     // Atomic replacement: old encrypted parts and manifest either ALL survive or ALL change.
     await conn.run(`DELETE FROM local_snapshots WHERE actor_id=? AND company_id=? AND object_type=? AND object_id LIKE 'state-part-%'`,
       [actor,actor,LOCAL_SCOPE])
@@ -228,7 +238,9 @@ async function persistState(conn:SqlitePort,actor:string,state:DeviceLocalSnapsh
           await sha256(eventJson),sealedOperation,eventAt])
       if(written.changes!==1)throw new Error('ANDROID_LOCAL_JOURNAL_NOT_DURABLE')
     }
-  })
+  }
+  if (withinTransaction) await writeRows()
+  else await conn.transaction(writeRows)
 }
 async function hydrateForActor(actor:string,conn:SqlitePort,firstEnrollment=false):Promise<void> {
   restoreDeviceLocalSnapshot(await readState(conn,actor,firstEnrollment))
@@ -476,7 +488,7 @@ export function lockNativeOfflineIdentity():void {
   active=null;identity=null;storeGeneration++
   restoreDeviceLocalSnapshot(emptyDeviceLocalSnapshot())
 }
-async function commit<T>(callback:()=>T | Promise<T>,journal?:JournalInput):Promise<T> {
+async function commit<T>(callback:()=>T | Promise<T>,journal?:JournalInput,atomicWithinCallback=false):Promise<T> {
   const expected=storeGeneration
   return ordered(async()=>{
     const sc=assertActive()
@@ -484,6 +496,7 @@ async function commit<T>(callback:()=>T | Promise<T>,journal?:JournalInput):Prom
     const prior=readDeviceLocalSnapshot()
     let attemptedCommit=false
     try {
+      if (atomicWithinCallback) attemptedCommit=true
       const output=await callback()
       if (expected!==storeGeneration) {
         restoreDeviceLocalSnapshot(emptyDeviceLocalSnapshot())
@@ -491,8 +504,10 @@ async function commit<T>(callback:()=>T | Promise<T>,journal?:JournalInput):Prom
       }
       // Never tell the screen that a finance mutation succeeded before its SQL commit.
       if(journal)await createLocalSqliteRepository(sc.db).registerScope(sc.actor,journal.companyId,new Date().toISOString())
-      attemptedCommit=true
-      await persistState(sc.db,sc.actor,readDeviceLocalSnapshot(),journal)
+      if (!atomicWithinCallback) {
+        attemptedCommit=true
+        await persistState(sc.db,sc.actor,readDeviceLocalSnapshot(),journal)
+      }
       return output
     } catch(error) {
       if(expected===storeGeneration){
@@ -534,6 +549,228 @@ const readingOperation=(operation:string,input:unknown):boolean => {
   }
   return false
 }
+async function readNativeLotteryPaymentBinding(conn: SqlitePort, actor: string, organization: string) {
+  const storage = await openSqliteLocalFeedStorage(conn)
+  const id = nativeLotteryBindingKey(actor, organization)
+  const row = await storage.read(id)
+  if (!row) throw new Error('SYNC_LOTTERY_DEVICE_ENROLLMENT_REQUIRED')
+  const cryptoCodec = createLocalFeedCodec(codec)
+  const binding = JSON.parse(await cryptoCodec.open(row, id)) as NativeLotteryBinding
+  return verifyNativeLotteryBinding(binding, actor, organization)
+}
+
+function nextLotterySnapshot(snapshot: DeviceLocalSnapshot, organization: string, events: readonly {change: import('../sync-v2/command').Json}[]) {
+  const existing = snapshot.workspaceEvents['android-lottery:state']?.result
+  if (!existing || typeof existing !== 'object' || Array.isArray(existing)) throw new Error('SYNC_LOCAL_SNAPSHOT_REQUIRED')
+  const state = structuredClone(existing) as Record<string, unknown[]>
+  for (const event of events) {
+    const row = lotteryLocalRow(organization, event.change)
+    const rows = state[row.collection] ??= []
+    if (!Array.isArray(rows)) throw new Error('SYNC_LOTTERY_LOCAL_PROJECTION_INVALID')
+    const index = rows.findIndex(entry => entry && typeof entry === 'object' && (entry as {id?:unknown}).id === row.id)
+    if (row.value === null) {
+      if (index !== -1) rows.splice(index, 1)
+    } else {
+      const encoded = row.value as {projectionJson:string}
+      const decoded = JSON.parse(encoded.projectionJson) as unknown
+      if (index === -1) rows.push(decoded)
+      else rows[index] = decoded
+    }
+  }
+  validateLotteryTransferState(state)
+  const next = structuredClone(snapshot)
+  next.workspaceEvents['android-lottery:state'] = {payload:'',result:state}
+  return next
+}
+
+async function applyNativeLotteryV2Page(
+  conn: SqlitePort, actor: string, binding: NativeLotteryBinding, page: ScopedPage,
+) {
+  const sc = assertActive()
+  if (sc.actor !== actor || sc.db !== conn) throw new Error('ANDROID_LOCAL_ACTOR_CHANGED')
+  const prior = readDeviceLocalSnapshot()
+  const next = nextLotterySnapshot(prior, binding.scope.id,
+    page.groups.flatMap(group => group.events))
+  const cryptoCodec = createLocalFeedCodec(codec)
+  await withSqliteLocalFeedTransaction(conn, async storage => {
+    const feed = createLocalFeed(actor, binding.scope, storage, cryptoCodec,
+      event => [lotteryLocalRow(binding.scope.id, event.change)])
+    await feed.apply(page)
+    await persistState(conn, actor, next, undefined, true)
+  })
+  if (assertActive().generation !== sc.generation) throw new Error('ANDROID_LOCAL_ACTOR_CHANGED')
+  restoreDeviceLocalSnapshot(next)
+}
+
+async function catchUpNativeLotteryFeed(
+  conn: SqlitePort, actor: string, binding: NativeLotteryBinding,
+  local: ReturnType<typeof createLocalFeed>, transport: ReturnType<typeof createLotteryPaymentTransport>,
+) {
+  // A bounded catch-up budget prevents indefinite delay of local accounting.
+  // Incomplete catch-up is an error, never reported as success.
+  for (let pageCount = 0; pageCount < 8; pageCount++) {
+    const cursor = await local.cursor()
+    if (!cursor) throw new Error('SYNC_LOCAL_SNAPSHOT_REQUIRED')
+    const page = await transport.feed(cursor.sequence)
+    if (page.from !== cursor.sequence) throw new Error('SYNC_FEED_SCOPE_OR_CURSOR')
+    if (page.next === page.from) return
+    await applyNativeLotteryV2Page(conn, actor, binding, page)
+  }
+  throw new Error('SYNC_FEED_CATCHUP_INCOMPLETE')
+}
+
+async function syncNativeLotteryOrganization(
+  conn: SqlitePort, actor: string, organization: string, storage: LocalFeedStorage,
+  cryptoCodec: LocalFeedCodec, request: <T>(operation:string,input:unknown)=>Promise<T>,
+) {
+  const binding = await readNativeLotteryPaymentBinding(conn, actor, organization)
+  const local = createLocalFeed(actor, binding.scope, storage, cryptoCodec,
+    event => [lotteryLocalRow(organization, event.change)])
+  const transport = createLotteryPaymentTransport(request, binding)
+  const outbox = createLotteryPaymentOutbox(actor, binding.scope, binding.registration,
+    storage, cryptoCodec, {
+      cursor: local.cursor, appliedOperation: local.appliedOperation,
+      apply: (page: ScopedPage) => applyNativeLotteryV2Page(conn, actor, binding, page),
+    })
+  const operations = await outbox.pending()
+  for (const operation of operations) await outbox.resume(operation, transport)
+  await catchUpNativeLotteryFeed(conn, actor, binding, local, transport)
+  return operations.length
+}
+
+/** Online reconciliation; a missing Central session leaves all local payments pending. */
+export function syncNativeLotteryV2Pending(actor: string): Promise<{ organizations: number; pending: number }> {
+  if (!SYNC_V2_PAYMENT_ENABLED) return Promise.resolve({organizations:0,pending:0})
+  return ordered(async () => {
+    const sc = assertActive()
+    if (sc.actor !== actor) throw new Error('ANDROID_LOCAL_ACTOR_CHANGED')
+    const storage = await openSqliteLocalFeedStorage(sc.db)
+    const cryptoCodec = createLocalFeedCodec(codec)
+    const key = `sync-v2-native-payment:${actor}:organizations`
+    const marker = await storage.read(key)
+    if (!marker) return {organizations:0,pending:0}
+    const organizations = JSON.parse(await cryptoCodec.open(marker, key)) as unknown
+    if (!Array.isArray(organizations) || organizations.some(id => typeof id !== 'string' || !idPattern.test(id))) {
+      throw new Error('SYNC_LOTTERY_DEVICE_INDEX_INVALID')
+    }
+    const { requestOnlineLotterySync } = await import('../accounting/api')
+    const request = <T,>(_: string, input: unknown) => requestOnlineLotterySync<T>(actor, input)
+    let count = 0
+    for (const organization of organizations) {
+      count += await syncNativeLotteryOrganization(sc.db, actor, organization, storage, cryptoCodec, request)
+    }
+    return {organizations:organizations.length,pending:count}
+  })
+}
+
+/** Never merge a newly assigned remote scope over an unreconciled local-only ledger. */
+function assertNoLegacyLotteryRows(existing: Record<string, unknown>, organization: string) {
+  for (const [model, unknownRows] of Object.entries(existing)) {
+    if (!Array.isArray(unknownRows)) throw new Error('SYNC_LOTTERY_LEGACY_MIGRATION_REQUIRED')
+    if (unknownRows.some(row => row && typeof row === 'object' &&
+        (model === 'foundationAccountingOrganization' ? (row as {id?:unknown}).id === organization :
+          (row as {organizationId?:unknown}).organizationId === organization))) {
+      throw new Error('SYNC_LOTTERY_LEGACY_MIGRATION_REQUIRED')
+    }
+  }
+}
+
+async function installNativeLotterySnapshot(
+  sc: ReturnType<typeof assertActive>, actor: string, binding: NativeLotteryBinding,
+  current: DeviceLocalSnapshot, existing: Record<string, unknown>,
+  cursor: { epoch: string; sequence: string }, rows: readonly ReturnType<typeof lotteryLocalRow>[],
+) {
+  if (assertActive().generation !== sc.generation) throw new Error('ANDROID_LOCAL_ACTOR_CHANGED')
+  const combined: Record<string, unknown[]> = structuredClone(existing) as Record<string, unknown[]>
+  for (const row of rows) {
+    if (row.value === null || !row.value || typeof row.value !== 'object' || !('projectionJson' in row.value) ||
+        typeof row.value.projectionJson !== 'string') throw new Error('SYNC_LOTTERY_SNAPSHOT_INVALID')
+    ;(combined[row.collection] ??= []).push(JSON.parse(row.value.projectionJson))
+  }
+  validateLotteryTransferState(combined)
+  const installed = structuredClone(current)
+  installed.workspaceEvents['android-lottery:state'] = { payload: '', result: combined }
+  const organization = binding.scope.id
+  const id = nativeLotteryBindingKey(actor, organization)
+  const indexId = `sync-v2-native-payment:${actor}:organizations`
+  const cryptoCodec = createLocalFeedCodec(codec)
+  const context = nativeLotteryPaymentContext(sc.db, codec, actor, binding)
+  // Native Ledger, grouped-feed cursor and encrypted proof share one SQLCipher
+  // transaction. No remote call is allowed inside this transaction.
+  await withSqliteLocalFeedTransaction(sc.db, async atomic => {
+    await context.feed(atomic).installSnapshot(cursor, rows)
+    await persistState(sc.db, actor, installed, undefined, true)
+    await atomic.commit(id, null, [{ id, sealed: await cryptoCodec.seal(JSON.stringify(binding), id) }])
+    const previous = await atomic.read(indexId)
+    const list: string[] = previous ? JSON.parse(await cryptoCodec.open(previous, indexId)) as string[] : []
+    if (!Array.isArray(list) || list.some(row => typeof row !== 'string' || !idPattern.test(row))) {
+      throw new Error('SYNC_LOTTERY_DEVICE_INDEX_INVALID')
+    }
+    const sealed = await cryptoCodec.seal(JSON.stringify([...new Set([...list, organization])]), indexId)
+    await atomic.commit(indexId, previous, [{ id: indexId, sealed }])
+  })
+  if (assertActive().generation !== sc.generation) throw new Error('ANDROID_LOCAL_ACTOR_CHANGED')
+  restoreDeviceLocalSnapshot(installed)
+}
+
+/** Explicit Central-authorized enrollment of one organization. Never migrates old local-only Lottery data. */
+export function enrollNativeLotteryV2(actor: string, ticket: string): Promise<{ organization: string; registration: string }> {
+  if (!SYNC_V2_PAYMENT_ENABLED) return Promise.reject(new Error('SYNC_V2_PAYMENT_DISABLED'))
+  return ordered(async () => {
+    const sc = assertActive()
+    if (sc.actor !== actor) throw new Error('ANDROID_LOCAL_ACTOR_CHANGED')
+    const storage = await openSqliteLocalFeedStorage(sc.db)
+    const cryptoCodec = createLocalFeedCodec(codec)
+    const { requestOnlineLotterySync } = await import('../accounting/api')
+    const request = <T,>(_: string, input: unknown) => requestOnlineLotterySync<T>(actor, input)
+    const registration = await createDevicePairing(actor, 'android', storage, cryptoCodec, request)(ticket)
+    const organization = registration.scope.id
+    if (registration.scope.kind !== 'lottery-organization') throw new Error('SYNC_LOTTERY_BINDING_UNVERIFIED')
+    const binding: NativeLotteryBinding = { ...registration, client: 'android', scope: {
+      kind: 'lottery-organization', id: organization, epoch: registration.scope.epoch,
+    } }
+    verifyNativeLotteryBinding(binding, actor, organization)
+    const current = readDeviceLocalSnapshot()
+    const previous = current.workspaceEvents['android-lottery:state']?.result
+    const existing = previous && typeof previous === 'object' && !Array.isArray(previous)
+      ? previous as Record<string, unknown> : {}
+    assertNoLegacyLotteryRows(existing, organization)
+    const id = nativeLotteryBindingKey(actor, organization)
+    if (await storage.read(id)) throw new Error('SYNC_LOTTERY_ALREADY_ENROLLED')
+    const scope = binding.scope
+    const reader = createLotterySnapshotReader(request, { organization, epoch: scope.epoch,
+      registration: registration.registration, credential: registration.credential })
+    await bootstrapLotteryProjection(organization, scope.epoch, reader, (cursor, rows) =>
+      installNativeLotterySnapshot(sc, actor, binding, current, existing, cursor, rows))
+    return { organization, registration: registration.registration }
+  })
+}
+
+async function rejectEnrolledLegacyLotteryWriter(input: LotteryInput, actor: string) {
+  const organization = input.payload.organizationId
+  if (typeof organization !== 'string' || !idPattern.test(organization)) return
+  const store = await openSqliteLocalFeedStorage(assertActive().db)
+  if (await store.read(nativeLotteryBindingKey(actor, organization))) throw new Error('SYNC_V2_WRITER_UNSUPPORTED')
+}
+
+async function saveNativeV2LotteryPayment(input: LotteryInput, actor: string) {
+  return commit(async () => {
+    const sc = assertActive()
+    const organization = input.payload.organizationId
+    if (typeof organization !== 'string' || !idPattern.test(organization)) throw new Error('SYNC_LOTTERY_BINDING_UNVERIFIED')
+    const binding = await readNativeLotteryPaymentBinding(sc.db, actor, organization)
+    const context = nativeLotteryPaymentContext(sc.db, codec, actor, binding)
+    const original = readDeviceLocalSnapshot().workspaceEvents[`android-lottery:receipt:${input.operationId}`]
+    if (original) {
+      // Never upgrade an old local-only receipt to a new v2 operation.
+      if (await context.status(input.operationId!) === 'missing') throw new Error('SYNC_LOTTERY_LEGACY_LINEAGE_REQUIRED')
+      return deviceLottery(input, actor)
+    }
+    return context.savePayment(input, allocateId => deviceLottery(input, actor, allocateId),
+      () => persistState(sc.db, actor, readDeviceLocalSnapshot(), undefined, true))
+  }, undefined, true)
+}
+
 export async function nativeLocalRequest<T>(operation:string,input:unknown,expectedActor?:string):Promise<T> {
   if(expectedActor!==undefined&&assertActive().actor!==expectedActor)throw new Error('ANDROID_LOCAL_ACTOR_CHANGED')
   if (!/^[a-z][a-z0-9-]{0,63}$/u.test(operation)) throw new Error('ANDROID_LOCAL_OPERATION_INVALID')
@@ -547,7 +784,14 @@ export async function nativeLocalRequest<T>(operation:string,input:unknown,expec
         return output as T
       })
     }
-    // The receipt and Lottery state live in the same encrypted snapshot transaction.
+    // In a flagged cohort, unknown writers may not bypass the typed v2 ledger.
+    if (SYNC_V2_PAYMENT_ENABLED && !isLotteryRead(input.method) && input.method !== 'recordPayment') {
+      await rejectEnrolledLegacyLotteryWriter(input, actor)
+    }
+    if (SYNC_V2_PAYMENT_ENABLED && input.method === 'recordPayment') {
+      return saveNativeV2LotteryPayment(input, actor) as Promise<T>
+    }
+    // The legacy receipt and Lottery state live in the encrypted local snapshot.
     return commit(async () => await deviceLottery(input, actor) as T)
   }
   if (operation==='masters') {
