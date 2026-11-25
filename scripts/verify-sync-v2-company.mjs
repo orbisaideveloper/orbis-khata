@@ -45,7 +45,7 @@ async function posting(id=voucherId,sub=owner){
 async function receipt(id=voucherId,digest='b'.repeat(64),operation=operationId){
   return sql.begin(async tx=>(await tx.unsafe(
     'select sync_v2.finish_voucher($1,$2,$3,$4,$5,$6::jsonb)::text as seq',
-    [actor,company,epoch,operation,digest,JSON.stringify({entityId:id})]))[0].seq);
+    [actor,company,epoch,operation,digest,sql.json({entityId:id})]))[0].seq);
 }
 const recover=async(after,item=null,offset=null,deviceProof=credentialDigest)=>(await sql.unsafe(
   'select sync_v2.read_trusted_company_group($1::uuid,$2,$3,$4,$5,$6::bigint,$7::integer,$8::integer) as value',

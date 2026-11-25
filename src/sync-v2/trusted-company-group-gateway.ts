@@ -18,7 +18,7 @@ export function createCompanyGroupReader(begin: Begin) {
     scope: Scope, after: string, item: number | null, offset: number | null,
   ): Promise<Record<string, unknown>> => {
     if (scope.kind !== 'company') throw new Error('SYNC_SCOPE_UNSUPPORTED')
-    if (!/^(0|[1-9][0-9]{0,18})$/u.test(after) || BigInt(after)>9223372036854775807n ||
+    if (!/^(0|[1-9]\d{0,18})$/u.test(after) || BigInt(after)>9223372036854775807n ||
         !registration || registration.length > 128 ||
         (item===null)!==(offset===null) ||
         (item!==null && (!Number.isInteger(item) || item<1 || item>16000 ||

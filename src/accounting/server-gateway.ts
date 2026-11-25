@@ -206,6 +206,13 @@ function databaseErrorCode(error: unknown) {
 function gatewayJsonReply(headers: Headers, status: number, value: unknown) {
     return new Response(JSON.stringify(value), { status, headers });
 }
+function acceptGatewayOrigin(origin: string | null, allowed: readonly string[], headers: Headers) {
+    if (!origin) return true;
+    if (!allowed.includes(origin)) return false;
+    headers.set('access-control-allow-origin', origin);
+    headers.set('vary', 'Origin');
+    return true;
+}
 function gatewayFailure(error: unknown, headers: Headers, stage: string) {
     if (error instanceof GatewayRejection) {
         if (error.retryAfter !== undefined) {
@@ -234,7 +241,7 @@ function parseGatewayOperation(text: string) {
     }
     return operation;
 }
-export function createKhataGateway(options: {
+type KhataGatewayOptions = {
     origins: readonly string[];
     verify: (token: string) => Promise<KhataPrincipal | null>;
     execute: (principal: KhataPrincipal, operation: KhataOperation) => Promise<unknown>;
@@ -242,18 +249,26 @@ export function createKhataGateway(options: {
     lotterySync?: (principal: KhataPrincipal, input: Record<string, unknown>) => Promise<unknown>;
     companySync?: (principal: KhataPrincipal, input: Record<string, unknown>) => Promise<unknown>;
     maximumConcurrent?: number;
-}) {
+};
+
+async function runGatewayOperation(options: KhataGatewayOptions, principal: KhataPrincipal, operation: KhataOperation) {
+    if (operation.operation === 'lottery-sync' && options.lotterySync) {
+        return options.lotterySync(principal, operation.input);
+    }
+    if (operation.operation === 'company-sync' && options.companySync) {
+        return options.companySync(principal, operation.input);
+    }
+    return options.execute(principal, operation);
+}
+
+export function createKhataGateway(options: KhataGatewayOptions) {
     const acquire=createIngressGuard(options.maximumConcurrent);
     return async (request: Request): Promise<Response> => {
         const origin = request.headers.get('origin');
         const headers = new Headers({ 'cache-control': 'no-store', 'content-type': 'application/json', 'x-content-type-options': 'nosniff' });
         const reply = (status: number, value: unknown) => gatewayJsonReply(headers, status, value);
-        if (origin) {
-            if (!options.origins.includes(origin)) {
-                return reply(403, { code: 'KHATA_ORIGIN_DENIED' });
-            }
-            headers.set('access-control-allow-origin', origin);
-            headers.set('vary', 'Origin');
+        if (!acceptGatewayOrigin(origin, options.origins, headers)) {
+            return reply(403, { code: 'KHATA_ORIGIN_DENIED' });
         }
         if (request.method === 'OPTIONS') {
             headers.set('access-control-allow-methods', 'POST, OPTIONS');
@@ -286,11 +301,7 @@ export function createKhataGateway(options: {
             const admission=await options.admit(principal);
             if(!admission.allowed){throw new GatewayRejection(429,'KHATA_RATE_LIMITED',admission.retryAfter);}
             stage = 'product-database';
-            const data = operation.operation === 'lottery-sync' && options.lotterySync
-                ? await options.lotterySync(principal, operation.input)
-                : operation.operation === 'company-sync' && options.companySync
-                    ? await options.companySync(principal, operation.input)
-                    : await options.execute(principal, operation);
+            const data = await runGatewayOperation(options, principal, operation);
             return reply(200, { data });
         }
         catch (error) {
