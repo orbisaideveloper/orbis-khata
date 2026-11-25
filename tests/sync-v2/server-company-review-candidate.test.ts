@@ -135,6 +135,26 @@ describe('2B + 2E guarded company capture: actual unapplied base migrations + re
     expect(page.groups.flatMap(g=>g.events.flatMap(e=>e.change.map(c=>c.entityType)))).toEqual(['voucher','expense','party'])
   })
 
+  it('keeps two independent equal-amount cash receipts distinct across the captured v1 feed', async () => {
+    const first = '12121212-1212-7121-8121-121212121212'
+    const second = '34343434-3434-7343-8343-343434343434'
+    const previous = await head()
+    // Same company, party, day, cash amount and method; different UUIDs mean
+    // two separate business effects, not a de-duplicated retry.
+    await voucher(first)
+    await voucher(second)
+    expect(await head()).toBe(previous + 2)
+    const page = (await db.query('select sync_v2.read_grouped_feed($1,$2,$3,$4,$5,10) as page', [
+      ACTOR,'company',COMPANY,EPOCH,String(previous),
+    ])).rows[0]?.page as {
+      groups: {events: {change: {entityType: string; projectionJson: string}[]}[]}[]
+    }
+    const vouchers = page.groups.flatMap(g => g.events.flatMap(e =>
+      e.change.filter(change => change.entityType === 'voucher')))
+    expect(vouchers).toHaveLength(2)
+    expect(new Set(vouchers.map(change => JSON.parse(change.projectionJson).id))).toEqual(new Set([first,second]))
+  })
+
   it('binds an immutable receipt to an existing legacy voucher event without a duplicate feed entry', async () => {
     const voucherId = 'bbbbbbbb-bbbb-7bbb-8bbb-bbbbbbbbbbbc'
     const operationId = 'cccccccc-cccc-7ccc-8ccc-cccccccccccc'

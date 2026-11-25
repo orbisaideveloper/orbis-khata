@@ -1,0 +1,108 @@
+name: Khata Sync v2 Phase 2B Server Simulator
+
+# Manual, isolated acceptance evidence. No deploy, release or Supabase project secrets.
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/sync-v2-phase2b-simulator.yml"
+      - "src/sync-v2/**"
+      - "tests/sync-v2/**"
+      - "scripts/verify-sync-v2-*.mjs"
+      - "supabase/review-candidates/**"
+permissions:
+  contents: read
+
+jobs:
+  phase2b-native-postgres:
+    name: Phase 2B native PostgreSQL ${{ matrix.fixture }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    strategy:
+      fail-fast: false
+      matrix:
+        fixture: [company, trusted-device, lottery]
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: disposable-sync-ci-only
+          POSTGRES_DB: khata_sync_v2_test
+        ports: [5432:5432]
+        options: >-
+          --health-cmd "pg_isready -U postgres -d khata_sync_v2_test"
+          --health-interval 5s --health-timeout 5s --health-retries 10
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '24'
+          cache: npm
+      - name: Install pinned dependencies
+        run: npm ci --no-fund
+      - name: Execute native PostgreSQL fixture on disposable database
+        env:
+          KHATA_SYNC_V2_TEST_URL: postgres://postgres:disposable-sync-ci-only@127.0.0.1:5432/khata_sync_v2_test
+          SYNC_FIXTURE: ${{ matrix.fixture }}
+        run: |
+          set -euo pipefail
+          mkdir -p quality-reports/phase2b
+          node "scripts/verify-sync-v2-${SYNC_FIXTURE}.mjs" 2>&1 | tee "quality-reports/phase2b/postgres-${SYNC_FIXTURE}.txt"
+      - name: Preserve PostgreSQL evidence including failures
+        if: always()
+        uses: actions/upload-artifact@v5
+        with:
+          name: phase2b-postgres-${{ matrix.fixture }}-${{ github.run_id }}
+          path: quality-reports/phase2b/
+          if-no-files-found: warn
+          retention-days: 14
+
+  phase2b-code:
+    name: Phase 2B targeted regression and closure register
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '24'
+          cache: npm
+      - run: npm ci --no-fund
+      - name: TypeScript typecheck
+        run: npm run typecheck
+      - name: Phase 2B candidate and fail-closed evidence register tests
+        run: |
+          set -euo pipefail
+          mkdir -p quality-reports/phase2b
+          npx vitest run \
+            tests/sync-v2/phase2a-coverage.test.ts \
+            tests/sync-v2/phase2b-closure-gates.test.ts \
+            tests/sync-v2/server-company-review-candidate.test.ts \
+            tests/sync-v2/server-company-group-recovery.test.ts \
+            tests/sync-v2/company-sync-handler.test.ts \
+            src/accounting/server-gateway.test.ts \
+            src/sync-v2/trusted-company-group-gateway.test.ts \
+            2>&1 | tee quality-reports/phase2b/targeted-tests.txt
+      - name: State acceptance boundary, without falsely certifying Phase 2B
+        if: always()
+        run: |
+          mkdir -p quality-reports/phase2b
+          {
+            echo "Git SHA: $GITHUB_SHA"
+            echo "Run: $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"
+            echo "RESULT TYPE: isolated Phase 2B server simulator, NOT full Phase 2B signoff"
+            echo "Evidence register: 65 named obligations; incomplete paths remain BLOCKED"
+            echo "Android A + Android B + Web full E2E: NOT RUN; requires Phase 2C/2D adapters"
+            echo "Physical-device acceptance: NOT RUN"
+            echo "Deploy/Live database changes: NONE"
+          } > quality-reports/phase2b/boundary.txt
+      - name: Preserve targeted evidence including failures
+        if: always()
+        uses: actions/upload-artifact@v5
+        with:
+          name: phase2b-code-${{ github.run_id }}
+          path: quality-reports/phase2b/
+          if-no-files-found: warn
+          retention-days: 14
