@@ -1,0 +1,41 @@
+name: Chat local bootstrap (isolated, no deploy)
+on:
+  push:
+    branches:
+      - tools/chat-local-bootstrap-20261125
+    paths:
+      - .github/workflows/chat-local-bootstrap.yml
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  export:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '22.16.0'
+          cache: npm
+      - name: Build reproducible Linux dependency directory
+        run: npm ci --no-audit --no-fund
+      - name: Package exact source and Linux dependencies
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p chat-local-export
+          git rev-parse HEAD > chat-local-export/SOURCE_COMMIT.txt
+          git archive --format=tar HEAD | zstd -T2 -5 -o chat-local-export/source.tar.zst
+          tar -I 'zstd -T2 -5' -cf chat-local-export/node_modules.tar.zst node_modules
+          (cd chat-local-export && sha256sum source.tar.zst node_modules.tar.zst > SHA256SUMS)
+          ls -lah chat-local-export
+      - uses: actions/upload-artifact@v4
+        with:
+          name: khata-chat-local-bootstrap
+          path: chat-local-export/
+          retention-days: 3
+          if-no-files-found: error
+          compression-level: 0
