@@ -43,24 +43,36 @@ async function syncNativeCompanies(actor: string, active: () => boolean, setConf
   }, Promise.resolve())
 }
 
-async function syncNativeLottery(actor: string, active: () => boolean, setConflict: ConflictSetter) {
+async function syncNativeLotteryV2(actor: string, active: () => boolean, setConflict: ConflictSetter) {
+  try {
+    const runtime = await import('./runtime')
+    if (!active()) return
+    await runtime.syncNativeLotteryV2Pending(actor)
+    if (active()) window.dispatchEvent(new Event('khata-lottery-synced'))
+  } catch {
+    if (active()) setConflict({ actor, id: 'lottery-v2', name: 'Lottery secure sync' })
+  }
+}
+
+async function syncNativeLotteryLegacy(actor: string, active: () => boolean, setConflict: ConflictSetter) {
+  if (document.querySelector('.lottery-module')) return
   const runtime = await import('./runtime')
+  if (!active() || !(await runtime.readNativeLotterySyncState(actor)).linked) return
+  try {
+    await syncWebLottery(actor)
+    if (active()) setConflict(current => current?.id === 'lottery' ? undefined : current)
+  } catch {
+    if (active()) setConflict({ actor, id: 'lottery', name: 'Lottery' })
+  }
+}
+
+async function syncNativeLottery(actor: string, active: () => boolean, setConflict: ConflictSetter) {
   if (!active()) return
   if (import.meta.env.VITE_KHATA_SYNC_V2_LOTTERY_PAYMENT === 'enabled') {
-    try {
-      await runtime.syncNativeLotteryV2Pending(actor)
-      if (active()) window.dispatchEvent(new Event('khata-lottery-synced'))
-    } catch {
-      if (active()) setConflict({ actor, id: 'lottery-v2', name: 'Lottery secure sync' })
-    }
-  } else if (!document.querySelector('.lottery-module') && (await runtime.readNativeLotterySyncState(actor)).linked) {
-    try {
-      await syncWebLottery(actor)
-      if (active()) setConflict(current => current?.id === 'lottery' ? undefined : current)
-    } catch {
-      if (active()) setConflict({ actor, id: 'lottery', name: 'Lottery' })
-    }
+    await syncNativeLotteryV2(actor, active, setConflict)
+    return
   }
+  await syncNativeLotteryLegacy(actor, active, setConflict)
 }
 
 export function useNativeCompanySync(actor: string | null) {

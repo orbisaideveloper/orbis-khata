@@ -2,8 +2,9 @@ import { act, cleanup, fireEvent, renderHook, waitFor } from '@testing-library/r
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 import { syncWebCompany, useNativeCompanySync } from './company-sync'
 
-const api = vi.hoisted(() => ({ read: vi.fn(), save: vi.fn(), list: vi.fn(), syncV2: vi.fn(), legacyLottery: vi.fn() }))
+const api = vi.hoisted(() => ({ read: vi.fn(), save: vi.fn(), list: vi.fn(), syncV2: vi.fn(), legacyLottery: vi.fn(), legacyTransfer: vi.fn() }))
 vi.mock('../accounting/api', () => ({ readOnlineCompanyExport: api.read }))
+vi.mock('./lottery-sync', () => ({ syncWebLottery: api.legacyTransfer }))
 vi.mock('./runtime', () => ({ syncNativeCompany: api.save, readNativeSyncCompanies: api.list,
   syncNativeLotteryV2Pending: api.syncV2, readNativeLotterySyncState: api.legacyLottery }))
 
@@ -15,6 +16,7 @@ beforeEach(() => {
   api.list.mockResolvedValue([{ id: 'company', name: 'Test store' }])
   api.syncV2.mockResolvedValue({ organizations: 1, pending: 0 })
   api.legacyLottery.mockResolvedValue({ linked: false })
+  api.legacyTransfer.mockResolvedValue(undefined)
 })
 afterEach(() => { cleanup(); vi.restoreAllMocks(); vi.unstubAllEnvs(); vi.useRealTimers() })
 
@@ -122,4 +124,12 @@ it('reports a flagged v2 failure rather than silently switching to legacy Lotter
   await waitFor(() => expect(hook.result.current).toBe('Lottery secure sync'))
   expect(api.syncV2).toHaveBeenCalledOnce()
   expect(api.legacyLottery).not.toHaveBeenCalled()
+})
+
+it('keeps the original legacy Lottery pull for linked accounts when v2 is disabled', async () => {
+  vi.stubEnv('VITE_KHATA_SYNC_V2_LOTTERY_PAYMENT', 'disabled')
+  api.legacyLottery.mockResolvedValue({ linked: true })
+  renderHook(() => useNativeCompanySync('owner'))
+  await waitFor(() => expect(api.legacyTransfer).toHaveBeenCalledExactlyOnceWith('owner'))
+  expect(api.syncV2).not.toHaveBeenCalled()
 })
