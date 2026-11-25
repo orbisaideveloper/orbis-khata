@@ -6,6 +6,7 @@ import { transpileModule, ModuleKind } from 'typescript'
 import { expect, it } from 'vitest'
 import { createKhataGateway } from '../src/accounting/server-gateway'
 import { emptyPartyDetails } from '../src/demo/master-model'
+import { lockPartySave } from '../supabase/functions/orbis-khata-data/party-save-lock'
 
 const id = '11111111-1111-4111-8111-111111111111'
 const principal = { orbisIdentityId: '11111111-1111-7111-8111-111111111111', displayId: 'ORB-U-23456789' }
@@ -18,6 +19,7 @@ function decodeJson(value: unknown) {
 }
 function edgeHarness(existingParties: {id:string;name:string;phone:string}[] = [], admissionDecision:unknown = {allowed:true,retryAfter:0}) {
   const received: unknown[] = []
+  const partyEvents: string[] = []
   let inTransaction=false;const admittedIdentities:unknown[]=[]
   let lotteryState:Record<string,Record<string,unknown>[]>={},lotteryVersion=0;const lotteryOperations=new Map<string,unknown>();
   let handler: (request: Request) => Promise<Response> = async () => new Response(null, { status: 500 })
@@ -25,7 +27,10 @@ function edgeHarness(existingParties: {id:string;name:string;phone:string}[] = [
     const query = parts.join('?')
     if(query.includes('admit_gateway_request')){expect(inTransaction).toBe(false);admittedIdentities.push(values[0]);return [{decision:admissionDecision}]}
     if (query.includes('resolve_ledger_owner')) return [{ id }]
-    if(query.includes('select id,name,phone from public.khata_parties'))return existingParties
+    if (query.includes('select id,name,phone from public.khata_parties')) {
+      partyEvents.push('check-duplicate')
+      return existingParties
+    }
     if(query.includes('khata_report_revision_v1'))return [{version:'1'}]
     if (query.includes('::jsonb')) {
       const payloads = values.slice(query.includes('khata_master_save_v2') ? 1 : 0).map(decodeJson)
@@ -35,23 +40,37 @@ function edgeHarness(existingParties: {id:string;name:string;phone:string}[] = [
         for(const change of p.changes){const rows=lotteryState[change.model]??=[];const index=rows.findIndex(row=>row.id===change.id);if(change.value===null){if(index>=0)rows.splice(index,1);}else if(index>=0)rows[index]=change.value;else rows.push(change.value);}
         lotteryVersion++;if(p.operationId)lotteryOperations.set(p.operationId,p.result);return [{data:p.result}];
       }
+      if (query.includes('khata_master_save_v2') && values[0] === 'party') partyEvents.push('save-party')
       received.push(...payloads)
       if (!payloads.every(p => typeof p === 'object' && p !== null)) throw Object.assign(new Error('Invalid JSON shape'), { code: 'P0001' })
       return [{ data: id }]
     }
     return [{ ready: 1 }]
-  }, { json: (jsonValue: unknown): JsonParameter => ({ jsonValue }) })
+  }, {
+    json: (jsonValue: unknown): JsonParameter => ({ jsonValue }),
+    unsafe: async (statement: string, [namespace, company]: string[]) => {
+      expect(inTransaction).toBe(true)
+      expect(statement).toContain('pg_advisory_xact_lock')
+      expect(company).toBe(id)
+      partyEvents.push(namespace)
+      return []
+    },
+  })
   const sql = Object.assign(tx, { begin: async (callback: (transaction: typeof tx) => unknown) => {inTransaction=true;try{return await callback(tx)}finally{inTransaction=false}} })
   const source = readFileSync('supabase/functions/orbis-khata-data/index.ts', 'utf8')
   const compiled = transpileModule(source, { compilerOptions: { module: ModuleKind.CommonJS } }).outputText
   runInNewContext(compiled, {
     exports: {}, URL, crypto, console: { info() {}, warn() {} },
-    require: (name: string) => name.includes('/demo/party-match') ? {identicalParty} : name.includes('/lottery/service') ? {runLottery} : name.startsWith('npm:postgres') ? { __esModule: true, default: () => sql } : {
-      createCentralVerifier: () => async () => principal, createKhataGateway,
+    require: (name: string) => {
+      if (name === './party-save-lock.ts') return { lockPartySave }
+      if (name.includes('/demo/party-match')) return { identicalParty }
+      if (name.includes('/lottery/service')) return { runLottery }
+      if (name.startsWith('npm:postgres')) return { __esModule: true, default: () => sql }
+      return { createCentralVerifier: () => async () => principal, createKhataGateway }
     },
     Deno: { env: { get: (name: string) => name === 'KHATA_DATABASE_URL' ? 'postgres://postgres@db.gqyaxsczlmvppxuoqbox.supabase.co/postgres' : '' }, serve: (value: typeof handler) => { handler = value } },
   })
-  return { received, admittedIdentities, request: (operation: string, input: unknown) => handler(new Request('https://example.test', { method: 'POST', headers: { authorization: 'Bearer test' }, body: JSON.stringify({ version: 'orbis.khata.data.v1', operation, input }) })) }
+  return { received, admittedIdentities, partyEvents, request: (operation: string, input: unknown) => handler(new Request('https://example.test', { method: 'POST', headers: { authorization: 'Bearer test' }, body: JSON.stringify({ version: 'orbis.khata.data.v1', operation, input }) })) }
 }
 it('passes optional item fields and party details through the actual Edge entrypoint as JSON objects', async () => {
   const edge = edgeHarness()
@@ -60,6 +79,7 @@ it('passes optional item fields and party details through the actual Edge entryp
   expect((await edge.request('item-save', item)).status).toBe(200)
   expect((await edge.request('party-save', party)).status).toBe(200)
   expect(edge.received).toEqual([item, party])
+  expect(edge.partyEvents).toEqual(['stock-company:', 'expense-company:', 'master:', 'check-duplicate', 'save-party'])
   expect(edge.admittedIdentities).toEqual([principal.orbisIdentityId,principal.orbisIdentityId])
 })
 it('preserves expense command objects and line arrays across the SQL boundary', async () => {
@@ -77,6 +97,7 @@ it('rejects an identical party through the authenticated Edge entrypoint without
   expect(response.status).toBe(422)
   expect(JSON.stringify(await response.json())).toContain('PARTY_ALREADY_EXISTS')
   expect(edge.received).toEqual([])
+  expect(edge.partyEvents).toEqual(['stock-company:', 'expense-company:', 'master:', 'check-duplicate'])
 })
 
 it('runs independent lottery operations through the actual authenticated Edge entrypoint without touching ordinary tables',async()=>{
