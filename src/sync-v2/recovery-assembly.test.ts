@@ -43,3 +43,34 @@ it('rejects corruption, truncation, wrong scopes and missing group events', asyn
   await expect(assembleRecoveryTransfer(missing.manifest, missing.manifest, missing.read)).rejects.toThrow('SYNC_RECOVERY_GROUP_BOUNDARY')
   expect(await assembleRecoveryTransfer(manifest, manifest, read)).toHaveLength(2)
 })
+
+it('rejects invalid cursor ranges and manifests before requesting any fragment', async () => {
+  const { manifest } = wire([{ seq: '10' }])
+  const read = async () => { throw new Error('unexpected fragment request') }
+  for (const fields of [{ transfer: '' }, { epoch: 'old' }, { items: -1 }, { items: 16001 }, { bytes: 16777217 }]) {
+    await expect(assembleRecoveryTransfer({ ...manifest, ...fields }, manifest, read))
+      .rejects.toThrow('SYNC_RECOVERY_MANIFEST')
+  }
+  await expect(assembleRecoveryTransfer({ ...manifest, next: '01' }, manifest, read))
+    .rejects.toThrow('SYNC_RECOVERY_CURSOR')
+  await expect(assembleRecoveryTransfer({ ...manifest, next: '11' }, manifest, read))
+    .rejects.toThrow('SYNC_RECOVERY_GROUP_BOUNDARY')
+})
+
+it('rejects inconsistent fragment offsets, lengths, and digests', async () => {
+  const { manifest, read } = wire([{ seq: '10', amount: '100' }])
+  for (const fields of [
+    { transfer: 'foreign' }, { item: 2 }, { offset: 1 }, { size: 0 },
+    { hex: 'xyz' }, { nextOffset: 1 }, { size: manifest.bytes + 1 }, { sha256: 'invalid' },
+  ]) {
+    await expect(assembleRecoveryTransfer(manifest, manifest, async (item, offset) => ({
+      ...await read(item, offset), ...fields,
+    }))).rejects.toThrow('SYNC_RECOVERY_FRAGMENT')
+  }
+  await expect(assembleRecoveryTransfer(manifest, manifest, async (item, offset) => {
+    const part = await read(item, offset)
+    return offset === 0 ? part : { ...part, sha256: 'f'.repeat(64) }
+  })).rejects.toThrow('SYNC_RECOVERY_FRAGMENT')
+  await expect(assembleRecoveryTransfer({ ...manifest, bytes: manifest.bytes + 1 }, manifest, read))
+    .rejects.toThrow('SYNC_RECOVERY_MANIFEST')
+})
