@@ -1,4 +1,5 @@
 import { createLotterySyncHandler } from './lottery-sync.ts';
+import { createCompanySyncHandler } from './company-sync.ts';
 import { lockPartySave } from './party-save-lock.ts';
 import { readSellerRecovery } from './seller-recovery-read.ts';
 import type { SellerRecoveryRequest } from '../../../src/lottery/seller-recovery-contract.ts';
@@ -34,6 +35,14 @@ const verify = createCentralVerifier({
     ...(verificationKey ? { verificationKey } : {}),
 });
 const handler = createKhataGateway({ origins: (env('KHATA_ORIGINS') || 'https://orbis-khata.onrender.com,http://127.0.0.1:5173').split(',').map(value => value.trim()).filter(Boolean), verify,
+    ...(env('KHATA_COMPANY_SYNC_V2') === 'enabled' ? {
+        companySync: createCompanySyncHandler(async work => {
+            const { result } = await sql.begin(async tx => ({
+                result: await work((statement, params = []) => tx.unsafe(statement, params)),
+            }));
+            return result;
+        }),
+    } : {}),
     ...(env('KHATA_LOTTERY_SYNC_V2') === 'enabled' ? {
         lotterySync: createLotterySyncHandler(async work => {
             const { result } = await sql.begin(async tx => ({

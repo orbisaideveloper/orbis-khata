@@ -83,6 +83,20 @@ describe('2B + 2E guarded company capture: actual unapplied base migrations + re
     } finally {await isolated.close()}
   },60000)
 
+  it('audits every company_id table for a Sync v2 trigger and makes derived reversal exception explicit', async () => {
+    const missing = (await db.query(`select c.relname as table_name
+      from pg_class c join pg_namespace n on n.oid=c.relnamespace
+      join pg_attribute a on a.attrelid=c.oid and a.attname='company_id' and not a.attisdropped
+      where n.nspname='public' and c.relkind in ('r','p') and not exists (
+        select 1 from pg_trigger t where t.tgrelid=c.oid and not t.tgisinternal
+          and (t.tgname like 'sync_%' or t.tgname like 'zz_sync_%')
+      ) order by c.relname`)).rows as {table_name:string}[]
+    // Stock reversals are produced by the old voucher trigger and included
+    // as nested stockReversals in the captured reversal-voucher projection.
+    // They must not receive a second independent writer without a dedup contract.
+    expect(missing.map(r=>r.table_name)).toEqual(['khata_stock_reversals'])
+  })
+
   it('installs one capture producer per domain table, no accidental duplicate financial triggers', async () => {
     const triggers = (await db.query(`select c.relname as table_name,t.tgname as name
       from pg_trigger t join pg_class c on c.oid=t.tgrelid join pg_namespace n on n.oid=c.relnamespace
@@ -135,10 +149,49 @@ describe('2B + 2E guarded company capture: actual unapplied base migrations + re
     const saved = (await db.query('select result,seq::text from sync_v2.receipt where operation_id=$1',[operationId])).rows[0]
     expect(saved?.result).toEqual(result)
     expect(saved?.seq).toBe(receipt)
+    // Lost network ACK: an exact replay must return the original receipt and
+    // must not create a second ledger event, even for repeated finalization.
+    for (let retry=0; retry<5; retry++) {
+      const recovered=(await db.query('select sync_v2.finish_voucher($1,$2,$3,$4,$5,$6::jsonb)::text as seq',[
+        ACTOR,COMPANY,EPOCH,operationId,'a'.repeat(64),JSON.stringify(result),
+      ])).rows[0]?.seq
+      expect(recovered).toBe(receipt)
+    }
+    await expect(db.query('select sync_v2.finish_voucher($1,$2,$3,$4,$5,$6::jsonb)',[
+      ACTOR,COMPANY,EPOCH,operationId,'a'.repeat(64),JSON.stringify({entityId:voucherId,extra:'changed'}),
+    ])).rejects.toThrow('SYNC_OPERATION_CONFLICT')
     await expect(db.query('select sync_v2.finish_voucher($1,$2,$3,$4,$5,$6::jsonb)',[
       ACTOR,COMPANY,EPOCH,operationId,'b'.repeat(64),JSON.stringify(result),
     ])).rejects.toThrow()
     expect(await head()).toBe(prior)
+  })
+
+  it('rejects reuse of one operation for a different voucher and rolls back the combined financial posting', async () => {
+    const firstVoucher = 'dededede-dede-7ded-8ded-dededededede'
+    const secondVoucher = 'efefefef-efef-7fef-8fef-efefefefefef'
+    const operation = 'dcdcdcdc-dcdc-7dcd-8dcd-dcdcdcdcdcdc'
+    const immutableDigest = 'f'.repeat(64)
+    await voucher(firstVoucher)
+    await db.query('select sync_v2.finish_voucher($1,$2,$3,$4,$5,$6::jsonb)',[
+      ACTOR,COMPANY,EPOCH,operation,immutableDigest,JSON.stringify({entityId:firstVoucher}),
+    ])
+    const before = await head()
+    await expect(db.transaction(async tx => {
+      await tx.query('select set_config($1,$2,true),set_config($3,$4,true)', [
+        'request.jwt.claims', JSON.stringify({sub:OWNER,role:'authenticated'}),
+        'orbis.khata.gateway_verified','v1',
+      ])
+      await tx.exec('set local role authenticated')
+      await tx.query('select public.khata_post_v1($1::uuid,$2::uuid,$3::uuid,$4,$5::date,$6,$7,$8,$9,$10::uuid)',[
+        secondVoucher,COMPANY,PARTY,'receipt','2026-11-25','120','cash','','Should roll back',null,
+      ])
+      await tx.exec('reset role')
+      await tx.query('select sync_v2.finish_voucher($1,$2,$3,$4,$5,$6::jsonb)',[
+        ACTOR,COMPANY,EPOCH,operation,immutableDigest,JSON.stringify({entityId:secondVoucher}),
+      ])
+    })).rejects.toThrow('SYNC_OPERATION_CONFLICT')
+    expect(await head()).toBe(before)
+    expect((await db.query('select count(*)::int as n from public.khata_vouchers where id=$1',[secondVoucher])).rows[0]?.n).toBe(0)
   })
 
   it('master party save, update and delete capture immutable audit and deletion marker', async () => {
@@ -172,6 +225,40 @@ describe('2B + 2E guarded company capture: actual unapplied base migrations + re
     expect(changes.filter(c=>c.entityType==='master-audit').length).toBeGreaterThan(0)
     expect(JSON.parse(changes.filter(c=>c.entityType==='party').at(-1)?.projectionJson??'{}')).toEqual({id:masterId,company_id:COMPANY,deleted:true})
     expect(Number(page.next)).toBeGreaterThan(start)
+  })
+
+  it('expense profile commit captures changed state and operation together with an idempotent retry', async () => {
+    const operationId='acacacac-acac-7aca-8aca-acacacacacac'
+    const state={categories:[{id:'food',name:'Food'}],profiles:[],payments:[]}
+    const command={company:COMPANY,action:'commit',operationId,version:0,state,
+      request:{action:'category',id:'food'}}
+    const signed = () => db.transaction(async tx => {
+      await tx.query('select set_config($1,$2,true),set_config($3,$4,true)',[
+        'request.jwt.claims',JSON.stringify({sub:OWNER,role:'authenticated'}),
+        'orbis.khata.gateway_verified','v1',
+      ])
+      await tx.exec('set local role authenticated')
+      return (await tx.query('select public.khata_expense_profiles_v1($1::jsonb) as result',[
+        JSON.stringify(command)])).rows[0]?.result as Record<string,unknown>
+    })
+    const start=await head()
+    const first=await signed()
+    expect(first).toHaveProperty('state')
+    const page=(await db.query('select sync_v2.read_grouped_feed($1,$2,$3,$4,$5,100) as page',[
+      ACTOR,'company',COMPANY,EPOCH,start])).rows[0]?.page as {
+        groups:{events:{change:{entityType:string;projectionJson:string}[]}[]}[]
+      }
+    expect(page.groups).toHaveLength(1)
+    const changed=page.groups.flatMap(g=>g.events.flatMap(e=>e.change))
+    expect(changed.map(c=>c.entityType)).toEqual([
+      'expense-profile-state','expense-profile-state','expense-profile-operation',
+    ])
+    const latest=changed.filter(c=>c.entityType==='expense-profile-state').at(-1)
+    expect(JSON.parse(latest?.projectionJson??'{}').state).toEqual(state)
+    const confirmed=await head()
+    const retried=await signed()
+    expect(retried).toHaveProperty('replay',true)
+    expect(await head()).toBe(confirmed)
   })
 
   it('real paid purchase captures invoice, settlement, inventory and fiscal child rows in one group', async () => {

@@ -229,14 +229,29 @@ revoke all on function sync_v2.capture_voucher() from public;
 create trigger zz_sync_v2_capture_voucher after insert on public.khata_vouchers
 for each row execute function sync_v2.capture_voucher();
 
+-- A lost HTTP response must be replayable with the exact operation/digest/result.
+-- Never replace an earlier financial receipt or accept one operation for two
+-- different vouchers. ON CONFLICT waits for an in-flight competing insert.
 create function sync_v2.finish_voucher(a text, s text, e text, op text, d text, r jsonb)
 returns bigint language plpgsql set search_path = '' as $$
-declare event_seq bigint;
+declare event_seq bigint; previous sync_v2.receipt;
 begin
+  if op is null or length(op)=0 or d is null or d !~ '^[0-9a-f]{64}$' or
+     r is null or jsonb_typeof(r) <> 'object' or r->>'entityId' is null then
+    raise exception 'SYNC_RECEIPT_INVALID';
+  end if;
   select seq into strict event_seq from sync_v2.voucher_event
   where voucher_id = (r->>'entityId')::uuid and actor_id = a and scope_id = s and epoch = e;
-  insert into sync_v2.receipt values (a, 'company', s, e, op, d, event_seq, r);
-  return event_seq;
+  insert into sync_v2.receipt(actor_id,kind,scope_id,epoch,operation_id,digest,seq,result)
+  values (a, 'company', s, e, op, d, event_seq, r)
+  on conflict (actor_id,kind,scope_id,operation_id) do nothing;
+  select * into strict previous from sync_v2.receipt
+    where actor_id=a and kind='company' and scope_id=s and operation_id=op;
+  if previous.epoch is distinct from e or previous.seq is distinct from event_seq or
+     previous.digest is distinct from d or previous.result is distinct from r then
+    raise exception 'SYNC_OPERATION_CONFLICT';
+  end if;
+  return previous.seq;
 end;
 $$;
 revoke all on function sync_v2.finish_voucher(text,text,text,text,text,jsonb) from public;
@@ -328,6 +343,10 @@ create trigger sync_financial_opening_payment after insert on public.khata_openi
 for each row execute function sync_v2.capture_company_financial_row('opening-expense-payment');
 create trigger sync_financial_profile_operation after insert on public.khata_expense_profile_operations
 for each row execute function sync_v2.capture_company_financial_row('expense-profile-operation');
+-- The operation receipt alone does not update a rebuilding consumer's profile
+-- projection. Capture the authoritative state row in the SAME transaction.
+create trigger sync_financial_profile_state after insert or update on public.khata_expense_profile_state
+for each row execute function sync_v2.capture_company_financial_row('expense-profile-state');
 create trigger sync_financial_inventory after insert on public.khata_inventory_documents
 for each row execute function sync_v2.capture_company_financial_row('inventory-document');
 create trigger sync_financial_stock after insert on public.khata_stock_movements

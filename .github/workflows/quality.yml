@@ -12,7 +12,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        fixture: [lottery, trusted-device]
+        fixture: [lottery, trusted-device, company]
     services:
       postgres:
         image: postgres:17

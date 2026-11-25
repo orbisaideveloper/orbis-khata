@@ -92,3 +92,40 @@ it('dedicated relay path accepts bounded statements but rejects unrelated financ
  expect((await handle(new Request('https://gateway.example.test/customer-relay',{method:'POST',headers,body:JSON.stringify(envelope('companies',{}))}))).status).toBe(400)
  expect(execute).not.toHaveBeenCalled()
 })
+
+describe('default-off company Sync v2 read-only ingress',()=>{
+  const company='33333333-3333-7333-8333-333333333333'
+  const valid={action:'feed',company,epoch:'epoch-1',registration:'phone-1',
+    credential:'a'.repeat(64),cursor:'0',limit:200}
+  it('validates bounded company feed/recovery and rejects arbitrary owner and malformed cursor',()=>{
+    for(const input of [valid,{...valid,action:'recover-group',limit:undefined,item:1,offset:0},
+      {...valid,action:'recover-group',limit:undefined,item:undefined,offset:undefined}]) {
+      const cleaned=Object.fromEntries(Object.entries(input).filter(([,v])=>v!==undefined))
+      expect(khataOperation(envelope('company-sync',cleaned))).not.toBeNull()
+    }
+    for(const input of [{...valid,owner:principal.orbisIdentityId},{...valid,company:'other'},
+      {...valid,limit:501},{...valid,cursor:'-1'},{...valid,credential:'forged'},
+      {...valid,action:'recover-group',limit:undefined,item:1,offset:undefined}]) {
+      const cleaned=Object.fromEntries(Object.entries(input).filter(([,v])=>v!==undefined))
+      expect(khataOperation(envelope('company-sync',cleaned))).toBeNull()
+    }
+  })
+  it('returns 404 without the flag and never calls legacy accounting execute',async()=>{
+    const {handle,execute,verify}=gateway()
+    expect((await handle(request(envelope('company-sync',valid)))).status).toBe(404)
+    expect(execute).not.toHaveBeenCalled()
+    expect(verify).not.toHaveBeenCalled()
+  })
+  it('authorizes Central actor and enforces admission before calling the private sync handler',async()=>{
+    const companySync=vi.fn().mockResolvedValue({from:'0',next:'0',groups:[]})
+    const execute=vi.fn(),admit=vi.fn().mockResolvedValue({allowed:true,retryAfter:0})
+    const verify=vi.fn().mockResolvedValue(principal)
+    const handle=createKhataGateway({origins:['https://khata.example.test'],verify,execute,admit,companySync})
+    expect((await handle(request(envelope('company-sync',valid)))).status).toBe(200)
+    expect(companySync).toHaveBeenCalledWith(principal,valid)
+    expect(execute).not.toHaveBeenCalled()
+    verify.mockResolvedValueOnce(null)
+    expect((await handle(request(envelope('company-sync',valid)))).status).toBe(401)
+    expect(companySync).toHaveBeenCalledTimes(1)
+  })
+})

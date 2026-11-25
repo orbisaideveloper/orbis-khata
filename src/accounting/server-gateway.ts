@@ -9,7 +9,7 @@ import { safeBusinessReason } from './business-error.ts';
 import { itemInput, partyInput, masterIdentity } from '../master-input.ts';
 import { billTotal, inventoryCommand } from '../inventory/model.ts';
 import { expenseCommand } from './expense-model.ts';
-type Operation = 'lottery-sync' | 'customer-relay' | 'lottery-seller-recovery' | 'lottery-export' | 'company-export' | 'drive-recovery' | 'party-sharing' | 'expense-profiles' | 'lottery' | 'workspace' | 'retired-companies' | 'masters' | 'party-save' | 'item-save' | 'party-delete' | 'item-delete' | 'party-balance' | 'expense-bill' | 'companies' | 'create' | 'report' | 'post' | 'expense-report' | 'expense-post' | 'inventory-post' | 'inventory-report';
+type Operation = 'company-sync' | 'lottery-sync' | 'customer-relay' | 'lottery-seller-recovery' | 'lottery-export' | 'company-export' | 'drive-recovery' | 'party-sharing' | 'expense-profiles' | 'lottery' | 'workspace' | 'retired-companies' | 'masters' | 'party-save' | 'item-save' | 'party-delete' | 'item-delete' | 'party-balance' | 'expense-bill' | 'companies' | 'create' | 'report' | 'post' | 'expense-report' | 'expense-post' | 'inventory-post' | 'inventory-report';
 export type KhataPrincipal = {
     orbisIdentityId: string;
     displayId: string;
@@ -90,6 +90,20 @@ function lotterySyncInput(input: Record<string, unknown>) {
         (input.head === null || syncSequence(input.head)) &&
         keys(input, ['action', 'credential', 'organization', 'epoch', 'registration', 'after', 'head', 'limit']);
 }
+function companySyncInput(input: Record<string, unknown>) {
+    if (!keys(input,['action','credential','company','epoch','registration','cursor','limit','item','offset']) ||
+        typeof input.credential!=='string' || !/^[0-9a-f]{64}$/u.test(input.credential) ||
+        !id(input.company) || typeof input.epoch!=='string' || !/^[\w-]{1,128}$/u.test(input.epoch) ||
+        typeof input.registration!=='string' || !/^[\w-]{1,128}$/u.test(input.registration) ||
+        !syncSequence(input.cursor)) return false;
+    if (input.action==='feed') return keys(input,['action','credential','company','epoch','registration','cursor','limit']) &&
+        Number.isInteger(input.limit) && Number(input.limit)>=1 && Number(input.limit)<=500;
+    return input.action==='recover-group' &&
+        keys(input,['action','credential','company','epoch','registration','cursor','item','offset']) &&
+        ((input.item===undefined && input.offset===undefined) ||
+         (Number.isInteger(input.item) && Number(input.item)>=1 && Number(input.item)<=16000 &&
+          Number.isInteger(input.offset) && Number(input.offset)>=0 && Number(input.offset)<2097152));
+}
 function validOperation(operation: unknown, input: Record<string, unknown>): operation is Operation {
     switch (operation) {
         case 'customer-relay': return relayCommand(input);
@@ -100,6 +114,7 @@ function validOperation(operation: unknown, input: Record<string, unknown>): ope
             );
         case 'lottery': return lotteryInput(input);
         case 'lottery-sync': return lotterySyncInput(input);
+        case 'company-sync': return companySyncInput(input);
         case 'expense-profiles': return profileCommand(input);
         case 'workspace': return workspaceInput(input);
         case 'lottery-seller-recovery': return keys(input, ['organizationId', 'partyId', 'occurredAt', 'saleId']) && id(input.organizationId) && id(input.partyId) && date(input.occurredAt) && (input.saleId === undefined || id(input.saleId));
@@ -225,6 +240,7 @@ export function createKhataGateway(options: {
     execute: (principal: KhataPrincipal, operation: KhataOperation) => Promise<unknown>;
     admit: (principal: KhataPrincipal) => Promise<AdmissionDecision>;
     lotterySync?: (principal: KhataPrincipal, input: Record<string, unknown>) => Promise<unknown>;
+    companySync?: (principal: KhataPrincipal, input: Record<string, unknown>) => Promise<unknown>;
     maximumConcurrent?: number;
 }) {
     const acquire=createIngressGuard(options.maximumConcurrent);
@@ -257,7 +273,8 @@ export function createKhataGateway(options: {
             const relayPath=new URL(request.url).pathname.endsWith('/customer-relay');
             const operation = parseGatewayOperation(await boundedGatewayBody(request,5000,relayPath));
             if(relayPath && operation.operation!=='customer-relay') throw new GatewayRejection(400,'KHATA_INPUT_INVALID');
-            if (operation.operation === 'lottery-sync' && !options.lotterySync) {
+            if ((operation.operation === 'lottery-sync' && !options.lotterySync) ||
+                (operation.operation === 'company-sync' && !options.companySync)) {
                 return reply(404, { code: 'KHATA_OPERATION_UNAVAILABLE' });
             }
             stage = 'central-session';
@@ -271,7 +288,9 @@ export function createKhataGateway(options: {
             stage = 'product-database';
             const data = operation.operation === 'lottery-sync' && options.lotterySync
                 ? await options.lotterySync(principal, operation.input)
-                : await options.execute(principal, operation);
+                : operation.operation === 'company-sync' && options.companySync
+                    ? await options.companySync(principal, operation.input)
+                    : await options.execute(principal, operation);
             return reply(200, { data });
         }
         catch (error) {

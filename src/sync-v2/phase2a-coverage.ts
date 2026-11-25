@@ -29,6 +29,7 @@ export const familyContracts = {
 
 export const gatewayOperationCoverage = {
   'lottery-sync': { family: 'lottery', kind: 'sync' },
+  'company-sync': { family: 'ledger', kind: 'sync' },
   'customer-relay': { family: 'external', kind: 'relay' },
   'lottery-seller-recovery': { family: 'external', kind: 'read' },
   'lottery-export': { family: 'external', kind: 'read' },
