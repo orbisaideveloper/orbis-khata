@@ -23,23 +23,57 @@ export function createLocalFeedCodec(envelope: NativeRecordCodec): LocalFeedCode
   }
 }
 
-/** Use the same verified, serialized SQLCipher connection as the local runtime. */
-export async function openSqliteLocalFeedStorage(db: SqlitePort): Promise<LocalFeedStorage> {
-  await db.run('CREATE TABLE IF NOT EXISTS sync_v2_feed_cells (id TEXT PRIMARY KEY NOT NULL, sealed TEXT NOT NULL)')
+const TABLE = 'CREATE TABLE IF NOT EXISTS sync_v2_feed_cells (id TEXT PRIMARY KEY NOT NULL, sealed TEXT NOT NULL)'
+
+function sqliteCells(db: SqlitePort, assertOpen: () => void): LocalFeedStorage {
   async function read(id: string) {
+    assertOpen()
     return (await db.get<Row>('SELECT sealed FROM sync_v2_feed_cells WHERE id=?', [id]))?.sealed ?? null
   }
   return {
     read,
-    commit: (cursorId, previous, writes) => db.transaction(async () => {
+    async commit(cursorId, previous, writes) {
+      assertOpen()
       if (await read(cursorId) !== previous) throw new Error(STALE)
       await forEachInOrder(writes, async row => {
+        assertOpen()
         const saved = await db.run(`INSERT INTO sync_v2_feed_cells(id,sealed) VALUES(?,?)
           ON CONFLICT(id) DO UPDATE SET sealed=excluded.sealed`, [row.id, row.sealed])
         if (saved.changes !== 1) throw new Error('SYNC_LOCAL_STORAGE_WRITE_FAILED')
       })
-    }),
+    },
   }
+}
+
+/** Use the same verified, serialized SQLCipher connection as the local runtime. */
+export async function openSqliteLocalFeedStorage(db: SqlitePort): Promise<LocalFeedStorage> {
+  await db.run(TABLE)
+  const cells = sqliteCells(db, () => {})
+  return { read: cells.read, commit: (cursorId, previous, writes) =>
+    db.transaction(() => cells.commit(cursorId, previous, writes)) }
+}
+
+/**
+ * Join the EXISTING typed v2 payment outbox to a native financial save in ONE
+ * SQLCipher transaction. The caller must perform its financial write and await
+ * outbox.enqueue() inside work(). Never use this on an unverified SQLite port.
+ * This does not authorize enrollment, migration, or remote posting.
+ */
+export async function withSqliteLocalFeedTransaction<T>(
+  db: SqlitePort, work: (storage: LocalFeedStorage) => Promise<T>,
+): Promise<T> {
+  await db.run(TABLE)
+  return db.transaction(async () => {
+    let active = true
+    const assertOpen = () => {
+      if (!active) throw new Error('SYNC_LOCAL_TRANSACTION_CLOSED')
+    }
+    try {
+      return await work(sqliteCells(db, assertOpen))
+    } finally {
+      active = false
+    }
+  })
 }
 
 /** Use a versioned companion name so older PWA tabs can still open their v1 stores. */

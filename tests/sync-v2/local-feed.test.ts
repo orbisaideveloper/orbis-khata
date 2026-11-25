@@ -3,8 +3,10 @@ import { IDBFactory } from 'fake-indexeddb'
 import { DatabaseSync } from 'node:sqlite'
 import { sqliteFixturePort } from '../../scripts/sync-v2-local-storage-fixture.mjs'
 import { createLocalFeed } from '../../src/sync-v2/local-feed'
-import { createLocalFeedCodec, openIndexedDbLocalFeedStorage, openSqliteLocalFeedStorage } from '../../src/sync-v2/local-feed-storage'
+import { createLocalFeedCodec, openIndexedDbLocalFeedStorage, openSqliteLocalFeedStorage, withSqliteLocalFeedTransaction } from '../../src/sync-v2/local-feed-storage'
 import type { GroupedPage } from '../../src/sync-v2/grouped-feed'
+import { createLotteryPaymentOutbox } from '../../src/sync-v2/lottery-payment-outbox'
+import type { PaymentCommand } from '../../src/sync-v2/lottery-payment-command'
 
 const epoch = 'test-epoch'
 const cut = { epoch, sequence: '9007199254740992' }
@@ -182,4 +184,129 @@ describe('durable v2 feed boundary', () => {
       store.close()
     }
   })
+})
+
+
+describe('native financial state and typed v2 payment outbox atomic boundary', () => {
+  const actor = 'actor-a'
+  const paymentScope = { kind: 'lottery-organization', id: 'lottery-org-a', epoch: 'epoch-a' } as const
+  const registration = 'registered-device-a'
+  const command = (): PaymentCommand => ({
+    protocolVersion: 2, schemaVersion: 1, commandType: 'lottery-payment', actorId: actor,
+    deviceRegistrationId: registration, scope: paymentScope, baseRevision: null,
+    children: {}, dependsOn: [], createdAt: '2026-11-25T00:00:00Z',
+    clientSequence: '1', operationId: crypto.randomUUID(), entityId: crypto.randomUUID(),
+    payload: { organizationId: paymentScope.id, partyId: 'party-a', occurredAt: '2026-11-25',
+      direction: 'RECEIPT', totalAmountPaise: '100', methodSplit: { cashPaise: '100' } },
+  })
+  const proof = {
+    cursor: async () => ({ epoch: paymentScope.epoch, sequence: '0' }),
+    apply: async () => {}, appliedOperation: async () => null,
+  }
+
+  it('saves a financial row and the existing typed v2 payment command in one SQLite transaction', async () => {
+    const db = new DatabaseSync(':memory:')
+    try {
+      const port = sqliteFixturePort(db)
+      db.exec('CREATE TABLE payment_ledger(id TEXT PRIMARY KEY NOT NULL, amount TEXT NOT NULL)')
+      const cmd = command()
+      const cipher = await codec()
+      await withSqliteLocalFeedTransaction(port, async storage => {
+        await port.run('INSERT INTO payment_ledger(id,amount) VALUES(?,?)', [cmd.entityId, '100'])
+        await createLotteryPaymentOutbox(actor, paymentScope, registration, storage, cipher, proof).enqueue(cmd)
+      })
+      const durable = await openSqliteLocalFeedStorage(port)
+      const outbox = createLotteryPaymentOutbox(actor, paymentScope, registration, durable, cipher, proof)
+      expect(await outbox.pending()).toEqual([cmd.operationId])
+      expect(db.prepare('SELECT amount FROM payment_ledger WHERE id=?').get(cmd.entityId)).toEqual({ amount: '100' })
+    } finally { db.close() }
+  })
+
+  it('rolls back the payment row when the existing v2 outbox cannot be persisted', async () => {
+    const db = new DatabaseSync(':memory:')
+    try {
+      const port = sqliteFixturePort(db)
+      db.exec('CREATE TABLE payment_ledger(id TEXT PRIMARY KEY NOT NULL, amount TEXT NOT NULL)')
+      const cmd = command()
+      db.exec(`CREATE TABLE sync_v2_feed_cells(id TEXT PRIMARY KEY NOT NULL, sealed TEXT NOT NULL);
+        CREATE TRIGGER fail_outbox BEFORE INSERT ON sync_v2_feed_cells BEGIN SELECT RAISE(ABORT, 'outbox unavailable'); END`)
+      const cipher = await codec()
+      await expect(withSqliteLocalFeedTransaction(port, async storage => {
+        await port.run('INSERT INTO payment_ledger(id,amount) VALUES(?,?)', [cmd.entityId, '100'])
+        await createLotteryPaymentOutbox(actor, paymentScope, registration, storage, cipher, proof).enqueue(cmd)
+      })).rejects.toThrow('outbox unavailable')
+      expect(db.prepare('SELECT count(*) AS n FROM payment_ledger').get()).toEqual({ n: 0 })
+      expect(db.prepare('SELECT count(*) AS n FROM sync_v2_feed_cells').get()).toEqual({ n: 0 })
+      db.exec('DROP TRIGGER fail_outbox')
+      await withSqliteLocalFeedTransaction(port, async storage => {
+        await port.run('INSERT INTO payment_ledger(id,amount) VALUES(?,?)', [cmd.entityId, '100'])
+        await createLotteryPaymentOutbox(actor, paymentScope, registration, storage, cipher, proof).enqueue(cmd)
+      })
+      expect(db.prepare('SELECT count(*) AS n FROM payment_ledger').get()).toEqual({ n: 1 })
+      const store = await openSqliteLocalFeedStorage(port)
+      expect(await createLotteryPaymentOutbox(actor, paymentScope, registration, store, cipher, proof).pending()).toEqual([cmd.operationId])
+    } finally { db.close() }
+  })
+
+  it('rejects post-transaction access to scoped storage instead of silently writing outside the financial transaction', async () => {
+    const db = new DatabaseSync(':memory:')
+    try {
+      const port = sqliteFixturePort(db)
+      let leaked: Parameters<Parameters<typeof withSqliteLocalFeedTransaction>[1]>[0] | undefined
+      await withSqliteLocalFeedTransaction(port, async storage => { leaked = storage })
+      await expect(leaked!.read('any-id')).rejects.toThrow('SYNC_LOCAL_TRANSACTION_CLOSED')
+      await expect(leaked!.commit('any-id', null, [])).rejects.toThrow('SYNC_LOCAL_TRANSACTION_CLOSED')
+    } finally { db.close() }
+  })
+
+  it('rolls back the typed outbox when the financial projection fails after enqueue', async () => {
+    const db = new DatabaseSync(':memory:')
+    try {
+      const port = sqliteFixturePort(db)
+      db.exec(`CREATE TABLE payment_ledger(id TEXT PRIMARY KEY NOT NULL, amount TEXT NOT NULL);
+        CREATE TRIGGER fail_payment BEFORE INSERT ON payment_ledger BEGIN SELECT RAISE(ABORT, 'payment not committed'); END`)
+      const cmd = command()
+      const cipher = await codec()
+      await expect(withSqliteLocalFeedTransaction(port, async storage => {
+        await createLotteryPaymentOutbox(actor, paymentScope, registration, storage, cipher, proof).enqueue(cmd)
+        await port.run('INSERT INTO payment_ledger(id,amount) VALUES(?,?)', [cmd.entityId, '100'])
+      })).rejects.toThrow('payment not committed')
+      const durable = await openSqliteLocalFeedStorage(port)
+      expect(await createLotteryPaymentOutbox(actor, paymentScope, registration, durable, cipher, proof).pending()).toEqual([])
+      expect(db.prepare('SELECT count(*) AS n FROM payment_ledger').get()).toEqual({ n: 0 })
+    } finally { db.close() }
+  })
+
+  it('retains the exact payment identity across reopen and rejects changed payload replay atomically', async () => {
+    const db = new DatabaseSync(':memory:')
+    try {
+      const port = sqliteFixturePort(db)
+      db.exec('CREATE TABLE payment_ledger(id TEXT PRIMARY KEY NOT NULL, amount TEXT NOT NULL)')
+      const cipher = await codec()
+      const cmd = command()
+      const save = (current: PaymentCommand) => withSqliteLocalFeedTransaction(port, async storage => {
+        const outbox = createLotteryPaymentOutbox(actor, paymentScope, registration, storage, cipher, proof)
+        await outbox.enqueue(current)
+        const saved = await port.run('INSERT INTO payment_ledger(id,amount) VALUES(?,?) ON CONFLICT(id) DO NOTHING',
+          [current.entityId, (current.payload as { totalAmountPaise: string }).totalAmountPaise])
+        if (saved.changes !== 1) {
+          const prior = db.prepare('SELECT amount FROM payment_ledger WHERE id=?').get(current.entityId) as { amount?: string }
+          if (prior?.amount !== (current.payload as { totalAmountPaise: string }).totalAmountPaise) {
+            throw new Error('PAYMENT_LOCAL_IDEMPOTENCY_CONFLICT')
+          }
+        }
+      })
+      await save(cmd)
+      await save(structuredClone(cmd))
+      const changed = { ...cmd, payload: { ...cmd.payload as object, totalAmountPaise: '200', methodSplit: { cashPaise: '200' } } }
+      await expect(save(changed)).rejects.toThrow('SYNC_OPERATION_DIGEST_MISMATCH')
+      const other = { ...cmd, operationId: crypto.randomUUID(), entityId: crypto.randomUUID() }
+      await save(other)
+      const store = await openSqliteLocalFeedStorage(port)
+      const outbox = createLotteryPaymentOutbox(actor, paymentScope, registration, store, cipher, proof)
+      expect(new Set(await outbox.pending())).toEqual(new Set([cmd.operationId, other.operationId]))
+      expect(db.prepare('SELECT count(*) AS n FROM payment_ledger').get()).toEqual({ n: 2 })
+    } finally { db.close() }
+  })
+
 })
