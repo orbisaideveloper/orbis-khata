@@ -22,7 +22,10 @@ begin
     end if;
   end if;
   select orbis_identity_id::text into principal from orbis_khata.principals where ledger_owner_id=entry.owner_id;
-  if not found then return entry; end if;
+  if not found then
+    perform sync_v2.assert_unenrolled_company(entry.id,tg_op='DELETE');
+    return entry;
+  end if;
   change:=jsonb_build_object('type','company-lifecycle','companyId',entry.id,'status',status);
   if status<>'purged' then change:=change||jsonb_build_object('name',entry.name); end if;
   if tg_op='UPDATE' and status<>previous_status then

@@ -34,6 +34,8 @@ begin
     insert into sync_v2.event(actor_id,kind,scope_id,epoch,seq,operation_id,change)
     values(registered.actor_id,registered.kind,registered.scope_id,registered.epoch,registered.head,null,
       jsonb_build_array(jsonb_build_object('entityType','party','projectionJson',to_jsonb(new)::text)));
+  else
+    perform sync_v2.assert_unenrolled_company(new.company_id);
   end if;
   return new;
 end $$;

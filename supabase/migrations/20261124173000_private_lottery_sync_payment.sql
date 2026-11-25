@@ -273,10 +273,9 @@ declare
  native sync_v2.lottery_capture_context;
 begin
  if tg_op='DELETE' then row_data:=old; else row_data:=new; end if;
- if not exists (
-   select 1 from sync_v2.scope s join orbis_khata.principals p on s.actor_id=p.orbis_identity_id::text
-   where p.ledger_owner_id=row_data.owner_id and s.kind='lottery-organization' and s.lifecycle='active'
- ) then return row_data; end if;
+ -- Do not return early merely because this owner has no ACTIVE enrollment.
+ -- A retired, revoked, or disconnected previously enrolled organization still
+ -- needs to deny financial mutations that cannot be captured for feed readers.
  organization:=sync_v2.lottery_organization(row_data.model,row_data.id,row_data.value);
  if tg_op='UPDATE' then
    prior_org:=sync_v2.lottery_organization(old.model,old.id,old.value);
@@ -286,7 +285,7 @@ begin
  end if;
  if organization is null and exists (
    select 1 from sync_v2.scope s join orbis_khata.principals p on s.actor_id=p.orbis_identity_id::text
-   where p.ledger_owner_id=row_data.owner_id and s.kind='lottery-organization' and s.lifecycle='active'
+   where p.ledger_owner_id=row_data.owner_id and s.kind='lottery-organization'
  ) then raise exception 'SYNC_LOTTERY_ORGANIZATION_MISSING'; end if;
  select * into native from sync_v2.lottery_capture_context
  where transaction_id=pg_current_xact_id()::text and owner_id=row_data.owner_id;
@@ -304,6 +303,11 @@ begin
    values(registered.actor_id,registered.kind,registered.scope_id,registered.epoch,registered.head,native.operation_id::text,
      jsonb_build_object('model',row_data.model,'id',row_data.id,'ordinal',row_data.ordinal::text,
        'projectionJson',case when tg_op='DELETE' then null else row_data.value::text end));
+ else
+   if exists(select 1 from sync_v2.scope
+      where kind='lottery-organization' and scope_id=organization) then
+     raise exception 'SYNC_LOTTERY_CAPTURE_UNAVAILABLE';
+   end if;
  end if;
  return row_data;
 end $$;

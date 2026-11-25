@@ -14,6 +14,26 @@ create table sync_v2.scope (
   unique (actor_id, kind, scope_id, epoch)
 );
 
+-- Refuse silent success for an enrolled company whose compatible capture
+-- writer is missing, retired, or no longer tied to a trusted owner.
+-- Unenrolled legacy companies retain their original financial write paths.
+create function sync_v2.assert_unenrolled_company(company uuid, deleting boolean default false) returns void
+language plpgsql set search_path='' as $$
+begin
+  if exists (
+    select 1 from sync_v2.scope
+    where kind='company' and scope_id=company::text
+  ) then
+    -- The existing trusted retired-company purge deletes descendants before
+    -- the final scope tombstone. Match its exact authorization, never trust
+    -- an arbitrary client-provided GUC or disable historical retention.
+    if deleting and orbis_khata.purge_allowed(company) then return; end if;
+    raise exception 'SYNC_COMPANY_CAPTURE_UNAVAILABLE';
+  end if;
+end $$;
+revoke all on function sync_v2.assert_unenrolled_company(uuid,boolean)
+  from public,anon,authenticated,service_role;
+
 create table sync_v2.receipt (
   actor_id text not null,
   kind text not null,

@@ -22,7 +22,10 @@ begin
   where c.id = new.company_id and s.actor_id = p.orbis_identity_id::text
     and s.kind = 'company' and s.scope_id = c.id::text and s.lifecycle = 'active'
   returning s.* into captured;
-  if not found then return new; end if;
+  if not found then
+    perform sync_v2.assert_unenrolled_company(new.company_id);
+    return new;
+  end if;
 
   projection := jsonb_build_object('entityType','voucher','entityId',new.id,'projectionJson',to_jsonb(new)::text);
   if new.kind = 'reversal' then

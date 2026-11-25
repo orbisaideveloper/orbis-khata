@@ -1,5 +1,8 @@
 # Unified Sync v2 writer integration register
 
+**2026-11-25 — Phase 2B/2E capture-safety checkpoint (NOT COMPLETE / NOT DEPLOYED).**
+Disposable company legacy trigger candidates and the unapplied Lottery private migration now reject an accepted *financial* mutation when a previously enrolled scope can no longer emit a feed event (retired/disconnected binding). The guard retains the existing eligible company purge authority and its irreversible tombstone, permits unrelated unenrolled legacy businesses, and preserves operation-ID retry semantics. New isolated PGlite tests reproduce the old silent-accept bug and exercise the production Lottery migration sequence. These tests do **not** prove full Phase 2B or 2E: company trigger candidates remain under `supabase/tests/sync-v2/`, not an authorized production migration; many v1 RPC/trigger/cron and all-domain command adapters lack full native PostgreSQL negative/concurrency and actual app receipt/feed acceptance. Keep `sync_v2` activation OFF; review full 2B/2E writer coverage before any migration/deployment.
+
 Frozen contract: <https://docs.google.com/document/d/1rp84i2Cw3AJKvbBAuYL6G8pebelqrdckR2SBwElC33g/edit>.
 
 **Phase 2A source-backed complete current-route catalog and read-only LIVE metadata:** [Phase 2A Acceptance & Identity/Writer Matrix](UNIFIED_SYNC_V2_PHASE2A_ACCEPTANCE.md), validated by `tests/sync-v2/phase2a-coverage.test.ts`. This documents ingress and release blockers; it does not mean 2B/2E runtime adapters or production Sync are ready. Earlier chronological sections below remain historical.

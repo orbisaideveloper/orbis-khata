@@ -52,7 +52,7 @@ begin
  end if;
  if organization is null and exists (
    select 1 from sync_v2.scope s join orbis_khata.principals p on s.actor_id=p.orbis_identity_id::text
-   where p.ledger_owner_id=row_data.owner_id and s.kind='lottery-organization' and s.lifecycle='active'
+   where p.ledger_owner_id=row_data.owner_id and s.kind='lottery-organization'
  ) then raise exception 'SYNC_LOTTERY_ORGANIZATION_MISSING'; end if;
  select * into native from sync_v2.lottery_capture_context
  where transaction_id=pg_current_xact_id()::text and owner_id=row_data.owner_id;
@@ -70,6 +70,13 @@ begin
    values(registered.actor_id,registered.kind,registered.scope_id,registered.epoch,registered.head,native.operation_id::text,
      jsonb_build_object('model',row_data.model,'id',row_data.id,'ordinal',row_data.ordinal::text,
        'projectionJson',case when tg_op='DELETE' then null else row_data.value::text end));
+ else
+   -- A retired/revoked or ownership-disconnected enrolled scope must not
+   -- silently accept a financial row that no other device can ever receive.
+   if exists(select 1 from sync_v2.scope
+     where kind='lottery-organization' and scope_id=organization) then
+     raise exception 'SYNC_LOTTERY_CAPTURE_UNAVAILABLE';
+   end if;
  end if;
  return row_data;
 end $$;

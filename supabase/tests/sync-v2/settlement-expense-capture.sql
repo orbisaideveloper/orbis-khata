@@ -16,7 +16,10 @@ begin
   where c.id=(projection->>'company_id')::uuid and c.deleted_at is null and s.actor_id=p.orbis_identity_id::text
     and s.kind='company' and s.scope_id=c.id::text and s.lifecycle='active'
   returning s.* into registered;
-  if not found then return new; end if;
+  if not found then
+    perform sync_v2.assert_unenrolled_company((projection->>'company_id')::uuid,tg_op='DELETE');
+    return new;
+  end if;
   -- Text preserves decimal and bigint precision across JS transports.
   insert into sync_v2.event(actor_id,kind,scope_id,epoch,seq,operation_id,change)
   values(registered.actor_id,registered.kind,registered.scope_id,registered.epoch,registered.head,null,
