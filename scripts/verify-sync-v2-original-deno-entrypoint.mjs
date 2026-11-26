@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import {verifyCompanyAndParty,verifyRecovery} from './sync-v2-edge-writer-fixture.mjs';
+import {closeSyntheticPostgres} from './sync-v2-original-deno-postgres-shim.mjs';
 export async function verifyOriginalDenoEdge(sql) {
   assert.equal(typeof Deno?.serve,'function');
   const source=await Deno.readTextFile('supabase/functions/orbis-khata-data/index.ts');
@@ -13,6 +14,7 @@ export async function verifyOriginalDenoEdge(sql) {
   const nativeFetch=globalThis.fetch;
   const nativeServe=Deno.serve;
   let server;
+  const stop=new AbortController();
   try {
     globalThis.fetch=async(input,init)=>{
       if(String(input)==='https://auth.example.invalid/api/v1/customer/session'){
@@ -24,7 +26,7 @@ export async function verifyOriginalDenoEdge(sql) {
       return nativeFetch(input,init);
     };
     Deno.serve=(handler)=>{
-      server=nativeServe({hostname:'127.0.0.1',port:0,onListen(){}},handler);
+      server=nativeServe({hostname:'127.0.0.1',port:0,onListen(){},signal:stop.signal},handler);
       return server;
     };
     await import('../supabase/functions/orbis-khata-data/index.ts');
@@ -43,7 +45,21 @@ export async function verifyOriginalDenoEdge(sql) {
       observed:'Original TypeScript Edge module imported using Deno ESM, native HTTP, real disposable PostgreSQL, synthetic Central, test-only npm postgres import map'
     }));
   } finally {
-    if(server)await server.shutdown();
-    Deno.serve=nativeServe;globalThis.fetch=nativeFetch;
+    // Force-close only the disposable localhost test listener; a graceful
+    // shutdown may wait indefinitely for keep-alive HTTP connections.
+    stop.abort();
+    console.log('ORIGINAL_DENO_HTTP_ABORT_REQUESTED');
+    try {
+      if(server)await Promise.race([
+        server.finished.catch(error=>{if(!stop.signal.aborted)throw error;}),
+        new Promise((_,reject)=>setTimeout(()=>reject(Error('ORIGINAL_DENO_HTTP_CLEANUP_TIMEOUT')),5000)),
+      ]);
+    } finally {
+      // The genuine imported Edge module creates an additional postgres.js
+      // pool outside the catalog runner. Leaving it alive prevented CI exit.
+      await closeSyntheticPostgres();
+      Deno.serve=nativeServe;globalThis.fetch=nativeFetch;
+      console.log('ORIGINAL_DENO_INTEGRATION_CLEANUP_COMPLETE');
+    }
   }
 }
