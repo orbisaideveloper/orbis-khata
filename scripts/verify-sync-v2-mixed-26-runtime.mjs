@@ -79,6 +79,8 @@ try {
     const current=async()=>({
       vouchers: (await sql`select count(*)::int as n from public.khata_vouchers where company_id=${company}`)[0].n,
       events: (await sql`select count(*)::int as n from sync_v2.voucher_event`)[0].n,
+      feed: (await sql`select count(*)::int as n from sync_v2.event where actor_id=${actor} and kind='company' and scope_id=${company} and epoch=${epoch}`)[0].n,
+      head: (await sql`select head::bigint as n from sync_v2.scope where actor_id=${actor} and kind='company' and scope_id=${company} and epoch=${epoch}`)[0].n,
       cash: (await sql`select coalesce(sum(signed_minor),0)::text as n from public.khata_journal where company_id=${company} and account='cash'`)[0].n,
       revision:(await sql`select revision::bigint as n from public.khata_report_revisions where company_id=${company}`)[0].n,
     });
@@ -102,8 +104,25 @@ try {
     assert.equal(captured.length,2,'EXACT_TWO_VOUCHER_TO_FEED_LINKS');
     assert(captured.every(row=>row.scope_id===company&&row.epoch===epoch),
       'WRONG_SCOPE_OR_EPOCH_IN_MIXED_CAPTURE');
-    assert.deepEqual(captured.map(row=>BigInt(row.seq)),[1n,2n],
-      'NONCONTIGUOUS_FIRST_TWO_CAPTURE_SEQUENCES');
+    // A v2 payment writes additional valid financial projections between voucher
+    // feed events. Contiguity belongs to the WHOLE scope feed, not a filtered
+    // subset of voucher events. Never skip or hide those additional events.
+    const allFeed=await sql`select seq::bigint as seq from sync_v2.event
+      where actor_id=${actor} and kind='company' and scope_id=${company} and epoch=${epoch}
+      order by seq`;
+    const firstSeq=BigInt(before.head);
+    const newFeed=allFeed.filter(row=>BigInt(row.seq)>firstSeq).map(row=>BigInt(row.seq));
+    assert.equal(after.feed-before.feed,newFeed.length,'FEED_EVENT_COUNT_CHANGED_UNEXPECTEDLY');
+    assert.equal(BigInt(after.head)-BigInt(before.head),BigInt(newFeed.length),
+      'SCOPE_HEAD_AND_COMMITTED_FEED_DISAGREE');
+    assert.deepEqual(newFeed,newFeed.map((_,i)=>firstSeq+BigInt(i)+1n),
+      'GAP_OR_DUPLICATE_IN_ALL_COMMITTED_FEED_EVENTS');
+    const voucherSeq=captured.map(row=>BigInt(row.seq));
+    assert(voucherSeq.every((seq,i)=>seq>firstSeq && newFeed.includes(seq) &&
+      (i===0 || seq>voucherSeq[i-1])), 'TWO_VOUCHER_FEED_LINKS_NOT_ORDERED');
+    const captureIds=new Map(captured.map(row=>[row.voucher_id,BigInt(row.seq)]));
+    assert(captureIds.has(first)&&captureIds.has(second)&&captureIds.size===2,
+      'MIXED_VOUCHER_LINEAGE_MISSING_OR_DUPLICATED');
     const inserted=await sql`select id,amount_minor::text as amount from public.khata_vouchers
       where id in (${first},${second}) order by id`;
     assert.deepEqual(new Map(inserted.map(x=>[x.id,x.amount])),new Map([[first,'17'],[second,'29']]));
@@ -119,7 +138,7 @@ try {
     evidence.cash_stock_receipt_feed_reconciled=true;
     combined=true;
     log('MIXED_26_SAME_DATASET '+JSON.stringify({trigger_count:seen.size,distinct_vouchers:2,cash_delta_minor:'46',
-      feed_delta:after.events-before.events,rollback_replay_isolation:true}));
+      voucher_feed_delta:after.events-before.events,total_feed_delta:after.feed-before.feed,rollback_replay_isolation:true}));
   });
   assert.equal(seen.size,26,'ALL_26_TRIGGER_BEHAVIORS_NOT_EXECUTED');
   assert(combined,'MIXED_WRITER_CONTENDED_TEST_NOT_EXECUTED');

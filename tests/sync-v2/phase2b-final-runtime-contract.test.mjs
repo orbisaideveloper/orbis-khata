@@ -64,14 +64,24 @@ test('mixed writers enroll exactly the same actor/company after legacy 26-trigge
  assert.match(mixed,/CAPTURE_MUST_USE_VERIFIED_OWNER_IDENTITY/);
  assert.match(mixed,/EXACT_TWO_VOUCHER_TO_FEED_LINKS/);
  assert.match(mixed,/WRONG_SCOPE_OR_EPOCH_IN_MIXED_CAPTURE/);
- assert.match(mixed,/NONCONTIGUOUS_FIRST_TWO_CAPTURE_SEQUENCES/);
+ assert.match(mixed,/GAP_OR_DUPLICATE_IN_ALL_COMMITTED_FEED_EVENTS/);
 });
 
 test('cron CI waits for final TCP PostgreSQL and captures failing Docker startup logs',()=>{
- assert.match(workflow,/pg_isready -h 127\.0\.0\.1 -U postgres/);
- assert.match(workflow,/psql -XAt -h 127\.0\.0\.1 -U postgres/);
- assert.match(workflow,/FINAL_TCP_DATABASE_READY/);
+ assert.match(workflow,/listen_addresses='\*'/);
+ assert.match(workflow,/shared_preload_libraries=pg_stat_statements,pg_cron,pg_net/);
+ assert.match(workflow,/node --input-type=module -e/);
+ assert.match(workflow,/postgres:\/\/postgres@127\.0\.0\.1:5432\/khata_sync_v2_test/);
+ assert.match(workflow,/FINAL_HOST_TCP_DATABASE_AND_EXTENSIONS_READY/);
  assert.match(workflow,/DISPOSABLE_POSTGRES_EXITED_DURING_INIT/);
  assert.match(workflow,/disposable-db-log\.txt/);
  assert.doesNotMatch(workflow,/if docker exec orbis-phase2b-disposable pg_isready -U postgres/);
+});
+
+test('mixed v2 capture allows interleaved legitimate events but denies feed gaps, duplicates and wrong vouchers',()=>{
+ assert.match(mixed,/GAP_OR_DUPLICATE_IN_ALL_COMMITTED_FEED_EVENTS/);
+ assert.match(mixed,/SCOPE_HEAD_AND_COMMITTED_FEED_DISAGREE/);
+ assert.match(mixed,/MIXED_VOUCHER_LINEAGE_MISSING_OR_DUPLICATED/);
+ assert.match(mixed,/TWO_VOUCHER_FEED_LINKS_NOT_ORDERED/);
+ assert.doesNotMatch(mixed,/NONCONTIGUOUS_FIRST_TWO_CAPTURE_SEQUENCES/);
 });

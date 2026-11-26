@@ -42,23 +42,35 @@ jobs:
             -e POSTGRES_DB=khata_sync_v2_test \
             -p 127.0.0.1:5432:5432 \
             supabase/postgres:17.6.1.136 \
-            postgres -c cron.database_name=khata_sync_v2_test \
+            postgres -c listen_addresses='*' \
+              -c shared_preload_libraries=pg_stat_statements,pg_cron,pg_net \
+              -c cron.database_name=khata_sync_v2_test \
               -c cron.use_background_workers=on
           # The Supabase image starts a UNIX-SOCKET-ONLY temporary PostgreSQL
           # during initdb and intentionally shuts it down before the final one.
           # An unqualified pg_isready sees that TEMPORARY socket as 'ready' and
           # can trigger ECONNRESET in the following Node query at shutdown.
-          # Require TCP readiness and a successful real SQL round-trip instead.
+          # Require FINAL server readiness from the RUNNER HOST, not from inside
+          # the container (which can connect to its own loopback address).
+          # Supabase image's postgres CLI overrides stock listen_addresses and
+          # shared_preload_libraries; both must be explicitly set above.
+          # Verify pg_stat_statements, pg_cron, and pg_net are preloaded.
           for i in $(seq 1 90); do
             if ! [ "$(docker inspect --format '{{.State.Running}}' orbis-phase2b-disposable)" = true ]; then
               echo 'DISPOSABLE_POSTGRES_EXITED_DURING_INIT' >&2
               docker logs --tail 120 orbis-phase2b-disposable >&2
               exit 1
             fi
-            if docker exec orbis-phase2b-disposable pg_isready -h 127.0.0.1 -U postgres -d khata_sync_v2_test >/dev/null 2>&1 && \
-               docker exec orbis-phase2b-disposable psql -XAt -h 127.0.0.1 -U postgres -d khata_sync_v2_test \
-                 -c 'select current_setting('"'"'server_version_num'"'"')::int between 170000 and 179999' 2>/dev/null | grep -qx t; then
-              echo 'FINAL_TCP_DATABASE_READY' 
+            if timeout 5 bash -c 'echo > /dev/tcp/127.0.0.1/5432' >/dev/null 2>&1 && \
+               node --input-type=module -e '
+                 import postgres from "postgres";
+                 const db=postgres("postgres://postgres@127.0.0.1:5432/khata_sync_v2_test",{max:1,connect_timeout:2});
+                 try {
+                   const [{v,preload,listen}]=await db`select current_setting(${"server_version_num"})::int as v, current_setting(${"shared_preload_libraries"}) as preload, current_setting(${"listen_addresses"}) as listen`;
+                   if(v<170000||v>=180000 || !["pg_stat_statements","pg_cron","pg_net"].every(x=>preload.split(",").map(y=>y.trim()).includes(x)) || listen!=="*") process.exitCode=1;
+                 } catch(error) {process.exitCode=1;} finally {await db.end({timeout:1});}
+               ' >/dev/null 2>&1; then
+              echo 'FINAL_HOST_TCP_DATABASE_AND_EXTENSIONS_READY'
               exit 0
             fi
             sleep 2
