@@ -69,6 +69,9 @@ try{
   assert.equal(admin,true,'DISPOSABLE_SUPERUSER_REQUIRED');
   assert(v>=170000&&v<180000,'POSTGRES_17_REQUIRED');
   assert.match(preload,/\bpg_cron\b/,'REAL_CRON_WORKER_REQUIRED');
+  assert.match(preload,/\bpgsodium\b/,'VAULT_ROOT_KEY_PRELOAD_REQUIRED');
+  const [{keyScript}]=await sql`select current_setting('pgsodium.getkey_script',true) as "keyScript"`;
+  assert(keyScript?.endsWith('/pgsodium_getkey.sh'),'VAULT_ROOT_KEY_LOADER_REQUIRED');
   assert.equal(cronDb,'khata_sync_v2_test','CRON_DATABASE_MUST_MATCH_SYNTHETIC_DB');
   const available=await sql`select name from pg_available_extensions where name in ('pg_cron','pg_net','supabase_vault')`;
   for(const ext of ['pg_cron','pg_net','supabase_vault'])

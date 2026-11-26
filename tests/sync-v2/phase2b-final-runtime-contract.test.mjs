@@ -70,10 +70,10 @@ test('mixed writers enroll exactly the same actor/company after legacy 26-trigge
 
 test('cron CI waits for final TCP PostgreSQL and captures failing Docker startup logs',()=>{
  assert.match(workflow,/listen_addresses='\*'/);
- assert.match(workflow,/shared_preload_libraries=pg_stat_statements,pg_cron,pg_net/);
+ assert.match(workflow,/shared_preload_libraries=pg_stat_statements,pg_cron,pg_net,pgsodium/);
  assert.match(workflow,/node --input-type=module -e/);
  assert.match(workflow,/postgres:\/\/supabase_admin@127\.0\.0\.1:5432\/khata_sync_v2_test/);
- assert.match(workflow,/FINAL_HOST_TCP_DATABASE_AND_ADMIN_ROLE_READY/);
+ assert.match(workflow,/FINAL_HOST_TCP_DATABASE_AND_VAULT_ROOT_KEY_READY/);
  assert.match(workflow,/DISPOSABLE_POSTGRES_EXITED_DURING_INIT/);
  assert.match(workflow,/disposable-db-log\.txt/);
  assert.doesNotMatch(workflow,/if docker exec orbis-phase2b-disposable pg_isready -U postgres/);
@@ -114,4 +114,15 @@ test('Cron SQL migration transaction BEGIN/COMMIT never enters a multi-connectio
  assert.match(cron,/await sql\.unsafe\(await readFile/);
  // Do not weaken the independent mixed-26 concurrency test's database pool.
  assert.match(disposable,/postgres\(url\.href, \{ max: 8,/);
+});
+
+
+test('Supabase Vault requires server key preload and non-exported key preflight',()=>{
+ assert(workflow.includes("shared_preload_libraries=pg_stat_statements,pg_cron,pg_net,pgsodium"));
+ assert(workflow.includes("docker exec orbis-phase2b-disposable test -s /etc/postgresql-custom/pgsodium_root.key"));
+ assert(workflow.includes("pgsodium.getkey_script"));
+ assert(cron.includes("VAULT_ROOT_KEY_PRELOAD_REQUIRED"));
+ assert(cron.includes("VAULT_ROOT_KEY_LOADER_REQUIRED"));
+ assert(cron.includes("vault.create_secret"));
+ assert(!workflow.includes("cat /etc/postgresql-custom/pgsodium_root.key"));
 });
