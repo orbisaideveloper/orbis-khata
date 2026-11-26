@@ -1,0 +1,65 @@
+name: Khata Sync v2 — Verified 26 Trigger and Mixed-Writer Acceptance
+# Only proven 26-trigger/mixed writer acceptance. Four original Cron jobs remain deferred.
+# Disposable PostgreSQL 17 only; NO deployment, production credentials or live migrations.
+on:
+  workflow_dispatch:
+  push:
+    branches: [ci/phase2b-verified-26-20261126]
+    paths:
+      - ".github/workflows/sync-v2-phase2b-verified-26.yml"
+      - "scripts/sync-v2-*-fixture.mjs"
+      - "scripts/verify-sync-v2-mixed-26-runtime.mjs"
+      - "scripts/verify-sync-v2-combined-writers.mjs"
+      - "supabase/review-candidates/**"
+permissions:
+  contents: read
+jobs:
+  verified-26-and-concurrent-writers:
+    name: All 26 trigger effects in one PG17 dataset + concurrent v1/v2
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: disposable-only
+          POSTGRES_HOST_AUTH_METHOD: trust
+          POSTGRES_DB: khata_sync_v2_test
+        ports: [5432:5432]
+        options: >-
+          --health-cmd "pg_isready -U postgres -d khata_sync_v2_test"
+          --health-interval 5s --health-timeout 5s --health-retries 12
+    env:
+      KHATA_SYNC_V2_TEST_URL: postgres://postgres@127.0.0.1:5432/khata_sync_v2_test
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '24'
+          cache: npm
+      - run: npm ci --no-fund
+      - name: Run original 26 behavior assertions and simultaneous mixed writers in same database
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p quality-reports/phase2b
+          node scripts/verify-sync-v2-mixed-26-runtime.mjs \
+            2>&1 | tee quality-reports/phase2b/mixed-26-stdout.log
+      - name: Preserve evidence on pass or fail
+        if: always()
+        shell: bash
+        run: |
+          mkdir -p quality-reports/phase2b
+          printf 'run=%s/%s/actions/runs/%s\nsha=%s\n' "$GITHUB_SERVER_URL" "$GITHUB_REPOSITORY" "$GITHUB_RUN_ID" "$GITHUB_SHA" > quality-reports/phase2b/provenance.txt
+          sha256sum scripts/verify-sync-v2-mixed-26-runtime.mjs \
+            scripts/sync-v2-trigger-behavior-fixture.mjs \
+            scripts/verify-sync-v2-combined-writers.mjs > quality-reports/phase2b/sha256.txt
+          echo 'NOT Phase 2B final certification: independent per-case review remains required' > quality-reports/phase2b/boundary.txt
+      - uses: actions/upload-artifact@v5
+        if: always()
+        with:
+          name: phase2b-mixed-26-${{ github.run_id }}
+          path: quality-reports/phase2b/
+          if-no-files-found: warn
+          retention-days: 60

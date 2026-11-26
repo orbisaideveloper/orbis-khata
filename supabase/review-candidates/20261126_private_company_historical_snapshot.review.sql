@@ -91,8 +91,10 @@ create function sync_v2.read_trusted_company_snapshot(
  expected_head bigint,after_model text,after_key text,row_limit integer,max_bytes integer
 ) returns jsonb language plpgsql security definer set search_path='' as $$
 declare
- watermark bigint;locked_head bigint;row_count integer; total_bytes bigint;
- next_model text; next_key text; projections jsonb; result jsonb;
+ watermark bigint; locked_head bigint;
+ row_count integer:=0; rows_bytes integer:=0; candidate_bytes integer; done boolean:=true;
+ next_model text; next_key text; projections jsonb:='[]'::jsonb; envelope jsonb; candidate jsonb;
+ entry record; result jsonb;
 begin
  if company is null or actor is null or row_limit is null or row_limit not between 1 and 100
   or max_bytes is null or max_bytes not between 512 and 262144
@@ -124,28 +126,31 @@ begin
  -- Every row in the page AND its revision boundary is read under this
  -- single PostgreSQL statement snapshot. A changed revision invalidates
  -- subsequent pages, rather than silently combining old/new versions.
- with windowed as materialized (
+ envelope:=jsonb_build_object('version',1,'purpose','historical-company-snapshot',
+  'scopeId',company::text,'epoch',scope_epoch,'highWater',watermark::text,
+  'afterModel',after_model,'afterKey',after_key,'done',false,'rows','[]'::jsonb);
+ for entry in
   select model,row_key,projection_json from sync_v2.company_snapshot_rows(company)
   where after_model is null or (model,row_key)>(after_model,after_key)
   order by model,row_key limit row_limit+1
- ), selected as materialized (
-  select * from windowed order by model,row_key limit row_limit
- ), summary as (
-  select count(*)::int as n,coalesce(sum(octet_length(projection_json)),0)::bigint as bytes
-  from selected
- )
- select (select count(*)::int from windowed),summary.bytes,
-   (select model from selected order by model desc,row_key desc limit 1),
-   (select row_key from selected order by model desc,row_key desc limit 1),
-   coalesce((select jsonb_agg(jsonb_build_object('model',model,'key',row_key,
-      'projectionJson',projection_json) order by model,row_key) from selected),'[]'::jsonb)
- into row_count,total_bytes,next_model,next_key,projections from summary;
- if total_bytes>max_bytes then raise exception 'SYNC_COMPANY_SNAPSHOT_PAGE_TOO_LARGE';end if;
- result:=jsonb_build_object('version',1,'purpose','historical-company-snapshot',
-  'scopeId',company::text,'epoch',scope_epoch,'highWater',watermark::text,
-  'afterModel',after_model,'afterKey',after_key,
-  'nextModel',next_model,'nextKey',next_key,
-  'done',row_count<=row_limit,'rows',projections);
+ loop
+  if row_count=row_limit then done:=false;exit;end if;
+  candidate:=jsonb_build_object('model',entry.model,'key',entry.row_key,'projectionJson',entry.projection_json);
+  candidate_bytes:=rows_bytes+octet_length(candidate::text)+case when row_count=0 then 0 else 2 end;
+  -- Account for JSONB's ", " separators and the candidate cursor, including
+  -- escaped model keys and UTF-8 bytes. Use the longer 'false' for the limit.
+  if octet_length((envelope||jsonb_build_object('nextModel',entry.model,'nextKey',entry.row_key))::text)
+      +candidate_bytes>max_bytes then
+   if row_count=0 then raise exception 'SYNC_COMPANY_SNAPSHOT_PAGE_TOO_LARGE';end if;
+   done:=false;exit;
+  end if;
+  projections:=projections||jsonb_build_array(candidate);
+  rows_bytes:=candidate_bytes;
+  row_count:=row_count+1;
+  next_model:=entry.model;
+  next_key:=entry.row_key;
+ end loop;
+ result:=envelope||jsonb_build_object('nextModel',next_model,'nextKey',next_key,'done',done,'rows',projections);
  if octet_length(result::text)>max_bytes then
    raise exception 'SYNC_COMPANY_SNAPSHOT_PAGE_TOO_LARGE';end if;
  return result;
