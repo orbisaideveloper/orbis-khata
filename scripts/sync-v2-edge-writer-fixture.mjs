@@ -161,12 +161,16 @@ export async function verifyCompanyAndParty(post,sql, enroll = async () => {}, r
   report('edge:public.khata_parties','Actual localhost HTTP create, foreign-company denial, replay, mismatched data rejection and one exact row');
 }
 
-export async function verifyRecovery(post,sql, report = gate) {
+export async function verifyRecovery(post,sql, report = gate, {preexisting=false}={}) {
   const actor=centralActors.owner;
   const record={email:'synthetic-recovery@example.invalid',key:'cd'.repeat(32)};
   const request={actor,action:'link',...record};
   assert.deepEqual(await post('foreign','drive-recovery',request),{status:503,body:{code:'KHATA_DATA_UNAVAILABLE'}});
-  assert.equal((await sql`select identity_id from orbis_khata.drive_account_recovery where identity_id=${actor}`).length,0);
+  // The native Deno integration runs after the VM route on the same synthetic
+  // PG17 dataset: it must prove the pre-existing encrypted record is preserved,
+  // not falsely assume no fixture row exists. Never reset real customer data.
+  assert.equal((await sql`select identity_id from orbis_khata.drive_account_recovery where identity_id=${actor}`).length,
+    preexisting?1:0,'RECOVERY_FIXTURE_BASELINE_UNEXPECTED');
   const accepted=await post('owner','drive-recovery',request);
   assert.deepEqual(accepted,{status:200,body:{data:record}});
   const encrypted=async()=>(await sql`select sealed_record from orbis_khata.drive_account_recovery where identity_id=${actor}`)[0].sealed_record;

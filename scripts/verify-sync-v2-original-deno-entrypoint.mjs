@@ -37,7 +37,7 @@ export async function verifyOriginalDenoEdge(sql) {
       return {status:response.status,body:await response.json()};
     };
     await verifyCompanyAndParty(post,sql);
-    await verifyRecovery(post,sql);
+    await verifyRecovery(post,sql,undefined,{preexisting:true});
     console.log('EXECUTED_SUPPLEMENTAL_CASE '+JSON.stringify({
       id:'original-edge-native-deno-module-import',outcome:'PASS',
       observed:'Original TypeScript Edge module imported using Deno ESM, native HTTP, real disposable PostgreSQL, synthetic Central, test-only npm postgres import map'
