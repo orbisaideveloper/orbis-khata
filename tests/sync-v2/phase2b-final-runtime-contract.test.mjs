@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import {readFile} from 'node:fs/promises';
 const load=p=>readFile(p,'utf8');
 const workflow=await load('.github/workflows/sync-v2-phase2b-final-gates.yml');
+const launcher=await load('scripts/run-phase2b-business-cron-docker.sh');
 const cron=await load('scripts/verify-sync-v2-business-cron-runtime.mjs');
 const mixed=await load('scripts/verify-sync-v2-mixed-26-runtime.mjs');
 const fixtures=await load('scripts/sync-v2-trigger-behavior-fixture.mjs');
@@ -68,15 +69,17 @@ test('mixed writers enroll exactly the same actor/company after legacy 26-trigge
  assert.match(mixed,/GAP_OR_DUPLICATE_IN_ALL_COMMITTED_FEED_EVENTS/);
 });
 
-test('cron CI waits for final TCP PostgreSQL and captures failing Docker startup logs',()=>{
- assert.match(workflow,/listen_addresses='\*'/);
- assert.match(workflow,/shared_preload_libraries=pg_stat_statements,pg_cron,pg_net,pgsodium/);
- assert.match(workflow,/node --input-type=module -e/);
- assert.match(workflow,/postgres:\/\/supabase_admin@127\.0\.0\.1:5432\/khata_sync_v2_test/);
- assert.match(workflow,/FINAL_HOST_TCP_DATABASE_AND_EXTENSION_PRELOAD_READY/);
- assert.match(workflow,/DISPOSABLE_POSTGRES_EXITED_DURING_INIT/);
- assert.match(workflow,/disposable-db-log\.txt/);
- assert.doesNotMatch(workflow,/if docker exec orbis-phase2b-disposable pg_isready -U postgres/);
+test('cron CI waits for final TCP PostgreSQL and records safe Docker exit diagnostics',()=>{
+ assert.match(launcher,/listen_addresses='\*'/);
+ assert.match(launcher,/postgres -D \/etc\/postgresql -c listen_addresses=/);
+ assert.doesNotMatch(launcher,/\s-c shared_preload_libraries=/);
+ assert.match(launcher,/node --input-type=module -e/);
+ assert.match(launcher,/postgres:\/\/supabase_admin@127\.0\.0\.1:5432\/khata_sync_v2_test/);
+ assert.match(launcher,/FINAL_HOST_TCP_DATABASE_AND_EXTENSION_PRELOAD_READY/);
+ assert.match(launcher,/DISPOSABLE_POSTGRES_EXITED_DURING_INIT/);
+ assert.match(launcher,/container-state\.txt/);
+ assert.doesNotMatch(launcher,/if docker exec orbis-phase2b-disposable pg_isready -U postgres/);
+ assert.match(workflow,/bash scripts\/run-phase2b-business-cron-docker\.sh/);
 });
 
 test('mixed v2 capture allows interleaved legitimate events but denies feed gaps, duplicates and wrong vouchers',()=>{
@@ -92,9 +95,9 @@ test('Cron privileges are confined to disposable Supabase superuser, not product
  assert.match(cron,/DISPOSABLE_SUPERUSER_REQUIRED/);
  assert.match(cron,/supabaseRolesAlreadyInitialized:true/);
  assert.match(cron,/PRODUCTION_CREDENTIAL_ENV_NOT_ALLOWED/);
- assert.match(workflow,/current_user as role/);
- assert.match(workflow,/supabase_admin/);
- assert.doesNotMatch(workflow,/GRANT CREATE ON DATABASE|ALTER ROLE postgres SUPERUSER/i);
+ assert.match(launcher,/current_user as role/);
+ assert.match(launcher,/supabase_admin/);
+ assert.doesNotMatch(launcher,/GRANT CREATE ON DATABASE|ALTER ROLE postgres SUPERUSER/i);
 });
 
 test('Supabase-aware bootstrap does not re-create existing global roles',()=>{
@@ -118,16 +121,53 @@ test('Cron SQL migration transaction BEGIN/COMMIT never enters a multi-connectio
 
 
 test('Supabase Vault readiness checks real server rather than guessed root-key paths',()=>{
- assert(workflow.includes("shared_preload_libraries=pg_stat_statements,pg_cron,pg_net,pgsodium"));
- assert(workflow.includes("DISPOSABLE_PG_PREFLIGHT_FAILED"));
- assert(workflow.includes("DISPOSABLE_PG_PREFLIGHT_SQL_ERROR"));
- assert(workflow.includes("FINAL_HOST_TCP_DATABASE_AND_EXTENSION_PRELOAD_READY"));
- assert(!workflow.includes("docker exec orbis-phase2b-disposable test -s /etc/postgresql-custom/pgsodium_root.key"));
- assert(!workflow.includes("pgsodium.getkey_script"));
+ assert(!launcher.includes("-c shared_preload_libraries="));
+ assert(launcher.includes("postgres -D /etc/postgresql -c listen_addresses="));
+ assert(launcher.includes("supabase_vault"));
+ assert(launcher.includes("vault.getkey_script"));
+ assert(launcher.includes("DISPOSABLE_PG_PREFLIGHT_FAILED"));
+ assert(launcher.includes("DISPOSABLE_PG_PREFLIGHT_SQL_ERROR"));
+ assert(launcher.includes("FINAL_HOST_TCP_DATABASE_AND_EXTENSION_PRELOAD_READY"));
+ assert(!launcher.includes("docker exec orbis-phase2b-disposable test -s /etc/postgresql-custom/pgsodium_root.key"));
+ assert(!launcher.includes("pgsodium.getkey_script"));
  assert(cron.includes("VAULT_ROOT_KEY_PRELOAD_REQUIRED"));
+ assert(cron.includes("VAULT_EXTENSION_PRELOAD_REQUIRED"));
+ assert(cron.includes("SUPABASE_IMAGE_CONFIG_REQUIRED"));
+ assert(cron.includes("VAULT_GETKEY_SCRIPT_CONFIGURATION_REQUIRED"));
  assert(!cron.includes("VAULT_ROOT_KEY_LOADER_REQUIRED"));
  assert(cron.includes("vault.create_secret"));
  assert(cron.includes("VAULT_REAL_ENCRYPT_DECRYPT_ROUNDTRIP_FAILED"));
  assert(cron.includes("vault.decrypted_secrets"));
- assert(!workflow.includes("cat /etc/postgresql-custom/pgsodium_root.key"));
+ assert(!launcher.includes("cat /etc/postgresql-custom/pgsodium_root.key"));
+});
+
+
+test('Supabase original configuration is never replaced with an incomplete preload list',()=>{
+ assert.match(launcher,/postgres -D \/etc\/postgresql -c listen_addresses=/);
+ assert.doesNotMatch(launcher,/\s-c shared_preload_libraries=/);
+ assert.match(launcher,/MISSING_PRELOAD_/);
+ assert.match(launcher,/WRONG_IMAGE_CONFIG/);
+ assert.match(launcher,/VAULT_GETKEY_SCRIPT_NOT_CONFIGURED/);
+ assert.match(launcher,/pg_net.database_name=khata_sync_v2_test/);
+ assert.match(launcher,/WRONG_PG_NET_DATABASE/);
+ assert.match(cron,/NET_DATABASE_MUST_MATCH_SYNTHETIC_DB/);
+ assert.match(cron,/VAULT_EXTENSION_PRELOAD_REQUIRED/);
+ assert.match(cron,/VAULT_REAL_ENCRYPT_DECRYPT_ROUNDTRIP_FAILED/);
+});
+
+test('shared runner uses an isolated bridge, a loopback database and exact host prerequisite failures',()=>{
+ assert.match(launcher,/LOCAL_UNIX_DOCKER_SOCKET_REQUIRED/);
+ assert.match(launcher,/DOCKER_CLI_NOT_FOUND/);
+ assert.match(launcher,/127\.0\.0\.1:5432:5432/);
+ assert.match(launcher,/network create --driver bridge/);
+ assert.match(launcher,/rm -fv "\$container"/);
+ assert.match(cron,/receiver\.listen\(18547,collectorBind\)/);
+});
+
+test('native business fixture requires protected nonzero finance and rollback before real dispatch',()=>{
+ assert.match(cron,/NONZERO_TENANT_SENTINELS_REQUIRED/);
+ assert.match(cron,/ROLLBACK_FINANCIAL_SENTINEL_CHANGED/);
+ assert.match(cron,/FINANCIAL_SENTINEL_CHANGED/);
+ assert.match(cron,/d\.start_time>=\$\{since\}/);
+ assert.match(cron,/schedule:='\* \* \* \* \*',active:=true/);
 });

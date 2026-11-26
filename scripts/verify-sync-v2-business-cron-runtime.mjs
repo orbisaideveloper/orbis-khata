@@ -11,6 +11,8 @@ import assert from 'node:assert/strict';
 import {createHash,randomBytes,randomUUID,timingSafeEqual} from 'node:crypto';
 import {createServer} from 'node:http';
 import {once} from 'node:events';
+import {isIPv4} from 'node:net';
+import {join} from 'node:path';
 import {readFile,mkdir,writeFile} from 'node:fs/promises';
 import {setTimeout as sleep} from 'node:timers/promises';
 import postgres from 'postgres';
@@ -57,9 +59,12 @@ const receiver=createServer(async(req,res)=>{
   if(req.method==='POST'&&req.url==='/collector'&&valid){httpHits++;res.writeHead(200);res.end('{}');}
   else {res.writeHead(403);res.end('forbidden');}
 });
+const collectorBind=process.env.PHASE2B_COLLECTOR_BIND;
+assert(isIPv4(collectorBind??'')&&collectorBind!=='0.0.0.0','DISPOSABLE_COLLECTOR_BRIDGE_ADDRESS_REQUIRED');
+const evidenceDir=process.env.PHASE2B_CRON_EVIDENCE_DIR??'quality-reports/phase2b';
 let listening=false;
 try{
-  receiver.listen(18547,'0.0.0.0');await once(receiver,'listening');listening=true;
+  receiver.listen(18547,collectorBind);await once(receiver,'listening');listening=true;
   const [{v,preload,cronDb,role,admin}]=await sql`select current_user as role,
     (select rolsuper from pg_roles where rolname=current_user) as admin,
     current_setting('server_version_num')::int as v,
@@ -70,7 +75,14 @@ try{
   assert(v>=170000&&v<180000,'POSTGRES_17_REQUIRED');
   assert.match(preload,/\bpg_cron\b/,'REAL_CRON_WORKER_REQUIRED');
   assert.match(preload,/\bpgsodium\b/,'VAULT_ROOT_KEY_PRELOAD_REQUIRED');
+  assert.match(preload,/\bsupabase_vault\b/,'VAULT_EXTENSION_PRELOAD_REQUIRED');
+  const [{configFile,vaultKeyScript}]=await sql`select current_setting('config_file') as "configFile",
+    current_setting('vault.getkey_script',true) as "vaultKeyScript"`;
+  assert.equal(configFile,'/etc/postgresql/postgresql.conf','SUPABASE_IMAGE_CONFIG_REQUIRED');
+  assert(vaultKeyScript,'VAULT_GETKEY_SCRIPT_CONFIGURATION_REQUIRED');
   assert.equal(cronDb,'khata_sync_v2_test','CRON_DATABASE_MUST_MATCH_SYNTHETIC_DB');
+  const [{netDb}]=await sql`select current_setting('pg_net.database_name',true) as "netDb"`;
+  assert.equal(netDb,'khata_sync_v2_test','NET_DATABASE_MUST_MATCH_SYNTHETIC_DB');
   const available=await sql`select name from pg_available_extensions where name in ('pg_cron','pg_net','supabase_vault')`;
   for(const ext of ['pg_cron','pg_net','supabase_vault'])
     assert(available.some(x=>x.name===ext),`MISSING_SUPABASE_EXTENSION:${ext}`);
@@ -99,10 +111,18 @@ try{
   // Install EXACT command in this disposable database only.
   if(!existing.some(x=>x.jobname==='orbis-lottery-collector'))
     await sql`select cron.schedule('orbis-lottery-collector','30 seconds',${expected['orbis-lottery-collector']})`;
+  const revision=await sql`select jobname,jobid,command from cron.job where jobname = any(${names})`;
+  assert.equal(revision.length,4,'ALL_FOUR_REAL_SCHEDULES_MUST_EXIST');
+  for (const job of revision) {
+    assert.equal(job.command,expected[job.jobname],`ORIGINAL_COMMAND_MISMATCH:${job.jobname}`);
+    await sql`select cron.alter_job(${job.jobid},active:=false)`;
+  }
   // Use synthetic actors/tenants; no customer data. Preserve unrelated finance.
   const owner=randomUUID(),safe=randomUUID(),old=randomUUID(),linkOld=randomUUID(),linkNew=randomUUID();
-  await sql`insert into auth.users(id) values(${owner})`;
-  await sql`insert into orbis_khata.ledger_owners(id,legacy) values(${owner},false)`;
+  const other=randomUUID(), foreignCompany=randomUUID(), party=randomUUID(), foreignParty=randomUUID();
+  await sql`insert into auth.users(id) values(${owner}),(${other})`;
+  await sql`insert into orbis_khata.ledger_owners(id,legacy) values(${owner},false),(${other},false)`;
+  await sql`insert into public.khata_companies(id,owner_id,name) values(${foreignCompany},${other},'Independent Synthetic Tenant')`;
   await sql`insert into public.khata_companies(id,owner_id,name) values(${safe},${owner},'Safe Synthetic Tenant'),
     (${old},${owner},'Expired Synthetic Tenant')`;
   await sql`update public.khata_companies set deleted_at=now()-interval '45 days',
@@ -119,29 +139,47 @@ try{
     values(${linkOld},1,0,'{}',now()-interval '1 day'),(${linkNew},1,0,'{}',now()+interval '3 days')`;
   // Vault is a real extension, not a fake table. No secret bytes go to logs.
   await sql`select vault.create_secret(${token},'orbis_lottery_worker','disposable phase2b collector')`;
-  // Real Vault decrypts the newly created random secret; compare digests only.
+  // Functional cryptography check: the real Vault decrypts the newly created
+  // secret to the original value. Compare only hashes in Node, no key/token logs.
   const [vaultProbe]=await sql`select encode(sha256(convert_to(decrypted_secret,'UTF8')),'hex') as digest
     from vault.decrypted_secrets where name='orbis_lottery_worker'`;
   assert(vaultProbe && vaultProbe.digest===sha(token),'VAULT_REAL_ENCRYPT_DECRYPT_ROUNDTRIP_FAILED');
   const [{workerHash}]=await sql`select encode(sha256(convert_to(${token},'UTF8')),'hex') as "workerHash"`;
   await sql`update lottery_private.provider_gate set collector_url='http://host.docker.internal:18547/collector',worker_hash=${workerHash} where singleton`;
-  const sentinel=async()=>sql`select count(*)::int as n,coalesce(sum(amount_minor),0)::text as total from public.khata_vouchers where company_id=${safe}`;
+  await sql`insert into public.khata_parties(id,company_id,name,kind)
+    values(${party},${safe},'Protected party','both'),(${foreignParty},${foreignCompany},'Independent party','both')`;
+  const post=(actor,company,customer,amount)=>sql.begin(async tx=>{
+    await tx`select set_config('request.jwt.claims',${JSON.stringify({sub:actor,role:'authenticated'})},true),
+      set_config('orbis.khata.gateway_verified','v1',true)`;
+    await tx`set local role authenticated`;
+    await tx`select public.khata_post_v1(${randomUUID()}::uuid,${company}::uuid,${customer}::uuid,
+      'receipt',${today}::date,${amount},'cash','','Synthetic cron financial sentinel',null)`;
+  });
+  await post(owner,safe,party,'125');
+  await post(other,foreignCompany,foreignParty,'250');
+  await assert.rejects(post(owner,foreignCompany,foreignParty,'1'),/COMPANY_NOT_ACCESSIBLE|COMPANY_DENIED/);
+  const sentinel=async()=>Array.from(await sql`select company_id,id,amount_minor::text as amount
+    from public.khata_vouchers where company_id in (${safe},${foreignCompany}) order by company_id,id`);
   const before=await sentinel();
-  assert.equal(before[0].n,0);
-  // Change cadence only in disposable pg_cron. The command string is unchanged.
-  const revision=await sql`select jobname,jobid,command from cron.job where jobname = any(${names})`;
-  assert.equal(revision.length,4,'ALL_FOUR_REAL_SCHEDULES_MUST_EXIST');
-  for(const job of revision){
-    assert.equal(job.command,expected[job.jobname],`ORIGINAL_COMMAND_MISMATCH:${job.jobname}`);
-    await sql`select cron.schedule(${job.jobname},'* * * * *',${job.command})`;
-  }
+  assert.deepEqual(before.map(row=>row.amount).sort(),['125','250'],'NONZERO_TENANT_SENTINELS_REQUIRED');
+  await assert.rejects(sql.begin(async tx=>{
+    await tx`select orbis_khata.purge_retired_companies()`;
+    assert.equal((await tx`select count(*)::int as n from public.khata_companies where id=${old}`)[0].n,0);
+    throw new Error('DISPOSABLE_PURGE_ROLLBACK');
+  }),/DISPOSABLE_PURGE_ROLLBACK/);
+  assert.equal((await sql`select count(*)::int as n from public.khata_companies where id=${old}`)[0].n,1);
+  assert.deepEqual(await sentinel(),before,'ROLLBACK_FINANCIAL_SENTINEL_CHANGED');
+  result.rollback_verified=true;
+  // Change timing only. The same stored business command runs in the worker.
+  const [{since}]=await sql`select clock_timestamp() as since`;
+  for(const job of revision) await sql`select cron.alter_job(${job.jobid},schedule:='* * * * *',active:=true)`;
   const until=Date.now()+deadlineMs;
   let history=[];
   while(Date.now()<until){
     await sleep(3000);
     history=await sql`select j.jobid,j.jobname,d.runid,d.status,d.return_message,d.start_time
       from cron.job j join cron.job_run_details d on j.jobid=d.jobid
-      where j.jobname=any(${names}) order by d.start_time`;
+      where j.jobname=any(${names}) and d.start_time>=${since} order by d.start_time`;
     if(names.every(name=>history.some(x=>x.jobname===name&&x.status==='succeeded'))&&httpHits>0) break;
   }
   for(const name of names){
@@ -168,7 +206,11 @@ try{
   console.log('FOUR_ORIGINAL_CRON_DISPATCHES '+JSON.stringify({names,collector_requests:httpHits,financial_sentinel_unchanged:true}));
 } finally {
   try {for(const name of names) await sql`select cron.unschedule(${name})`;} catch {}
-  try {await mkdir('quality-reports/phase2b',{recursive:true});await writeFile('quality-reports/phase2b/business-cron.json',JSON.stringify(result,null,2));}catch {}
-  await sql.end({timeout:5});
-  if(listening) await new Promise(resolve=>receiver.close(resolve));
+  try {
+    await mkdir(evidenceDir,{recursive:true});
+    await writeFile(join(evidenceDir,'business-cron.json'),JSON.stringify(result,null,2));
+  } finally {
+    await sql.end({timeout:5});
+    if(listening) await new Promise(resolve=>receiver.close(resolve));
+  }
 }

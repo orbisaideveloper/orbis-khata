@@ -7,6 +7,7 @@ on:
     paths:
       - ".github/workflows/sync-v2-phase2b-final-gates.yml"
       - "scripts/sync-v2-*-fixture.mjs"
+      - "scripts/run-phase2b-business-cron-docker.sh"
       - "scripts/verify-sync-v2-*.mjs"
       - "tests/sync-v2/phase2b-final-*.test.mjs"
       - "supabase/review-candidates/**"
@@ -17,9 +18,6 @@ jobs:
     name: Real pg_cron dispatch of original four commands
     runs-on: ubuntu-24.04
     timeout-minutes: 35
-    env:
-      KHATA_SYNC_V2_TEST_URL: postgres://supabase_admin@127.0.0.1:5432/khata_sync_v2_test
-      PHASE2B_CRON_DEADLINE_MS: '1050000'
     steps:
       - uses: actions/checkout@v6
       - uses: actions/setup-node@v6
@@ -27,94 +25,8 @@ jobs:
           node-version: '24'
           cache: npm
       - run: npm ci --no-fund
-      - name: Verify the original four cron source contracts
-        run: node scripts/verify-sync-v2-final-gates-source.mjs
-      - name: Start disposable Supabase PG17 with real scheduler and HTTP extensions
-        shell: bash
-        run: |
-          set -euo pipefail
-          # Supabase PG17 includes pg_cron, pg_net and Vault extension binaries.
-          # No real project credentials or persistent volumes; CI-only Docker bridge.
-          docker run -d --rm --name orbis-phase2b-disposable \
-            --add-host=host.docker.internal:host-gateway \
-            -e POSTGRES_PASSWORD=disposable-only \
-            -e POSTGRES_HOST_AUTH_METHOD=trust \
-            -e POSTGRES_DB=khata_sync_v2_test \
-            -p 127.0.0.1:5432:5432 \
-            supabase/postgres:17.6.1.136 \
-            postgres -c listen_addresses='*' \
-              -c shared_preload_libraries=pg_stat_statements,pg_cron,pg_net,pgsodium \
-              -c cron.database_name=khata_sync_v2_test \
-              -c cron.use_background_workers=on
-          # The Supabase image starts a UNIX-SOCKET-ONLY temporary PostgreSQL
-          # during initdb and intentionally shuts it down before the final one.
-          # An unqualified pg_isready sees that TEMPORARY socket as 'ready' and
-          # can trigger ECONNRESET in the following Node query at shutdown.
-          # Require FINAL server readiness from the RUNNER HOST, not from inside
-          # the container (which can connect to its own loopback address).
-          # Supabase image's postgres CLI overrides stock listen_addresses and
-          # shared_preload_libraries; both must be explicitly set above.
-          # Preserve Supabase's pgsodium key loader when overriding preload lists:
-          # without it, vault.create_secret fails with no server secret key.
-          # The root key must never appear in logs, artifacts or commits.
-          # Verify pg_stat_statements, pg_cron, pg_net and pgsodium are preloaded.
-          for i in $(seq 1 90); do
-            if ! [ "$(docker inspect --format '{{.State.Running}}' orbis-phase2b-disposable)" = true ]; then
-              echo 'DISPOSABLE_POSTGRES_EXITED_DURING_INIT' >&2
-              docker logs --tail 120 orbis-phase2b-disposable >&2
-              exit 1
-            fi
-            # A real PostgreSQL startup log already confirms the key loader.
-            # Do NOT infer key location or script basename: Supabase image paths
-            # are implementation details and caused false-negative readiness.
-            # Instead verify the live server, its role and required extension
-            # preloads. Cron runtime verifies Vault using actual encrypt/decrypt.
-            if node --input-type=module -e '
-                 import postgres from "postgres";
-                 const db=postgres("postgres://supabase_admin@127.0.0.1:5432/khata_sync_v2_test",{max:1,connect_timeout:2});
-                 try {
-                   const [{v,preload,listen,role,admin}]=await db`select current_user as role, (select rolsuper from pg_roles where rolname=current_user) as admin, current_setting(${"server_version_num"})::int as v, current_setting(${"shared_preload_libraries"}) as preload, current_setting(${"listen_addresses"}) as listen`;
-                   const required=["pg_stat_statements","pg_cron","pg_net","pgsodium"];
-                   const enabled=preload.split(",").map(x=>x.trim());
-                   const failures=[role!=="supabase_admin"?"DB_ROLE":null,admin!==true?"DB_SUPERUSER":null,
-                     v<170000||v>=180000?"DB_VERSION":null,listen!=="*"?"DB_LISTEN":null,
-                     ...required.filter(x=>!enabled.includes(x)).map(x=>"MISSING_PRELOAD_"+x)].filter(Boolean);
-                   if(failures.length){console.error("DISPOSABLE_PG_PREFLIGHT_FAILED",failures.join(","));process.exitCode=1;}
-                 } catch(error) {console.error("DISPOSABLE_PG_PREFLIGHT_SQL_ERROR",error.code??"UNKNOWN");process.exitCode=1;}
-                 finally {await db.end({timeout:1});}
-               '; then
-              echo 'FINAL_HOST_TCP_DATABASE_AND_EXTENSION_PRELOAD_READY'
-              exit 0
-            fi
-            sleep 2
-          done
-          echo 'FINAL_TCP_DATABASE_TIMEOUT' >&2
-          docker logs --tail 120 orbis-phase2b-disposable >&2
-          exit 1
-      - name: Execute original four scheduled commands with protected synthetic records
-        shell: bash
-        run: |
-          set -euo pipefail
-          mkdir -p quality-reports/phase2b
-          node scripts/verify-sync-v2-business-cron-runtime.mjs \
-            2>&1 | tee quality-reports/phase2b/business-cron-stdout.log
-      - name: Preserve acceptance evidence even on fail
-        if: always()
-        shell: bash
-        run: |
-          mkdir -p quality-reports/phase2b
-          printf 'run=%s/%s/actions/runs/%s\nsha=%s\n' "$GITHUB_SERVER_URL" "$GITHUB_REPOSITORY" "$GITHUB_RUN_ID" "$GITHUB_SHA" > quality-reports/phase2b/provenance.txt
-          sha256sum scripts/verify-sync-v2-business-cron-runtime.mjs \
-            scripts/sync-v2-disposable-db-fixture.mjs \
-            supabase/migrations/20261028184713_khata_accounting_completion_v3.sql \
-            supabase/migrations/20261122142011_lottery_live_per_draw.sql \
-            supabase/migrations/20261121145730_lottery_scheduler.sql \
-            supabase/migrations/20261121182053_customer_statement_relay.sql > quality-reports/phase2b/sha256.txt
-          echo 'NOT Phase 2B final certification: independent reviewer and full 64-case audit remain required' > quality-reports/phase2b/boundary.txt
-          docker logs --tail 100 orbis-phase2b-disposable > quality-reports/phase2b/disposable-db-log.txt 2>&1 || true
-          docker inspect --format '{{.State.Status}} exit={{.State.ExitCode}}' orbis-phase2b-disposable \
-            > quality-reports/phase2b/disposable-db-status.txt 2>&1 || true
-          docker rm -f orbis-phase2b-disposable >/dev/null 2>&1 || true
+      - name: Run the shared disposable Supabase acceptance
+        run: bash scripts/run-phase2b-business-cron-docker.sh
       - uses: actions/upload-artifact@v5
         if: always()
         with:
