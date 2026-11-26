@@ -320,4 +320,5 @@ try{
   assert.equal((await sql`select count(*)::int as n from sync_v2.recovery_transfer_item`)[0].n,0);
   await assert.rejects(transfers.read(recovery.transfer,1,0),/SYNC_RECOVERY_TRANSFER_DENIED/);
   console.log('PASS: master tombstone, settings, routed purchase and output, linked correction and expanded company bootstrap.');
+  console.log('EXECUTED_CASE '+JSON.stringify({id:'gate:cross-module-reconciliation',outcome:'PASS',observed:'Single PG17 dataset: invoice/payment, cash, stock, production, fiscal identity, expenses and corrections; replay/rollback and bounded snapshot/feed to SQLite reopen'}));
 }finally{await sql.end({timeout:5});}

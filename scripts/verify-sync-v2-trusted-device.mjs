@@ -178,5 +178,6 @@ try{
   assert.equal((await sql`select count(*)::int as n from sync_v2.receipt`)[0].n,5);
   assert.equal((await sql`select sum(amount_minor)::text as total from public.khata_vouchers`)[0].total,'750');
   console.log('PASS native mixed v1/v2 authority: retired credential remains denied, Android reconnect replays once, renewed Web sees both exact identities');
+  console.log('EXECUTED_CASE '+JSON.stringify({id:'gate:device-authority',outcome:'PASS',observed:'Synthetic Central verifier; scoped/epoch permissions, expired and retired credential, revocation, entitlement, v1/old-client compatibility, v2 version denial and replacement-device replay'}));
 
 }finally{await sql.end({timeout:5});}

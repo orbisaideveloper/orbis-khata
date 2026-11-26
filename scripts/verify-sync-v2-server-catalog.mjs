@@ -96,5 +96,13 @@ try{
  console.log('PASS native PG17: committed party mutation increments revision exactly once, transaction abort restores head and rows');
  await verifyTriggerBehavior(sql);
  await verifyEdgeWriters(sql);
+ if(globalThis.Deno?.env?.get('PHASE2B_NATIVE_DENO_HTTP')==='enabled'){
+   assert(globalThis.__phase2bNativeDenoVerified===true,'DENO_LISTENER_CALLBACK_NOT_VERIFIED');
+   const [acl]=await sql`select has_table_privilege('anon','orbis_khata.drive_account_recovery','INSERT') as a,
+     has_table_privilege('authenticated','orbis_khata.drive_account_recovery','SELECT') as b,
+     has_table_privilege('anon','public.khata_companies','INSERT') as c`;
+   assert(!acl.a&&!acl.b&&!acl.c,'DIRECT_EDGE_SQL_ROLE_EXPOSURE');
+   console.log('EXECUTED_CASE '+JSON.stringify({id:'gate:direct-edge-ingress',outcome:'PASS',observed:'Native Deno HTTP listener with original VM-transpiled Edge handler, v1 version fence, 3 direct writers, synthetic Central verifier, PG17 role ACL, wrong-owner denial, retry and rollback; live deployment not tested'}));
+ }
  console.log('BOUNDARY: native per-case results only; pg_cron, hosted Edge, full server acceptance and independent review are not certified');
 }finally{await sql.end({timeout:5})}

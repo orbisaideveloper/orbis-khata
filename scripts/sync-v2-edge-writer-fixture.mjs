@@ -47,7 +47,29 @@ function createEdgeHandler(source,sql) {
   return handler;
 }
 
+async function serveLocalNativeDeno(handler,work) {
+  const native=globalThis.Deno;
+  assert.equal(typeof native?.serve,'function','NATIVE_DENO_SERVER_REQUIRED');
+  // Executes the original Edge handler through the real Deno HTTP listener.
+  // Only the database target and central principal are synthetic test seams.
+  const server=native.serve({hostname:'127.0.0.1',port:0,onListen(){}},handler);
+  assert(server.addr?.port>0,'NATIVE_DENO_PORT_NOT_ASSIGNED');
+  const post=async(token,operation,input,version='orbis.khata.data.v1')=>{
+    const response=await fetch('http://127.0.0.1:'+server.addr.port+'/khata',{
+      method:'POST',headers:{authorization:'Bearer '+token,'content-type':'application/json'},
+      body:JSON.stringify({version,operation,input})
+    });
+    return {status:response.status,body:await response.json()};
+  };
+  try{
+    const result=await work(post);
+    globalThis.__phase2bNativeDenoVerified=true;
+    return result;
+  }finally{await server.shutdown();}
+}
 async function serveLocal(handler,work) {
+  if(globalThis.Deno?.env?.get('PHASE2B_NATIVE_DENO_HTTP')==='enabled')
+    return serveLocalNativeDeno(handler,work);
   const server=createServer(async(req,res)=>{
     try {
       const bytes=[];
@@ -65,10 +87,10 @@ async function serveLocal(handler,work) {
   try {
     await once(server,'listening');
     const {port}=server.address();
-    async function post(token,operation,input) {
+    async function post(token,operation,input,version='orbis.khata.data.v1') {
       const response=await fetch(`http://127.0.0.1:${port}/khata`,{
         method:'POST',headers:{authorization:`Bearer ${token}`,'content-type':'application/json'},
-        body:JSON.stringify({version:'orbis.khata.data.v1',operation,input}),
+        body:JSON.stringify({version,operation,input}),
       });
       return {status:response.status,body:await response.json()};
     }
@@ -93,6 +115,8 @@ export async function verifyCompanyAndParty(post,sql, enroll = async () => {}, r
   const company=randomUUID(),party=randomUUID();
   const create={table:'khata_companies',row:{id:company,name:'Synthetic HTTP owner'}};
   const createParty={table:'khata_parties',row:{id:party,name:'Synthetic HTTP party',company_id:company,kind:'both'}};
+  const invalidVersion=await post('owner','create',create,'orbis.khata.data.v0');
+  assert.deepEqual(invalidVersion,{status:400,body:{code:'KHATA_INPUT_INVALID'}});
   const unauthenticated=await post('unverified','create',create);
   assert.equal(unauthenticated.status,401);
   assert.equal((await sql`select id from public.khata_companies where id=${company}`).length,0);

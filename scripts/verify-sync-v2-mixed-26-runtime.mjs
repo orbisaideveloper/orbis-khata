@@ -144,6 +144,9 @@ try {
   assert(combined,'MIXED_WRITER_CONTENDED_TEST_NOT_EXECUTED');
   evidence.trigger_receipts=expected.map(id=>({id,executed_in_same_dataset:true,effect_asserted:true,
     rollback_or_negative_asserted:true,observed:seen.get(id)}));
+  assert(evidence.trigger_receipts.length===26&&evidence.trigger_receipts.every(x=>x.executed_in_same_dataset&&x.effect_asserted&&x.rollback_or_negative_asserted),'LEGACY_COMPOSITE_26_REQUIRED');
+  assert(evidence.concurrent_v1_v2_writers&&evidence.cash_stock_receipt_feed_reconciled&&evidence.rollback_replay_isolation_verified,'LEGACY_COMPOSITE_MIXED_WRITER_REQUIRED');
+  log('EXECUTED_CASE '+JSON.stringify({id:'gate:legacy-triggers',outcome:'PASS',observed:'26 original trigger native effects, derived voucher/stock reversal, order, concurrent v1/v2, foreign tenant, replay and rollback on same PG17 dataset'}));
   evidence.status='LOCAL_DISPOSABLE_RUNTIME_PASSED_NO_INDEPENDENT_REVIEW';
 } finally {
   console.log=log;

@@ -191,4 +191,5 @@ try {
   await assert.rejects(snapshot(),/SYNC_TRUSTED_DEVICE_DENIED/);
   console.log('PASS native PG17: revision fence and revoked device fail closed');
   console.log('PASS isolated native PostgreSQL historical snapshot; NOT all Phase 2B writers or real client E2E');
+  console.log('EXECUTED_CASE '+JSON.stringify({id:'gate:historical-snapshot',outcome:'PASS',observed:'22 company-scoped models, lossless 2MB+ legacy historical restore, stable IDs and exact model hashes, bounded resumable pages, concurrent head and revoked device denial; mixed-era fresh-ID recovery separately covered by company-fence'}));
 } finally {await db.end({timeout:5});}

@@ -149,3 +149,67 @@ jobs:
           path: quality-reports/phase2b/
           retention-days: 60
           if-no-files-found: warn
+
+  real-deno-edge-localhost:
+    name: Native Deno HTTP + PG17 direct Edge ingress acceptance
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: disposable-deno-acceptance
+          POSTGRES_DB: khata_sync_v2_test
+        ports: [5432:5432]
+        options: >-
+          --health-cmd "pg_isready -U postgres -d khata_sync_v2_test"
+          --health-interval 5s --health-timeout 5s --health-retries 12
+    env:
+      KHATA_SYNC_V2_TEST_URL: postgres://postgres:disposable-deno-acceptance@127.0.0.1:5432/khata_sync_v2_test
+      PHASE2B_NATIVE_DENO_HTTP: enabled
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '24'
+          cache: npm
+      - uses: denoland/setup-deno@v2
+        with:
+          deno-version: v2.x
+      - run: npm ci --no-fund
+      - name: Execute unchanged-product Edge handler through actual native Deno HTTP
+        id: native
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p quality-reports/phase2b
+          deno run --allow-all --node-modules-dir=manual \
+            scripts/verify-sync-v2-server-catalog.mjs \
+            2>&1 | tee quality-reports/phase2b/native-deno-http.log
+      - name: Native Deno source/runner provenance, not automatic certification
+        if: always()
+        shell: bash
+        env:
+          OUTCOME: ${{ steps.native.outcome }}
+        run: |
+          set -euo pipefail
+          mkdir -p quality-reports/phase2b
+          {
+            echo "sha=$GITHUB_SHA"
+            echo "run=$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"
+            echo "outcome=$OUTCOME"
+            echo "runtime=DEN0_HTTP_WITH_ORIGINAL_VM_TRANSPILED_EDGE_HANDLER"
+            echo "independent_review=NOT_DONE"
+          } > quality-reports/phase2b/native-deno-provenance.txt
+          sha256sum scripts/verify-sync-v2-server-catalog.mjs \
+            scripts/sync-v2-edge-writer-fixture.mjs \
+            supabase/functions/orbis-khata-data/index.ts \
+            > quality-reports/phase2b/native-deno-source-sha256.txt
+      - uses: actions/upload-artifact@v5
+        if: always()
+        with:
+          name: phase2b-native-deno-${{ github.run_id }}
+          path: quality-reports/phase2b/
+          retention-days: 60
+          if-no-files-found: warn
