@@ -190,3 +190,19 @@ test('the isolated 4-Cron runner restores the one suppressed original purge job 
  assert.match(cron,/NO_ACTUAL_ORIGINAL_SCHEDULER_DISPATCH/);
  assert.doesNotMatch(cron,/mark_dispatch|phase2b_ci\.dispatch_receipts/);
 });
+
+const schedulerSql=await load('supabase/migrations/20261121145730_lottery_scheduler.sql');
+const drawCacheSql=await load('supabase/migrations/20261121145334_lottery_draw_cache.sql');
+test('4 cron fixture applies original collector migration before worker writes',()=>{
+ assert.match(drawCacheSql,/create table lottery_private\.provider_gate/);
+ assert.match(schedulerSql,/alter table lottery_private\.provider_gate add column collector_url text;/);
+ assert.match(schedulerSql,/create function lottery_private\.tick\(\)/);
+ const init=cron.indexOf('await initializeDisposableDatabase(sql,{supabaseRolesAlreadyInitialized:true})');
+ const mig=cron.indexOf("await sql.unsafe(await readFile('supabase/migrations/20261121145730_lottery_scheduler.sql','utf8'))");
+ const write=cron.indexOf('await sql`update lottery_private.provider_gate set collector_url=');
+ assert(init>=0&&mig>init&&write>mig,'COLLECTOR_MIGRATION_ORDER_INVALID');
+ for(const field of ['collectorUrl','collectorTick','purgeCompany','relayCleanup','liveDrawCache','statementMailbox'])
+  assert(cron.includes(field),`MISSING_PREFLIGHT:${field}`);
+ assert.match(cron,/DISPOSABLE_CRON_SCHEMA_MISSING:/);
+ assert.doesNotMatch(cron,/alter table lottery_private\.provider_gate add column collector_url text/);
+});

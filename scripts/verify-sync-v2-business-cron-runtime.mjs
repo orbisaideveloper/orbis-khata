@@ -93,9 +93,21 @@ try{
   // This replays the already checked-in migration chain and review-only adapter
   // in an EMPTY test database. It never applies the candidate to the live project.
   await initializeDisposableDatabase(sql,{supabaseRolesAlreadyInitialized:true});
+  // Replay ORIGINAL collector migration in isolated PG17 fixture after provider_gate bootstrap.
+  await sql.unsafe(await readFile('supabase/migrations/20261121145730_lottery_scheduler.sql','utf8'));
   for(const file of ['20261122112424_lottery_live_cache.sql','20261122142011_lottery_live_per_draw.sql']) {
     await sql.unsafe(await readFile(`supabase/migrations/${file}`,'utf8'));
   }
+  // Verify every scheduler prerequisite before synthetic writes and dispatch.
+  const [schema]=await sql`select
+    exists(select 1 from information_schema.columns where table_schema='lottery_private'
+      and table_name='provider_gate' and column_name='collector_url') as "collectorUrl",
+    to_regprocedure('lottery_private.tick()') is not null as "collectorTick",
+    to_regprocedure('orbis_khata.purge_retired_companies()') is not null as "purgeCompany",
+    to_regprocedure('orbis_khata.statement_relay_cleanup_v1()') is not null as "relayCleanup",
+    to_regclass('lottery_private.live_draw_cache') is not null as "liveDrawCache",
+    to_regclass('orbis_khata.statement_mailbox') is not null as "statementMailbox"`;
+  for(const [name,ready] of Object.entries(schema)) assert(ready,`DISPOSABLE_CRON_SCHEMA_MISSING:${name}`);
   for(const [name,file] of Object.entries(files)) result.source_hashes[name]=sha(await readFile(file,'utf8'));
   const draw=await readFile(files['lottery-live-retention'],'utf8');
   const retention=draw.match(/cron\.schedule\('lottery-live-retention','17 0 \* \* \*',\$job\$([\s\S]*?)\$job\$\)/)?.[1];
