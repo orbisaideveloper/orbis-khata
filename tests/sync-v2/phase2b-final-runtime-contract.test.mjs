@@ -73,7 +73,7 @@ test('cron CI waits for final TCP PostgreSQL and captures failing Docker startup
  assert.match(workflow,/shared_preload_libraries=pg_stat_statements,pg_cron,pg_net,pgsodium/);
  assert.match(workflow,/node --input-type=module -e/);
  assert.match(workflow,/postgres:\/\/supabase_admin@127\.0\.0\.1:5432\/khata_sync_v2_test/);
- assert.match(workflow,/FINAL_HOST_TCP_DATABASE_AND_VAULT_ROOT_KEY_READY/);
+ assert.match(workflow,/FINAL_HOST_TCP_DATABASE_AND_EXTENSION_PRELOAD_READY/);
  assert.match(workflow,/DISPOSABLE_POSTGRES_EXITED_DURING_INIT/);
  assert.match(workflow,/disposable-db-log\.txt/);
  assert.doesNotMatch(workflow,/if docker exec orbis-phase2b-disposable pg_isready -U postgres/);
@@ -117,12 +117,17 @@ test('Cron SQL migration transaction BEGIN/COMMIT never enters a multi-connectio
 });
 
 
-test('Supabase Vault requires server key preload and non-exported key preflight',()=>{
+test('Supabase Vault readiness checks real server rather than guessed root-key paths',()=>{
  assert(workflow.includes("shared_preload_libraries=pg_stat_statements,pg_cron,pg_net,pgsodium"));
- assert(workflow.includes("docker exec orbis-phase2b-disposable test -s /etc/postgresql-custom/pgsodium_root.key"));
- assert(workflow.includes("pgsodium.getkey_script"));
+ assert(workflow.includes("DISPOSABLE_PG_PREFLIGHT_FAILED"));
+ assert(workflow.includes("DISPOSABLE_PG_PREFLIGHT_SQL_ERROR"));
+ assert(workflow.includes("FINAL_HOST_TCP_DATABASE_AND_EXTENSION_PRELOAD_READY"));
+ assert(!workflow.includes("docker exec orbis-phase2b-disposable test -s /etc/postgresql-custom/pgsodium_root.key"));
+ assert(!workflow.includes("pgsodium.getkey_script"));
  assert(cron.includes("VAULT_ROOT_KEY_PRELOAD_REQUIRED"));
- assert(cron.includes("VAULT_ROOT_KEY_LOADER_REQUIRED"));
+ assert(!cron.includes("VAULT_ROOT_KEY_LOADER_REQUIRED"));
  assert(cron.includes("vault.create_secret"));
+ assert(cron.includes("VAULT_REAL_ENCRYPT_DECRYPT_ROUNDTRIP_FAILED"));
+ assert(cron.includes("vault.decrypted_secrets"));
  assert(!workflow.includes("cat /etc/postgresql-custom/pgsodium_root.key"));
 });

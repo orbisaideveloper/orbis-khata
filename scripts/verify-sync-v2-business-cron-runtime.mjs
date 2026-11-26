@@ -70,8 +70,6 @@ try{
   assert(v>=170000&&v<180000,'POSTGRES_17_REQUIRED');
   assert.match(preload,/\bpg_cron\b/,'REAL_CRON_WORKER_REQUIRED');
   assert.match(preload,/\bpgsodium\b/,'VAULT_ROOT_KEY_PRELOAD_REQUIRED');
-  const [{keyScript}]=await sql`select current_setting('pgsodium.getkey_script',true) as "keyScript"`;
-  assert(keyScript?.endsWith('/pgsodium_getkey.sh'),'VAULT_ROOT_KEY_LOADER_REQUIRED');
   assert.equal(cronDb,'khata_sync_v2_test','CRON_DATABASE_MUST_MATCH_SYNTHETIC_DB');
   const available=await sql`select name from pg_available_extensions where name in ('pg_cron','pg_net','supabase_vault')`;
   for(const ext of ['pg_cron','pg_net','supabase_vault'])
@@ -121,6 +119,10 @@ try{
     values(${linkOld},1,0,'{}',now()-interval '1 day'),(${linkNew},1,0,'{}',now()+interval '3 days')`;
   // Vault is a real extension, not a fake table. No secret bytes go to logs.
   await sql`select vault.create_secret(${token},'orbis_lottery_worker','disposable phase2b collector')`;
+  // Real Vault decrypts the newly created random secret; compare digests only.
+  const [vaultProbe]=await sql`select encode(sha256(convert_to(decrypted_secret,'UTF8')),'hex') as digest
+    from vault.decrypted_secrets where name='orbis_lottery_worker'`;
+  assert(vaultProbe && vaultProbe.digest===sha(token),'VAULT_REAL_ENCRYPT_DECRYPT_ROUNDTRIP_FAILED');
   const [{workerHash}]=await sql`select encode(sha256(convert_to(${token},'UTF8')),'hex') as "workerHash"`;
   await sql`update lottery_private.provider_gate set collector_url='http://host.docker.internal:18547/collector',worker_hash=${workerHash} where singleton`;
   const sentinel=async()=>sql`select count(*)::int as n,coalesce(sum(amount_minor),0)::text as total from public.khata_vouchers where company_id=${safe}`;
