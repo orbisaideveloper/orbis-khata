@@ -74,7 +74,7 @@ test('cron CI waits for final TCP PostgreSQL and records safe Docker exit diagno
  assert.match(launcher,/postgres -D \/etc\/postgresql -c listen_addresses=/);
  assert.doesNotMatch(launcher,/\s-c shared_preload_libraries=/);
  assert.match(launcher,/node --input-type=module -e/);
- assert.match(launcher,/postgres:\/\/supabase_admin@127\.0\.0\.1:5432\/khata_sync_v2_test/);
+ assert.match(launcher,/export KHATA_SYNC_V2_TEST_URL="postgres:\/\/supabase_admin:\$\{POSTGRES_PASSWORD\}@127\.0\.0\.1:5432\/khata_sync_v2_test"/);
  assert.match(launcher,/FINAL_HOST_TCP_DATABASE_AND_EXTENSION_PRELOAD_READY/);
  assert.match(launcher,/DISPOSABLE_POSTGRES_EXITED_DURING_INIT/);
  assert.match(launcher,/container-state\.txt/);
@@ -179,4 +179,14 @@ test('disposable PG17 uses a fresh password for authenticated host TCP, without 
  assert.match(launcher,/-e POSTGRES_PASSWORD \\/);
  assert.doesNotMatch(launcher,/POSTGRES_HOST_AUTH_METHOD=trust/);
  assert.doesNotMatch(launcher,/POSTGRES_PASSWORD=disposable-only/);
+});
+
+test('the isolated 4-Cron runner restores the one suppressed original purge job before checking exact names',()=>{
+ assert.match(disposable,/\.replace\("select cron\.schedule\('khata-retired-company-purge'/);
+ assert.match(cron,/if\(!existing\.some\(x=>x\.jobname==='khata-retired-company-purge'\)\)/);
+ assert.match(cron,/cron\.schedule\('khata-retired-company-purge','17 3 \* \* \*',\$\{expected\['khata-retired-company-purge'\]\}\)/);
+ assert.match(cron,/revision\.map\(job=>job\.jobname\)\.sort\(\)/);
+ assert.match(cron,/ORIGINAL_COMMAND_MISMATCH/);
+ assert.match(cron,/NO_ACTUAL_ORIGINAL_SCHEDULER_DISPATCH/);
+ assert.doesNotMatch(cron,/mark_dispatch|phase2b_ci\.dispatch_receipts/);
 });

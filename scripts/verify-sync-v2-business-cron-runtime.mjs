@@ -107,12 +107,17 @@ try{
     assert(source.includes(expected[name]),`SCHEDULE_COMMAND_SOURCE_MISMATCH:${name}`);
   }
   const existing=await sql`select jobname,command from cron.job where jobname = any(${names})`;
+  // Shared Supabase bootstrap strips this original schedule for unrelated tests.
+  // Restore it ONLY for this disposable 4-Cron acceptance using the exact
+  // source migration's command and original cadence; never change production.
+  if(!existing.some(x=>x.jobname==='khata-retired-company-purge'))
+    await sql`select cron.schedule('khata-retired-company-purge','17 3 * * *',${expected['khata-retired-company-purge']})`;
   // The collector is intentionally not activated by the production migration.
   // Install EXACT command in this disposable database only.
   if(!existing.some(x=>x.jobname==='orbis-lottery-collector'))
     await sql`select cron.schedule('orbis-lottery-collector','30 seconds',${expected['orbis-lottery-collector']})`;
   const revision=await sql`select jobname,jobid,command from cron.job where jobname = any(${names})`;
-  assert.equal(revision.length,4,'ALL_FOUR_REAL_SCHEDULES_MUST_EXIST');
+  assert.deepEqual(revision.map(job=>job.jobname).sort(),[...names].sort(),'ALL_FOUR_REAL_SCHEDULES_MUST_EXIST');
   for (const job of revision) {
     assert.equal(job.command,expected[job.jobname],`ORIGINAL_COMMAND_MISMATCH:${job.jobname}`);
     await sql`select cron.alter_job(${job.jobid},active:=false)`;
