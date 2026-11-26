@@ -166,9 +166,20 @@ try{
   await sql`insert into public.khata_parties(id,company_id,name,kind)
     values(${party},${safe},'Protected party','both'),(${foreignParty},${foreignCompany},'Independent party','both')`;
   const post=(actor,company,customer,amount)=>sql.begin(async tx=>{
-    await tx`select set_config('request.jwt.claims',${JSON.stringify({sub:actor,role:'authenticated'})},true),
+    // Stock Supabase auth.uid() reads request.jwt.claim.sub; the alternate
+    // standalone fixture accepts request.jwt.claims. Keep both consistent.
+    await tx`select set_config('request.jwt.claim.sub',${actor},true),
+      set_config('request.jwt.claims',${JSON.stringify({sub:actor,role:'authenticated'})},true),
       set_config('orbis.khata.gateway_verified','v1',true)`;
     await tx`set local role authenticated`;
+    const [{uid,dbRole,gate,ownsCompany}]=await tx`select auth.uid() as uid,
+      current_user as "dbRole",current_setting('orbis.khata.gateway_verified',true) as gate,
+      exists(select 1 from public.khata_companies where id=${company} and owner_id=auth.uid()) as "ownsCompany"`;
+    assert.equal(uid,actor,'DISPOSABLE_AUTH_UID_NOT_ACTOR');
+    assert.equal(dbRole,'authenticated','DISPOSABLE_ROLE_NOT_AUTHENTICATED');
+    assert.equal(gate,'v1','DISPOSABLE_VERIFIED_GATE_MISSING');
+    const shouldOwn=(actor===owner&&company===safe)||(actor===other&&company===foreignCompany);
+    assert.equal(ownsCompany,shouldOwn,'DISPOSABLE_OWNER_SCOPE_MISMATCH');
     await tx`select public.khata_post_v1(${randomUUID()}::uuid,${company}::uuid,${customer}::uuid,
       'receipt',${today}::date,${amount},'cash','','Synthetic cron financial sentinel',null)`;
   });

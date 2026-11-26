@@ -206,3 +206,14 @@ test('4 cron fixture applies original collector migration before worker writes',
  assert.match(cron,/DISPOSABLE_CRON_SCHEMA_MISSING:/);
  assert.doesNotMatch(cron,/alter table lottery_private\.provider_gate add column collector_url text/);
 });
+
+test('Supabase docker synthetic financial posting uses auth.uid subject and guards both tenants',()=>{
+ assert.match(cron,/set_config\('request\.jwt\.claim\.sub',\$\{actor\},true\)/);
+ assert.match(cron,/set_config\('request\.jwt\.claims',\$\{JSON\.stringify\(\{sub:actor,role:'authenticated'\}\)\},true\)/);
+ assert.match(cron,/DISPOSABLE_AUTH_UID_NOT_ACTOR/);
+ assert.match(cron,/DISPOSABLE_ROLE_NOT_AUTHENTICATED/);
+ assert.match(cron,/DISPOSABLE_OWNER_SCOPE_MISMATCH/);
+ assert.match(cron,/const shouldOwn=\(actor===owner&&company===safe\)\|\|\(actor===other&&company===foreignCompany\)/);
+ assert.match(cron,/await assert\.rejects\(post\(owner,foreignCompany,foreignParty,'1'\)/);
+ assert.doesNotMatch(cron,/disable row level security|create or replace function auth\.uid|set row_security = off/i);
+});
