@@ -44,11 +44,27 @@ jobs:
             supabase/postgres:17.6.1.136 \
             postgres -c cron.database_name=khata_sync_v2_test \
               -c cron.use_background_workers=on
-          for i in $(seq 1 60); do
-            if docker exec orbis-phase2b-disposable pg_isready -U postgres -d khata_sync_v2_test; then exit 0; fi
+          # The Supabase image starts a UNIX-SOCKET-ONLY temporary PostgreSQL
+          # during initdb and intentionally shuts it down before the final one.
+          # An unqualified pg_isready sees that TEMPORARY socket as 'ready' and
+          # can trigger ECONNRESET in the following Node query at shutdown.
+          # Require TCP readiness and a successful real SQL round-trip instead.
+          for i in $(seq 1 90); do
+            if ! [ "$(docker inspect --format '{{.State.Running}}' orbis-phase2b-disposable)" = true ]; then
+              echo 'DISPOSABLE_POSTGRES_EXITED_DURING_INIT' >&2
+              docker logs --tail 120 orbis-phase2b-disposable >&2
+              exit 1
+            fi
+            if docker exec orbis-phase2b-disposable pg_isready -h 127.0.0.1 -U postgres -d khata_sync_v2_test >/dev/null 2>&1 && \
+               docker exec orbis-phase2b-disposable psql -XAt -h 127.0.0.1 -U postgres -d khata_sync_v2_test \
+                 -c 'select current_setting('"'"'server_version_num'"'"')::int between 170000 and 179999' 2>/dev/null | grep -qx t; then
+              echo 'FINAL_TCP_DATABASE_READY' 
+              exit 0
+            fi
             sleep 2
           done
-          docker logs --tail 80 orbis-phase2b-disposable
+          echo 'FINAL_TCP_DATABASE_TIMEOUT' >&2
+          docker logs --tail 120 orbis-phase2b-disposable >&2
           exit 1
       - name: Execute original four scheduled commands with protected synthetic records
         shell: bash
@@ -70,6 +86,9 @@ jobs:
             supabase/migrations/20261121145730_lottery_scheduler.sql \
             supabase/migrations/20261121182053_customer_statement_relay.sql > quality-reports/phase2b/sha256.txt
           echo 'NOT Phase 2B final certification: independent reviewer and full 64-case audit remain required' > quality-reports/phase2b/boundary.txt
+          docker logs --tail 100 orbis-phase2b-disposable > quality-reports/phase2b/disposable-db-log.txt 2>&1 || true
+          docker inspect --format '{{.State.Status}} exit={{.State.ExitCode}}' orbis-phase2b-disposable \
+            > quality-reports/phase2b/disposable-db-status.txt 2>&1 || true
           docker rm -f orbis-phase2b-disposable >/dev/null 2>&1 || true
       - uses: actions/upload-artifact@v5
         if: always()

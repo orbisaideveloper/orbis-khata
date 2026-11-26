@@ -54,3 +54,24 @@ test('original trigger behavior fixture remains backwards compatible and takes c
 test('mixed runner checks exact two writes, replay, rollback, foreign owner and feed',()=>{
  for(const v of ['MIXED_WRITERS_MUST_ADD_EXACTLY_TWO_VOUCHERS','MIXED_CAPTURE_MUST_ADD_EXACTLY_TWO_EVENTS','EXACT_CASH_MINOR_UNIT_DELTA','REPLAY_CHANGED_LEDGER_FEED_OR_REVISION','ROLLBACK_CHANGED_LEDGER_FEED_OR_REVISION','FOREIGN_OWNER_CHANGED_LEDGER'])assert(mixed.includes(v));
 });
+
+test('mixed writers enroll exactly the same actor/company after legacy 26-trigger coverage',()=>{
+ const complete=mixed.indexOf('ALL_26_SAME_DATASET_REQUIRED');
+ const enroll=mixed.indexOf('insert into sync_v2.scope(actor_id,kind,scope_id,epoch,lifecycle)');
+ const writes=mixed.indexOf('await Promise.all([session(owner,tx=>legacy(tx)),session(owner,tx=>newV2(tx))])');
+ assert(complete>=0&&enroll>complete&&writes>enroll,'SCOPE_ENROLLMENT_MUST_PRECEDE_CONCURRENT_WRITES');
+ assert.match(mixed,/values\(\$\{actor\},'company',\$\{company\},\$\{epoch\},'active'\)/);
+ assert.match(mixed,/CAPTURE_MUST_USE_VERIFIED_OWNER_IDENTITY/);
+ assert.match(mixed,/EXACT_TWO_VOUCHER_TO_FEED_LINKS/);
+ assert.match(mixed,/WRONG_SCOPE_OR_EPOCH_IN_MIXED_CAPTURE/);
+ assert.match(mixed,/NONCONTIGUOUS_FIRST_TWO_CAPTURE_SEQUENCES/);
+});
+
+test('cron CI waits for final TCP PostgreSQL and captures failing Docker startup logs',()=>{
+ assert.match(workflow,/pg_isready -h 127\.0\.0\.1 -U postgres/);
+ assert.match(workflow,/psql -XAt -h 127\.0\.0\.1 -U postgres/);
+ assert.match(workflow,/FINAL_TCP_DATABASE_READY/);
+ assert.match(workflow,/DISPOSABLE_POSTGRES_EXITED_DURING_INIT/);
+ assert.match(workflow,/disposable-db-log\.txt/);
+ assert.doesNotMatch(workflow,/if docker exec orbis-phase2b-disposable pg_isready -U postgres/);
+});

@@ -59,8 +59,21 @@ try {
     }
     log(...args);
   };
-  await verifyTriggerBehavior(sql, async ({session,owner,other,company,party})=>{
+  await verifyTriggerBehavior(sql, async ({session,owner,other,company,party,actor})=>{
     assert.deepEqual(new Set(seen.keys()),new Set(expected),'ALL_26_SAME_DATASET_REQUIRED');
+    // The legacy trigger fixture deliberately keeps its company UNENROLLED:
+    // existing v1 writers must continue without a v2 feed before activation.
+    // Enroll this same company only after proving the 26 legacy effects.
+    // Without an active scope capture_voucher intentionally returns NEW and
+    // emits no event; an assertion of two v2 events would otherwise be invalid.
+    const epoch=randomUUID();
+    await sql`insert into sync_v2.scope(actor_id,kind,scope_id,epoch,lifecycle)
+      values(${actor},'company',${company},${epoch},'active')`;
+    const [enrollment]=await sql`select s.actor_id,s.epoch,s.lifecycle,s.head::bigint as head
+      from sync_v2.scope s where s.kind='company' and s.scope_id=${company}`;
+    assert.equal(enrollment.actor_id,actor,'CAPTURE_MUST_USE_VERIFIED_OWNER_IDENTITY');
+    assert.equal(enrollment.epoch,epoch,'CAPTURE_MUST_USE_EXACT_SYNTHETIC_EPOCH');
+    assert.equal(enrollment.lifecycle,'active','CAPTURE_SCOPE_MUST_BE_ACTIVE');
     const first=randomUUID(),second=randomUUID(),aborted=randomUUID();
     const date='2026-10-01';
     const current=async()=>({
@@ -81,6 +94,16 @@ try {
     const after=await current();
     assert.equal(after.vouchers,before.vouchers+2,'MIXED_WRITERS_MUST_ADD_EXACTLY_TWO_VOUCHERS');
     assert.equal(after.events,before.events+2,'MIXED_CAPTURE_MUST_ADD_EXACTLY_TWO_EVENTS');
+    const captured=await sql`select e.scope_id,e.epoch,e.seq::bigint as seq,v.voucher_id
+      from sync_v2.event e join sync_v2.voucher_event v
+      on (e.actor_id,e.kind,e.scope_id,e.epoch,e.seq)=
+         (v.actor_id,v.kind,v.scope_id,v.epoch,v.seq)
+      where v.voucher_id in (${first},${second}) order by e.seq`;
+    assert.equal(captured.length,2,'EXACT_TWO_VOUCHER_TO_FEED_LINKS');
+    assert(captured.every(row=>row.scope_id===company&&row.epoch===epoch),
+      'WRONG_SCOPE_OR_EPOCH_IN_MIXED_CAPTURE');
+    assert.deepEqual(captured.map(row=>BigInt(row.seq)),[1n,2n],
+      'NONCONTIGUOUS_FIRST_TWO_CAPTURE_SEQUENCES');
     const inserted=await sql`select id,amount_minor::text as amount from public.khata_vouchers
       where id in (${first},${second}) order by id`;
     assert.deepEqual(new Map(inserted.map(x=>[x.id,x.amount])),new Map([[first,'17'],[second,'29']]));
