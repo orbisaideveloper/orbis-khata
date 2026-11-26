@@ -27,7 +27,7 @@ jobs:
       matrix:
         # Every fixture gets an independently fresh disposable PG17 database.
         # These additional established runners were previously missing from the 2B matrix.
-        fixture: [company, trusted-device, lottery, snapshot, khata, module, rollout, settlement, legacy-locks, company-fence, scheduled-jobs]
+        fixture: [company, trusted-device, lottery, snapshot, khata, module, rollout, settlement, legacy-locks, company-fence, scheduled-jobs, server-catalog]
     services:
       postgres:
         image: postgres:17
