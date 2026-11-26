@@ -98,10 +98,12 @@ try{
   await sql.begin(tx=>post(tx,first,true));
   assert.equal((await sql`select seq::text from sync_v2.voucher_event where voucher_id=${voucher}`)[0].seq,'1');
   await expire(company);
-  await assert.rejects(sql.begin(async tx=>{
-    await post(tx,first,true,crypto.randomUUID());
-    throw new Error('RAW_RETIRED_INSERT_REACHED');
-  }),/RAW_RETIRED_INSERT_REACHED/);
+  // The earlier capture trigger now fails closed for an enrolled retired company
+  // even before the later direct-write fence is installed. An old fixture
+  // expecting the raw insert to reach its probe is no longer a safe contract.
+  await assert.rejects(sql.begin(tx=>post(tx,first,true,crypto.randomUUID())),
+    /SYNC_COMPANY_CAPTURE_UNAVAILABLE/);
+  assert.equal((await sql`select count(*)::int as n from public.khata_vouchers where company_id=${company}`)[0].n,1);
   for(const name of ['voucher-stock-order.sql','company-direct-write-fence.sql'])
     await sql.unsafe(await file('tests/sync-v2/'+name));
   await assert.rejects(sql.begin(tx=>post(tx,first,true,crypto.randomUUID())),/COMPANY_NOT_ACCESSIBLE/);
@@ -110,7 +112,7 @@ try{
     await tx`insert into public.khata_parties(id,company_id,name,kind)
       values(${crypto.randomUUID()},${company},'Retired direct party','both')`;
   }),/COMPANY_NOT_ACCESSIBLE/);
-  console.log('PASS: raw verified writer could reach an insert in a retired company; DB candidate rejects voucher and party.');
+  console.log('PASS: retired enrolled company denied by existing capture guard; additional direct-write fence rejects voucher and party.');
   await assert.rejects(sql.begin(async tx=>{ assert.equal(await purge(tx),1);throw new Error('ROLLBACK_PROBE'); }),/ROLLBACK_PROBE/);
   assert.equal((await sql`select purged from sync_v2.company_identity where id=${company}`)[0].purged,false);
   assert.equal((await sql`select count(*)::int as n from sync_v2.event where scope_id=${company}`)[0].n,2);
