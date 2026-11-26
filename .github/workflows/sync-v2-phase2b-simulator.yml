@@ -11,6 +11,7 @@ on:
       - "tests/sync-v2/**"
       - "scripts/verify-sync-v2-*.mjs"
       - "supabase/review-candidates/**"
+      - "supabase/migrations/**"
 permissions:
   contents: read
 
@@ -22,7 +23,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        fixture: [company, trusted-device, lottery]
+        fixture: [company, trusted-device, lottery, snapshot]
     services:
       postgres:
         image: postgres:17
@@ -80,6 +81,8 @@ jobs:
             tests/sync-v2/phase2a-coverage.test.ts \
             tests/sync-v2/phase2b-closure-gates.test.ts \
             tests/sync-v2/server-company-review-candidate.test.ts \
+            tests/sync-v2/server-company-historical-snapshot.test.ts \
+            tests/sync-v2/server-company-trigger-contract.test.ts \
             tests/sync-v2/server-company-group-recovery.test.ts \
             tests/sync-v2/company-sync-handler.test.ts \
             src/accounting/server-gateway.test.ts \
@@ -93,7 +96,7 @@ jobs:
             echo "Git SHA: $GITHUB_SHA"
             echo "Run: $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"
             echo "RESULT TYPE: isolated Phase 2B server simulator, NOT full Phase 2B signoff"
-            echo "Evidence register: 65 named obligations; incomplete paths remain BLOCKED"
+            echo "Evidence register: 64 server-only requirements, plus future client gate; incomplete paths remain BLOCKED"
             echo "Android A + Android B + Web full E2E: NOT RUN; requires Phase 2C/2D adapters"
             echo "Physical-device acceptance: NOT RUN"
             echo "Deploy/Live database changes: NONE"
