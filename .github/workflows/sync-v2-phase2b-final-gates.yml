@@ -83,3 +83,69 @@ jobs:
           path: quality-reports/phase2b/
           if-no-files-found: warn
           retention-days: 60
+
+  remaining-native-invariant-matrix:
+    name: Remaining native acceptance evidence — ${{ matrix.fixture }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    strategy:
+      fail-fast: false
+      matrix:
+        # Fresh disposable PostgreSQL 17 for each existing source runner.
+        fixture: [server-catalog, snapshot, trusted-device, legacy-locks, settlement, company-fence, rollout]
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: disposable-phase2b-evidence
+          POSTGRES_DB: khata_sync_v2_test
+        ports: [5432:5432]
+        options: >-
+          --health-cmd "pg_isready -U postgres -d khata_sync_v2_test"
+          --health-interval 5s --health-timeout 5s --health-retries 12
+    env:
+      KHATA_SYNC_V2_TEST_URL: postgres://postgres:disposable-phase2b-evidence@127.0.0.1:5432/khata_sync_v2_test
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '24'
+          cache: npm
+      - run: npm ci --no-fund
+      - name: Execute existing native acceptance fixture on fresh PG17
+        id: fixture
+        shell: bash
+        env:
+          PHASE2B_FIXTURE: ${{ matrix.fixture }}
+        run: |
+          set -euo pipefail
+          mkdir -p quality-reports/phase2b
+          node "scripts/verify-sync-v2-${PHASE2B_FIXTURE}.mjs" \
+            2>&1 | tee "quality-reports/phase2b/native-${PHASE2B_FIXTURE}.log"
+      - name: Record exact SHA and acceptance scope including failures
+        if: always()
+        shell: bash
+        env:
+          PHASE2B_FIXTURE: ${{ matrix.fixture }}
+          FIXTURE_OUTCOME: ${{ steps.fixture.outcome }}
+        run: |
+          set -euo pipefail
+          mkdir -p quality-reports/phase2b
+          {
+            echo "sha=$GITHUB_SHA"
+            echo "run=$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"
+            echo "fixture=$PHASE2B_FIXTURE"
+            echo "result=$FIXTURE_OUTCOME"
+            echo "pg=17 disposable"
+            echo "script_sha256=$(sha256sum "scripts/verify-sync-v2-${PHASE2B_FIXTURE}.mjs" | cut -d ' ' -f 1)"
+            echo "scope=CANDIDATE_RUNTIME_EVIDENCE_NOT_INDEPENDENTLY_REVIEWED"
+            echo "no_claim=NOT_64_GATE_CERTIFICATION"
+          } > "quality-reports/phase2b/native-${PHASE2B_FIXTURE}-provenance.txt"
+      - uses: actions/upload-artifact@v5
+        if: always()
+        with:
+          name: phase2b-remaining-${{ matrix.fixture }}-${{ github.run_id }}
+          path: quality-reports/phase2b/
+          retention-days: 60
+          if-no-files-found: warn
