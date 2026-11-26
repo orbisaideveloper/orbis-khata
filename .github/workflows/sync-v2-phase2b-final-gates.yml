@@ -18,7 +18,7 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 35
     env:
-      KHATA_SYNC_V2_TEST_URL: postgres://postgres@127.0.0.1:5432/khata_sync_v2_test
+      KHATA_SYNC_V2_TEST_URL: postgres://supabase_admin@127.0.0.1:5432/khata_sync_v2_test
       PHASE2B_CRON_DEADLINE_MS: '1050000'
     steps:
       - uses: actions/checkout@v6
@@ -64,13 +64,13 @@ jobs:
             if timeout 5 bash -c 'echo > /dev/tcp/127.0.0.1/5432' >/dev/null 2>&1 && \
                node --input-type=module -e '
                  import postgres from "postgres";
-                 const db=postgres("postgres://postgres@127.0.0.1:5432/khata_sync_v2_test",{max:1,connect_timeout:2});
+                 const db=postgres("postgres://supabase_admin@127.0.0.1:5432/khata_sync_v2_test",{max:1,connect_timeout:2});
                  try {
-                   const [{v,preload,listen}]=await db`select current_setting(${"server_version_num"})::int as v, current_setting(${"shared_preload_libraries"}) as preload, current_setting(${"listen_addresses"}) as listen`;
-                   if(v<170000||v>=180000 || !["pg_stat_statements","pg_cron","pg_net"].every(x=>preload.split(",").map(y=>y.trim()).includes(x)) || listen!=="*") process.exitCode=1;
+                   const [{v,preload,listen,role,admin}]=await db`select current_user as role, (select rolsuper from pg_roles where rolname=current_user) as admin, current_setting(${"server_version_num"})::int as v, current_setting(${"shared_preload_libraries"}) as preload, current_setting(${"listen_addresses"}) as listen`;
+                   if(role!=="supabase_admin"||admin!==true||v<170000||v>=180000 || !["pg_stat_statements","pg_cron","pg_net"].every(x=>preload.split(",").map(y=>y.trim()).includes(x)) || listen!=="*") process.exitCode=1;
                  } catch(error) {process.exitCode=1;} finally {await db.end({timeout:1});}
                ' >/dev/null 2>&1; then
-              echo 'FINAL_HOST_TCP_DATABASE_AND_EXTENSIONS_READY'
+              echo 'FINAL_HOST_TCP_DATABASE_AND_ADMIN_ROLE_READY'
               exit 0
             fi
             sleep 2

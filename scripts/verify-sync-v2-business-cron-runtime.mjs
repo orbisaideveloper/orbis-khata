@@ -23,7 +23,7 @@ assert.equal(u.hostname,'127.0.0.1');
 assert.equal(u.port,'5432');
 assert.equal(u.pathname,'/khata_sync_v2_test');
 assert.equal(u.search,'');
-assert.equal(u.username,'postgres');
+assert.equal(u.username,'supabase_admin','DISPOSABLE_ADMIN_ONLY');
 assert(!process.env.SUPABASE_SERVICE_ROLE_KEY && !process.env.DATABASE_URL && !process.env.SUPABASE_DB_URL,
   'PRODUCTION_CREDENTIAL_ENV_NOT_ALLOWED');
 const sql=postgres(dbUrl,{max:8,connection:{statement_timeout:30000,application_name:'orbis-phase2b-original-cron-disposable'}});
@@ -57,9 +57,13 @@ const receiver=createServer(async(req,res)=>{
 let listening=false;
 try{
   receiver.listen(18547,'0.0.0.0');await once(receiver,'listening');listening=true;
-  const [{v,preload,cronDb}]=await sql`select current_setting('server_version_num')::int as v,
+  const [{v,preload,cronDb,role,admin}]=await sql`select current_user as role,
+    (select rolsuper from pg_roles where rolname=current_user) as admin,
+    current_setting('server_version_num')::int as v,
     current_setting('shared_preload_libraries') as preload,
     current_setting('cron.database_name',true) as "cronDb"`;
+  assert.equal(role,'supabase_admin','DISPOSABLE_ADMIN_REQUIRED');
+  assert.equal(admin,true,'DISPOSABLE_SUPERUSER_REQUIRED');
   assert(v>=170000&&v<180000,'POSTGRES_17_REQUIRED');
   assert.match(preload,/\bpg_cron\b/,'REAL_CRON_WORKER_REQUIRED');
   assert.equal(cronDb,'khata_sync_v2_test','CRON_DATABASE_MUST_MATCH_SYNTHETIC_DB');
@@ -72,7 +76,7 @@ try{
   await sql.unsafe('create extension if not exists supabase_vault');
   // This replays the already checked-in migration chain and review-only adapter
   // in an EMPTY test database. It never applies the candidate to the live project.
-  await initializeDisposableDatabase(sql);
+  await initializeDisposableDatabase(sql,{supabaseRolesAlreadyInitialized:true});
   for(const file of ['20261122112424_lottery_live_cache.sql','20261122142011_lottery_live_per_draw.sql']) {
     await sql.unsafe(await readFile(`supabase/migrations/${file}`,'utf8'));
   }

@@ -6,6 +6,7 @@ const workflow=await load('.github/workflows/sync-v2-phase2b-final-gates.yml');
 const cron=await load('scripts/verify-sync-v2-business-cron-runtime.mjs');
 const mixed=await load('scripts/verify-sync-v2-mixed-26-runtime.mjs');
 const fixtures=await load('scripts/sync-v2-trigger-behavior-fixture.mjs');
+const disposable=await load('scripts/sync-v2-disposable-db-fixture.mjs');
 const count=(txt,pattern)=>(txt.match(pattern)||[]).length;
 
 test('CI runs only on isolated branch push/manual and never deploys or reads production secrets',()=>{
@@ -71,8 +72,8 @@ test('cron CI waits for final TCP PostgreSQL and captures failing Docker startup
  assert.match(workflow,/listen_addresses='\*'/);
  assert.match(workflow,/shared_preload_libraries=pg_stat_statements,pg_cron,pg_net/);
  assert.match(workflow,/node --input-type=module -e/);
- assert.match(workflow,/postgres:\/\/postgres@127\.0\.0\.1:5432\/khata_sync_v2_test/);
- assert.match(workflow,/FINAL_HOST_TCP_DATABASE_AND_EXTENSIONS_READY/);
+ assert.match(workflow,/postgres:\/\/supabase_admin@127\.0\.0\.1:5432\/khata_sync_v2_test/);
+ assert.match(workflow,/FINAL_HOST_TCP_DATABASE_AND_ADMIN_ROLE_READY/);
  assert.match(workflow,/DISPOSABLE_POSTGRES_EXITED_DURING_INIT/);
  assert.match(workflow,/disposable-db-log\.txt/);
  assert.doesNotMatch(workflow,/if docker exec orbis-phase2b-disposable pg_isready -U postgres/);
@@ -84,4 +85,23 @@ test('mixed v2 capture allows interleaved legitimate events but denies feed gaps
  assert.match(mixed,/MIXED_VOUCHER_LINEAGE_MISSING_OR_DUPLICATED/);
  assert.match(mixed,/TWO_VOUCHER_FEED_LINKS_NOT_ORDERED/);
  assert.doesNotMatch(mixed,/NONCONTIGUOUS_FIRST_TWO_CAPTURE_SEQUENCES/);
+});
+
+test('Cron privileges are confined to disposable Supabase superuser, not production',()=>{
+ assert.match(cron,/DISPOSABLE_ADMIN_REQUIRED/);
+ assert.match(cron,/DISPOSABLE_SUPERUSER_REQUIRED/);
+ assert.match(cron,/supabaseRolesAlreadyInitialized:true/);
+ assert.match(cron,/PRODUCTION_CREDENTIAL_ENV_NOT_ALLOWED/);
+ assert.match(workflow,/current_user as role/);
+ assert.match(workflow,/supabase_admin/);
+ assert.doesNotMatch(workflow,/GRANT CREATE ON DATABASE|ALTER ROLE postgres SUPERUSER/i);
+});
+
+test('Supabase-aware bootstrap does not re-create existing global roles',()=>{
+ assert.match(disposable,/SUPABASE_BOOTSTRAP_ROLE_MISSING/);
+ assert.match(disposable,/SUPABASE_DISPOSABLE_ADMIN_PRIVILEGES_REQUIRED/);
+ assert.match(disposable,/if\(supabaseRolesAlreadyInitialized\)/);
+ assert.match(disposable,/create table if not exists auth\.users/);
+ assert.match(disposable,/to_regprocedure\('auth\.uid\(\)'\)/);
+ assert.match(disposable,/await setup\(\{/);
 });
