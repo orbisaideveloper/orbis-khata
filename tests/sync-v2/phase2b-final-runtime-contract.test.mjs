@@ -105,3 +105,13 @@ test('Supabase-aware bootstrap does not re-create existing global roles',()=>{
  assert.match(disposable,/to_regprocedure\('auth\.uid\(\)'\)/);
  assert.match(disposable,/await setup\(\{/);
 });
+
+
+test('Cron SQL migration transaction BEGIN/COMMIT never enters a multi-connection pool',()=>{
+ assert.match(cron,/postgres\(dbUrl,\{max:1,connection:/);
+ assert.doesNotMatch(cron,/postgres\(dbUrl,\{max:[2-9]/);
+ assert.match(cron,/initializeDisposableDatabase\(sql,\{supabaseRolesAlreadyInitialized:true\}\)/);
+ assert.match(cron,/await sql\.unsafe\(await readFile/);
+ // Do not weaken the independent mixed-26 concurrency test's database pool.
+ assert.match(disposable,/postgres\(url\.href, \{ max: 8,/);
+});

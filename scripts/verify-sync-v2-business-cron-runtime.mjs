@@ -26,7 +26,10 @@ assert.equal(u.search,'');
 assert.equal(u.username,'supabase_admin','DISPOSABLE_ADMIN_ONLY');
 assert(!process.env.SUPABASE_SERVICE_ROLE_KEY && !process.env.DATABASE_URL && !process.env.SUPABASE_DB_URL,
   'PRODUCTION_CREDENTIAL_ENV_NOT_ALLOWED');
-const sql=postgres(dbUrl,{max:8,connection:{statement_timeout:30000,application_name:'orbis-phase2b-original-cron-disposable'}});
+// Checked-in SQL migrations contain explicit BEGIN/COMMIT. Postgres.js must
+// pin their entire execution to one connection; pooled max:8 rejects these as
+// UNSAFE_TRANSACTION. pg_cron background workers use separate server connections.
+const sql=postgres(dbUrl,{max:1,connection:{statement_timeout:30000,application_name:'orbis-phase2b-original-cron-disposable'}});
 const names=['khata-retired-company-purge','lottery-live-retention','orbis-lottery-collector','orbis-statement-relay-cleanup'];
 const files={
   'khata-retired-company-purge':'supabase/migrations/20261028184713_khata_accounting_completion_v3.sql',
