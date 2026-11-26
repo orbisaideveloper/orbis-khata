@@ -96,6 +96,10 @@ try{
  console.log('PASS native PG17: committed party mutation increments revision exactly once, transaction abort restores head and rows');
  await verifyTriggerBehavior(sql);
  await verifyEdgeWriters(sql);
+ if(globalThis.Deno?.env?.get('PHASE2B_TEST_ORIGINAL_DENO_MODULE')==='enabled'){
+  const {verifyOriginalDenoEdge}=await import('./verify-sync-v2-original-deno-entrypoint.mjs');
+  await verifyOriginalDenoEdge(sql);
+ }
  if(globalThis.Deno?.env?.get('PHASE2B_NATIVE_DENO_HTTP')==='enabled'){
    assert(globalThis.__phase2bNativeDenoVerified===true,'DENO_LISTENER_CALLBACK_NOT_VERIFIED');
    const [acl]=await sql`select has_table_privilege('anon','orbis_khata.drive_account_recovery','INSERT') as a,

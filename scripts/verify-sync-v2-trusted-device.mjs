@@ -177,6 +177,20 @@ try{
     [legacyId,offlineCommand.entityId]);
   assert.equal((await sql`select count(*)::int as n from sync_v2.receipt`)[0].n,5);
   assert.equal((await sql`select sum(amount_minor)::text as total from public.khata_vouchers`)[0].total,'750');
+  const rotatedCredential=credential();
+  const newDigest=createHash('sha256').update(rotatedCredential).digest('hex');
+  await sql`update sync_v2.registered_device set credential_sha256=${newDigest}
+    where actor=${actor} and registration='second' and revoked_at is null`;
+  await assert.rejects(send('owner',second,command('second')),/SYNC_TRUSTED_DEVICE_DENIED/);
+  await assert.rejects(read('owner',second,'second',scope,'0',1),/SYNC_TRUSTED_DEVICE_DENIED/);
+  const rotatedCommand=command('second');
+  const rotatedReceipt=await send('owner',rotatedCredential,rotatedCommand);
+  assert.deepEqual(await send('owner',rotatedCredential,rotatedCommand),rotatedReceipt);
+  await assert.rejects(send('stranger',rotatedCredential,command('second')),/SYNC_ACTOR_MISMATCH/);
+  assert((await read('owner',rotatedCredential,'second',scope,'0',10)).groups.length>0);
+  assert.equal((await sql`select count(*)::int as n from sync_v2.receipt`)[0].n,6);
+  assert.equal((await sql`select sum(amount_minor)::text as total from public.khata_vouchers`)[0].total,'875');
+  console.log('PASS native PG17 credential rotation: old key invalid, new key scoped and replay safe');
   console.log('PASS native mixed v1/v2 authority: retired credential remains denied, Android reconnect replays once, renewed Web sees both exact identities');
   console.log('EXECUTED_CASE '+JSON.stringify({id:'gate:device-authority',outcome:'PASS',observed:'Synthetic Central verifier; scoped/epoch permissions, expired and retired credential, revocation, entitlement, v1/old-client compatibility, v2 version denial and replacement-device replay'}));
 

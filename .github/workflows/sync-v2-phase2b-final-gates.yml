@@ -213,3 +213,63 @@ jobs:
           path: quality-reports/phase2b/
           retention-days: 60
           if-no-files-found: warn
+
+  original-deno-module-acceptance:
+    name: Original Edge TypeScript module + Deno HTTP + PG17
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: disposable-deno-acceptance
+          POSTGRES_DB: khata_sync_v2_test
+        ports: [5432:5432]
+        options: >-
+          --health-cmd "pg_isready -U postgres -d khata_sync_v2_test"
+          --health-interval 5s --health-timeout 5s --health-retries 12
+    env:
+      KHATA_SYNC_V2_TEST_URL: postgres://postgres:disposable-deno-acceptance@127.0.0.1:5432/khata_sync_v2_test
+      PHASE2B_TEST_ORIGINAL_DENO_MODULE: enabled
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '24'
+          cache: npm
+      - uses: denoland/setup-deno@v2
+        with:
+          deno-version: v2.x
+      - run: npm ci --no-fund
+      - name: Original Edge module Deno ESM native HTTP admission tests
+        id: actual
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p quality-reports/phase2b
+          deno run --allow-all --node-modules-dir=manual \
+            --import-map scripts/sync-v2-original-deno-importmap.json \
+            scripts/verify-sync-v2-server-catalog.mjs \
+            2>&1 | tee quality-reports/phase2b/original-deno-module.log
+      - name: Retain test evidence even after failure
+        if: always()
+        shell: bash
+        env:
+          RESULT: ${{ steps.actual.outcome }}
+        run: |
+          set -euo pipefail
+          mkdir -p quality-reports/phase2b
+          echo "sha=$GITHUB_SHA result=$RESULT" > quality-reports/phase2b/original-module-provenance.txt
+          sha256sum scripts/verify-sync-v2-original-deno-entrypoint.mjs \
+            scripts/sync-v2-original-deno-postgres-shim.mjs \
+            supabase/functions/orbis-khata-data/index.ts \
+            > quality-reports/phase2b/original-module-hashes.txt
+          echo 'independent_review=NOT_DONE; fixture uses synthetic DB and Central' >> quality-reports/phase2b/original-module-provenance.txt
+      - uses: actions/upload-artifact@v5
+        if: always()
+        with:
+          name: phase2b-original-deno-module-${{ github.run_id }}
+          path: quality-reports/phase2b/
+          retention-days: 60
+          if-no-files-found: warn
