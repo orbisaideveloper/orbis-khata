@@ -9,6 +9,8 @@ import {randomUUID} from 'node:crypto';
 import postgres from 'postgres';
 import {setup} from './sql-fixture.mjs';
 import {buildRegister} from './verify-sync-v2-phase2b-evidence.mjs';
+import {verifyEdgeWriters} from './sync-v2-edge-writer-fixture.mjs';
+import {verifyTriggerBehavior} from './sync-v2-trigger-behavior-fixture.mjs';
 
 const url=new URL(process.env.KHATA_SYNC_V2_TEST_URL??'http://invalid');
 assert.equal(url.protocol,'postgres:','LOCAL_DISPOSABLE_PG_ONLY');
@@ -40,6 +42,11 @@ const register=buildRegister(cov,closure);
 assert.equal(register.groups.trigger.length,26);
 assert.equal(register.groups.rpc.length+register.groups['internal-rpc'].length,26);
 try{
+ const [{version}]=await sql`select current_setting('server_version_num')::int as version`;
+ assert(version>=170000&&version<180000,'PG17_REQUIRED');
+ const schedulerExtensions=await sql`select name,installed_version from pg_available_extensions
+   where name in ('pg_cron','pg_net','supabase_vault') order by name`;
+ console.log('NATIVE_ENV '+JSON.stringify({version,schedulerExtensions}));
  const e=await sql.unsafe("select count(*)::int n from information_schema.tables where table_schema='public'");
  assert.equal(e[0].n,0,'DISPOSABLE_EMPTY_DB_REQUIRED');
  const init=await sql.reserve();
@@ -87,5 +94,7 @@ try{
  assert.equal(await rev(),before+1,'TRIGGER_REVISION_MUST_ROLLBACK');
  assert.equal((await sql.unsafe('select count(*)::int n from public.khata_parties where company_id=$1',[company]))[0].n,1);
  console.log('PASS native PG17: committed party mutation increments revision exactly once, transaction abort restores head and rows');
- console.log('BOUNDARY: trigger catalog, function grants, and specific revision behavior only; remaining writer-effect cases BLOCKED');
+ await verifyTriggerBehavior(sql);
+ await verifyEdgeWriters(sql);
+ console.log('BOUNDARY: native per-case results only; pg_cron, hosted Edge, full server acceptance and independent review are not certified');
 }finally{await sql.end({timeout:5})}

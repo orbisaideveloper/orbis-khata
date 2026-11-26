@@ -2,6 +2,7 @@
   "entry": [
     "supabase/functions/orbis-khata-data/index.ts",
     "scripts/verify-sync-v2-*.mjs",
+    "scripts/fixtures/sync-v2-deno/*.mjs",
     "supabase/functions/orbis-lottery-ticket/index.ts",
     "vendor/foundation-lottery/runtime/lottery-accounting-service.d.ts",
     "public/legal.css",

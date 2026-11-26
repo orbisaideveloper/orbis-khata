@@ -1,0 +1,5 @@
+{
+  "imports": {
+    "npm:postgres@3.4.7": "./pg-adapter.mjs"
+  }
+}

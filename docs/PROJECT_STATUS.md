@@ -1,3 +1,14 @@
+## 2026-11-26 — Phase 2B final-seven continuation (local, incomplete)
+
+- Preserved the 57 verified local cases and Report 83. Two additional local gates passed. The exact Deno entrypoint exercised three direct writers with a test-only localhost DB adapter and TLS Central fixture. Its hard-coded production target guard still rejects loopback startup outside that adapter.
+- One owner's concurrent Khata and Lottery writes, identical replay, foreign authorization, record IDs, cash, stock, fiscal data and encrypted restore were reconciled on native PG17. The combined legacy-trigger matrix remains partial because it does not prove all 26 paths in the same concurrent scenario. Four real Cron dispatch cases are blocked by missing pg_cron, pg_net and Vault.
+- 59/64 scoped local PASS. Production, deployment, activation, Phase 2C and exact-SHA hosted closure remain outside the local evidence.
+
+## 2026-11-26 — Phase 2B native per-case server acceptance (local checkpoint)
+
+- Verified baseline `dfcc6a8`. The disposable PG17 catalog job now executes behavioral cases keyed to all 19 authenticated RPCs, 7 internal routines, 26 live-listed triggers and 3 direct Edge writers. The local HTTP harness uses the checked-in Edge entrypoint, synthetic Central responses and real PG17 transactions. It tests ownership, concurrent replay, dependent rollback and recovery-envelope persistence.
+- These are scoped case results. Actual pg_cron/collector dispatch, all cross-cutting scenario closure, final exact-SHA hosted CI and independently reviewed gate receipts remain open. The release auditor and production migration/activation gates still apply. Phase 2C remains unopened.
+
 ## 2026-11-25 — Phase 2B/2E integrated company SQL review candidate (LOCAL, NOT PUSHED)
 
 - Current reviewed GitHub baseline `50117dbe1471ece6d2ed648866a28d7166528fe5`; exact Git tree verified. New `supabase/review-candidates/20261125_private_company_financial_capture.review.sql` combines legacy lock-order fixes, private atomic capture/receipt/feed, master/expense/invoice/stock/production/settings emitters, global company ID fence, scheduled purge tombstone, and extra pre-delete owner-authority guard. This is **not an applied migration**.

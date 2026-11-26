@@ -551,7 +551,7 @@ try{
     for(const device of connections)device.close();
     await rm(pairFolder,{recursive:true,force:true});
   }
-  const oversizedId=crypto.randomUUID(), oversized='ব'.repeat(360000);
+  const oversizedId=crypto.randomUUID(), oversized='A'.repeat(2010000)+'ব'.repeat(1000);
   const beforeOversized=(await page(sibling)).highWater;
   await auth(actor,async tx=>{
     // Synthetic historical record, with the same row schema and native
@@ -582,7 +582,7 @@ try{
   },{scope:{kind:'lottery-organization',id:sibling,epoch},registration,credential:secret});
   const recoveredGroup=await httpRecovery.recoverGroup(beforeOversized);
   assert.equal(recoveredGroup.manifest.scopeId,sibling);
-  assert(recoveredGroup.manifest.bytes>1048576);
+  assert(recoveredGroup.manifest.bytes>2_000_000);
   const httpStorage=await openIndexedDbLocalFeedStorage(new IDBFactory(),'lottery-http-recovery');
   try{
     const ledger=createLocalFeed(actor,{kind:'lottery-organization',id:sibling,epoch},httpStorage,
@@ -626,7 +626,7 @@ try{
     const stale=await http(request({action:'snapshot-part',...snapshotBinding,after:prior,head:beforeOversized,offset:0}));
     assert.equal(stale.status,409);
   }finally{newDeviceStorage.close();}
-  console.log('PASS new device HTTP bootstrap from oversized Lottery history, exact data with revision and no partial installation.');
+  console.log(`PASS new device HTTP bootstrap: ${oversized.length} decoded audit characters, exact data with revision and no partial installation.`);
   await sql`update sync_v2.registered_device set revoked_at=now() where registration=${registration}`;
   await assert.rejects(submit('owner',secret,command),/SYNC_TRUSTED_DEVICE_DENIED/);
   await assert.rejects(trustedFeed('owner',secret,registration,scoped,beforeV2,50),/SYNC_TRUSTED_DEVICE_DENIED/);
@@ -636,7 +636,7 @@ try{
   await assert.rejects(sql`select sync_v2.read_grouped_feed(${actor},'lottery-organization',${sibling},${epoch},
     ${beforeOversized}::bigint,10)`,/SYNC_FEED_PAGE_TOO_LARGE/);
   const bigGroup=await transfers.open(beforeOversized);
-  assert(bigGroup.bytes>1048576);
+  assert(bigGroup.bytes>2_000_000);
   const first=await transfers.read(bigGroup.transfer,1,0);
   assert.equal(first.offset,0);
   await assert.rejects(transfers.read(bigGroup.transfer,1,0,'0'.repeat(64)),/SYNC_TRUSTED_DEVICE_DENIED/);
@@ -702,6 +702,14 @@ try{
   await assert.rejects(transfers.read(bootBundle.transfer,1,0),/SYNC_FEED_CURSOR_EXPIRED/);
   const rebootstrap=await transfers.open();
   assert.equal(rebootstrap.next,lateFeed.next);
+  const current=await transfers.download(rebootstrap);
+  const byKey=rows=>rows.map(({model,id,projectionJson})=>[JSON.stringify([model,id]),projectionJson])
+    .sort(([a],[b])=>a.localeCompare(b));
+  assert.deepEqual(byKey([...reconstructed.values()]),byKey(current),'REBOOTSTRAP_ROW_ID_OR_VALUE_MISMATCH');
+  const restored=await runLottery(state(reconstructed),payload('getWorkspace',{organizationId:sibling}),actor,clock);
+  assert.deepEqual(restored.result.summary,(await run('getWorkspace',{organizationId:sibling})).summary);
+  console.log('PASS Lottery large snapshot + concurrent feed + expired cursor rebootstrap preserves exact audit, row IDs and summary.');
+
   const [{size:lotterySizes}]=await sql`select jsonb_build_object(
     'lotteryRows',pg_total_relation_size('public.khata_lottery_records'),
     'events',pg_total_relation_size('sync_v2.event'),

@@ -2,8 +2,12 @@
 // Fails closed if pointed at anything except the disposable CI database.
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
-import { randomUUID } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import postgres from 'postgres';
+import { IDBFactory } from 'fake-indexeddb';
+import { createLocalFeed } from '../src/sync-v2/local-feed.ts';
+import { openIndexedDbLocalFeedStorage } from '../src/sync-v2/local-feed-storage.ts';
+import { fixtureFeedCodec } from './sync-v2-local-storage-fixture.mjs';
 import { setup } from './sql-fixture.mjs';
 
 const url = new URL(process.env.KHATA_SYNC_V2_TEST_URL ?? 'http://missing');
@@ -95,6 +99,94 @@ try {
   const first=await snapshot({limit:1});
   await db.unsafe('insert into public.khata_parties(id,company_id,name,kind) values($1,$2,$3,$4)',[randomUUID(),company,'Later revision','both']);
   await assert.rejects(snapshot({head:first.highWater,afterModel:first.nextModel,afterKey:first.nextKey,limit:1}),/SYNC_COMPANY_SNAPSHOT_STALE/);
+  // Populate a legacy ledger through the authenticated posting RPC instead of
+  // inflating the response with fixture-only columns or bypassing its journals.
+  const postingCount=2500;
+  await db.begin(async tx=>{
+    await tx`select set_config('request.jwt.claims', ${JSON.stringify({sub:owner,role:'authenticated'})}, true),
+      set_config('orbis.khata.gateway_verified','v1',true)`;
+    await tx`set local role authenticated`;
+    await tx`select public.khata_post_v1(gen_random_uuid(),${company}::uuid,${parties[0]}::uuid,
+      'receipt','2026-10-30','125','cash','',repeat('ক',450)||series::text,null)
+      from generate_series(1,${postingCount}) series`;
+  });
+  const hash=rows=>{
+    const digest=createHash('sha256');
+    for(const row of rows.sort()) digest.update(row).update('\n');
+    return digest.digest('hex');
+  };
+  const expected=new Map();
+  for(const {name} of catalog){
+    assert.match(name,/^[a-z_]+$/);
+    const rows=await db.unsafe(`select to_jsonb(r)::text as projection from public.${name} r where company_id=$1`,[company]);
+    expected.set(name,rows.map(row=>row.projection));
+  }
+  const [root]=await db`select to_jsonb(r)::text as projection from public.khata_companies r where id=${company}`;
+  expected.set('khata_companies',[root.projection]);
+  const factory=new IDBFactory();
+  const codec=await fixtureFeedCodec();
+  const open=async()=>{
+    const storage=await openIndexedDbLocalFeedStorage(factory,'historical-company-recovery');
+    const feed=createLocalFeed(actor,{kind:'company',id:company,epoch},storage,codec,
+      ()=>assert.fail('Historical restore should not apply change-feed events'));
+    return {storage,feed};
+  };
+  const budget=32768, limit=47;
+  const interrupted=await snapshot({limit,bytes:budget});
+  const interruptedLocal=await open();
+  try{
+    assert.equal(await interruptedLocal.feed.cursor(),null);
+  }finally{interruptedLocal.storage.close();}
+  const resumed=await snapshot({limit,bytes:budget,head:interrupted.highWater});
+  assert.deepEqual(resumed,interrupted,'INTERRUPTED_PAGE_RESTART_CHANGED_IMAGE');
+  const restored=new Map(), keys=new Set(), projection=[];
+  let current=resumed, pages=0, decodedChars=0, cash=0;
+  for(;;){
+    pages++;
+    assert(pages<=500,'LARGE_SNAPSHOT_DID_NOT_TERMINATE');
+    assert.equal(current.highWater,resumed.highWater);
+    assert(current.rows.length<=limit);
+    assert(Buffer.byteLength(JSON.stringify(current.rows))<=budget);
+    for(const {model,key,projectionJson} of current.rows){
+      const id=JSON.stringify([model,key]);
+      assert(!keys.has(id),'DUPLICATE_HISTORICAL_ROW');
+      keys.add(id);
+      projection.push({collection:model,id:key,value:projectionJson});
+      if(!restored.has(model)) restored.set(model,[]);
+      restored.get(model).push(projectionJson);
+      decodedChars+=projectionJson.length;
+      const row=JSON.parse(projectionJson);
+      if(model==='khata_vouchers'){
+        if(row.debit_account==='cash') cash+=row.amount_minor;
+        if(row.credit_account==='cash') cash-=row.amount_minor;
+      }
+    }
+    if(current.done)break;
+    current=await snapshot({limit,bytes:budget,head:resumed.highWater,
+      afterModel:current.nextModel,afterKey:current.nextKey});
+  }
+  assert(decodedChars>2_000_000,'LEGACY_SNAPSHOT_NOT_OVERSIZE');
+  assert.equal(restored.get('khata_vouchers').length,postingCount);
+  const [{cash:journalCash}]=await db`select sum(signed_minor)::int as cash from public.khata_journal
+    where company_id=${company} and account='cash'`;
+  assert.equal(cash,postingCount*125);
+  assert.equal(cash,journalCash);
+  for(const [model,rows] of expected) assert.equal(hash(restored.get(model)??[]),hash(rows),model);
+  for(const model of restored.keys()) assert(expected.has(model),`UNEXPECTED_MODEL_${model}`);
+  const target=await open();
+  try{
+    const before={epoch,sequence:resumed.highWater};
+    assert.equal(await target.feed.cursor(),null);
+    await target.feed.installSnapshot(before,projection);
+  }finally{target.storage.close();}
+  const reopened=await open();
+  try{
+    assert.deepEqual(await reopened.feed.cursor(),{epoch,sequence:resumed.highWater});
+    for(const change of projection)
+      assert.equal(await reopened.feed.projection(change.collection,change.id),change.value);
+  }finally{reopened.storage.close();}
+  console.log(`PASS native PG17: large legacy company projection; ${decodedChars} decoded characters, ${keys.size} rows, ${pages} bounded pages, encrypted reopen, exact model hashes and cash ${cash}`);
+
   await db.unsafe('update sync_v2.registered_device set revoked_at=now() where actor=$1 and registration=$2',[actor,registration]);
   await assert.rejects(snapshot(),/SYNC_TRUSTED_DEVICE_DENIED/);
   console.log('PASS native PG17: revision fence and revoked device fail closed');

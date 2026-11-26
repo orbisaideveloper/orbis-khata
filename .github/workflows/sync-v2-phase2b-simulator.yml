@@ -10,6 +10,7 @@ on:
       - "src/sync-v2/**"
       - "tests/sync-v2/**"
       - "scripts/verify-sync-v2-*.mjs"
+      - "scripts/sync-v2-*-fixture.mjs"
       - "supabase/review-candidates/**"
       - "supabase/migrations/**"
       - "supabase/tests/sync-v2/**"
@@ -69,6 +70,10 @@ jobs:
           echo "fixture_outcome=$NATIVE_OUTCOME" >> "quality-reports/phase2b/evidence-${SYNC_FIXTURE}.txt"
           echo "postgres_version=17 (disposable GitHub service)" >> "quality-reports/phase2b/evidence-${SYNC_FIXTURE}.txt"
           echo "script_sha256=$(sha256sum scripts/verify-sync-v2-${SYNC_FIXTURE}.mjs | cut -d' ' -f1)" >> "quality-reports/phase2b/evidence-${SYNC_FIXTURE}.txt"
+          if [ "$SYNC_FIXTURE" = server-catalog ]; then
+            sha256sum scripts/sync-v2-trigger-behavior-fixture.mjs scripts/sync-v2-edge-writer-fixture.mjs \
+              supabase/functions/orbis-khata-data/index.ts > quality-reports/phase2b/server-catalog-source-sha256.txt
+          fi
           echo "boundary=THIS FIXTURE ONLY, NOT ALL PHASE 2B OBLIGATIONS" >> "quality-reports/phase2b/evidence-${SYNC_FIXTURE}.txt"
       - name: Preserve PostgreSQL evidence including failures
         if: always()

@@ -144,4 +144,39 @@ try{
   assert.equal((await sql`select count(*)::int as n from sync_v2.receipt`)[0].n,4);
   assert.equal((await sql`select sum(amount_minor)::text as total from public.khata_vouchers`)[0].total,'500');
   console.log('PASS: Central verifier shape, credential possession, scoped Basic/Premium grants, downgrade, revocation ordering and four exact writes.');
+
+  // An old authenticated client still uses the v1 RPC. Its legacy projection
+  // must appear in the feed, but it must not be accepted as a v2 request.
+  const legacyId=crypto.randomUUID();
+  const legacyPost=ledgerOwner=>sql.begin(async tx=>{
+    await tx`select set_config('request.jwt.claims', ${JSON.stringify({sub:ledgerOwner,role:'authenticated'})},true),
+      set_config('orbis.khata.gateway_verified','v1',true)`;
+    await tx`set local role authenticated`;
+    await tx`select public.khata_post_v1(${legacyId}::uuid,${company}::uuid,${party}::uuid,
+      'receipt','2026-10-30','125','cash','','Legacy reconnect',null)`;
+  });
+  await assert.rejects(legacyPost(otherOwner),/COMPANY_NOT_ACCESSIBLE/);
+  await legacyPost(owner);
+  await legacyPost(owner);
+
+  // Simulate reconnect after reauthorizing the second Android device.
+  const offlineCommand=command('second');
+  await assert.rejects(send('owner',second,offlineCommand),/SYNC_TRUSTED_DEVICE_DENIED/);
+  await sql`update sync_v2.registered_device set expires_at=now()+interval '1 hour' where registration='second'`;
+  await assert.rejects(send('owner',second,{...offlineCommand,protocolVersion:1}),/SYNC_VERSION_UNSUPPORTED/);
+  await assert.rejects(send('owner',second,{...offlineCommand,schemaVersion:99}),/SYNC_VERSION_UNSUPPORTED/);
+  await assert.rejects(send('stranger',second,offlineCommand),/SYNC_ACTOR_MISMATCH/);
+  const replayed=await send('owner',second,offlineCommand);
+  assert.deepEqual(await send('owner',second,offlineCommand),replayed);
+  await assert.rejects(send('owner',phone,command()),/SYNC_TRUSTED_DEVICE_DENIED/);
+  await assert.rejects(read('owner',web,'web',scope,'4',10),/SYNC_ENTITLEMENT_DENIED/);
+  await sql`update sync_v2.sync_entitlement set expires_at=now()+interval '1 hour' where capability='sync.web-cross-device'`;
+  const afterReconnect=await read('owner',web,'web',scope,'4',10);
+  assert.equal(afterReconnect.next,'6');
+  assert.deepEqual(afterReconnect.groups.flatMap(group=>group.events.flatMap(event=>event.change.map(change=>change.entityId))),
+    [legacyId,offlineCommand.entityId]);
+  assert.equal((await sql`select count(*)::int as n from sync_v2.receipt`)[0].n,5);
+  assert.equal((await sql`select sum(amount_minor)::text as total from public.khata_vouchers`)[0].total,'750');
+  console.log('PASS native mixed v1/v2 authority: retired credential remains denied, Android reconnect replays once, renewed Web sees both exact identities');
+
 }finally{await sql.end({timeout:5});}

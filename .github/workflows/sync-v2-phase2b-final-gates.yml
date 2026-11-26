@@ -1,0 +1,129 @@
+name: Khata Sync v2 Phase 2B Final Five (Disposable Acceptance)
+# Acceptance only. Disposable CI branch push/manual run. NEVER deploy or use production secrets.
+on:
+  workflow_dispatch:
+  push:
+    branches: [ci/phase2b-final-five-20261126]
+    paths:
+      - ".github/workflows/sync-v2-phase2b-final-gates.yml"
+      - "scripts/sync-v2-*-fixture.mjs"
+      - "scripts/verify-sync-v2-*.mjs"
+      - "tests/sync-v2/phase2b-final-*.test.mjs"
+      - "supabase/review-candidates/**"
+permissions:
+  contents: read
+jobs:
+  original-four-business-crons:
+    name: Real pg_cron dispatch of original four commands
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    env:
+      KHATA_SYNC_V2_TEST_URL: postgres://postgres@127.0.0.1:5432/khata_sync_v2_test
+      PHASE2B_CRON_DEADLINE_MS: '1050000'
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '24'
+          cache: npm
+      - run: npm ci --no-fund
+      - name: Verify the original four cron source contracts
+        run: node scripts/verify-sync-v2-final-gates-source.mjs
+      - name: Start disposable Supabase PG17 with real scheduler and HTTP extensions
+        shell: bash
+        run: |
+          set -euo pipefail
+          # Supabase PG17 includes pg_cron, pg_net and Vault extension binaries.
+          # No real project credentials or persistent volumes; CI-only Docker bridge.
+          docker run -d --rm --name orbis-phase2b-disposable \
+            --add-host=host.docker.internal:host-gateway \
+            -e POSTGRES_PASSWORD=disposable-only \
+            -e POSTGRES_HOST_AUTH_METHOD=trust \
+            -e POSTGRES_DB=khata_sync_v2_test \
+            -p 127.0.0.1:5432:5432 \
+            supabase/postgres:17.6.1.136 \
+            postgres -c cron.database_name=khata_sync_v2_test \
+              -c cron.use_background_workers=on
+          for i in $(seq 1 60); do
+            if docker exec orbis-phase2b-disposable pg_isready -U postgres -d khata_sync_v2_test; then exit 0; fi
+            sleep 2
+          done
+          docker logs --tail 80 orbis-phase2b-disposable
+          exit 1
+      - name: Execute original four scheduled commands with protected synthetic records
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p quality-reports/phase2b
+          node scripts/verify-sync-v2-business-cron-runtime.mjs \
+            2>&1 | tee quality-reports/phase2b/business-cron-stdout.log
+      - name: Preserve acceptance evidence even on fail
+        if: always()
+        shell: bash
+        run: |
+          mkdir -p quality-reports/phase2b
+          printf 'run=%s/%s/actions/runs/%s\nsha=%s\n' "$GITHUB_SERVER_URL" "$GITHUB_REPOSITORY" "$GITHUB_RUN_ID" "$GITHUB_SHA" > quality-reports/phase2b/provenance.txt
+          sha256sum scripts/verify-sync-v2-business-cron-runtime.mjs \
+            scripts/sync-v2-disposable-db-fixture.mjs \
+            supabase/migrations/20261028184713_khata_accounting_completion_v3.sql \
+            supabase/migrations/20261122142011_lottery_live_per_draw.sql \
+            supabase/migrations/20261121145730_lottery_scheduler.sql \
+            supabase/migrations/20261121182053_customer_statement_relay.sql > quality-reports/phase2b/sha256.txt
+          echo 'NOT Phase 2B final certification: independent reviewer and full 64-case audit remain required' > quality-reports/phase2b/boundary.txt
+          docker rm -f orbis-phase2b-disposable >/dev/null 2>&1 || true
+      - uses: actions/upload-artifact@v5
+        if: always()
+        with:
+          name: phase2b-original-business-cron-${{ github.run_id }}
+          path: quality-reports/phase2b/
+          if-no-files-found: warn
+          retention-days: 60
+  all-26-and-concurrent-writers:
+    name: All 26 trigger effects in one PG17 dataset + concurrent v1/v2
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: disposable-only
+          POSTGRES_HOST_AUTH_METHOD: trust
+          POSTGRES_DB: khata_sync_v2_test
+        ports: [5432:5432]
+        options: >-
+          --health-cmd "pg_isready -U postgres -d khata_sync_v2_test"
+          --health-interval 5s --health-timeout 5s --health-retries 12
+    env:
+      KHATA_SYNC_V2_TEST_URL: postgres://postgres@127.0.0.1:5432/khata_sync_v2_test
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '24'
+          cache: npm
+      - run: npm ci --no-fund
+      - name: Run original 26 behavior assertions and simultaneous mixed writers in same database
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p quality-reports/phase2b
+          node scripts/verify-sync-v2-mixed-26-runtime.mjs \
+            2>&1 | tee quality-reports/phase2b/mixed-26-stdout.log
+      - name: Preserve evidence on pass or fail
+        if: always()
+        shell: bash
+        run: |
+          mkdir -p quality-reports/phase2b
+          printf 'run=%s/%s/actions/runs/%s\nsha=%s\n' "$GITHUB_SERVER_URL" "$GITHUB_REPOSITORY" "$GITHUB_RUN_ID" "$GITHUB_SHA" > quality-reports/phase2b/provenance.txt
+          sha256sum scripts/verify-sync-v2-mixed-26-runtime.mjs \
+            scripts/sync-v2-trigger-behavior-fixture.mjs \
+            scripts/verify-sync-v2-combined-writers.mjs > quality-reports/phase2b/sha256.txt
+          echo 'NOT Phase 2B final certification: independent per-case review remains required' > quality-reports/phase2b/boundary.txt
+      - uses: actions/upload-artifact@v5
+        if: always()
+        with:
+          name: phase2b-mixed-26-${{ github.run_id }}
+          path: quality-reports/phase2b/
+          if-no-files-found: warn
+          retention-days: 60
