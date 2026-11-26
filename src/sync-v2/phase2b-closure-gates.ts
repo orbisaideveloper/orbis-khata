@@ -49,6 +49,12 @@ export const nonRpcGates = {
   'historical-snapshot': 'Full authorized old-company snapshot + mixed-era reservation, rollback and oversized transfer',
   'device-authority': 'Revocation, scope/epoch, entitlement, old-client release policy and credential rotation',
   'cross-module-reconciliation': 'All captured money/stock/fiscal results and one producer per entity including v1/v2 concurrent writes',
+} as const
+
+/** Deferred to Phase 2C/2D/2G, NOT a prerequisite for Phase 2B server-only signoff.
+ * This separate register remains blocked until actual Android A/B and Web clients exist.
+ */
+export const crossClientGates = {
   'staged-client-consumption': 'Android/Web atomic full-group staging, SHA verification, local cursor commit and recovery',
 } as const
 

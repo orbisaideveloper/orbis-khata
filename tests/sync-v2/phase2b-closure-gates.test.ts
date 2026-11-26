@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { liveAuthenticatedExecutableFunctions, liveBackendFunctionCoverage,
   liveBackendTriggerCoverage, liveScheduledJobCoverage, gatewayDirectTableWrites } from '../../src/sync-v2/phase2a-coverage.ts'
 import { assessPhase2bClosure, authenticatedRpcGates, schedulerGates,
-  nonRpcGates } from '../../src/sync-v2/phase2b-closure-gates.ts'
+  nonRpcGates, crossClientGates } from '../../src/sync-v2/phase2b-closure-gates.ts'
 
 describe('Phase 2B server release closure is fail-closed', () => {
   it('pins each live RPC and scheduler without treating a green fixture as global certification', () => {
@@ -12,6 +12,8 @@ describe('Phase 2B server release closure is fail-closed', () => {
     expect(Object.keys(liveBackendTriggerCoverage)).toHaveLength(26)
     expect(Object.keys(nonRpcGates)).toContain('historical-snapshot')
     expect(Object.keys(nonRpcGates)).toContain('direct-edge-ingress')
+    expect(Object.keys(nonRpcGates)).not.toContain('staged-client-consumption')
+    expect(Object.keys(crossClientGates)).toContain('staged-client-consumption')
   })
   it('cannot certify 2B on a single native 32-retry test, or on green GitHub Actions', () => {
     const one = assessPhase2bClosure(new Set(['rpc:public.khata_post_v1']))
@@ -19,6 +21,7 @@ describe('Phase 2B server release closure is fail-closed', () => {
     expect(one.pending).toContain('rpc:public.khata_workspace_v3')
     expect(one.pending).toContain('cron:khata-retired-company-purge')
     expect(one.pending).toContain('gate:historical-snapshot')
+    expect(one.pending).not.toContain('gate:staged-client-consumption')
     expect(one.pending).toContain('trigger:public.khata_vouchers.inventory_voucher_reversal')
     expect(one.pending).toContain('edge:public.khata_companies')
     expect(one.pending).toContain('internal-rpc:orbis_khata.purge_retired_companies')

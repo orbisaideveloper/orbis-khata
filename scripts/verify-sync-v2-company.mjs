@@ -117,12 +117,60 @@ try{
   await assert.rejects(recover(1,null,null,'wrong'),/SYNC_TRUSTED_DEVICE_DENIED/);
   console.log('PASS native PostgreSQL: transaction >500 events, verified integrity fragments, split cursor, credential denial');
 
+  // A retry must deduplicate by stable voucher ID, NOT by matching amount/date/party.
+  // These two distinct, concurrent real legacy writes are equally valid receipts.
+  const distinctIds=[randomUUID(),randomUUID()];
+  const distinctBefore=await head();
+  const [distinctA,distinctB]=await Promise.all(distinctIds.map(id=>posting(id)));
+  assert.notDeepEqual(distinctA,distinctB);
+  assert.equal(await count('public.khata_vouchers'),3);
+  assert.equal(await head(),distinctBefore+2);
+  const tail=await sql.unsafe(
+    'select seq, change from sync_v2.event where actor_id=$1 and kind=$2 and scope_id=$3 and seq>$4 order by seq',
+    [actor,'company',company,distinctBefore]);
+  assert.equal(tail.length,2,'Each independent receipt must emit its own server event');
+  assert.deepEqual(tail.map(row=>Number(row.seq)),[distinctBefore+1,distinctBefore+2]);
+  for(const id of distinctIds){
+    assert.equal(tail.filter(row=>JSON.stringify(row.change).includes(id)).length,1,
+      'Each independently accepted voucher must be visible exactly once in the feed');
+  }
+  console.log('PASS native PostgreSQL: distinct equal-amount legacy receipts remain distinct under concurrent posting');
+
+  // A legacy expense is a second independent financial writer, not a voucher alias.
+  // Its row, scope revision and immutable feed event must commit together.
+  const expenseId=randomUUID();
+  const expenseBefore=await head();
+  const expenseInput=id=>({id,company,date:'2026-11-25',kind:'charge',amount:'101',
+    category:'Feed',payee:'',method:'cash',parent:null,reference:'',note:''});
+  await sql.begin(async tx=>{
+    await tx.unsafe("select set_config('request.jwt.claims',$1,true),set_config('orbis.khata.gateway_verified','v1',true)",
+      [JSON.stringify({sub:owner,role:'authenticated'})]);
+    await tx.unsafe('select public.khata_expense_post_v1($1::jsonb)',[sql.json(expenseInput(expenseId))]);
+  });
+  assert.equal(await count('public.khata_expense_events'),1);
+  assert.equal(await head(),expenseBefore+1);
+  const expenseTail=await sql.unsafe('select change from sync_v2.event where actor_id=$1 and scope_id=$2 and seq=$3',
+    [actor,company,expenseBefore+1]);
+  assert.equal(expenseTail.length,1);
+  assert(JSON.stringify(expenseTail[0].change).includes(expenseId),
+    'Committed legacy expense must be in the matching immutable feed event');
+  const failedExpense=randomUUID(), rollbackHead=await head();
+  await assert.rejects(sql.begin(async tx=>{
+    await tx.unsafe("select set_config('request.jwt.claims',$1,true),set_config('orbis.khata.gateway_verified','v1',true)",
+      [JSON.stringify({sub:owner,role:'authenticated'})]);
+    await tx.unsafe('select public.khata_expense_post_v1($1::jsonb)',[sql.json(expenseInput(failedExpense))]);
+    throw new Error('INTENTIONAL_EXPENSE_ROLLBACK');
+  }),/INTENTIONAL_EXPENSE_ROLLBACK/);
+  assert.equal(await count('public.khata_expense_events'),1);
+  assert.equal(await head(),rollbackHead);
+  console.log('PASS native PostgreSQL: independent old expense emits one feed event, transaction rollback is atomic');
+
   // Retired company must not accept a new voucher without capturing it.
   await sql.unsafe('update public.khata_companies set deleted_at=now() where id=$1',[company]);
   const afterRetire=await head();
   await assert.rejects(posting(randomUUID()),/COMPANY_NOT_ACCESSIBLE|SYNC_COMPANY_CAPTURE_UNAVAILABLE/);
   assert.equal(await head(),afterRetire);
-  assert.equal(await count('public.khata_vouchers'),1);
+  assert.equal(await count('public.khata_vouchers'),3);
   await assert.rejects(recover(1),/SYNC_COMPANY_RECOVERY_DENIED/);
   console.log('PASS native PostgreSQL: retired scope rejects money write and protected recovery read');
   console.log('PASS: all company-native CI acceptance gates. NOT production migration, real device E2E or release signoff.');
