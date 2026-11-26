@@ -27,7 +27,7 @@ jobs:
       matrix:
         # Every fixture gets an independently fresh disposable PG17 database.
         # These additional established runners were previously missing from the 2B matrix.
-        fixture: [company, trusted-device, lottery, snapshot, khata, module, rollout, settlement, legacy-locks, company-fence]
+        fixture: [company, trusted-device, lottery, snapshot, khata, module, rollout, settlement, legacy-locks, company-fence, scheduled-jobs]
     services:
       postgres:
         image: postgres:17
@@ -107,6 +107,21 @@ jobs:
             src/accounting/server-gateway.test.ts \
             src/sync-v2/trusted-company-group-gateway.test.ts \
             2>&1 | tee quality-reports/phase2b/targeted-tests.txt
+      - name: Phase 2B exact 64-gate evidence auditor and source/runtime guard tests
+        run: |
+          set -euo pipefail
+          mkdir -p quality-reports/phase2b
+          node --test \
+            tests/sync-v2/phase2b-evidence-audit.test.mjs \
+            tests/sync-v2/phase2b-cron-edge-source-contract.test.mjs \
+            tests/sync-v2/phase2b-scheduled-job-runtime.test.mjs \
+            tests/sync-v2/phase2b-trigger-migration-provenance.test.mjs \
+            2>&1 | tee quality-reports/phase2b/server-guard-tests.txt
+          node scripts/verify-sync-v2-phase2b-evidence.mjs \
+            --output quality-reports/phase2b/64-server-gate-verdicts.json \
+            2>&1 | tee quality-reports/phase2b/64-gate-audit-summary.txt
+          # This inventory is deliberately NOT a Phase 2B signoff.
+          # Per-gate reviewed receipts and independent artifact verification are mandatory.
       - name: State acceptance boundary, without falsely certifying Phase 2B
         if: always()
         run: |
@@ -115,7 +130,7 @@ jobs:
             echo "Git SHA: $GITHUB_SHA"
             echo "Run: $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"
             echo "RESULT TYPE: isolated Phase 2B server simulator, NOT full Phase 2B signoff"
-            echo "Evidence register: 64 server-only obligations and separate client gate; incomplete paths remain BLOCKED"
+            echo "Evidence register: 64 server-only obligations; exact case receipts checked separately; incomplete paths remain BLOCKED"
             echo "Android A + Android B + Web full E2E: NOT RUN; requires Phase 2C/2D adapters"
             echo "Physical-device acceptance: NOT RUN"
             echo "Deploy/Live database changes: NONE"

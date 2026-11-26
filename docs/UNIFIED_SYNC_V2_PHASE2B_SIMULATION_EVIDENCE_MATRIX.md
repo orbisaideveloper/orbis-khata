@@ -41,3 +41,27 @@ The dedicated simulator runs **ten separately isolated, real PostgreSQL 17 jobs*
 For each matrix entry, artifacts include full stdout/stderr, exact Git SHA and run URL, script SHA256, fixture name and GitHub execution outcome. They retain **60 days** in GitHub (copy important evidence to the canonical Google Drive archive before expiry). Independent matrix jobs have isolated databases and never receive production credentials. The named tests above remain a **subset** of the 64 server evidence obligations, not a substitute for individual gate reviews.
 
 **Still mandatory and BLOCKED:** inspect all real RPC writer variants, all 26 triggers, all four Cron schedule SQLs and authority, all three direct Edge SQL ingress paths, composite-key recovery under large concurrent changes, and complete old-client compatibility/restore checks. A green ten-job simulator certifies that *its ten programs passed*, not the 64 remaining server assertions or Android A↔B↔Web E2E.
+
+
+## Standalone safety evidence upgrade (26 November 2026)
+
+The dedicated simulator additionally executes an **eleventh** native PostgreSQL 17
+fixture, `scheduled-jobs`, against the *actual checked-in SQL bodies* for Lottery
+live-cache retention and recipient statement mailbox expiry. It checks an
+unchanged synthetic financial voucher count and total, successful cleanup,
+repeat-call idempotence and transactional rollback. It does **not** simulate
+pg_cron clock delivery, Edge HTTP transport, Vault integration, real owner data
+or the other two scheduled jobs.
+
+The targeted code job also runs 17 Node contract and PGlite tests, spanning
+source migration provenance for 26 trigger installations, four cron source
+contracts, direct Edge ownership boundaries, scheduled-body PGlite effects and
+negative tests for the 64-gate Evidence Auditor. The auditor exports a 64-entry
+JSON status ledger. A global green CI check can never mark these receipts
+`REVIEWED` without per-case SHA-bound reviewed evidence. Metadata validation is
+not independent artifact verification; retain externally reviewed artifacts.
+
+A **green suite here is still not Phase 2B signoff**. Real RPC variants, live
+cron role/schedule, all Edge ingress variants, native trigger effects, full
+historical restoration and signed individual receipts remain pending. No
+production migrations or release controls are touched by this testing batch.
