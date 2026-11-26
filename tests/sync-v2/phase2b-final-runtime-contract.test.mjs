@@ -171,3 +171,12 @@ test('native business fixture requires protected nonzero finance and rollback be
  assert.match(cron,/d\.start_time>=\$\{since\}/);
  assert.match(cron,/schedule:='\* \* \* \* \*',active:=true/);
 });
+
+test('disposable PG17 uses a fresh password for authenticated host TCP, without trust override',()=>{
+ assert.match(launcher,/randomBytes\(24\)\.toString\("hex"\)/);
+ assert.match(launcher,/export POSTGRES_PASSWORD=/);
+ assert.match(launcher,/export KHATA_SYNC_V2_TEST_URL="postgres:\/\/supabase_admin:\$\{POSTGRES_PASSWORD\}@127\.0\.0\.1:5432\/khata_sync_v2_test"/);
+ assert.match(launcher,/-e POSTGRES_PASSWORD \\/);
+ assert.doesNotMatch(launcher,/POSTGRES_HOST_AUTH_METHOD=trust/);
+ assert.doesNotMatch(launcher,/POSTGRES_PASSWORD=disposable-only/);
+});

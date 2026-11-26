@@ -44,7 +44,10 @@ node --input-type=module -e 'await import("postgres")' || blocked 'DEPENDENCIES_
 for name in DATABASE_URL SUPABASE_DB_URL SUPABASE_SERVICE_ROLE_KEY; do
   [[ -z "${!name:-}" ]] || blocked 'PRODUCTION_CREDENTIAL_ENV_NOT_ALLOWED'
 done
-export KHATA_SYNC_V2_TEST_URL=postgres://supabase_admin@127.0.0.1:5432/khata_sync_v2_test
+# The stock Supabase PG17 config enforces password auth for host TCP.
+# Generate a fresh test-only credential; never print or persist its plaintext.
+export POSTGRES_PASSWORD="$(node -e 'process.stdout.write(require("node:crypto").randomBytes(24).toString("hex"))')"
+export KHATA_SYNC_V2_TEST_URL="postgres://supabase_admin:${POSTGRES_PASSWORD}@127.0.0.1:5432/khata_sync_v2_test"
 export PHASE2B_CRON_EVIDENCE_DIR="$report"
 export GITHUB_SHA="$(git rev-parse HEAD)"
 
@@ -69,7 +72,7 @@ gateway="$("${docker_cmd[@]}" network inspect --format '{{(index .IPAM.Config 0)
 export PHASE2B_COLLECTOR_BIND="$gateway"
 container="$("${docker_cmd[@]}" create --name "$resource" --network "$network" \
   --add-host "host.docker.internal:$gateway" \
-  -e POSTGRES_PASSWORD=disposable-only -e POSTGRES_HOST_AUTH_METHOD=trust \
+  -e POSTGRES_PASSWORD \
   -e POSTGRES_DB=khata_sync_v2_test -p 127.0.0.1:5432:5432 \
   "$image" postgres -D /etc/postgresql -c listen_addresses='*' \
   -c cron.database_name=khata_sync_v2_test -c pg_net.database_name=khata_sync_v2_test \
