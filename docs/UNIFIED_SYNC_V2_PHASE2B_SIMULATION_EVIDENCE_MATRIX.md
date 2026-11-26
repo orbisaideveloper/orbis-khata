@@ -24,3 +24,20 @@
 Workflow: `.github/workflows/sync-v2-phase2b-simulator.yml`. Runner: Ubuntu 24.04, Node 24, Docker PostgreSQL 17 ephemeral service. Native scripts refuse any URL other than the literal loopback `postgres://...@127.0.0.1:5432/khata_sync_v2_test` schema/environment; each runner job gets an empty isolated database. The scripts never fetch production credentials. Artifacts contain synthetic test outcomes with run ID and Git SHA; never live financial records.
 
 Owners must independently review native test results and the latest frozen Rollback Baseline before any future migration or deployment. Current last confirmed Render live Web SHA is `4f297dcc3f8069cc733fb6f839200129337b1f49`, not today's GitHub main.
+
+## Expanded multi-fixture acceptance (26 November 2026)
+
+The dedicated simulator runs **ten separately isolated, real PostgreSQL 17 jobs** on synthetic data. Adding a job does **not** retroactively certify any 2B obligation; use only an exact successful run and its uploaded evidence.
+
+| Additional native fixture | Scenario exercised by its executable script | What success cannot prove |
+| --- | --- | --- |
+| `khata` | Voucher concurrency/retry, old/v2 reversal ordering, authorization and purge tombstones | Every deployed old financial writer route |
+| `module` | Third-scope operation, receipts, version and device/tenant guards | A specific production financial module's full writer |
+| `rollout` | Existing populated companies, 600 legacy vouchers, reversible feature rollout, >500 event group | Production migration/rollback or real customer traffic |
+| `settlement` | Invoice/payment/expense/stock settlement, lost ACK, concurrent correction, synthetic SQLite re-open | Android SQLCipher on physical devices or all invoice UI paths |
+| `legacy-locks` | Old Edge/master expense lock ordering, deadlocks, rollback, purge race and handoff | All live Edge deployments, all scheduled Cron jobs |
+| `company-fence` | Owner identity reservation, retired company write denial, purge/restore and concurrent replay | Actual live legacy accounts or historical production rows |
+
+For each matrix entry, artifacts include full stdout/stderr, exact Git SHA and run URL, script SHA256, fixture name and GitHub execution outcome. They retain **60 days** in GitHub (copy important evidence to the canonical Google Drive archive before expiry). Independent matrix jobs have isolated databases and never receive production credentials. The named tests above remain a **subset** of the 64 server evidence obligations, not a substitute for individual gate reviews.
+
+**Still mandatory and BLOCKED:** inspect all real RPC writer variants, all 26 triggers, all four Cron schedule SQLs and authority, all three direct Edge SQL ingress paths, composite-key recovery under large concurrent changes, and complete old-client compatibility/restore checks. A green ten-job simulator certifies that *its ten programs passed*, not the 64 remaining server assertions or Android A↔B↔Web E2E.

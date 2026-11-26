@@ -12,6 +12,8 @@ on:
       - "scripts/verify-sync-v2-*.mjs"
       - "supabase/review-candidates/**"
       - "supabase/migrations/**"
+      - "supabase/tests/sync-v2/**"
+      - "supabase/functions/orbis-khata-data/**"
 permissions:
   contents: read
 
@@ -19,11 +21,13 @@ jobs:
   phase2b-native-postgres:
     name: Phase 2B native PostgreSQL ${{ matrix.fixture }}
     runs-on: ubuntu-24.04
-    timeout-minutes: 25
+    timeout-minutes: 40
     strategy:
       fail-fast: false
       matrix:
-        fixture: [company, trusted-device, lottery, snapshot]
+        # Every fixture gets an independently fresh disposable PG17 database.
+        # These additional established runners were previously missing from the 2B matrix.
+        fixture: [company, trusted-device, lottery, snapshot, khata, module, rollout, settlement, legacy-locks, company-fence]
     services:
       postgres:
         image: postgres:17
@@ -44,6 +48,7 @@ jobs:
       - name: Install pinned dependencies
         run: npm ci --no-fund
       - name: Execute native PostgreSQL fixture on disposable database
+        id: native
         env:
           KHATA_SYNC_V2_TEST_URL: postgres://postgres:disposable-sync-ci-only@127.0.0.1:5432/khata_sync_v2_test
           SYNC_FIXTURE: ${{ matrix.fixture }}
@@ -51,6 +56,20 @@ jobs:
           set -euo pipefail
           mkdir -p quality-reports/phase2b
           node "scripts/verify-sync-v2-${SYNC_FIXTURE}.mjs" 2>&1 | tee "quality-reports/phase2b/postgres-${SYNC_FIXTURE}.txt"
+      - name: Record native evidence provenance including failures
+        if: always()
+        env:
+          SYNC_FIXTURE: ${{ matrix.fixture }}
+          NATIVE_OUTCOME: ${{ steps.native.outcome }}
+        run: |
+          mkdir -p quality-reports/phase2b
+          echo "git_sha=$GITHUB_SHA" > "quality-reports/phase2b/evidence-${SYNC_FIXTURE}.txt"
+          echo "workflow_run=$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID" >> "quality-reports/phase2b/evidence-${SYNC_FIXTURE}.txt"
+          echo "fixture=$SYNC_FIXTURE" >> "quality-reports/phase2b/evidence-${SYNC_FIXTURE}.txt"
+          echo "fixture_outcome=$NATIVE_OUTCOME" >> "quality-reports/phase2b/evidence-${SYNC_FIXTURE}.txt"
+          echo "postgres_version=17 (disposable GitHub service)" >> "quality-reports/phase2b/evidence-${SYNC_FIXTURE}.txt"
+          echo "script_sha256=$(sha256sum scripts/verify-sync-v2-${SYNC_FIXTURE}.mjs | cut -d' ' -f1)" >> "quality-reports/phase2b/evidence-${SYNC_FIXTURE}.txt"
+          echo "boundary=THIS FIXTURE ONLY, NOT ALL PHASE 2B OBLIGATIONS" >> "quality-reports/phase2b/evidence-${SYNC_FIXTURE}.txt"
       - name: Preserve PostgreSQL evidence including failures
         if: always()
         uses: actions/upload-artifact@v5
@@ -58,7 +77,7 @@ jobs:
           name: phase2b-postgres-${{ matrix.fixture }}-${{ github.run_id }}
           path: quality-reports/phase2b/
           if-no-files-found: warn
-          retention-days: 14
+          retention-days: 60
 
   phase2b-code:
     name: Phase 2B targeted regression and closure register
@@ -96,7 +115,7 @@ jobs:
             echo "Git SHA: $GITHUB_SHA"
             echo "Run: $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"
             echo "RESULT TYPE: isolated Phase 2B server simulator, NOT full Phase 2B signoff"
-            echo "Evidence register: 64 server-only requirements, plus future client gate; incomplete paths remain BLOCKED"
+            echo "Evidence register: 64 server-only obligations and separate client gate; incomplete paths remain BLOCKED"
             echo "Android A + Android B + Web full E2E: NOT RUN; requires Phase 2C/2D adapters"
             echo "Physical-device acceptance: NOT RUN"
             echo "Deploy/Live database changes: NONE"
@@ -108,4 +127,4 @@ jobs:
           name: phase2b-code-${{ github.run_id }}
           path: quality-reports/phase2b/
           if-no-files-found: warn
-          retention-days: 14
+          retention-days: 60
