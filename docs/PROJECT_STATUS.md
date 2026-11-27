@@ -1,3 +1,20 @@
+## 2026-11-28 — Daily Ledger calendar-month correction
+
+Base `1ccaed01ed628bf53ad6736bbef0e06731158508`. Recurring series retain an
+anchor from 1–31. A month with fewer days uses its actual Gregorian last day
+for that occurrence. The next month uses the same original anchor.
+Occurrences still require explicit creation for the current month, retain
+their monthly ID and cause no wallet posting on issue. Budgets and reports
+continue to count actual payment dates, including month-end dates.
+
+Legacy series infer their anchor from their stored due date without rewriting
+the journal or outbox. The updated reader accepts the existing encrypted
+archive version. Use the updated build to restore archives that contain new
+anchor fields; older builds are not supported for these archives. Keep the
+staging flags off until the non-production accounts and device run are
+approved. See the [Audit Master Log](https://docs.google.com/document/d/1os9R2V7onk-irGDNtNUODkbHvNDeasyQUhpqbd4l6YI/edit)
+for tests and the exact checkpoint.
+
 ## 2026-11-28 — Daily Ledger Batch 4B synthetic Drive integration
 
 Base `b1f37cd0697b77ae595033a76b0922b7cccc289e`. A default-off Android

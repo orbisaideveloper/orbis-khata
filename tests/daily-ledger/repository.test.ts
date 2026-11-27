@@ -3,7 +3,7 @@ import { DatabaseSync } from 'node:sqlite'
 import { mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { afterEach, expect, it } from 'vitest'
+import { afterEach, expect, it, vi } from 'vitest'
 import fc from 'fast-check'
 import type { SqlitePort } from '../../src/local-db/sqlite-repository'
 import { createDailyLedgerDriveWorkflow } from '../../src/daily-ledger/drive-workflow'
@@ -33,6 +33,7 @@ const noop = () => {}
 let directory: string | undefined
 let raw: DatabaseSync | undefined
 afterEach(() => {
+  vi.useRealTimers()
   raw?.close()
   if (directory) rmSync(directory, { recursive: true, force: true })
   raw = directory = undefined
@@ -501,4 +502,64 @@ it('refuses export when the journal and persisted outbox no longer reconcile', a
   await expect(ledger.exportBackup(key)).rejects.toThrow('DAILY_BACKUP_JOURNAL_OUTBOX_MISMATCH')
   expect(await ledger.verifyBackup(valid, key)).toMatchObject({ snapshot: { journalRows: 1, outboxRows: 1 } })
   expect(await ledger.list()).toHaveLength(1)
+})
+
+it('restores legacy and anchored series exactly while budgeting repayments by their real calendar dates', async () => {
+  const source = await openDailyLedger(sqlite(), codec, owner, noop)
+  const key = generateFinancialBackupKey()
+  const dateIn = (day: string) => vi.setSystemTime(new Date(day + 'T12:00:00Z'))
+  const id = () => crypto.randomUUID()
+  const legacy = { ...bill(), kind: 'billSeries', date: '2027-01-01', dueDate: '2027-01-28' } as const
+  const oldOccurrence = { ...base, id: id(), date: '2027-01-28', kind: 'billOccurrence', seriesId: legacy.id } as const
+  dateIn(oldOccurrence.date)
+  await source.save(legacy)
+  await source.save(oldOccurrence)
+  const legacyBytes = await source.exportBackup(key)
+  const legacyRows = (await openDailyLedgerArchive(owner, legacyBytes, key)).rows
+  expect(legacyRows[0].entry.command).not.toHaveProperty('anchorDay')
+  const legacyCommand = { version: 1, id: legacy.id, date: legacy.date, note: legacy.note, kind: legacy.kind,
+    amountMinor: legacy.amountMinor, billType: legacy.billType, category: legacy.category, dueDate: legacy.dueDate }
+  const legacyWire = JSON.stringify({ protocolVersion: 1, scopeKind: 'personal_ledger', scopeId: owner,
+    operationId: legacy.id, command: legacyCommand, childIds: [] })
+  expect(legacyRows[0]).toMatchObject({ wire: legacyWire, digest: await sha256(legacyWire) })
+  const anchor = { ...bill(), kind: 'billSeries', date: '2027-02-01', dueDate: '2027-02-28', anchorDay: 31 } as const
+  await source.save(anchor)
+  const dueDates = ['2027-02-28', '2027-03-31', '2027-04-30', '2027-05-31']
+  for (const day of dueDates) {
+    dateIn(day)
+    const occurrence = { ...base, id: id(), date: day, kind: 'billOccurrence', seriesId: anchor.id } as const
+    const record = await source.save(occurrence)
+    expect(record.postings).toEqual([])
+    expect(await source.save(occurrence)).toEqual(record)
+    expect(summarize(await source.list(), day).month.expense).toBe(0n)
+    const payment = { ...base, id: id(), date: day, kind: 'billPay', obligationId: occurrence.id,
+      wallet: 'cash', amountMinor: '2500' } as const
+    await source.save(payment)
+    expect(summarize(await source.list(), day).month.expense).toBe(2500n)
+    expect(budgets(await source.list(), day).find(row => row.category === 'home')?.actual).toBe(2500n)
+    if (day === '2027-04-30') {
+      await source.save({ ...reversal(payment.id), date: day })
+      await source.save({ ...reversal(occurrence.id), date: day })
+      await expect(source.save({ ...occurrence, id: id() })).rejects.toThrow('DAILY_OCCURRENCE_EXISTS')
+      expect(summarize(await source.list(), day).month.expense).toBe(0n)
+    }
+  }
+  const referenceDay = '2027-05-31'
+  const original = await source.list()
+  const archive = await source.exportBackup(key)
+  const decoded = await openDailyLedgerArchive(owner, archive, key)
+  expect(decoded.rows.slice(0, legacyRows.length)).toEqual(legacyRows)
+  raw?.close()
+  const target = await openDailyLedger(sqlite(), codec, owner, noop)
+  expect(await target.restoreBackup(legacyBytes, key)).toEqual({ inserted: 2, alreadyPresent: 0 })
+  expect(await target.restoreBackup(archive, key)).toEqual({ inserted: original.length - 2, alreadyPresent: 2 })
+  expect(await target.restoreBackup(archive, key)).toEqual({ inserted: 0, alreadyPresent: original.length })
+  const recovered = await target.list()
+  expect(recovered).toEqual(original)
+  expect(householdView(recovered, referenceDay).billRows.map(row => row.dueDate)).toEqual([
+    ...dueDates.slice().reverse(), '2027-01-28',
+  ])
+  expect(summarize(recovered, referenceDay)).toEqual(summarize(original, referenceDay))
+  expect(budgets(recovered, referenceDay)).toEqual(budgets(original, referenceDay))
+  expect(await openDailyLedgerArchive(owner, await target.exportBackup(key), key)).toEqual(decoded)
 })

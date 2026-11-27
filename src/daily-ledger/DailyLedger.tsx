@@ -1,3 +1,4 @@
+import { recurringDueDate } from './calendar'
 import { useEffect, useId, useRef, useState, type FormEvent } from 'react'
 import { today } from '../accounting/model'
 import type { Language } from '../i18n'
@@ -29,11 +30,15 @@ function makeCommand(flow: Flow, wallet: Wallet, form: FormData): Command {
   const category = form.get('category')
   if (flow.kind === 'bill' || flow.kind === 'billSeries') {
     const billType = String(form.get('billType')) as BillType
-    const day = String(form.get('dueDay')).padStart(2, '0')
-    const dueDate = flow.kind === 'billSeries' ? date.slice(0, 7) + '-' + day : String(form.get('dueDate'))
     if (!billTypes.includes(billType) || !isCategory(category)) throw new Error('DAILY_COMMAND_INVALID')
-    return { ...common, kind: flow.kind, amountMinor, billType, category, dueDate,
-      ...(flow.kind === 'bill' && flow.correctionOf && { correctionOf: flow.correctionOf }) }
+    const terms = { ...common, amountMinor, billType, category }
+    if (flow.kind === 'billSeries') {
+      const anchorDay = Number(form.get('dueDay'))
+      const dueDate = recurringDueDate(date.slice(0, 7), anchorDay)
+      return { ...terms, kind: flow.kind, dueDate, anchorDay }
+    }
+    return { ...terms, kind: flow.kind, dueDate: String(form.get('dueDate')),
+      ...(flow.correctionOf && { correctionOf: flow.correctionOf }) }
   }
   if (flow.kind !== 'expense' && flow.kind !== 'income') throw new Error('DAILY_COMMAND_INVALID')
   return flow.kind === 'expense'
@@ -108,7 +113,7 @@ function EntryForm({ store, flow, language, onSave, onCancel }: Props & Readonly
         </select></label>}
       </>}
       {flow.kind === 'bill' && <label>{t('dueDate')}<input name="dueDate" type="date" defaultValue={today()} required /></label>}
-      {flow.kind === 'billSeries' && <label>{t('dueDate')}<input name="dueDay" type="number" min={1} max={28} defaultValue={1} required /></label>}
+      {flow.kind === 'billSeries' && <label>{t('monthlyAnchor')}<input name="dueDay" type="number" min={1} max={31} defaultValue={1} required /></label>}
       {flow.kind !== 'budget' && flow.kind !== 'billOccurrence' &&
         <label>{t('date')}<input name="date" type="date" defaultValue={today()} max={today()} required /></label>}
       <label>{t('note')}<input name="note" maxLength={240} /></label>

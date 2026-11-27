@@ -1,11 +1,12 @@
 import { useState } from 'react'
 import type { Language } from '../i18n'
 import { displayAmount, label, locale } from './copy'
-import { householdView, occurrenceId } from './household'
+import { householdView, occurrenceId, recurringAnchorDay } from './household'
 import type { Command, Entry } from './journal'
 
 export type HouseholdFlow =
-  | { kind: 'person' | 'billSeries' }
+  | { kind: 'person' }
+  | { kind: 'billSeries' }
   | { kind: 'bill'; correctionOf?: string }
   | { kind: 'borrow' | 'lend'; personId: string; correctionOf?: string }
   | { kind: 'loanRepay' | 'billPay'; obligationId: string; correctionOf?: string }
@@ -89,6 +90,7 @@ export function HouseholdPanel({ entries, day, language, onAction }: Props) {
       </div>
       {series.map(row => <div key={row.id} className="daily-household-record">
         <p>{t(row.billType)} · {amount(BigInt(row.amountMinor))}{row.note && ' · ' + row.note}</p>
+        <p>{t('monthlyAnchor')} · {new Intl.NumberFormat(locale[language]).format(recurringAnchorDay(row))}</p>
         {!issued.has(occurrenceId(row.id, day)) &&
           <button type="button" onClick={() => onAction({ kind: 'billOccurrence', seriesId: row.id })}>{t('billOccurrence')}</button>}
       </div>)}

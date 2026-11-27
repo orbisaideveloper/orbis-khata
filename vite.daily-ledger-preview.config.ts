@@ -15,7 +15,7 @@ function previewBoundary(): Plugin {
     enforce: 'post',
     generateBundle(_options, bundle) {
       const allowed = new Set(['accounting/model.ts', 'index.css', ...[
-        'DailyLedger.tsx', 'budget.ts', 'copy.ts', 'daily-ledger.css', 'journal.ts', 'household.ts', 'HouseholdPanel.tsx',
+        'DailyLedger.tsx', 'budget.ts', 'calendar.ts', 'copy.ts', 'daily-ledger.css', 'journal.ts', 'household.ts', 'HouseholdPanel.tsx',
       ].map(name => 'daily-ledger/' + name)])
       for (const output of Object.values(bundle)) {
         if (output.type !== 'chunk') continue

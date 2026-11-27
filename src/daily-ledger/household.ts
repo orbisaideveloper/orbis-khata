@@ -1,3 +1,4 @@
+import { recurringDueDate } from './calendar'
 import { post, type BillType, type Category, type Command, type Entry } from './journal'
 
 const isLoan = (command: Command): command is Extract<Command, { kind: 'borrow' | 'lend' }> => command.kind === 'borrow' || command.kind === 'lend'
@@ -5,6 +6,9 @@ const isBill = (command: Command): command is Extract<Command, { kind: 'bill' | 
 const isSettlement = (command: Command): command is Extract<Command, { kind: 'loanRepay' | 'billPay' }> => command.kind === 'loanRepay' || command.kind === 'billPay'
 
 export const occurrenceId = (seriesId: string, date: string) => seriesId + ':' + date.slice(0, 7)
+
+export const recurringAnchorDay = (series: Readonly<{ dueDate: string; anchorDay?: number }>) =>
+  series.anchorDay ?? Number(series.dueDate.slice(8))
 
 type BillDetails = Readonly<{ billType: BillType; dueDate: string; category: Category; amountMinor: string }>
 export function billDetails(command: Command, commands: ReadonlyMap<string, Command>): BillDetails | undefined {
@@ -14,7 +18,7 @@ export function billDetails(command: Command, commands: ReadonlyMap<string, Comm
   if (series?.kind !== 'billSeries') throw new Error('DAILY_REFERENCE_INVALID')
   return {
     billType: series.billType, category: series.category, amountMinor: series.amountMinor,
-    dueDate: command.date.slice(0, 7) + series.dueDate.slice(7),
+    dueDate: recurringDueDate(command.date.slice(0, 7), recurringAnchorDay(series)),
   }
 }
 

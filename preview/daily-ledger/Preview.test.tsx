@@ -1,8 +1,8 @@
-import { afterEach, expect, it } from 'vitest'
+import { afterEach, expect, it, vi } from 'vitest'
 import { cleanup, fireEvent, render, screen, within } from '@testing-library/react'
 import Preview from './Preview'
 
-afterEach(cleanup)
+afterEach(() => { cleanup(); vi.useRealTimers() })
 
 it('labels all three preview languages and preserves a draft while changing the language', async () => {
   render(<Preview />)
@@ -76,4 +76,27 @@ it('shows sample household debt and records a partial bill payment only in the m
   fireEvent.change(screen.getByLabelText('ভাষা'), { target: { value: 'en' } })
   screen.getByText('Household bills').closest('details')!.open = true
   expect(screen.getByText('Unpaid · Outstanding · ₹850.00')).toBeVisible()
+})
+
+it('lets the sample-only preview select 31 during February and issue the bill on the leap-year month end', async () => {
+  vi.setSystemTime(new Date('2028-02-10T12:00:00Z'))
+  render(<Preview />)
+  fireEvent.change(screen.getByLabelText('ভাষা'), { target: { value: 'en' } })
+  const panel = (await screen.findByText('Household bills')).closest('details')!
+  panel.open = true
+  fireEvent.click(within(panel).getByRole('button', { name: 'Set up monthly bill' }))
+  fireEvent.change(screen.getByLabelText('Amount'), { target: { value: '100' } })
+  const date = screen.getByLabelText('Selected monthly day')
+  expect(date).toHaveAttribute('max', '31')
+  fireEvent.change(date, { target: { value: '31' } })
+  fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+  expect(await screen.findByText('Sample entry added for this session')).toBeVisible()
+  const active = screen.getByText('Household bills').closest('details')!
+  active.open = true
+  const series = within(active).getByText('Selected monthly day · 31').parentElement!
+  fireEvent.click(within(series).getByRole('button', { name: 'Create this month’s bill' }))
+  fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+  expect(await screen.findByText('Sample entry added for this session')).toBeVisible()
+  screen.getByText('Household bills').closest('details')!.open = true
+  expect(screen.getByText('29 Feb 2028')).toHaveAttribute('datetime', '2028-02-29')
 })

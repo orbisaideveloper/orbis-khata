@@ -1,4 +1,5 @@
 import { minor } from '../accounting/model'
+import { isMonthlyAnchor, recurringDueDate } from './calendar'
 
 export type Wallet = 'cash' | 'bank'
 export const categories = ['food', 'home', 'travel', 'other'] as const
@@ -19,7 +20,7 @@ export type Command = Header & (
   | Readonly<{ kind: 'borrow' | 'lend'; personId: string; wallet: Wallet; amountMinor: string; correctionOf?: string }>
   | Readonly<{ kind: 'loanRepay' | 'billPay'; obligationId: string; wallet: Wallet; amountMinor: string; correctionOf?: string }>
   | (Readonly<{ kind: 'bill'; correctionOf?: string }> & BillTerms)
-  | (Readonly<{ kind: 'billSeries' }> & BillTerms)
+  | (Readonly<{ kind: 'billSeries'; anchorDay?: number }> & BillTerms)
   | Readonly<{ kind: 'billOccurrence'; seriesId: string }>
 )
 type Posting = Readonly<{ id: string; account: Account; delta: string }>
@@ -72,10 +73,17 @@ export function normalize(input: Command): Command {
     return { ...header, kind, amountMinor, obligationId: input.obligationId, wallet: input.wallet, ...correction }
   }
   if ((kind === 'bill' || kind === 'billSeries') && billTypes.includes(input.billType) &&
-      isCategory(input.category) && validDate(input.dueDate) &&
-      (kind === 'bill' ? input.dueDate >= input.date :
-        input.dueDate.slice(0, 7) === input.date.slice(0, 7) && input.dueDate.slice(8) <= '28')) {
-    return { ...header, kind, amountMinor, billType: input.billType, category: input.category, dueDate: input.dueDate, ...(kind === 'bill' && correction) }
+      isCategory(input.category) && validDate(input.dueDate)) {
+    const terms = { amountMinor, billType: input.billType, category: input.category, dueDate: input.dueDate }
+    if (kind === 'bill' && input.dueDate >= input.date) return { ...header, kind, ...terms, ...correction }
+    if (kind === 'billSeries') {
+      const month = input.date.slice(0, 7)
+      const anchor = input.anchorDay === undefined ? Number(input.dueDate.slice(8)) : input.anchorDay
+      if (isMonthlyAnchor(anchor) && recurringDueDate(month, anchor) === input.dueDate) {
+        // Keep legacy serialized commands and their pending-outbox digests byte-for-byte.
+        return { ...header, kind, ...terms, ...(input.anchorDay !== undefined && { anchorDay: anchor }) }
+      }
+    }
   }
   throw new Error('DAILY_COMMAND_INVALID')
 }
