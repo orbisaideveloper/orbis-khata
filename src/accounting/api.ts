@@ -99,15 +99,14 @@ let liveClient:ReturnType<typeof createKhataDataClient>|undefined;
 let liveUrl='';
 function invalidateKhataReads(){liveClient?.invalidate();}
 if(typeof window!=='undefined'){window.addEventListener('khata-refresh',invalidateKhataReads);}
-export async function requestKhata<T>(operation: string, input: unknown, expectedActor?: string): Promise<T> {
+export async function requestKhata<T>(operation: string, input: unknown): Promise<T> {
     if (androidLocalFirst()) {
         // Android local-first never silently falls back to a remote financial POST.
-        return (await import('../native-local/runtime')).nativeLocalRequest<T>(operation, input, expectedActor);
+        return (await import('../native-local/runtime')).nativeLocalRequest<T>(operation, input);
     }
     if (import.meta.env.DEV && import.meta.env.VITE_KHATA_DEMO === 'true') {
         return (await import('../demo/store')).demoRequest<T>(operation, input);
     }
-    if (expectedActor !== undefined) return (await accountGateway(expectedActor))<T>(operation, input);
     return requestRemoteKhata<T>(operation, input);
 }
 
@@ -129,21 +128,6 @@ async function accountGateway(actor: string) {
         throw new Error('AUTH_REQUIRED');
     }
     return createKhataDataClient({ url, token: async () => verified.access_token });
-}
-
-/**
- * Sync v2 always uses a fresh authenticated Central online session, including
- * on Android. The normal accounting requestKhata() intentionally resolves to
- * device-local SQLCipher on Android and must never be used for v2 transport.
- * This boundary does not enroll a device or authorize a server write by itself.
- */
-export async function requestOnlineLotterySync<T>(actor: string, input: unknown): Promise<T> {
-    const action = input && typeof input === 'object' && !Array.isArray(input) && 'action' in input
-        ? input.action : undefined;
-    if (typeof action !== 'string' || ![
-        'pair-device', 'payment', 'feed', 'snapshot', 'snapshot-part', 'recover-group',
-    ].includes(action)) throw new Error('SYNC_ACTION_UNSUPPORTED');
-    return (await accountGateway(actor))<T>('lottery-sync', input);
 }
 
 export async function requestOnlineCustomerView<T>(actor: string, command: ShareCommand): Promise<T> {

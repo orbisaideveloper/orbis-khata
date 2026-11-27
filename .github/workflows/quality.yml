@@ -6,58 +6,10 @@ on:
 permissions:
   contents: read
 jobs:
-  sync-v2-fixtures:
-    runs-on: ubuntu-24.04
-    timeout-minutes: 20
-    strategy:
-      fail-fast: false
-      matrix:
-        fixture: [lottery, trusted-device, company]
-    services:
-      postgres:
-        image: postgres:17
-        env:
-          POSTGRES_USER: postgres
-          POSTGRES_PASSWORD: disposable-sync-ci-only
-          POSTGRES_DB: khata_sync_v2_test
-        ports: [5432:5432]
-        options: >-
-          --health-cmd "pg_isready -U postgres -d khata_sync_v2_test"
-          --health-interval 5s --health-timeout 5s --health-retries 10
-    steps:
-      - uses: actions/checkout@v6
-      - uses: actions/setup-node@v6
-        with:
-          node-version: '24'
-          cache: npm
-      - run: npm ci --no-fund
-      - name: Verify Sync v2 against disposable PostgreSQL
-        env:
-          KHATA_SYNC_V2_TEST_URL: postgres://postgres:disposable-sync-ci-only@127.0.0.1:5432/khata_sync_v2_test
-          SYNC_FIXTURE: ${{ matrix.fixture }}
-        run: node "scripts/verify-sync-v2-${SYNC_FIXTURE}.mjs"
   quality:
     runs-on: ubuntu-24.04
     timeout-minutes: 25
     services:
-      sync-lottery-postgres:
-        image: postgres:17
-        env:
-          POSTGRES_PASSWORD: disposable-sync-ci-only
-          POSTGRES_DB: khata_sync_v2_test
-        ports: [5433:5432]
-        options: >-
-          --health-cmd "pg_isready -U postgres -d khata_sync_v2_test"
-          --health-interval 5s --health-timeout 5s --health-retries 10
-      sync-device-postgres:
-        image: postgres:17
-        env:
-          POSTGRES_PASSWORD: disposable-sync-ci-only
-          POSTGRES_DB: khata_sync_v2_test
-        ports: [5434:5432]
-        options: >-
-          --health-cmd "pg_isready -U postgres -d khata_sync_v2_test"
-          --health-interval 5s --health-timeout 5s --health-retries 10
       postgres:
         image: postgres:17
         env:
@@ -105,7 +57,7 @@ jobs:
           node scripts/audit-advisory-gate.mjs 2>&1 | tee quality-reports/audit.txt
           npm run lint 2>&1 | tee quality-reports/lint.txt
           npm run typecheck 2>&1 | tee quality-reports/typecheck.txt
-          npx --yes deno@2.9.6 check --no-config --node-modules-dir=manual src/sync-v2/lottery-payment-gateway.ts supabase/functions/orbis-khata-data/index.ts supabase/functions/orbis-lottery-ticket/index.ts supabase/functions/orbis-lottery-collector/index.ts supabase/functions/orbis-lottery-live/index.ts 2>&1 | tee quality-reports/edge-types.txt
+          npx --yes deno@2.9.6 check --no-config --node-modules-dir=manual supabase/functions/orbis-khata-data/index.ts supabase/functions/orbis-lottery-ticket/index.ts supabase/functions/orbis-lottery-collector/index.ts supabase/functions/orbis-lottery-live/index.ts 2>&1 | tee quality-reports/edge-types.txt
           node --test scripts/check-sonar.test.mjs 2>&1 | tee quality-reports/sonar-report-tests.txt
           node scripts/verify-lottery-scheduler.mjs 2>&1 | tee quality-reports/lottery-scheduler-sql.txt
           node scripts/verify-statement-relay.mjs 2>&1 | tee quality-reports/statement-relay-sql.txt
@@ -114,10 +66,7 @@ jobs:
           KHATA_CONCURRENCY_DATABASE_URL=postgres://khata_test:disposable-ci-only@127.0.0.1:5432/khata_concurrency_test node scripts/verify-concurrency.mjs 2>&1 | tee quality-reports/database-concurrency.txt
           KHATA_CONCURRENCY_DATABASE_URL=postgres://khata_test:disposable-ci-only@127.0.0.1:5432/khata_concurrency_test node scripts/verify-lottery-cache-concurrency.mjs 2>&1 | tee quality-reports/lottery-cache-concurrency.txt
           KHATA_CONCURRENCY_DATABASE_URL=postgres://khata_test:disposable-ci-only@127.0.0.1:5432/khata_concurrency_test node scripts/verify-statement-relay-concurrency.mjs 2>&1 | tee quality-reports/statement-relay-concurrency.txt
-          KHATA_SYNC_V2_NATIVE_COVERAGE=1 \
-            KHATA_SYNC_V2_LOTTERY_COVERAGE_URL=postgres://postgres:disposable-sync-ci-only@127.0.0.1:5433/khata_sync_v2_test \
-            KHATA_SYNC_V2_DEVICE_COVERAGE_URL=postgres://postgres:disposable-sync-ci-only@127.0.0.1:5434/khata_sync_v2_test \
-            npm run test:coverage 2>&1 | tee quality-reports/coverage.txt
+          npm run test:coverage 2>&1 | tee quality-reports/coverage.txt
           npm run quality:knip 2>&1 | tee quality-reports/knip.txt
           npm run quality:jscpd 2>&1 | tee quality-reports/jscpd.txt
           npm run build 2>&1 | tee quality-reports/build.txt

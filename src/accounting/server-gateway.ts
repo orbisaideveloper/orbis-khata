@@ -9,7 +9,7 @@ import { safeBusinessReason } from './business-error.ts';
 import { itemInput, partyInput, masterIdentity } from '../master-input.ts';
 import { billTotal, inventoryCommand } from '../inventory/model.ts';
 import { expenseCommand } from './expense-model.ts';
-type Operation = 'company-sync' | 'lottery-sync' | 'customer-relay' | 'lottery-seller-recovery' | 'lottery-export' | 'company-export' | 'drive-recovery' | 'party-sharing' | 'expense-profiles' | 'lottery' | 'workspace' | 'retired-companies' | 'masters' | 'party-save' | 'item-save' | 'party-delete' | 'item-delete' | 'party-balance' | 'expense-bill' | 'companies' | 'create' | 'report' | 'post' | 'expense-report' | 'expense-post' | 'inventory-post' | 'inventory-report';
+type Operation = 'customer-relay' | 'lottery-seller-recovery' | 'lottery-export' | 'company-export' | 'drive-recovery' | 'party-sharing' | 'expense-profiles' | 'lottery' | 'workspace' | 'retired-companies' | 'masters' | 'party-save' | 'item-save' | 'party-delete' | 'item-delete' | 'party-balance' | 'expense-bill' | 'companies' | 'create' | 'report' | 'post' | 'expense-report' | 'expense-post' | 'inventory-post' | 'inventory-report';
 export type KhataPrincipal = {
     orbisIdentityId: string;
     displayId: string;
@@ -63,47 +63,6 @@ function pagedReportInput(input: Record<string, unknown>) {
         date(input.from) && date(input.to) && String(input.from) <= String(input.to) &&
         Number.isSafeInteger(input.offset) && Number(input.offset) >= 0;
 }
-function syncSequence(value: unknown) {
-    return typeof value === 'string' && /^(0|[1-9]\d{0,18})$/u.test(value) && BigInt(value) <= 9223372036854775807n;
-}
-function lotteryRecoveryInput(input: Record<string, unknown>) {
-    const validOffset = Number.isInteger(input.offset) && Number(input.offset) >= 0 && Number(input.offset) < 2097152;
-    if (input.action === 'snapshot-part') return syncSequence(input.after) &&
-        (input.head === null || syncSequence(input.head)) && validOffset &&
-        keys(input, ['action', 'credential', 'organization', 'epoch', 'registration', 'after', 'head', 'offset']);
-    return syncSequence(input.cursor) &&
-        (input.item === undefined && input.offset === undefined ||
-         Number.isInteger(input.item) && Number(input.item) >= 1 && Number(input.item) <= 16000 && validOffset) &&
-        keys(input, ['action', 'credential', 'organization', 'epoch', 'registration', 'cursor', 'item', 'offset']);
-}
-function lotterySyncInput(input: Record<string, unknown>) {
-    if (typeof input.credential !== 'string' || !/^[0-9a-f]{64}$/u.test(input.credential)) return false;
-    if (input.action === 'payment') return keys(input, ['action', 'credential', 'command']) && object(input.command);
-    if (input.action === 'pair-device') return typeof input.ticket === 'string' && /^[0-9a-f]{64}$/u.test(input.ticket) &&
-        keys(input, ['action', 'credential', 'ticket']);
-    if (![input.organization, input.epoch, input.registration].every(value => typeof value === 'string' && /^[\w-]{1,128}$/u.test(value))) return false;
-    if (input.action === 'snapshot-part' || input.action === 'recover-group') return lotteryRecoveryInput(input);
-    if (typeof input.limit !== 'number' || !Number.isInteger(input.limit) || input.limit < 1) return false;
-    if (input.action === 'feed') return input.limit <= 500 && syncSequence(input.cursor) &&
-        keys(input, ['action', 'credential', 'organization', 'epoch', 'registration', 'cursor', 'limit']);
-    return input.action === 'snapshot' && input.limit <= 200 && syncSequence(input.after) &&
-        (input.head === null || syncSequence(input.head)) &&
-        keys(input, ['action', 'credential', 'organization', 'epoch', 'registration', 'after', 'head', 'limit']);
-}
-function companySyncInput(input: Record<string, unknown>) {
-    if (!keys(input,['action','credential','company','epoch','registration','cursor','limit','item','offset']) ||
-        typeof input.credential!=='string' || !/^[0-9a-f]{64}$/u.test(input.credential) ||
-        !id(input.company) || typeof input.epoch!=='string' || !/^[\w-]{1,128}$/u.test(input.epoch) ||
-        typeof input.registration!=='string' || !/^[\w-]{1,128}$/u.test(input.registration) ||
-        !syncSequence(input.cursor)) return false;
-    if (input.action==='feed') return keys(input,['action','credential','company','epoch','registration','cursor','limit']) &&
-        Number.isInteger(input.limit) && Number(input.limit)>=1 && Number(input.limit)<=500;
-    return input.action==='recover-group' &&
-        keys(input,['action','credential','company','epoch','registration','cursor','item','offset']) &&
-        ((input.item===undefined && input.offset===undefined) ||
-         (Number.isInteger(input.item) && Number(input.item)>=1 && Number(input.item)<=16000 &&
-          Number.isInteger(input.offset) && Number(input.offset)>=0 && Number(input.offset)<2097152));
-}
 function validOperation(operation: unknown, input: Record<string, unknown>): operation is Operation {
     switch (operation) {
         case 'customer-relay': return relayCommand(input);
@@ -113,8 +72,6 @@ function validOperation(operation: unknown, input: Record<string, unknown>): ope
                 input.action === 'link' && keys(input, ['actor', 'action', 'email', 'key']) && isAccountRecovery(input)
             );
         case 'lottery': return lotteryInput(input);
-        case 'lottery-sync': return lotterySyncInput(input);
-        case 'company-sync': return companySyncInput(input);
         case 'expense-profiles': return profileCommand(input);
         case 'workspace': return workspaceInput(input);
         case 'lottery-seller-recovery': return keys(input, ['organizationId', 'partyId', 'occurredAt', 'saleId']) && id(input.organizationId) && id(input.partyId) && date(input.occurredAt) && (input.saleId === undefined || id(input.saleId));
@@ -206,13 +163,6 @@ function databaseErrorCode(error: unknown) {
 function gatewayJsonReply(headers: Headers, status: number, value: unknown) {
     return new Response(JSON.stringify(value), { status, headers });
 }
-function acceptGatewayOrigin(origin: string | null, allowed: readonly string[], headers: Headers) {
-    if (!origin) return true;
-    if (!allowed.includes(origin)) return false;
-    headers.set('access-control-allow-origin', origin);
-    headers.set('vary', 'Origin');
-    return true;
-}
 function gatewayFailure(error: unknown, headers: Headers, stage: string) {
     if (error instanceof GatewayRejection) {
         if (error.retryAfter !== undefined) {
@@ -241,34 +191,24 @@ function parseGatewayOperation(text: string) {
     }
     return operation;
 }
-type KhataGatewayOptions = {
+export function createKhataGateway(options: {
     origins: readonly string[];
     verify: (token: string) => Promise<KhataPrincipal | null>;
     execute: (principal: KhataPrincipal, operation: KhataOperation) => Promise<unknown>;
     admit: (principal: KhataPrincipal) => Promise<AdmissionDecision>;
-    lotterySync?: (principal: KhataPrincipal, input: Record<string, unknown>) => Promise<unknown>;
-    companySync?: (principal: KhataPrincipal, input: Record<string, unknown>) => Promise<unknown>;
     maximumConcurrent?: number;
-};
-
-async function runGatewayOperation(options: KhataGatewayOptions, principal: KhataPrincipal, operation: KhataOperation) {
-    if (operation.operation === 'lottery-sync' && options.lotterySync) {
-        return options.lotterySync(principal, operation.input);
-    }
-    if (operation.operation === 'company-sync' && options.companySync) {
-        return options.companySync(principal, operation.input);
-    }
-    return options.execute(principal, operation);
-}
-
-export function createKhataGateway(options: KhataGatewayOptions) {
+}) {
     const acquire=createIngressGuard(options.maximumConcurrent);
     return async (request: Request): Promise<Response> => {
         const origin = request.headers.get('origin');
         const headers = new Headers({ 'cache-control': 'no-store', 'content-type': 'application/json', 'x-content-type-options': 'nosniff' });
         const reply = (status: number, value: unknown) => gatewayJsonReply(headers, status, value);
-        if (!acceptGatewayOrigin(origin, options.origins, headers)) {
-            return reply(403, { code: 'KHATA_ORIGIN_DENIED' });
+        if (origin) {
+            if (!options.origins.includes(origin)) {
+                return reply(403, { code: 'KHATA_ORIGIN_DENIED' });
+            }
+            headers.set('access-control-allow-origin', origin);
+            headers.set('vary', 'Origin');
         }
         if (request.method === 'OPTIONS') {
             headers.set('access-control-allow-methods', 'POST, OPTIONS');
@@ -288,10 +228,6 @@ export function createKhataGateway(options: KhataGatewayOptions) {
             const relayPath=new URL(request.url).pathname.endsWith('/customer-relay');
             const operation = parseGatewayOperation(await boundedGatewayBody(request,5000,relayPath));
             if(relayPath && operation.operation!=='customer-relay') throw new GatewayRejection(400,'KHATA_INPUT_INVALID');
-            if ((operation.operation === 'lottery-sync' && !options.lotterySync) ||
-                (operation.operation === 'company-sync' && !options.companySync)) {
-                return reply(404, { code: 'KHATA_OPERATION_UNAVAILABLE' });
-            }
             stage = 'central-session';
             const principal = await options.verify(token);
             if (!principal || !identity.test(principal.orbisIdentityId)) {
@@ -301,7 +237,7 @@ export function createKhataGateway(options: KhataGatewayOptions) {
             const admission=await options.admit(principal);
             if(!admission.allowed){throw new GatewayRejection(429,'KHATA_RATE_LIMITED',admission.retryAfter);}
             stage = 'product-database';
-            const data = await runGatewayOperation(options, principal, operation);
+            const data = await options.execute(principal, operation);
             return reply(200, { data });
         }
         catch (error) {

@@ -157,17 +157,6 @@ describe('Android local accounting runtime', () => {
     expect(fixture.state.companies).toEqual([demoCompany])
   })
 
-  it('rejects a pending payment switched to a different unlocked account', async () => {
-    const runtime = await import('./runtime')
-    await runtime.enrollVerifiedCentralIdentity(actor, displayId)
-    const before = new Map(fixture.rows)
-    await expect(runtime.nativeLocalRequest('lottery', {
-      method: 'recordPayment', operationId: crypto.randomUUID(), payload: { organizationId: 'org' },
-    }, 'another-account')).rejects.toThrow('ANDROID_LOCAL_ACTOR_CHANGED')
-    expect(fixture.rows).toEqual(before)
-    expect(fixture.journal).not.toHaveBeenCalled()
-  })
-
   it('fails closed when an enrolled snapshot loses a chunk', async () => {
     const runtime = await import('./runtime')
     await runtime.enrollVerifiedCentralIdentity(actor, displayId)
