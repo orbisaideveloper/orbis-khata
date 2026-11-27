@@ -1,3 +1,23 @@
+## 2026-11-28 — Daily Ledger Batch 4A local encrypted recovery
+
+Base `2d49d8b4c4e145285904f6ead1d950bc3331bbdd`. Daily Ledger has a distinct
+owner-bound AES-GCM archive using the existing financial backup codec. Its
+versioned manifest carries the schema and protocol boundary, exact row counts
+and SHA-256. Export pairs the journal with its encrypted pending outbox in one
+transaction and checks the original commands, postings and operation digests.
+
+Restore authenticates and validates before opening the write transaction. It
+imports into an empty ledger or appends to an identical prefix, verifies a
+destination read-back before commit, and leaves newer or divergent records
+intact. It re-seals restored rows with the destination codec. Historical
+Khata/Lottery archives retain their format. PWA Preview remains sample-only.
+
+Disable rollout for rollback. Preserve encrypted archive and journal/outbox
+files. Drive upload, recovery-key linking, registered-device identity and
+physical replacement-device restore are Batch 4B gates.
+See the [Daily Ledger Audit](https://docs.google.com/document/d/1os9R2V7onk-irGDNtNUODkbHvNDeasyQUhpqbd4l6YI/edit)
+for the exact verified changes and acceptance limits.
+
 ## 2026-11-27 — Daily Ledger Batch 3 household accounting
 
 Base `89b5709678e1ab618a36bd636996c5eeb2b31489`. Person-linked loans, principal

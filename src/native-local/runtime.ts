@@ -251,6 +251,12 @@ function withPersonalLedger<T>(owner: string, work: (ledger: Awaited<ReturnType<
 
 export const readNativeDailyLedger = (owner: string) => withPersonalLedger(owner, ledger => ledger.list())
 export const saveNativeDailyLedger = (owner: string, input: Command) => withPersonalLedger(owner, ledger => ledger.save(input))
+export const exportNativeDailyLedgerBackup = (owner: string, key: Uint8Array<ArrayBuffer>) =>
+  withPersonalLedger(owner, ledger => ledger.exportBackup(key))
+export const verifyNativeDailyLedgerBackup = (owner: string, archive: Uint8Array<ArrayBuffer>, key: Uint8Array<ArrayBuffer>) =>
+  withPersonalLedger(owner, ledger => ledger.verifyBackup(archive, key))
+export const restoreNativeDailyLedgerBackup = (owner: string, archive: Uint8Array<ArrayBuffer>, key: Uint8Array<ArrayBuffer>) =>
+  withPersonalLedger(owner, ledger => ledger.restoreBackup(archive, key))
 
 export function readNativeDriveRecoveryKey(actor: string): Promise<string | null> {
   return ordered(async () => {

@@ -7,6 +7,8 @@ import { afterEach, expect, it } from 'vitest'
 import fc from 'fast-check'
 import type { SqlitePort } from '../../src/local-db/sqlite-repository'
 import { budgets } from '../../src/daily-ledger/budget'
+import { exportDailyLedgerArchive, openDailyLedgerArchive, sha256 } from '../../src/daily-ledger/backup'
+import { financialBackupCodec, generateFinancialBackupKey } from '../../src/sync/financial-backup'
 import { today } from '../../src/accounting/model'
 import { householdView } from '../../src/daily-ledger/household'
 import { openDailyLedger } from '../../src/daily-ledger/repository'
@@ -285,4 +287,174 @@ it('links a single corrected obligation to its reversal and rejects a replacemen
     [timely.id, false], [old.id, true],
   ])
   expect(summarize(await ledger.list(), date).balance.cash).toBe(0n)
+})
+
+const backupCipher = financialBackupCodec('orbis.khata.daily-ledger.backup.v1')
+
+it('round-trips every financial lineage and durable outbox through encrypted SQLite recovery', async () => {
+  directory = mkdtempSync(join(tmpdir(), 'orbis-ledger-backup-'))
+  const sourcePath = join(directory, 'source.db')
+  const destination = join(directory, 'destination.db')
+  const source = await openDailyLedger(sqlite(sourcePath), codec, owner, noop)
+  const day = today()
+  const header = { ...base, date: day }
+  const id = () => crypto.randomUUID()
+  const samplePerson = { ...person('Synthetic backup person'), date: day }
+  const loan = { ...header, id: id(), kind: 'lend', personId: samplePerson.id, wallet: 'cash', amountMinor: '5000' } as const
+  const borrowed = { ...loan, id: id(), kind: 'borrow', wallet: 'bank', amountMinor: '7000' } as const
+  const recurring = { ...bill(), date: day, kind: 'billSeries', dueDate: day.slice(0, 7) + '-28' } as const
+  const issue = { ...header, id: id(), kind: 'billOccurrence', seriesId: recurring.id } as const
+  const partial = { ...header, id: id(), kind: 'billPay', obligationId: issue.id, wallet: 'bank', amountMinor: '950' } as const
+  const expense = { ...header, id: id(), kind: 'expense', category: 'food', wallet: 'cash', amountMinor: '101' } as const
+  const initialBudget = { ...header, date: day.slice(0, 7) + '-01', id: id(), kind: 'budget',
+    category: 'home', amountMinor: '9900' } as const
+  const entries: Command[] = [
+    { ...cash, date: day, note: 'Synthetic backup private note' },
+    { ...transfer(), date: day },
+    expense,
+    { ...reversal(expense.id), date: day },
+    initialBudget,
+    { ...initialBudget, id: id(), amountMinor: '12000' },
+    samplePerson, loan, borrowed,
+    { ...header, id: id(), kind: 'loanRepay', obligationId: loan.id, wallet: 'bank', amountMinor: '2400' },
+    { ...header, id: id(), kind: 'loanRepay', obligationId: borrowed.id, wallet: 'cash', amountMinor: '900' },
+    { ...bill(), date: day, dueDate: day },
+    recurring, issue, partial,
+    { ...reversal(partial.id), date: day },
+    { ...partial, id: id(), amountMinor: '700', correctionOf: partial.id },
+  ]
+  for (const command of entries) await source.save(command)
+  const prior = await source.list()
+  const key = generateFinancialBackupKey()
+  const archive = await source.exportBackup(key)
+  const verified = await source.verifyBackup(archive, key)
+  expect(verified.scope).toEqual({ orbisIdentityId: owner, scopeKind: 'personal_ledger', scopeId: owner })
+  expect(verified.snapshot).toMatchObject({ journalRows: entries.length, outboxRows: entries.length })
+  expect(new TextDecoder().decode(archive)).not.toContain('Synthetic backup')
+  expect(await source.exportBackup(key)).not.toEqual(archive)
+  const originalPayload = await openDailyLedgerArchive(owner, archive, key)
+  expect(originalPayload.rows.map(row => row.entry.command.id)).toEqual(entries.map(command => command.id))
+  raw?.close()
+
+  // The destination codec represents another hardware key with the same owner AAD contract.
+  const anotherDevice = {
+    async seal(value: string, aad: string) { return codec.seal(value, 'replacement:' + aad) },
+    async unseal(value: Uint8Array, aad: string) { return codec.unseal(value, 'replacement:' + aad) },
+  }
+  const target = await openDailyLedger(sqlite(destination), anotherDevice, owner, noop)
+  expect(await target.restoreBackup(archive, key)).toEqual({ inserted: entries.length, alreadyPresent: 0 })
+  const restored = await target.list()
+  expect(restored).toEqual(prior)
+  expect(summarize(restored, day)).toEqual(summarize(prior, day))
+  expect(budgets(restored, day)).toEqual(budgets(prior, day))
+  const household = householdView(restored, day)
+  expect(household).toEqual(householdView(prior, day))
+  expect(household.loans).toEqual(expect.arrayContaining([
+    expect.objectContaining({ command: loan, paid: 2400n }),
+    expect.objectContaining({ command: borrowed, paid: 900n }),
+  ]))
+  expect(household.billRows.find(row => row.command.id === issue.id)).toMatchObject({ paid: 700n, amountMinor: '50000' })
+  const targetCopy = await openDailyLedgerArchive(owner, await target.exportBackup(key), key)
+  expect(targetCopy.rows).toEqual(originalPayload.rows)
+  expect(targetCopy.manifest).toEqual(verified)
+  raw?.close()
+
+  const reopened = await openDailyLedger(sqlite(destination), anotherDevice, owner, noop)
+  expect(await reopened.restoreBackup(archive, key)).toEqual({ inserted: 0, alreadyPresent: entries.length })
+  const last = entries.at(-1)!
+  expect(await reopened.save(last)).toEqual(restored.find(entry => entry.command.id === last.id))
+  expect(await reopened.list()).toEqual(prior)
+})
+
+it('preserves a valid prefix after an interrupted restore and appends missing rows exactly once', async () => {
+  const key = generateFinancialBackupKey()
+  let writes = 0
+  const db = sqlite(':memory:', statement => {
+    if (writes > 0 && statement.startsWith('INSERT INTO personal_ledger_outbox_v1') && ++writes === 3) {
+      throw new Error('INJECTED_RESTORE_FAILURE')
+    }
+  })
+  const ledger = await openDailyLedger(db, codec, owner, noop)
+  await ledger.save(cash)
+  const older = await ledger.exportBackup(key)
+  const olderSnapshot = await openDailyLedgerArchive(owner, older, key)
+  const next = [post(normalize(transfer())), post(normalize(transfer()))]
+  // Build an archive representing an exact prefix followed by two valid journal/outbox pairs.
+  const extra = await Promise.all(next.map(async entry => {
+    const wire = JSON.stringify(envelope(owner, entry.command, entry.postings.length))
+    return { entry, wire, digest: await sha256(wire) }
+  }))
+  const newer = await exportDailyLedgerArchive(owner, [...olderSnapshot.rows, ...extra], key)
+  const before = await ledger.list()
+  writes = 1
+  await expect(ledger.restoreBackup(newer, key)).rejects.toThrow('INJECTED_RESTORE_FAILURE')
+  expect(await ledger.list()).toEqual(before)
+  expect(await db.get('SELECT count(*) AS total FROM personal_ledger_outbox_v1')).toEqual({ total: 1 })
+  expect(await ledger.verifyBackup(older, key)).toEqual(olderSnapshot.manifest)
+  writes = 0
+  await expect(ledger.restoreBackup(newer, key)).resolves.toEqual({ inserted: 2, alreadyPresent: 1 })
+  await expect(ledger.restoreBackup(older, key)).resolves.toEqual({ inserted: 0, alreadyPresent: 1 })
+  const after = await ledger.list()
+  expect(after).toHaveLength(3)
+  const divergent = await exportDailyLedgerArchive(owner, [olderSnapshot.rows[0], extra[1]], key)
+  await expect(ledger.restoreBackup(divergent, key)).rejects.toThrow('DAILY_BACKUP_HISTORY_CONFLICT')
+  expect(await ledger.list()).toEqual(after)
+})
+
+it('rejects malformed, forged, truncated and wrong-key snapshots before touching data', async () => {
+  const key = generateFinancialBackupKey()
+  const db = sqlite()
+  const ledger = await openDailyLedger(db, codec, owner, noop)
+  await ledger.save(cash)
+  const other = await openDailyLedger(db, codec, crypto.randomUUID(), noop)
+  const valid = await ledger.exportBackup(key)
+  const prior = await ledger.list()
+  const { rows, manifest } = await openDailyLedgerArchive(owner, valid, key)
+  const snapshot = { schemaVersion: 1, protocolVersion: 1, rows }
+  const forge = (metadata: unknown, content: unknown) => backupCipher.encrypt(owner, { manifest: metadata, snapshot: content }, key)
+  await expect(other.restoreBackup(valid, key)).rejects.toThrow('FINANCIAL_BACKUP_CONTENT_INVALID')
+  await expect(ledger.restoreBackup(valid, generateFinancialBackupKey())).rejects.toThrow()
+  const corrupt = valid.slice()
+  corrupt[corrupt.length - 1] ^= 1
+  await expect(ledger.restoreBackup(corrupt, key)).rejects.toThrow()
+  await expect(ledger.restoreBackup(valid.slice(0, 10), key)).rejects.toThrow('FINANCIAL_BACKUP_ARCHIVE_INVALID')
+  const wrongScope = await forge({ ...manifest, scope: { ...manifest.scope, scopeKind: 'company' } }, snapshot)
+  await expect(ledger.restoreBackup(wrongScope, key)).rejects.toThrow('DAILY_BACKUP_MANIFEST_INVALID')
+  for (const content of [{ ...snapshot, schemaVersion: 2 }, { ...snapshot, protocolVersion: 2 }]) {
+    await expect(ledger.restoreBackup(await forge(manifest, content), key)).rejects.toThrow('DAILY_BACKUP_VERSION_UNSUPPORTED')
+  }
+  await expect(ledger.restoreBackup(await forge({ ...manifest, version: 2 }, snapshot), key))
+    .rejects.toThrow('DAILY_BACKUP_VERSION_UNSUPPORTED')
+  await expect(ledger.restoreBackup(await forge(manifest, { ...snapshot, rows: [] }), key))
+    .rejects.toThrow('DAILY_BACKUP_MANIFEST_INVALID')
+
+  async function withMatchingManifest(updated: typeof rows) {
+    const payload = { ...snapshot, rows: updated }
+    const json = JSON.stringify(payload)
+    return forge({ ...manifest, snapshot: { sha256: await sha256(json), bytes: new TextEncoder().encode(json).byteLength,
+      journalRows: updated.length, outboxRows: updated.length } }, payload)
+  }
+  const repeated = await withMatchingManifest([rows[0], rows[0]])
+  await expect(ledger.restoreBackup(repeated, key)).rejects.toThrow('DAILY_BACKUP_DUPLICATE')
+  const altered = await withMatchingManifest([{ ...rows[0], digest: '0'.repeat(64) }])
+  await expect(ledger.restoreBackup(altered, key)).rejects.toThrow('DAILY_BACKUP_ROW_INVALID')
+  const invalidPosting = await withMatchingManifest([{ ...rows[0], entry: { ...rows[0].entry, postings: [] } }])
+  await expect(ledger.restoreBackup(invalidPosting, key)).rejects.toThrow('DAILY_BACKUP_ROW_INVALID')
+  expect(await ledger.list()).toEqual(prior)
+  expect(await other.list()).toEqual([])
+  expect(await ledger.verifyBackup(valid, key)).toEqual(manifest)
+})
+
+it('refuses export when the journal and persisted outbox no longer reconcile', async () => {
+  const key = generateFinancialBackupKey()
+  const db = sqlite()
+  const ledger = await openDailyLedger(db, codec, owner, noop)
+  await ledger.save(cash)
+  const valid = await ledger.exportBackup(key)
+  await db.run('UPDATE personal_ledger_outbox_v1 SET digest=? WHERE owner=?', ['0'.repeat(64), owner])
+  await expect(ledger.exportBackup(key)).rejects.toThrow('DAILY_BACKUP_ROW_INVALID')
+  await db.run('DELETE FROM personal_ledger_outbox_v1 WHERE owner=?', [owner])
+  await expect(ledger.exportBackup(key)).rejects.toThrow('DAILY_BACKUP_JOURNAL_OUTBOX_MISMATCH')
+  expect(await ledger.verifyBackup(valid, key)).toMatchObject({ snapshot: { journalRows: 1, outboxRows: 1 } })
+  expect(await ledger.list()).toHaveLength(1)
 })
