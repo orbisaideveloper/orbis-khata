@@ -6,6 +6,7 @@ import { join } from 'node:path'
 import { afterEach, expect, it } from 'vitest'
 import fc from 'fast-check'
 import type { SqlitePort } from '../../src/local-db/sqlite-repository'
+import { budgets } from '../../src/daily-ledger/budget'
 import { openDailyLedger } from '../../src/daily-ledger/repository'
 import { envelope, normalize, parseAmount, post, summarize, type Command } from '../../src/daily-ledger/journal'
 
@@ -124,4 +125,22 @@ it('survives restart and lost acknowledgement without duplicates; enforces owner
   await expect(other.save(reversal(cash.id))).rejects.toThrow('DAILY_REVERSAL_INVALID')
   expect(await recovered.list()).toEqual([saved])
   expect(await db.get('SELECT count(*) AS count FROM personal_ledger_outbox_v1')).toMatchObject({ count: 1 })
+})
+
+it('keeps plan revisions non-financial and attributes expense corrections to their period', async () => {
+  const ledger = await openDailyLedger(sqlite(), codec, owner, noop)
+  const plan = { ...base, kind: 'budget', date: '2026-11-01', category: 'food' } as const
+  await ledger.save({ ...plan, id: crypto.randomUUID(), amountMinor: '500' })
+  expect((await ledger.save({ ...plan, id: crypto.randomUUID(), amountMinor: '1000' })).postings).toEqual([])
+  const expense = { ...base, kind: 'expense', category: 'food', wallet: 'cash' } as const
+  await ledger.save({ ...expense, id: crypto.randomUUID(), date: '2026-10-03', amountMinor: '300' })
+  const latest = { ...expense, id: crypto.randomUUID(), amountMinor: '1100' }
+  await ledger.save(latest)
+  expect(budgets(await ledger.list(), date)[0]).toEqual({
+    category: 'food', limit: 1000n, actual: 1100n, previous: 300n, remaining: -100n,
+  })
+  await ledger.save(reversal(latest.id))
+  const entries = await ledger.list()
+  expect(budgets(entries, date)[0]).toMatchObject({ actual: 0n, previous: 300n, remaining: 1000n })
+  expect(summarize(entries, date).balance.cash).toBe(-300n)
 })

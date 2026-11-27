@@ -16,3 +16,4 @@
 .daily-history { margin: .65rem 0 0; padding: 0; list-style: none; }
 .daily-history li { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 8rem), 1fr)); gap: .5rem; padding-block: .7rem; border-top: 1px solid var(--kh-edge, #d7e2eb); overflow-wrap: anywhere; }
 .daily-history button { display: block; margin-block-start: .3rem; }
+.daily-panel summary { min-height: 48px; padding-block: .65rem; cursor: pointer; }

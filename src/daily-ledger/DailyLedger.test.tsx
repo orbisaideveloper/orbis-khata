@@ -62,3 +62,18 @@ it('discards a prior owner result when the signed-in view is replaced', async ()
   await act(async () => { finish([old]) })
   expect(screen.queryByText('Previous owner note')).not.toBeInTheDocument()
 })
+
+it('saves a budget without showing it as a transaction', async () => {
+  vi.mocked(readNativeDailyLedger).mockResolvedValue([])
+  vi.mocked(saveNativeDailyLedger).mockImplementation(async (_owner, input) => post(input))
+  render(<DailyLedger owner={owner} language="en"/>)
+  const summary = await screen.findByText('Monthly budget')
+  const details = summary.closest('details')
+  if (details) details.open = true
+  fireEvent.click(screen.getByRole('button', { name: 'Set budget · Food' }))
+  fireEvent.change(screen.getByLabelText('Amount'), { target: { value: '500' } })
+  fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+  expect(await screen.findByText('Saved on this phone')).toBeVisible()
+  expect(saveNativeDailyLedger).toHaveBeenCalledWith(owner, expect.objectContaining({ kind: 'budget', category: 'food', amountMinor: '50000' }))
+  expect(screen.getByText('No transactions found.')).toBeVisible()
+})

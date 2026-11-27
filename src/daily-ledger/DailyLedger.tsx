@@ -2,20 +2,22 @@ import { useEffect, useId, useRef, useState, type FormEvent } from 'react'
 import { today } from '../accounting/model'
 import type { Language } from '../i18n'
 import { readNativeDailyLedger, saveNativeDailyLedger } from '../native-local/runtime'
+import { budgets } from './budget'
 import { displayAmount, label, locale, type LedgerKey } from './copy'
-import { categories, isCategory, parseAmount, summarize, validDate, type Command, type Entry, type Wallet } from './journal'
+import { categories, isCategory, parseAmount, summarize, validDate, type Category, type Command, type Entry, type Wallet } from './journal'
 import './daily-ledger.css'
 
-type Flow = { kind: 'income' | 'expense' | 'transfer' } | { kind: 'reversal'; originalId: string }
+type Flow = { kind: 'income' | 'expense' | 'transfer' } | { kind: 'reversal'; originalId: string } | { kind: 'budget'; category: Category }
 type Props = Readonly<{ owner: string; language: Language }>
 const text = (language: Language) => (key: LedgerKey) => label(language, key)
 
 function makeCommand(flow: Flow, wallet: Wallet, form: FormData): Command {
-  const date = String(form.get('date'))
+  const date = flow.kind === 'budget' ? today().slice(0, 7) + '-01' : String(form.get('date'))
   if (!validDate(date) || date > today()) throw new Error('DAILY_DATE_INVALID')
   const common = { version: 1 as const, id: crypto.randomUUID(), date, note: String(form.get('note') ?? '') }
   if (flow.kind === 'reversal') return { ...common, ...flow }
   const amountMinor = parseAmount(String(form.get('amount')))
+  if (flow.kind === 'budget') return { ...common, ...flow, amountMinor }
   if (flow.kind === 'transfer') return { ...common, kind: flow.kind, from: wallet, to: wallet === 'cash' ? 'bank' : 'cash', amountMinor }
   const category = form.get('category')
   return flow.kind === 'expense'
@@ -52,21 +54,21 @@ function EntryForm({ owner, flow, language, onSave, onCancel }: Props & Readonly
   }
 
   return <form className="daily-panel daily-form" aria-labelledby={headingId} onSubmit={event => { void save(event) }}>
-    <h2 id={headingId} tabIndex={-1} ref={heading}>{t(flow.kind)}</h2>
+    <h2 id={headingId} tabIndex={-1} ref={heading}>{flow.kind === 'budget' ? t('plan') + ' · ' + t(flow.category) : t(flow.kind)}</h2>
     <fieldset disabled={Boolean(pending)}>
       {flow.kind === 'reversal' ? <p>{t('confirm')}</p> : <>
         <label>{t('amount')}<input name="amount" inputMode="decimal" maxLength={16} required /></label>
-        <label>{t(flow.kind === 'transfer' ? 'from' : 'account')}
+        {flow.kind !== 'budget' && <label>{t(flow.kind === 'transfer' ? 'from' : 'account')}
           <select value={wallet} onChange={event => setWallet(event.target.value === 'bank' ? 'bank' : 'cash')}>
             <option value="cash">{t('cash')}</option><option value="bank">{t('bank')}</option>
           </select>
-        </label>
+        </label>}
         {flow.kind === 'transfer' && <p>{t('to')} · {t(wallet === 'cash' ? 'bank' : 'cash')}</p>}
         {flow.kind === 'expense' && <label>{t('category')}<select name="category" defaultValue="other">
           {categories.map(category => <option key={category} value={category}>{t(category)}</option>)}
         </select></label>}
       </>}
-      <label>{t('date')}<input name="date" type="date" defaultValue={today()} max={today()} required /></label>
+      {flow.kind !== 'budget' && <label>{t('date')}<input name="date" type="date" defaultValue={today()} max={today()} required /></label>}
       <label>{t('note')}<input name="note" maxLength={240} /></label>
     </fieldset>
     {issue && <p role="alert">{t(issue)}</p>}
@@ -103,6 +105,27 @@ function History({ entries, language, onReverse }: Readonly<{
     </li>)}</ul>
     {visible < rows.length && <button type="button" onClick={() => setVisible(visible + 20)}>{t('more')}</button>}
   </section>
+}
+
+function BudgetPanel({ entries, language, onPlan }: Readonly<{
+  entries: readonly Entry[]; language: Language; onPlan: (category: Category) => void
+}>) {
+  const t = text(language)
+  return <details className="daily-panel">
+    <summary>{t('budget')}</summary>
+    <ul className="daily-history">{budgets(entries, today()).map(row => <li key={row.category}>
+      <div>
+        <strong>{t(row.category)}</strong>
+        {row.limit !== undefined && <p>{t('planned')} · {displayAmount(row.limit, language)}</p>}
+        <p>{t('spent')} · {displayAmount(row.actual, language)}</p>
+        <p>{t('previous')} · {displayAmount(row.previous, language)}</p>
+        {row.remaining !== undefined && <p>
+          {t(row.remaining < 0n ? 'over' : 'remaining')} · {displayAmount(row.remaining < 0n ? -row.remaining : row.remaining, language)}
+        </p>}
+      </div>
+      <div><button type="button" onClick={() => onPlan(row.category)}>{t('plan')} · {t(row.category)}</button></div>
+    </li>)}</ul>
+  </details>
 }
 
 export default function DailyLedger({ owner, language }: Props) {
@@ -152,6 +175,7 @@ export default function DailyLedger({ owner, language }: Props) {
     </div>
     <button type="button" onClick={() => start({ kind: 'transfer' })}>{t('transfer')}</button>
     {saved && <output role="status">{t('saved')}</output>}
+    <BudgetPanel entries={entries} language={language} onPlan={category => start({ kind: 'budget', category })} />
     <History entries={entries} language={language} onReverse={originalId => start({ kind: 'reversal', originalId })} />
   </div>
 }
