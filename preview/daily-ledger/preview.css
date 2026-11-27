@@ -1,0 +1,50 @@
+.ledger-preview {
+  --kh-brand: #2456a5;
+  --kh-edge: #c3d3e8;
+  --preview-background: #edf3fb;
+  --preview-text: #193454;
+  --preview-notice: #fef2cf;
+  --preview-notice-text: #553508;
+  background: var(--preview-background);
+  color: var(--preview-text);
+  color-scheme: light;
+  min-height: 100dvh;
+}
+.ledger-preview[data-preview-theme="dark"] {
+  --kh-edge: #617494;
+  --preview-background: #131e31;
+  --preview-text: #e7efff;
+  --preview-notice: #392b13;
+  --preview-notice-text: #ffdf9a;
+  color-scheme: dark;
+}
+@media (prefers-color-scheme: dark) {
+  .ledger-preview[data-preview-theme="system"] {
+    --kh-edge: #617494;
+    --preview-background: #131e31;
+    --preview-text: #e7efff;
+    --preview-notice: #392b13;
+    --preview-notice-text: #ffdf9a;
+    color-scheme: dark;
+  }
+}
+.ledger-preview-content { width: min(100%, 48rem); margin: auto; padding: 1rem clamp(.75rem, 4vw, 2rem) 2rem; }
+.ledger-preview-header { display: flex; align-items: center; justify-content: space-between; gap: .75rem; flex-wrap: wrap; }
+.ledger-preview-brand { font-size: 1.15em; letter-spacing: .03em; }
+.ledger-preview-preferences { display: flex; gap: .5rem .75rem; flex-wrap: wrap; }
+.ledger-preview-preferences label { display: grid; gap: .2rem; font-size: .875em; }
+.ledger-preview-preferences select { min-height: 44px; max-width: 100%; padding: .35rem; border: 1px solid var(--kh-edge); border-radius: .5rem; font: inherit; }
+.ledger-preview-notice {
+  margin-block: .8rem 1rem;
+  padding: .65rem .85rem;
+  border-radius: .75rem;
+  color: var(--preview-notice-text);
+  background: var(--preview-notice);
+  overflow-wrap: anywhere;
+}
+.ledger-preview-notice p { margin: .25rem 0 0; font-size: .9em; }
+.ledger-preview .daily-overview { border-top: .2rem solid var(--kh-brand); }
+.ledger-preview .daily-overview h1 { font-size: 1.45em; }
+.ledger-preview .daily-summary { margin-block-end: 0; }
+.ledger-preview .daily-transfer { justify-self: start; }
+.ledger-preview .daily-form input { scroll-margin-block: 1rem; }

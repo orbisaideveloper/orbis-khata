@@ -1,14 +1,14 @@
 import { useEffect, useId, useRef, useState, type FormEvent } from 'react'
 import { today } from '../accounting/model'
 import type { Language } from '../i18n'
-import { readNativeDailyLedger, saveNativeDailyLedger } from '../native-local/runtime'
 import { budgets } from './budget'
 import { displayAmount, label, locale, type LedgerKey } from './copy'
 import { categories, isCategory, parseAmount, summarize, validDate, type Category, type Command, type Entry, type Wallet } from './journal'
+import type { LedgerStore } from './ledger-store'
 import './daily-ledger.css'
 
 type Flow = { kind: 'income' | 'expense' | 'transfer' } | { kind: 'reversal'; originalId: string } | { kind: 'budget'; category: Category }
-type Props = Readonly<{ owner: string; language: Language }>
+type Props = Readonly<{ store: LedgerStore; language: Language; preview?: boolean }>
 const text = (language: Language) => (key: LedgerKey) => label(language, key)
 
 function makeCommand(flow: Flow, wallet: Wallet, form: FormData): Command {
@@ -25,7 +25,7 @@ function makeCommand(flow: Flow, wallet: Wallet, form: FormData): Command {
     : { ...common, kind: flow.kind, wallet, amountMinor }
 }
 
-function EntryForm({ owner, flow, language, onSave, onCancel }: Props & Readonly<{
+function EntryForm({ store, flow, language, onSave, onCancel }: Props & Readonly<{
   flow: Flow; onSave: (entry: Entry) => void; onCancel: () => void
 }>) {
   const t = text(language)
@@ -48,7 +48,7 @@ function EntryForm({ owner, flow, language, onSave, onCancel }: Props & Readonly
     setPending(input)
     setSaving(true)
     setIssue(undefined)
-    try { onSave(await saveNativeDailyLedger(owner, input)) }
+    try { onSave(await store.save(input)) }
     catch { setIssue('saveFailed') }
     finally { busy.current = false; setSaving(false) }
   }
@@ -128,7 +128,7 @@ function BudgetPanel({ entries, language, onPlan }: Readonly<{
   </details>
 }
 
-export default function DailyLedger({ owner, language }: Props) {
+export default function DailyLedger({ store, language, preview = false }: Props) {
   const t = text(language)
   const [entries, setEntries] = useState<readonly Entry[] | 'failed'>()
   const [attempt, setAttempt] = useState(0)
@@ -136,12 +136,12 @@ export default function DailyLedger({ owner, language }: Props) {
   const [saved, setSaved] = useState(false)
   useEffect(() => {
     let current = true
-    void readNativeDailyLedger(owner).then(
+    void store.list().then(
       value => { if (current) setEntries(value) },
       () => { if (current) setEntries('failed') },
     )
     return () => { current = false }
-  }, [owner, attempt])
+  }, [store, attempt])
   if (!entries) return <p role="status">{t('loading')}</p>
   if (entries === 'failed') return <div role="alert">{t('failed')} <button type="button" onClick={() => {
     setEntries(undefined)
@@ -149,7 +149,7 @@ export default function DailyLedger({ owner, language }: Props) {
   }}>{t('retry')}</button></div>
 
   const start = (next: Flow) => { setSaved(false); setFlow(next) }
-  if (flow) return <div className="daily-ledger"><EntryForm owner={owner} flow={flow} language={language}
+  if (flow) return <div className="daily-ledger"><EntryForm store={store} flow={flow} language={language}
     onCancel={() => setFlow(undefined)} onSave={entry => {
       const next = [entry, ...entries.filter(row => row.command.id !== entry.command.id)]
       setEntries(next.sort((a, b) => b.command.date.localeCompare(a.command.date)))
@@ -159,9 +159,9 @@ export default function DailyLedger({ owner, language }: Props) {
 
   const { balance, month, day } = summarize(entries, today())
   return <div className="daily-ledger">
-    <section className="daily-panel">
+    <section className="daily-panel daily-overview">
       <h1>{t('title')}</h1>
-      <p>{t('backup')}</p>
+      {!preview && <p>{t('backup')}</p>}
       <p>{t('balance')}</p>
       <strong className="daily-balance">{displayAmount(balance.cash + balance.bank, language)}</strong>
       <dl className="daily-summary">{([
@@ -173,8 +173,8 @@ export default function DailyLedger({ owner, language }: Props) {
       <button type="button" className="daily-primary" onClick={() => start({ kind: 'income' })}>{t('income')}</button>
       <button type="button" className="daily-primary" onClick={() => start({ kind: 'expense' })}>{t('expense')}</button>
     </div>
-    <button type="button" onClick={() => start({ kind: 'transfer' })}>{t('transfer')}</button>
-    {saved && <output role="status">{t('saved')}</output>}
+    <button type="button" className="daily-transfer" onClick={() => start({ kind: 'transfer' })}>{t('transfer')}</button>
+    {saved && <output role="status">{t(preview ? 'sampleSaved' : 'saved')}</output>}
     <BudgetPanel entries={entries} language={language} onPlan={category => start({ kind: 'budget', category })} />
     <History entries={entries} language={language} onReverse={originalId => start({ kind: 'reversal', originalId })} />
   </div>

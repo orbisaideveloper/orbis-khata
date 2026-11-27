@@ -2,7 +2,7 @@ import { afterEach, expect, it, vi } from 'vitest'
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { readNativeDailyLedger, saveNativeDailyLedger } from '../native-local/runtime'
 import { resolveKhataView } from '../navigation-policy'
-import DailyLedger from './DailyLedger'
+import DailyLedger from './AndroidDailyLedger'
 import { displayAmount } from './copy'
 import { post } from './journal'
 

@@ -1,3 +1,20 @@
+## 2026-11-27 — Daily Ledger Web/PWA test preview
+
+Based on `0f4ede223e0bdc214afecff521e654edb0380f72`. The separate preview uses the same
+Ledger UI and financial rules as Android, with disposable sample data in memory.
+Run `npm run build:daily-ledger-preview` and `npm run preview:daily-ledger` for a
+loopback preview. The dedicated output is `dist-daily-ledger-preview/`. Deploy
+only to a separately approved HTTPS preview origin. The preview shell uses its
+own static cache. New entries reset on reload, and preview accounting does not
+use a login, financial APIs, Sync or Drive backup. The regular Web build has
+no preview route, and Daily Ledger remains explicitly gated on Android.
+
+Rollback before hosting means discarding the separate build or reverting its
+feature-branch commit. For an approved hosted preview, withdraw that preview and
+retire its own worker/cache without touching the Khata origin. See the
+[versioned Drive audit](https://docs.google.com/document/d/1os9R2V7onk-irGDNtNUODkbHvNDeasyQUhpqbd4l6YI/edit)
+for exact SHA and verification.
+
 <!-- LIVE-CACHE-RELIABILITY-20261122 -->
 ## 2026-11-22 — Live Draw reliability (local implementation)
 

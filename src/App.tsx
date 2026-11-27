@@ -12,7 +12,7 @@ import {ModulePicker,type ModuleTarget} from './ModulePicker';
 import {lazy,Suspense,useEffect,useMemo,useRef,useState,type ReactNode} from 'react';
 const CustomerView=lazy(()=>import('./customer-view/CustomerView'));
 const LotteryPage=lazy(()=>import('./lottery/LotteryPage'));
-const DailyLedger=lazy(()=>import('./daily-ledger/DailyLedger'));
+const DailyLedger=lazy(()=>import('./daily-ledger/AndroidDailyLedger'));
 import { dailyLedgerEnabled } from './daily-ledger/availability';
 import { label as dailyLabel } from './daily-ledger/copy';
 import {selectNumeric} from './select-numeric';
