@@ -1,5 +1,5 @@
 import { afterEach, expect, it } from 'vitest'
-import { cleanup, fireEvent, render, screen } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen, within } from '@testing-library/react'
 import Preview from './Preview'
 
 afterEach(cleanup)
@@ -36,7 +36,8 @@ it('updates the sample wallet without changing the total and keeps writes out of
   const search = screen.getByRole('searchbox')
   fireEvent.change(search, { target: { value: 'Sample transfer only' } })
   expect(screen.getByText('Sample transfer only')).toBeVisible()
-  fireEvent.click(screen.getByRole('button', { name: 'Reverse entry' }))
+  const history = screen.getByRole('region', { name: 'Transaction history' })
+  fireEvent.click(within(history).getByRole('button', { name: 'Reverse entry' }))
   fireEvent.click(screen.getByRole('button', { name: 'Save' }))
   expect(await screen.findByText('Sample entry added for this session')).toBeVisible()
   expect(screen.getByText('₹2,050.00', { selector: '.daily-balance' })).toHaveClass('daily-balance')
@@ -44,4 +45,35 @@ it('updates the sample wallet without changing the total and keeps writes out of
   render(<Preview />)
   await screen.findByRole('heading', { name: 'দৈনিক হিসাব' })
   expect(screen.queryByText('Sample transfer only')).not.toBeInTheDocument()
+})
+
+it('shows sample household debt and records a partial bill payment only in the mounted preview', async () => {
+  const view = render(<Preview />)
+  fireEvent.change(screen.getByLabelText('ভাষা'), { target: { value: 'hi' } })
+  expect(await screen.findByText('लोग और उधार')).toBeVisible()
+  expect(screen.getByText('घर के बिल')).toBeVisible()
+  fireEvent.change(screen.getByLabelText('भाषा'), { target: { value: 'en' } })
+  const debts = screen.getByText('People and loans').closest('details')!
+  debts.open = true
+  expect(screen.getByText('Receivable · ₹150.00 · Payable · ₹150.00')).toBeVisible()
+  const bills = screen.getByText('Household bills').closest('details')!
+  bills.open = true
+  expect(screen.getByText('Unpaid · Outstanding · ₹850.00')).toBeVisible()
+  fireEvent.click(screen.getByRole('button', { name: 'Pay bill' }))
+  fireEvent.change(screen.getByLabelText('Amount'), { target: { value: '851' } })
+  fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+  expect(await screen.findByRole('alert')).toHaveTextContent('Advance and excess payments are unavailable.')
+  expect(screen.getByLabelText('Amount')).toBeEnabled()
+  fireEvent.change(screen.getByLabelText('Amount'), { target: { value: '50' } })
+  fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+  expect(await screen.findByText('Sample entry added for this session')).toBeVisible()
+  screen.getByText('Household bills').closest('details')!.open = true
+  expect(screen.getByText('Partially paid · Outstanding · ₹800.00')).toBeVisible()
+  expect(screen.getByText('₹2,000.00', { selector: '.daily-balance' })).toBeVisible()
+  view.unmount()
+  render(<Preview />)
+  await screen.findByText('বাড়ির বিল')
+  fireEvent.change(screen.getByLabelText('ভাষা'), { target: { value: 'en' } })
+  screen.getByText('Household bills').closest('details')!.open = true
+  expect(screen.getByText('Unpaid · Outstanding · ₹850.00')).toBeVisible()
 })

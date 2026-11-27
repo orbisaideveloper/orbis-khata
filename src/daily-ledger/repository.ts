@@ -1,5 +1,7 @@
+import { today } from '../accounting/model'
 import type { SqlitePort } from '../local-db/sqlite-repository'
 import type { NativeRecordCodec } from '../offline-integration/native-transactional-sync-store'
+import { needsHouseholdHistory, postHousehold } from './household'
 import { envelope, normalize, post, validId, type Command, type Entry } from './journal'
 
 type Row = { operation: string; sealed_hex: string }
@@ -34,38 +36,42 @@ export async function openDailyLedger(db: SqlitePort, codec: NativeRecordCodec, 
     JSON.parse(await codec.unseal(decode(sealed_hex), aad('entry', operation))) as Entry
   const find = (id: string) => db.get<Row>(`SELECT operation,hex(sealed) AS sealed_hex
     FROM personal_ledger_journal_v1 WHERE owner=? AND operation=?`, [owner, id])
+  async function list() {
+    guard()
+    const rows = await db.all<Row>(`SELECT operation,hex(sealed) AS sealed_hex FROM personal_ledger_journal_v1
+      WHERE owner=? ORDER BY day DESC,rowid DESC`, [owner])
+    const entries: Entry[] = []
+    for (const row of rows) {
+      guard()
+      entries.push(await read(row))
+    }
+    guard()
+    return entries
+  }
   return {
-    async list() {
-      guard()
-      const rows = await db.all<Row>(`SELECT operation,hex(sealed) AS sealed_hex FROM personal_ledger_journal_v1
-        WHERE owner=? ORDER BY day DESC,rowid DESC`, [owner])
-      const entries: Entry[] = []
-      for (const row of rows) {
-        guard()
-        entries.push(await read(row))
-      }
-      guard()
-      return entries
-    },
+    list,
     async save(input: Command) {
       guard()
       const command = normalize(input)
-      const wire = JSON.stringify(envelope(owner, command))
-      const hash = await digest(wire)
       return db.transaction(async () => {
         guard()
         const prior = await db.get<{ digest: string }>('SELECT digest FROM personal_ledger_outbox_v1 WHERE owner=? AND operation=?', [owner, command.id])
         if (prior) {
-          if (prior.digest !== hash) throw new Error('DAILY_RETRY_CONFLICT')
           const row = await find(command.id)
           if (!row) throw new Error('DAILY_RECORD_DAMAGED')
           const result = await read(row)
+          const replay = JSON.stringify(envelope(owner, command, result.postings.length))
+          if (prior.digest !== await digest(replay)) throw new Error('DAILY_RETRY_CONFLICT')
           guard()
           return result
         }
         const reverses = command.kind === 'reversal' ? command.originalId : null
-        const original = reverses ? await find(reverses) : undefined
-        const entry = post(command, original ? await read(original) : undefined)
+        const originalRow = reverses ? await find(reverses) : undefined
+        const original = originalRow ? await read(originalRow) : undefined
+        const checked = needsHouseholdHistory(command) || (original && needsHouseholdHistory(original.command))
+        const entry = checked ? postHousehold(command, await list(), today(), original) : post(command, original)
+        const wire = JSON.stringify(envelope(owner, command, entry.postings.length))
+        const hash = await digest(wire)
         const sealed = await codec.seal(JSON.stringify(entry), aad('entry', command.id))
         const pending = await codec.seal(wire, aad('outbox', command.id))
         guard()

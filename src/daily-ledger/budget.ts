@@ -1,3 +1,4 @@
+import { billDetails } from './household'
 import { categories, type Category, type Entry } from './journal'
 
 /** Journal entries arrive newest-first within each day. Latest plan for the month wins. */
@@ -18,8 +19,10 @@ export function budgets(entries: readonly Entry[], today: string) {
       continue
     }
     const source = command.kind === 'reversal' ? originals.get(command.originalId) : command
-    if (source?.kind !== 'expense') continue
-    const category = source.category ?? 'other'
+    const reference = source?.kind === 'billPay' ? originals.get(source.obligationId) : undefined
+    const category = source?.kind === 'expense' ? source.category ?? 'other' :
+      reference && billDetails(reference, originals)?.category
+    if (!category) continue
     const effect = postings.find(row => row.account === 'expense')
     const totals = period === month ? spent : priorSpent
     if (effect) totals.set(category, (totals.get(category) ?? 0n) + BigInt(effect.delta))

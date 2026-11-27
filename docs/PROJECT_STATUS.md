@@ -1,3 +1,23 @@
+## 2026-11-27 — Daily Ledger Batch 3 household accounting
+
+Base `89b5709678e1ab618a36bd636996c5eeb2b31489`. Person-linked loans, principal
+repayment, month-filtered household bills, partial payments and linked
+reversal/replacement use the encrypted local journal/outbox. Creating a bill
+has zero wallet effect. Bill payments alone count toward the selected category
+budget in their effective period. Loan principal and transfers stay outside
+income and expenses.
+
+Recurring bills allow explicitly creating one current-month occurrence per
+template, due on days 1–28. A reversed occurrence retains its identity.
+Catch-up, days 29–31, advance, overpayment and refund policies remain disabled.
+The Web/PWA artifact is synthetic and in-memory. The Android module remains
+off by default and physical device acceptance is pending.
+
+For rollback, disable the module and preserve encrypted journal/outbox rows.
+Avoid opening Batch 3 household rows with an older enabled preview build.
+See the [Daily Ledger Audit](https://docs.google.com/document/d/1os9R2V7onk-irGDNtNUODkbHvNDeasyQUhpqbd4l6YI/edit)
+for the exact branch, checks and recovery handover.
+
 ## 2026-11-27 — Daily Ledger Web/PWA test preview
 
 Based on `0f4ede223e0bdc214afecff521e654edb0380f72`. The separate preview uses the same
