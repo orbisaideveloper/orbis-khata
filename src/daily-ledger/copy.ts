@@ -76,6 +76,7 @@ const labels = {
   from: ['যে হিসাব থেকে', 'जिस खाते से', 'From account'],
   to: ['যে হিসাবে যাবে', 'जिस खाते में', 'To account'],
   confirm: ['উল্টো এন্ট্রি হলে টাকা ফেরত হিসাবে ধরা হবে। মূল এন্ট্রি থাকবে।', 'विपरीत राशि दर्ज होगी। मूल प्रविष्टि बनी रहेगी।', 'A compensating entry will be recorded. The original stays in history.'],
+  separateBackup: ['দৈনিক হিসাবের Drive ব্যাকআপ আলাদা।', 'दैनिक हिसाब का Drive बैकअप अलग है।', 'Daily Ledger has a separate Drive backup.'],
   backup: ['দৈনিক হিসাব শুধু এই ফোনে আছে। বর্তমান Drive ব্যাকআপে এটি যাবে না।', 'दैनिक हिसाब इस फ़ोन पर है। यह मौजूदा Drive बैकअप में शामिल नहीं है।', 'Daily Ledger is stored on this phone. It is excluded from the current Drive backup.'],
   back: ['খাতায় ফিরুন', 'खाता में लौटें', 'Back to Khata'],
   budget: ['মাসের বাজেট', 'महीने का बजट', 'Monthly budget'],

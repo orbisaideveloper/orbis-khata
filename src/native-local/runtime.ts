@@ -237,10 +237,11 @@ async function hydrateForActor(actor:string,conn:SqlitePort,firstEnrollment=fals
 }
 const DRIVE_RECOVERY_KEY = 'drive-recovery-key'
 
-function withPersonalLedger<T>(owner: string, work: (ledger: Awaited<ReturnType<typeof openDailyLedger>>) => Promise<T>) {
+function withPersonalLedger<T>(owner: string, work: (ledger: Awaited<ReturnType<typeof openDailyLedger>>) => Promise<T>, check?: () => void) {
   return ordered(async () => {
     const scope = assertActive()
     const guard = () => {
+      check?.()
       const current = assertActive()
       if (scope.actor !== owner || current.generation !== scope.generation) throw new Error('ANDROID_LOCAL_ACTOR_CHANGED')
     }
@@ -255,8 +256,26 @@ export const exportNativeDailyLedgerBackup = (owner: string, key: Uint8Array<Arr
   withPersonalLedger(owner, ledger => ledger.exportBackup(key))
 export const verifyNativeDailyLedgerBackup = (owner: string, archive: Uint8Array<ArrayBuffer>, key: Uint8Array<ArrayBuffer>) =>
   withPersonalLedger(owner, ledger => ledger.verifyBackup(archive, key))
-export const restoreNativeDailyLedgerBackup = (owner: string, archive: Uint8Array<ArrayBuffer>, key: Uint8Array<ArrayBuffer>) =>
-  withPersonalLedger(owner, ledger => ledger.restoreBackup(archive, key))
+export const previewNativeDailyLedgerRestore = (owner: string, archive: Uint8Array<ArrayBuffer>, key: Uint8Array<ArrayBuffer>) =>
+  withPersonalLedger(owner, ledger => ledger.previewRestore(archive, key))
+export const restoreNativeDailyLedgerBackup = (owner: string, archive: Uint8Array<ArrayBuffer>, key: Uint8Array<ArrayBuffer>, check?: () => void) =>
+  withPersonalLedger(owner, ledger => ledger.restoreBackup(archive, key), check)
+
+/** A Drive operation holds this generation guard across network and credential awaits. */
+export async function authorizeNativeDailyLedgerRecovery(owner: string, confirmCredential: boolean) {
+  const scope = assertActive()
+  const guard = () => {
+    const current = assertActive()
+    if (scope.actor !== owner || current.generation !== scope.generation) throw new Error('ANDROID_LOCAL_ACTOR_CHANGED')
+  }
+  guard()
+  if (!(await nativeHasDeviceLock()) || (confirmCredential && !(await codec.verifyDeviceCredential()))) {
+    throw new Error('ANDROID_DEVICE_CREDENTIAL_REQUIRED')
+  }
+  guard()
+  return guard
+}
+
 
 export function readNativeDriveRecoveryKey(actor: string): Promise<string | null> {
   return ordered(async () => {

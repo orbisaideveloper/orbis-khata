@@ -1,6 +1,6 @@
 // @vitest-environment node
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
-import { connectBackupDrive } from './drive-backup'
+import { connectBackupDrive, connectDailyLedgerBackupDrive } from './drive-backup'
 
 const authorize = vi.hoisted(() => vi.fn())
 vi.mock('@capacitor/core', () => ({ registerPlugin: () => ({ authorize }) }))
@@ -78,4 +78,27 @@ it('requires the newly uploaded archive to match the sent bytes', async () => {
     .mockResolvedValueOnce(new Response(new Uint8Array([2])))
   const drive = await connectBackupDrive(actor)
   await expect(drive.upload(new Uint8Array([1]))).rejects.toThrow('DRIVE_BACKUP_UPLOAD_UNVERIFIED')
+})
+
+it('uses a separate Daily Ledger namespace and leaves upload acknowledgement separate from media readback', async () => {
+  const address = 'ledger-fixture@example.test'
+  const bytes = new Uint8Array([7, 8, 9])
+  const drive = await connectDailyLedgerBackupDrive(actor, address, true)
+  expect(authorize).toHaveBeenCalledWith({ email: address, silent: true })
+  fetchDrive.mockResolvedValueOnce(Response.json({ user: { emailAddress: address } }))
+    .mockResolvedValueOnce(file('3'))
+    .mockResolvedValueOnce(Response.json({ id: 'daily-new' }))
+    .mockResolvedValueOnce(new Response(bytes))
+  await expect(drive.accountEmail()).resolves.toBe(address)
+  await drive.history()
+  const receipt = await drive.uploadPending(bytes)
+  expect(fetchDrive).toHaveBeenCalledTimes(3)
+  expect(receipt.id).toBe('daily-new')
+  const query = new URL(String(fetchDrive.mock.calls[1][0])).searchParams
+  expect(query.get('q')).toMatch(/orbis-khata-daily-ledger-v1-[a-f0-9]{64}\.bin/u)
+  expect(await new Response(fetchDrive.mock.calls[2][1]?.body).text()).toContain(query.get('q')!.split("'")[1])
+  await expect(drive.latest(receipt)).resolves.toEqual(bytes)
+  expect(fetchDrive.mock.calls[3][0]).toBe('https://www.googleapis.com/drive/v3/files/daily-new?alt=media')
+  await expect(drive.uploadPending(new Uint8Array())).rejects.toThrow('DRIVE_BACKUP_SIZE_INVALID')
+  expect(fetchDrive).toHaveBeenCalledTimes(4)
 })

@@ -6,6 +6,7 @@ import { join } from 'node:path'
 import { afterEach, expect, it } from 'vitest'
 import fc from 'fast-check'
 import type { SqlitePort } from '../../src/local-db/sqlite-repository'
+import { createDailyLedgerDriveWorkflow } from '../../src/daily-ledger/drive-workflow'
 import { budgets } from '../../src/daily-ledger/budget'
 import { exportDailyLedgerArchive, openDailyLedgerArchive, sha256 } from '../../src/daily-ledger/backup'
 import { financialBackupCodec, generateFinancialBackupKey } from '../../src/sync/financial-backup'
@@ -333,6 +334,42 @@ it('round-trips every financial lineage and durable outbox through encrypted SQL
   expect(new TextDecoder().decode(archive)).not.toContain('Synthetic backup')
   expect(await source.exportBackup(key)).not.toEqual(archive)
   const originalPayload = await openDailyLedgerArchive(owner, archive, key)
+  const driveEmail = 'ledger-integration@example.test'
+  const versions: { id: string; size: string; createdTime: string }[] = []
+  const copies = new Map<string, Uint8Array<ArrayBuffer>>()
+  const drive = {
+    accountEmail: async () => driveEmail,
+    history: async () => [...versions],
+    async latest(version: { id: string }) {
+      const bytes = copies.get(version.id)
+      if (!bytes) throw new Error('SYNTHETIC_MISSING_FILE')
+      return bytes.slice()
+    },
+    async uploadPending(data: Uint8Array<ArrayBuffer>) {
+      const file = { id: crypto.randomUUID(), size: String(data.byteLength), createdTime: new Date().toISOString() }
+      copies.set(file.id, data.slice())
+      versions.unshift(file)
+      return file
+    },
+  }
+  const useDrive = (ledger: typeof source) => createDailyLedgerDriveWorkflow({
+    authorize: async () => noop,
+    recovery: async () => ({
+      email: driveEmail, key: Array.from(key, byte => byte.toString(16).padStart(2, '0')).join(''),
+    }),
+    connect: async () => drive,
+    exportArchive: ledger.exportBackup,
+    verifyArchive: ledger.verifyBackup,
+    previewRestore: ledger.previewRestore,
+    restoreArchive: ledger.restoreBackup,
+  }, () => true)
+  const sender = useDrive(source)
+  expect(await sender.backup(false, noop)).toEqual(verified)
+  expect(await sender.backup(true, noop)).toEqual(verified)
+  expect(versions).toHaveLength(1)
+  const uploadedCopy = copies.get(versions[0].id)!
+  expect(uploadedCopy).not.toEqual(archive)
+  expect(await openDailyLedgerArchive(owner, uploadedCopy, key)).toEqual(originalPayload)
   expect(originalPayload.rows.map(row => row.entry.command.id)).toEqual(entries.map(command => command.id))
   raw?.close()
 
@@ -342,7 +379,14 @@ it('round-trips every financial lineage and durable outbox through encrypted SQL
     async unseal(value: Uint8Array, aad: string) { return codec.unseal(value, 'replacement:' + aad) },
   }
   const target = await openDailyLedger(sqlite(destination), anotherDevice, owner, noop)
-  expect(await target.restoreBackup(archive, key)).toEqual({ inserted: entries.length, alreadyPresent: 0 })
+  const receiver = useDrive(target)
+  const history = await receiver.history()
+  expect(history.files).toEqual(versions)
+  expect(await receiver.preview(history.files[0].id, history.email)).toMatchObject({
+    preview: { toRestore: entries.length, newerLocalRows: 0 },
+  })
+  expect(await target.list()).toEqual([])
+  expect(await receiver.confirmRestore()).toEqual({ inserted: entries.length, alreadyPresent: 0 })
   const restored = await target.list()
   expect(restored).toEqual(prior)
   expect(summarize(restored, day)).toEqual(summarize(prior, day))

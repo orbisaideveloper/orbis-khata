@@ -93,6 +93,15 @@ export async function openDailyLedger(db: SqlitePort, codec: NativeRecordCodec, 
     return validated
   }
 
+  function commonHistory(rows: readonly BackupRow[], current: readonly BackupRow[]) {
+    const common = Math.min(rows.length, current.length)
+    // Commit order matters for same-day revisions. Divergent histories require review.
+    for (let i = 0; i < common; i++) {
+      if (JSON.stringify(rows[i]) !== JSON.stringify(current[i])) throw new Error('DAILY_BACKUP_HISTORY_CONFLICT')
+    }
+    return common
+  }
+
   return {
     list,
     async exportBackup(key: Uint8Array<ArrayBuffer>) {
@@ -104,15 +113,19 @@ export async function openDailyLedger(db: SqlitePort, codec: NativeRecordCodec, 
     async verifyBackup(archive: Uint8Array<ArrayBuffer>, key: Uint8Array<ArrayBuffer>) {
       return (await inspectBackup(archive, key)).manifest
     },
+    async previewRestore(archive: Uint8Array<ArrayBuffer>, key: Uint8Array<ArrayBuffer>) {
+      const { manifest, rows } = await inspectBackup(archive, key)
+      return db.transaction(async () => {
+        const current = await readBackupRows()
+        const common = commonHistory(rows, current)
+        return { manifest, toRestore: rows.length - common, newerLocalRows: current.length - common }
+      })
+    },
     async restoreBackup(archive: Uint8Array<ArrayBuffer>, key: Uint8Array<ArrayBuffer>) {
       const { rows } = await inspectBackup(archive, key)
       return db.transaction(async () => {
         const current = await readBackupRows()
-        const common = Math.min(rows.length, current.length)
-        // Compare exact commit order, including same-day replacements. Divergent histories need manual review.
-        for (let i = 0; i < common; i++) {
-          if (JSON.stringify(rows[i]) !== JSON.stringify(current[i])) throw new Error('DAILY_BACKUP_HISTORY_CONFLICT')
-        }
+        const common = commonHistory(rows, current)
         const append = rows.slice(common)
         for (const row of append) await write(row)
         // Read the destination before commit to verify authenticated storage and unchanged prefixes.

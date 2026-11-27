@@ -1,3 +1,31 @@
+## 2026-11-28 — Daily Ledger Batch 4B synthetic Drive integration
+
+Base `b1f37cd0697b77ae595033a76b0922b7cccc289e`. A default-off Android
+staging panel reuses the owner-authenticated Khata recovery read and native
+Drive OAuth transport under a separate Daily Ledger filename in appDataFolder.
+It requires the matching Google account returned by Drive and an unlocked,
+locally registered SQLCipher ledger on a device with a secure screen lock.
+
+Foreground backup saves only status and verified timestamps locally. It
+verifies the newest prior candidate before appending, reads back new uploads
+as bytes, authenticates the resulting archive and preserves old files. A
+lost acknowledgment is recoverable by verifying an already uploaded snapshot.
+A damaged latest archive prevents a new upload. Previous copies remain
+selectable in History.
+
+Restore requires a verified preview, explicit confirmation, and a new device
+credential check. The same account and selected archive are checked again.
+An exact-prefix restore is atomic and append-only. Roll back by withholding
+the staging flag and retaining the archives and SQLCipher data.
+
+Real Drive or recovery-server activity needs separate approval for a
+dedicated non-production ORBIS account, Drive account and recovery endpoint.
+Build an unsigned staging debug APK of the exact checkpoint with
+`VITE_KHATA_DAILY_LEDGER=enabled` and `VITE_KHATA_DAILY_LEDGER_DRIVE=staging`
+only after those fixtures are approved. Use Setup 03 to verify hardware
+protections and replacement-device recovery. See the
+[Audit Master Log](https://docs.google.com/document/d/1os9R2V7onk-irGDNtNUODkbHvNDeasyQUhpqbd4l6YI/edit).
+
 ## 2026-11-28 — Daily Ledger Batch 4A local encrypted recovery
 
 Base `2d49d8b4c4e145285904f6ead1d950bc3331bbdd`. Daily Ledger has a distinct

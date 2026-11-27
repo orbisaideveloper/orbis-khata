@@ -9,7 +9,7 @@ import type { LedgerStore } from './ledger-store'
 import './daily-ledger.css'
 
 type Flow = { kind: 'income' | 'expense' | 'transfer' } | { kind: 'reversal'; originalId: string; offWallet?: boolean } | { kind: 'budget'; category: Category } | HouseholdFlow
-type Props = Readonly<{ store: LedgerStore; language: Language; preview?: boolean }>
+type Props = Readonly<{ store: LedgerStore; language: Language; preview?: boolean; separateBackup?: boolean }>
 const text = (language: Language) => (key: LedgerKey) => label(language, key)
 
 function makeCommand(flow: Flow, wallet: Wallet, form: FormData): Command {
@@ -173,7 +173,7 @@ function BudgetPanel({ entries, language, onPlan }: Readonly<{
   </details>
 }
 
-export default function DailyLedger({ store, language, preview = false }: Props) {
+export default function DailyLedger({ store, language, preview = false, separateBackup = false }: Props) {
   const t = text(language)
   const [entries, setEntries] = useState<readonly Entry[] | 'failed'>()
   const [attempt, setAttempt] = useState(0)
@@ -206,7 +206,7 @@ export default function DailyLedger({ store, language, preview = false }: Props)
   return <div className="daily-ledger">
     <section className="daily-panel daily-overview">
       <h1>{t('title')}</h1>
-      {!preview && <p>{t('backup')}</p>}
+      {!preview && <p>{t(separateBackup ? 'separateBackup' : 'backup')}</p>}
       <p>{t('balance')}</p>
       <strong className="daily-balance">{displayAmount(balance.cash + balance.bank, language)}</strong>
       <dl className="daily-summary">{([

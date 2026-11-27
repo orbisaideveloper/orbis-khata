@@ -445,3 +445,18 @@ it('requires the active native account for Daily Ledger export, verification and
   await expect(runtime.verifyNativeDailyLedgerBackup(other, archive, key)).rejects.toThrow('ANDROID_LOCAL_ACTOR_CHANGED')
   await expect(runtime.restoreNativeDailyLedgerBackup(other, archive, key)).rejects.toThrow('ANDROID_LOCAL_ACTOR_CHANGED')
 })
+
+it('gates Daily Ledger recovery on the secure device lock, credential and current enrollment generation', async () => {
+  const runtime = await import('./runtime')
+  await runtime.enrollVerifiedCentralIdentity(actor, displayId)
+  fixture.deviceLockStatus.mockResolvedValueOnce({ secure: false })
+  await expect(runtime.authorizeNativeDailyLedgerRecovery(actor, false)).rejects.toThrow('ANDROID_DEVICE_CREDENTIAL_REQUIRED')
+  fixture.credential.mockResolvedValueOnce(false)
+  await expect(runtime.authorizeNativeDailyLedgerRecovery(actor, true)).rejects.toThrow('ANDROID_DEVICE_CREDENTIAL_REQUIRED')
+  const guard = await runtime.authorizeNativeDailyLedgerRecovery(actor, true)
+  expect(guard).not.toThrow()
+  runtime.lockNativeOfflineIdentity()
+  expect(guard).toThrow('ANDROID_LOCAL_UNLOCK_REQUIRED')
+  await runtime.enrollVerifiedCentralIdentity(actor, displayId)
+  expect(guard).toThrow('ANDROID_LOCAL_ACTOR_CHANGED')
+})
