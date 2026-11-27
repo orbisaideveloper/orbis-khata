@@ -54,16 +54,16 @@ function coerce(value:any,field:Field){
  if(field.type==='DateTime')return new Date(value);
  return value;
 }
-function defaultValue(key:string,field:Field,now:Date,allocateId:()=>string){
+function defaultValue(key:string,field:Field,now:Date){
  const value=field.default;
- if(value==='uuid()')return allocateId();
+ if(value==='uuid()')return crypto.randomUUID();
  if(value==='now()'||key==='updatedAt')return now;
  if(value!==undefined)return coerce(JSON.parse(value),field);
  return field.nullable?null:undefined;
 }
-function defaults(model:Model,data:Row,now:Date,allocateId:()=>string){
+function defaults(model:Model,data:Row,now:Date){
  const row:Row={};
- for(const [key,field] of Object.entries(model.fields))row[key]=key in data?coerce(data[key],field):defaultValue(key,field,now,allocateId);
+ for(const [key,field] of Object.entries(model.fields))row[key]=key in data?coerce(data[key],field):defaultValue(key,field,now);
  return {...row,...Object.fromEntries(Object.entries(data).map(([k,v])=>[k,model.fields[k]?coerce(v,model.fields[k]):v]))};
 }
 function changedValue(previous:any,value:any,field?:Field){
@@ -84,14 +84,14 @@ function foreignKeys(model:Model,state:LotteryState,row:Row){
  * It cannot issue SQL or access Foundation/Khata tables. Original domain services
  * validate records; this adapter supplies atomic rollback, types and uniqueness.
  */
-export function createLotteryStore(initial:LotteryState={},clock=()=>new Date(),allocateId:(model:string)=>string=()=>crypto.randomUUID()){
+export function createLotteryStore(initial:LotteryState={},clock=()=>new Date()){
  let state=structuredClone(initial),changes=new Map<string,LotteryChange>();const client:Row={};
  const touch=(model:string,row:Row,removed=false)=>{if(typeof row.id!=='string'||!row.id){throw new Error('LOTTERY_RECORD_ID_REQUIRED');}changes.set(model+':'+row.id,{model,id:row.id,value:removed?null:structuredClone(row)});};
  for(const [name,model] of Object.entries(models)){
   state[name]??=[];
   const rows=()=>state[name];
   const find=({where={},orderBy={},skip=0,take,select}:Row={})=>rows().filter(row=>matches(row,where)).sort((a,b)=>compare(orderBy,a,b)).slice(skip,take===undefined?undefined:skip+take).map(row=>structuredClone(select?Object.fromEntries(Object.keys(select).filter(k=>select[k]).map(k=>[k,row[k]])):row));
-  const create=({data}:Row)=>{const row=defaults(model,data,clock(),()=>allocateId(name));if(row.organizationId&&!state.foundationAccountingOrganization.some(org=>org.id===row.organizationId)){throw new Error('ORGANIZATION_NOT_FOUND');}foreignKeys(model,state,row);unique(model,rows(),row);touch(name,row);rows().push(row);return structuredClone(row);};
+  const create=({data}:Row)=>{const row=defaults(model,data,clock());if(row.organizationId&&!state.foundationAccountingOrganization.some(org=>org.id===row.organizationId)){throw new Error('ORGANIZATION_NOT_FOUND');}foreignKeys(model,state,row);unique(model,rows(),row);touch(name,row);rows().push(row);return structuredClone(row);};
   const update=({where,data}:Row)=>{
    const row=rows().find(row=>matches(row,where));if(!row){throw new Error('LOTTERY_RECORD_NOT_FOUND');}
    const next={...row};for(const [key,value] of Object.entries(data)){next[key]=changedValue(row[key],value,model.fields[key]);}
