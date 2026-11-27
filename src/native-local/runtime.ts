@@ -9,6 +9,8 @@
  * NOTE: Release needs real-phone enrollment, reboot, offline, isolation, rollback,
  * low-space and test-update acceptance. Backup/export and restore are separate gates.
  */
+import { openDailyLedger } from '../daily-ledger/repository'
+import type { Command } from '../daily-ledger/journal'
 import { CompanySyncConflict, companyProjection, companyProjectionText, companySyncKey, companySyncState, isUnchangedCompanySubset, mergeBackupCompanies, mergeCompanyExport, parseCompanyExport, withoutCompanyProjection } from '../sync/company-transfer'
 import { SQLiteConnection, CapacitorSQLite } from '@capacitor-community/sqlite'
 import { registerPlugin } from '@capacitor/core'
@@ -234,6 +236,21 @@ async function hydrateForActor(actor:string,conn:SqlitePort,firstEnrollment=fals
   restoreDeviceLocalSnapshot(await readState(conn,actor,firstEnrollment))
 }
 const DRIVE_RECOVERY_KEY = 'drive-recovery-key'
+
+function withPersonalLedger<T>(owner: string, work: (ledger: Awaited<ReturnType<typeof openDailyLedger>>) => Promise<T>) {
+  return ordered(async () => {
+    const scope = assertActive()
+    const guard = () => {
+      const current = assertActive()
+      if (scope.actor !== owner || current.generation !== scope.generation) throw new Error('ANDROID_LOCAL_ACTOR_CHANGED')
+    }
+    guard()
+    return work(await openDailyLedger(scope.db, codec, owner, guard))
+  })
+}
+
+export const readNativeDailyLedger = (owner: string) => withPersonalLedger(owner, ledger => ledger.list())
+export const saveNativeDailyLedger = (owner: string, input: Command) => withPersonalLedger(owner, ledger => ledger.save(input))
 
 export function readNativeDriveRecoveryKey(actor: string): Promise<string | null> {
   return ordered(async () => {
