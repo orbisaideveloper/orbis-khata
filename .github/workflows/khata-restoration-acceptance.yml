@@ -1,0 +1,170 @@
+name: Khata restoration pre-merge acceptance
+run-name: "Restoration acceptance — source 6eb80eef9b99"
+
+on:
+  push:
+    branches: [ci/main-restoration-acceptance-20261127]
+    paths:
+      - .github/workflows/khata-restoration-acceptance.yml
+
+permissions:
+  contents: read
+
+# This is an evidence-only branch. The workflow commit is not the tested commit.
+env:
+  RESTORATION_SHA: 6eb80eef9b99703675ea5b2f98736c2419c5ab92
+  RESTORATION_TREE: 3a9879308cd02c94e4758ab3e8c23116edb6e6c3
+  VITE_ORBIS_CUSTOMER_API_URL: https://admin.example.test
+  VITE_KHATA_DATA_URL: https://data.example.test/khata
+
+jobs:
+  web-finance:
+    if: github.repository == 'orbisaideveloper/orbis-khata' && github.ref == 'refs/heads/ci/main-restoration-acceptance-20261127'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_USER: khata_test
+          POSTGRES_PASSWORD: disposable-ci-only
+          POSTGRES_DB: khata_concurrency_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U khata_test -d khata_concurrency_test"
+          --health-interval 5s --health-timeout 5s --health-retries 10
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ env.RESTORATION_SHA }}
+          persist-credentials: false
+      - name: Verify exact checkout and write provenance
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$RESTORATION_SHA"
+          test "$(git rev-parse HEAD^{tree})" = "$RESTORATION_TREE"
+          mkdir -p quality-reports/restoration
+          printf 'tested_sha=%s\ntested_tree=%s\nworkflow_sha=%s\nrun_id=%s\nsonar=NOT_CERTIFIED\n' \
+            "$RESTORATION_SHA" "$RESTORATION_TREE" "$GITHUB_SHA" "$GITHUB_RUN_ID" \
+            | tee quality-reports/restoration/provenance.txt >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '24'
+          cache: npm
+      - name: Install locked dependencies
+        run: npm ci --no-fund
+      - name: Web build and source gates
+        run: |
+          set -euo pipefail
+          node --test scripts/audit-advisory-gate.test.mjs
+          node scripts/audit-advisory-gate.mjs
+          npm run lint
+          npm run typecheck
+          npm run quality:knip
+          npm run quality:jscpd
+          npm run build
+      - name: Financial safety and coverage
+        env:
+          KHATA_CONCURRENCY_DATABASE_URL: postgres://khata_test:disposable-ci-only@127.0.0.1:5432/khata_concurrency_test
+        run: |
+          set -euo pipefail
+          npm run test:sql 2>&1 | tee quality-reports/restoration/sql.txt
+          node scripts/verify-concurrency.mjs 2>&1 | tee quality-reports/restoration/postgres-ledger.txt
+          node scripts/verify-lottery-cache-concurrency.mjs 2>&1 | tee quality-reports/restoration/postgres-lottery.txt
+          node scripts/verify-statement-relay-concurrency.mjs 2>&1 | tee quality-reports/restoration/postgres-statement.txt
+          npm run test:coverage 2>&1 | tee quality-reports/restoration/coverage.txt
+      - name: Web and PWA browser checks
+        run: |
+          set -euo pipefail
+          npx playwright install --with-deps chromium
+          npm run test:e2e 2>&1 | tee quality-reports/restoration/playwright.txt
+      - name: Preserve web and finance evidence
+        if: always()
+        uses: actions/upload-artifact@v5
+        with:
+          name: restoration-web-${{ env.RESTORATION_SHA }}
+          path: quality-reports/restoration/
+          retention-days: 14
+
+  android-debug:
+    if: github.repository == 'orbisaideveloper/orbis-khata' && github.ref == 'refs/heads/ci/main-restoration-acceptance-20261127'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ env.RESTORATION_SHA }}
+          persist-credentials: false
+      - name: Verify exact checkout and write provenance
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$RESTORATION_SHA"
+          test "$(git rev-parse HEAD^{tree})" = "$RESTORATION_TREE"
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
+          mkdir -p "$RUNNER_TEMP/restoration-android"
+          printf 'tested_sha=%s\ntested_tree=%s\nworkflow_sha=%s\nrun_id=%s\nandroid=debug_only\nphysical_device=NOT_TESTED\n' \
+            "$RESTORATION_SHA" "$RESTORATION_TREE" "$GITHUB_SHA" "$GITHUB_RUN_ID" \
+            | tee "$RUNNER_TEMP/restoration-android/provenance.txt" >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '24'
+          cache: npm
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: gradle
+          cache-dependency-path: |
+            android/**/*.gradle
+            android/gradle/wrapper/gradle-wrapper.properties
+            package-lock.json
+      - name: Build debug APK, lint and run Android unit tests
+        run: |
+          set -euo pipefail
+          test -f "$ANDROID_HOME/platforms/android-36/android.jar"
+          npm ci --include=optional --no-fund
+          python3 scripts/khata-selftest.py
+          # The release helper requires main. Run its existing debug tasks on the pinned detached source.
+          python3 -c 'import runpy; runpy.run_path("scripts/khata.py")["android_preflight"]()'
+          npm run build
+          npx --no-install cap sync android
+          (cd android && ./gradlew --no-daemon lintDebug testDebugUnitTest assembleDebug) \
+            2>&1 | tee "$RUNNER_TEMP/restoration-android/gradle-debug.txt"
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
+      - name: Require KVM on the disposable runner
+        run: |
+          set -euo pipefail
+          if [[ ! -c /dev/kvm ]]; then
+            echo 'BLOCKED: emulator KVM unavailable; debug build alone is not device evidence.' | tee -a "$GITHUB_STEP_SUMMARY"
+            exit 1
+          fi
+          sudo chown "$(id -un)" /dev/kvm
+          test -r /dev/kvm && test -w /dev/kvm
+      - name: Instrumentation and offline app startup
+        uses: reactivecircus/android-emulator-runner@a421e43855164a8197daf9d8d40fe71c6996bb0d # v2
+        with:
+          api-level: 35
+          arch: x86_64
+          target: google_apis
+          disable-animations: true
+          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
+          script: |
+            bash -o pipefail -c '(cd android && ./gradlew --no-daemon :app:connectedDebugAndroidTest) 2>&1 | tee "$RUNNER_TEMP/restoration-android/instrumentation.txt"'
+            adb install -r android/app/build/outputs/apk/debug/app-debug.apk
+            adb shell cmd connectivity airplane-mode enable
+            test "$(adb shell settings get global airplane_mode_on | tr -d '\r')" = 1
+            bash -o pipefail -c 'adb shell am start -W -n com.orbisaideveloper.khata/.MainActivity | tee "$RUNNER_TEMP/restoration-android/startup.txt"'
+            adb shell pidof com.orbisaideveloper.khata
+            test -z "$(git status --porcelain=v1 --untracked-files=all)"
+      - name: Preserve debug and emulator evidence
+        if: always()
+        uses: actions/upload-artifact@v5
+        with:
+          name: restoration-android-debug-${{ env.RESTORATION_SHA }}
+          path: |
+            ${{ runner.temp }}/restoration-android/
+            android/app/build/outputs/apk/debug/app-debug.apk
+            android/app/build/reports/
+            android/app/build/outputs/androidTest-results/
+          retention-days: 14
