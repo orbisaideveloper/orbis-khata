@@ -14,8 +14,6 @@ permissions:
 env:
   RESTORATION_SHA: 6eb80eef9b99703675ea5b2f98736c2419c5ab92
   RESTORATION_TREE: 3a9879308cd02c94e4758ab3e8c23116edb6e6c3
-  VITE_ORBIS_CUSTOMER_API_URL: https://admin.example.test
-  VITE_KHATA_DATA_URL: https://data.example.test/khata
 
 jobs:
   web-finance:
@@ -54,7 +52,7 @@ jobs:
           cache: npm
       - name: Install locked dependencies
         run: npm ci --no-fund
-      - name: Web build and source gates
+      - name: Web source gates
         run: |
           set -euo pipefail
           node --test scripts/audit-advisory-gate.test.mjs
@@ -63,7 +61,11 @@ jobs:
           npm run typecheck
           npm run quality:knip
           npm run quality:jscpd
-          npm run build
+      - name: Build Web with isolated endpoints
+        env:
+          VITE_ORBIS_CUSTOMER_API_URL: https://admin.example.test
+          VITE_KHATA_DATA_URL: https://data.example.test/khata
+        run: npm run build
       - name: Financial safety and coverage
         env:
           KHATA_CONCURRENCY_DATABASE_URL: postgres://khata_test:disposable-ci-only@127.0.0.1:5432/khata_concurrency_test
@@ -73,7 +75,9 @@ jobs:
           node scripts/verify-concurrency.mjs 2>&1 | tee quality-reports/restoration/postgres-ledger.txt
           node scripts/verify-lottery-cache-concurrency.mjs 2>&1 | tee quality-reports/restoration/postgres-lottery.txt
           node scripts/verify-statement-relay-concurrency.mjs 2>&1 | tee quality-reports/restoration/postgres-statement.txt
-          npm run test:coverage 2>&1 | tee quality-reports/restoration/coverage.txt
+          # Match Khata Quality's default unit-test environment. Build-only URLs trigger real fetch in LiveDraw.test.
+          env -u VITE_ORBIS_CUSTOMER_API_URL -u VITE_KHATA_DATA_URL \
+            npm run test:coverage 2>&1 | tee quality-reports/restoration/coverage.txt
       - name: Web and PWA browser checks
         run: |
           set -euo pipefail
@@ -120,6 +124,9 @@ jobs:
             android/gradle/wrapper/gradle-wrapper.properties
             package-lock.json
       - name: Build debug APK, lint and run Android unit tests
+        env:
+          VITE_ORBIS_CUSTOMER_API_URL: https://admin.example.test
+          VITE_KHATA_DATA_URL: https://data.example.test/khata
         run: |
           set -euo pipefail
           test -f "$ANDROID_HOME/platforms/android-36/android.jar"
