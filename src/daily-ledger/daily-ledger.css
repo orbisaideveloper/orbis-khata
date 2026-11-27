@@ -1,0 +1,18 @@
+.daily-ledger, .daily-form, .daily-form fieldset { display: grid; min-width: 0; gap: 1rem; }
+.daily-panel { padding: 1rem; border-radius: 1rem; border: 1px solid var(--kh-edge, #d7e2eb); background: Canvas; color: CanvasText; }
+.daily-panel h1, .daily-panel h2, .daily-panel p { margin-block: 0 .5rem; overflow-wrap: anywhere; }
+.daily-balance { display: block; font-size: 1.75rem; overflow-wrap: anywhere; }
+.daily-summary, .daily-actions { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 8rem), 1fr)); gap: .75rem; }
+.daily-summary dd { margin-inline-start: 0; font-weight: 700; overflow-wrap: anywhere; }
+.daily-form fieldset { border: 0; margin: 0; padding: 0; }
+.daily-panel label { display: grid; gap: .35rem; }
+.daily-panel input, .daily-panel select, .daily-ledger button {
+  min-height: 48px; min-width: 0; max-width: 100%; padding: .65rem; border: 1px solid var(--kh-edge, #75849b);
+  border-radius: .65rem; font: inherit; background: Canvas; color: CanvasText; overflow-wrap: anywhere;
+}
+.daily-ledger .daily-primary { background: var(--kh-brand, #2456a5); color: #fff; }
+.daily-ledger :is(input, select, button, summary):focus-visible { outline: 2px solid currentColor; outline-offset: 2px; }
+.daily-panel input, .daily-panel select { width: 100%; }
+.daily-history { margin: .65rem 0 0; padding: 0; list-style: none; }
+.daily-history li { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 8rem), 1fr)); gap: .5rem; padding-block: .7rem; border-top: 1px solid var(--kh-edge, #d7e2eb); overflow-wrap: anywhere; }
+.daily-history button { display: block; margin-block-start: .3rem; }
