@@ -13,6 +13,7 @@ import { financialBackupCodec, generateFinancialBackupKey } from '../../src/sync
 import { today } from '../../src/accounting/model'
 import { householdView } from '../../src/daily-ledger/household'
 import { openDailyLedger } from '../../src/daily-ledger/repository'
+import { monthlyReport } from '../../src/daily-ledger/monthly-report'
 import { envelope, normalize, parseAmount, post, summarize, type Command } from '../../src/daily-ledger/journal'
 
 const owner = '11111111-1111-7111-8111-111111111111'
@@ -562,4 +563,58 @@ it('restores legacy and anchored series exactly while budgeting repayments by th
   expect(summarize(recovered, referenceDay)).toEqual(summarize(original, referenceDay))
   expect(budgets(recovered, referenceDay)).toEqual(budgets(original, referenceDay))
   expect(await openDailyLedgerArchive(owner, await target.exportBackup(key), key)).toEqual(decoded)
+})
+
+it('records opening cash and bank with provenance, linked corrections and exact encrypted restore', async () => {
+  const ledger = await openDailyLedger(sqlite(), codec, owner, noop)
+  const start = { ...base, id: crypto.randomUUID(), kind: 'opening', wallet: 'cash', amountMinor: '314159',
+    note: '  Cash counted  ' } as const
+  await expect(ledger.save({ ...start, note: ' ' })).rejects.toThrow('DAILY_OPENING_SOURCE_REQUIRED')
+  const first = await ledger.save(start)
+  expect(first.command.note).toBe('Cash counted')
+  expect(first.postings).toEqual([
+    { id: start.id + ':0', account: 'cash', delta: '314159' },
+    { id: start.id + ':1', account: 'openingEquity', delta: '-314159' },
+  ])
+  expect(await ledger.save(start)).toEqual(first)
+  await expect(ledger.save({ ...start, amountMinor: '1' })).rejects.toThrow('DAILY_RETRY_CONFLICT')
+  await expect(ledger.save({ ...start, id: crypto.randomUUID() })).rejects.toThrow('DAILY_OPENING_EXISTS')
+  const bank = { ...start, wallet: 'bank', id: crypto.randomUUID(), amountMinor: '501' } as const
+  await ledger.save(bank)
+  await ledger.save(reversal(start.id))
+  await expect(ledger.save(reversal(start.id))).rejects.toThrow('DAILY_REVERSAL_INVALID')
+  await expect(ledger.save({ ...start, id: crypto.randomUUID() })).rejects.toThrow('DAILY_CORRECTION_INVALID')
+  await expect(ledger.save({ ...start, id: crypto.randomUUID(), correctionOf: bank.id })).rejects.toThrow('DAILY_CORRECTION_INVALID')
+  const corrected = await ledger.save({ ...start, id: crypto.randomUUID(), correctionOf: start.id, amountMinor: '314150' })
+  expect(corrected.command).toHaveProperty('correctionOf', start.id)
+  const entries = await ledger.list()
+  expect(summarize(entries, date)).toEqual({
+    balance: { cash: 314150n, bank: 501n }, month: { income: 0n, expense: 0n }, day: { income: 0n, expense: 0n },
+  })
+  expect(budgets(entries, date).map(row => row.actual)).toEqual([0n, 0n, 0n, 0n])
+  const key = generateFinancialBackupKey()
+  const archive = await ledger.exportBackup(key)
+  expect((await openDailyLedgerArchive(owner, archive, key)).rows.map(row => row.entry.command.id))
+    .toEqual([start.id, bank.id, expect.any(String), corrected.command.id])
+  raw?.close()
+  const replacement = await openDailyLedger(sqlite(), codec, owner, noop)
+  expect(await replacement.restoreBackup(archive, key)).toEqual({ inserted: 4, alreadyPresent: 0 })
+  expect(await replacement.restoreBackup(archive, key)).toEqual({ inserted: 0, alreadyPresent: 4 })
+  expect(await replacement.list()).toEqual(entries)
+})
+
+it('exports month-end daily totals, including backdated payments and later reversals only in their own period', async () => {
+  const ledger = await openDailyLedger(sqlite(), codec, owner, noop)
+  await ledger.save({ ...cash, date: '2028-01-31', amountMinor: '1100' })
+  const bill = { ...base, id: crypto.randomUUID(), date: '2028-02-01', kind: 'bill', billType: 'gas',
+    category: 'home', dueDate: '2028-02-29', amountMinor: '725' } as const
+  await ledger.save(bill)
+  const payment = { ...base, id: crypto.randomUUID(), date: '2028-02-29', kind: 'billPay',
+    obligationId: bill.id, wallet: 'cash', amountMinor: '325' } as const
+  await ledger.save(payment)
+  await ledger.save({ ...reversal(payment.id), date: '2028-03-01' })
+  const entries = await ledger.list()
+  expect((await monthlyReport(entries, '2028-02-29').text()).split('\r\n').slice(1)).toEqual(['2028-02-29,-325,0,0,325', ''])
+  expect((await monthlyReport(entries, '2028-03-01').text()).split('\r\n').slice(1)).toEqual(['2028-03-01,325,0,0,-325', ''])
+  expect(budgets(entries, '2028-02-29').find(row => row.category === 'home')?.actual).toBe(325n)
 })

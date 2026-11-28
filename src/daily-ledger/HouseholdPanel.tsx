@@ -102,6 +102,7 @@ export function HouseholdPanel({ entries, day, language, onAction }: Props) {
         return <section key={command.id} className="daily-household-record">
           <h3>{t(billType)} · {amount(total)}</h3>
           <p>{t('dueDate')} · <time dateTime={dueDate}>{dates.format(new Date(dueDate))}</time></p>
+          {!reversed && paid < total && dueDate <= day && <p>{t(dueDate === day ? 'dueToday' : 'overdue')}</p>}
           {command.note && <p>{command.note}</p>}
           <p>{t(status)}{!reversed && ' · ' + t('outstanding') + ' · ' + amount(total - paid)}</p>
           {!reversed && <div className="daily-actions">

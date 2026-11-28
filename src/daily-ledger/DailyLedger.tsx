@@ -9,8 +9,14 @@ import { billTypes, categories, normalize, isCategory, parseAmount, summarize, v
 import type { LedgerStore } from './ledger-store'
 import './daily-ledger.css'
 
-type Flow = { kind: 'income' | 'expense' | 'transfer' } | { kind: 'reversal'; originalId: string; offWallet?: boolean } | { kind: 'budget'; category: Category } | HouseholdFlow
-type Props = Readonly<{ store: LedgerStore; language: Language; preview?: boolean; separateBackup?: boolean }>
+type Flow = { kind: 'income' | 'expense' | 'transfer' } | { kind: 'opening'; wallet: Wallet; correctionOf?: string } | { kind: 'reversal'; originalId: string; offWallet?: boolean } | { kind: 'budget'; category: Category } | HouseholdFlow
+type Props = Readonly<{
+  store: LedgerStore
+  language: Language
+  preview?: boolean
+  separateBackup?: boolean
+  shareMonthlyReport?(entries: readonly Entry[], asOf: string): Promise<void>
+}>
 const text = (language: Language) => (key: LedgerKey) => label(language, key)
 
 function makeCommand(flow: Flow, wallet: Wallet, form: FormData): Command {
@@ -22,7 +28,7 @@ function makeCommand(flow: Flow, wallet: Wallet, form: FormData): Command {
   if (flow.kind === 'billOccurrence') return { ...common, ...flow }
   if (flow.kind === 'person') return { ...common, kind: flow.kind, name: String(form.get('name')) }
   const amountMinor = parseAmount(String(form.get('amount')))
-  if (flow.kind === 'budget') return { ...common, ...flow, amountMinor }
+  if (flow.kind === 'budget' || flow.kind === 'opening') return { ...common, ...flow, amountMinor }
   if (flow.kind === 'borrow' || flow.kind === 'lend' || flow.kind === 'billPay' || flow.kind === 'loanRepay') {
     return { ...common, ...flow, amountMinor, wallet }
   }
@@ -54,6 +60,7 @@ const editableErrors: Readonly<Record<string, LedgerKey>> = {
   DAILY_REVERSAL_INVALID: 'referenceInvalid',
   DAILY_OCCURRENCE_EXISTS: 'alreadyRecorded',
   DAILY_OCCURRENCE_MONTH: 'recurringMonth',
+  DAILY_OPENING_EXISTS: 'alreadyRecorded',
 }
 
 function EntryForm({ store, flow, language, onSave, onCancel }: Props & Readonly<{
@@ -69,7 +76,7 @@ function EntryForm({ store, flow, language, onSave, onCancel }: Props & Readonly
   const busy = useRef(false)
   const bill = flow.kind === 'bill' || flow.kind === 'billSeries'
   const money = flow.kind !== 'reversal' && flow.kind !== 'person' && flow.kind !== 'billOccurrence'
-  const selectWallet = money && !bill && flow.kind !== 'budget'
+  const selectWallet = money && !bill && flow.kind !== 'budget' && flow.kind !== 'opening'
   useEffect(() => { heading.current?.focus() }, [])
 
   async function save(event: FormEvent<HTMLFormElement>) {
@@ -77,7 +84,10 @@ function EntryForm({ store, flow, language, onSave, onCancel }: Props & Readonly
     if (busy.current) return
     let input: Command
     try { input = pending ?? normalize(makeCommand(flow, wallet, new FormData(event.currentTarget))) }
-    catch { setIssue('invalid'); return }
+    catch (error) {
+      setIssue(error instanceof Error && error.message === 'DAILY_OPENING_SOURCE_REQUIRED' ? 'openingSource' : 'invalid')
+      return
+    }
     busy.current = true
     setPending(input)
     setSaving(true)
@@ -92,7 +102,7 @@ function EntryForm({ store, flow, language, onSave, onCancel }: Props & Readonly
   }
 
   return <form className="daily-panel daily-form" aria-labelledby={headingId} onSubmit={event => { void save(event) }}>
-    <h2 id={headingId} tabIndex={-1} ref={heading}>{flow.kind === 'budget' ? t('plan') + ' · ' + t(flow.category) : t(flow.kind)}</h2>
+    <h2 id={headingId} tabIndex={-1} ref={heading}>{flow.kind === 'budget' ? t('plan') + ' · ' + t(flow.category) : t(flow.kind)}{flow.kind === 'opening' && ' · ' + t(flow.wallet)}</h2>
     <fieldset disabled={Boolean(pending)}>
       {flow.kind === 'reversal' && <p>{t(flow.offWallet ? 'billCancel' : 'confirm')}</p>}
       {flow.kind === 'billSeries' && <p>{t('recurringHelp')}</p>}
@@ -116,7 +126,7 @@ function EntryForm({ store, flow, language, onSave, onCancel }: Props & Readonly
       {flow.kind === 'billSeries' && <label>{t('monthlyAnchor')}<input name="dueDay" type="number" min={1} max={31} defaultValue={1} required /></label>}
       {flow.kind !== 'budget' && flow.kind !== 'billOccurrence' &&
         <label>{t('date')}<input name="date" type="date" defaultValue={today()} max={today()} required /></label>}
-      <label>{t('note')}<input name="note" maxLength={240} /></label>
+      <label>{t(flow.kind === 'opening' ? 'openingSource' : 'note')}<input name="note" maxLength={240} required={flow.kind === 'opening'} /></label>
     </fieldset>
     {issue && <p role="alert">{t(issue)}</p>}
     <div className="daily-actions">
@@ -178,12 +188,13 @@ function BudgetPanel({ entries, language, onPlan }: Readonly<{
   </details>
 }
 
-export default function DailyLedger({ store, language, preview = false, separateBackup = false }: Props) {
+export default function DailyLedger({ store, language, preview = false, separateBackup = false, shareMonthlyReport }: Props) {
   const t = text(language)
   const [entries, setEntries] = useState<readonly Entry[] | 'failed'>()
   const [attempt, setAttempt] = useState(0)
   const [flow, setFlow] = useState<Flow>()
   const [saved, setSaved] = useState(false)
+  const [shareStatus, setShareStatus] = useState<'pending' | 'failed'>()
   useEffect(() => {
     let current = true
     void store.list().then(
@@ -207,7 +218,18 @@ export default function DailyLedger({ store, language, preview = false, separate
       setSaved(true)
     }} /></div>
 
-  const { balance, month, day } = summarize(entries, today())
+  const asOf = today()
+  const { balance, month, day } = summarize(entries, asOf)
+  async function shareReport(entriesToReport: readonly Entry[]) {
+    if (!shareMonthlyReport) return
+    setShareStatus('pending')
+    try {
+      await shareMonthlyReport(entriesToReport, asOf)
+      setShareStatus(undefined)
+    } catch {
+      setShareStatus('failed')
+    }
+  }
   return <div className="daily-ledger">
     <section className="daily-panel daily-overview">
       <h1>{t('title')}</h1>
@@ -224,7 +246,27 @@ export default function DailyLedger({ store, language, preview = false, separate
       <button type="button" className="daily-primary" onClick={() => start({ kind: 'expense' })}>{t('expense')}</button>
     </div>
     <button type="button" className="daily-transfer" onClick={() => start({ kind: 'transfer' })}>{t('transfer')}</button>
+    <details className="daily-panel">
+      <summary>{t('opening')}</summary>
+      <p>{t('openingHelp')}</p>
+      {(['cash', 'bank'] as const).map(wallet => {
+        const original = entries.find(({ command }) => command.kind === 'opening' && command.wallet === wallet)
+        const reversed = original && entries.some(({ command }) => command.kind === 'reversal' && command.originalId === original.command.id)
+        return <button type="button" key={wallet} disabled={Boolean(original && !reversed)}
+          onClick={() => start({ kind: 'opening', wallet, ...(original && { correctionOf: original.command.id }) })}>
+          {t(wallet)}
+        </button>
+      })}
+    </details>
     {saved && <output role="status">{t(preview ? 'sampleSaved' : 'saved')}</output>}
+    {shareMonthlyReport && <details className="daily-panel">
+      <summary>{t('monthlyReport')}</summary>
+      <p>{t('reportHelp')}</p>
+      <button type="button" disabled={shareStatus === 'pending'} onClick={() => { void shareReport(entries) }}>
+        {t('shareReport')}
+      </button>
+      {shareStatus === 'failed' && <p role="alert">{t('shareFailed')}</p>}
+    </details>}
     <BudgetPanel entries={entries} language={language} onPlan={category => start({ kind: 'budget', category })} />
     <HouseholdPanel entries={entries} day={today()} language={language} onAction={start} />
     <History entries={entries} language={language} onReverse={originalId => start({ kind: 'reversal', originalId })} />

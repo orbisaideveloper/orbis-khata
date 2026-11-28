@@ -12,7 +12,7 @@ beforeEach(() => {
   vi.resetAllMocks(); localStorage.clear()
   state.session = { user: { id: 'owner-a' } }; state.loading = false; state.recovery = false; state.unavailable = false
 })
-afterEach(cleanup)
+afterEach(() => { cleanup(); vi.unstubAllEnvs() })
 function english() {
   fireEvent.change(screen.getByRole('combobox'), { target: { value: 'en' } })
 }
@@ -94,4 +94,21 @@ it('uses Android Back to dismiss the menu, then return to the previous books pag
   expect(screen.getByLabelText('More options').closest('details')?.open).toBe(false)
   expect(back()).toBe(true)
   expect(back()).toBe(false)
+})
+
+it('shows the Web availability notice only to the configured Central session owner', () => {
+  const owner = '01234567-89ab-7def-8123-456789abcdef'
+  vi.stubEnv('VITE_KHATA_DAILY_LEDGER_WEB_OWNER', owner)
+  state.session = { user: { id: owner } }
+  const view = render(<App />)
+  english()
+  fireEvent.click(screen.getByRole('button', { name: /Daily accounts/ }))
+  expect(screen.getByRole('heading', { name: 'Daily Ledger' })).toBeVisible()
+  expect(screen.getByRole('status')).toHaveTextContent('reading and saving on the web are unavailable')
+  expect(screen.queryByRole('button', { name: 'Money received' })).toBeNull()
+  expect(screen.queryByText(/Total cash and bank/)).toBeNull()
+  state.session = { user: { id: '11234567-89ab-7def-8123-456789abcdef' } }
+  view.rerender(<App />)
+  act(() => window.dispatchEvent(new PopStateEvent('popstate', { state: { khataView: 'daily' } })))
+  expect(screen.queryByRole('heading', { name: 'Daily Ledger' })).toBeNull()
 })

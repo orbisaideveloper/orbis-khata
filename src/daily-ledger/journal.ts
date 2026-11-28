@@ -5,12 +5,13 @@ export type Wallet = 'cash' | 'bank'
 export const categories = ['food', 'home', 'travel', 'other'] as const
 export type Category = typeof categories[number]
 export const isCategory = (value: unknown): value is Category => categories.some(category => category === value)
-type Account = Wallet | 'income' | 'expense' | 'receivable' | 'payable'
+type Account = Wallet | 'income' | 'expense' | 'receivable' | 'payable' | 'openingEquity'
 export const billTypes = ['electricity', 'gas', 'rent', 'internet', 'school', 'other'] as const
 export type BillType = typeof billTypes[number]
 type BillTerms = Readonly<{ billType: BillType; category: Category; dueDate: string; amountMinor: string }>
 type Header = Readonly<{ version: 1; id: string; date: string; note: string }>
 export type Command = Header & (
+  | Readonly<{ kind: 'opening'; wallet: Wallet; amountMinor: string; correctionOf?: string }>
   | Readonly<{ kind: 'income'; wallet: Wallet; amountMinor: string }>
   | Readonly<{ kind: 'expense'; wallet: Wallet; amountMinor: string; category?: Category }>
   | Readonly<{ kind: 'transfer'; from: Wallet; to: Wallet; amountMinor: string }>
@@ -62,6 +63,10 @@ export function normalize(input: Command): Command {
   if (kind === 'budget' && isCategory(input.category) && input.date.endsWith('-01')) {
     return { ...header, kind, amountMinor, category: input.category }
   }
+  if (kind === 'opening' && wallet(input.wallet)) {
+    if (!header.note) throw new Error('DAILY_OPENING_SOURCE_REQUIRED')
+    return { ...header, kind, amountMinor, wallet: input.wallet, ...correction }
+  }
   if (kind === 'income' && wallet(input.wallet)) return { ...header, kind, amountMinor, wallet: input.wallet }
   if (kind === 'expense' && wallet(input.wallet) && (input.category === undefined || isCategory(input.category))) {
     return { ...header, kind, amountMinor, wallet: input.wallet, ...(input.category && { category: input.category }) }
@@ -111,6 +116,7 @@ export function post(command: Command, original?: Entry): Entry {
     })) }
   }
   if (command.kind === 'transfer') return pair(command, command.to, command.from, command.amountMinor)
+  if (command.kind === 'opening') return pair(command, command.wallet, 'openingEquity', command.amountMinor)
   if (command.kind === 'income') return pair(command, command.wallet, 'income', command.amountMinor)
   if (command.kind === 'expense') return pair(command, 'expense', command.wallet, command.amountMinor)
   if (command.kind === 'billPay' && original?.command.id === command.obligationId &&

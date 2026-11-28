@@ -23,7 +23,7 @@ export function billDetails(command: Command, commands: ReadonlyMap<string, Comm
 }
 
 export function needsHouseholdHistory(command: Command) {
-  return isLoan(command) || isBill(command) || isSettlement(command)
+  return command.kind === 'opening' || isLoan(command) || isBill(command) || isSettlement(command)
 }
 
 // Reversals resolve the original settlement by operation ID.
@@ -80,6 +80,11 @@ export function postHousehold(command: Command, entries: readonly Entry[], curre
   const commands = new Map(history.map(row => [row.id, row]))
   const reversed = new Set(history.flatMap(row => row.kind === 'reversal' ? [row.originalId] : []))
   checkCorrection(command, history, commands)
+  if (command.kind === 'opening') {
+    const prior = history.filter(row => row.kind === 'opening' && row.wallet === command.wallet).at(-1)
+    if (prior && !reversed.has(prior.id)) throw new Error('DAILY_OPENING_EXISTS')
+    if (prior?.id !== command.correctionOf) throw new Error('DAILY_CORRECTION_INVALID')
+  }
   if (isLoan(command)) {
     const person = commands.get(command.personId)
     if (person?.kind !== 'person' || command.date < person.date) throw new Error('DAILY_REFERENCE_INVALID')

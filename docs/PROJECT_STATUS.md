@@ -1,3 +1,26 @@
+## 2026-11-28 — Daily Ledger opening balances and main Quality recovery
+
+Main baseline `f05cc7eb33eccf7cdbefa5c0ebe1f69e4692c6fa`. Khata Quality run
+`46115064884` stopped at 89.97% function coverage against its existing 90%
+threshold. Targeted tests now run the Daily Ledger Drive adapter through
+Central owner denial, verified readback, restore reauthorization and foreground
+automatic scheduling. CI workflows and coverage thresholds are unchanged.
+
+Android local Daily Ledger supports a sourced Cash and Bank opening balance,
+immutable linked corrections and reversals, overdue/due-today bill labels,
+and user-initiated monthly CSV sharing of aggregated paise totals. Opening
+postings affect the wallet and opening equity only. Archives still authenticate
+and replay the full journal and outbox. Use an updated reader for archives
+containing an opening command. For rollback, disable the feature and preserve
+the encrypted database and verified archives before considering a code revert.
+
+The regular Web build keeps Daily Ledger unavailable by default. An explicitly
+configured, Central-authenticated owner can open the availability page.
+Authoritative Web reads and writes require a verified server personal-ledger
+scope and approved entitlements. The separate Web preview remains synthetic.
+Advance, excess-payment and refund policies remain pending. See the
+[Daily Ledger Audit](https://docs.google.com/document/d/1os9R2V7onk-irGDNtNUODkbHvNDeasyQUhpqbd4l6YI/edit).
+
 ## 2026-11-28 — Daily Ledger calendar-month correction
 
 Base `1ccaed01ed628bf53ad6736bbef0e06731158508`. Recurring series retain an
