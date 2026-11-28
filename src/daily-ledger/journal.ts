@@ -1,10 +1,9 @@
-import { minor } from '../accounting/model'
 import { isMonthlyAnchor, recurringDueDate } from './calendar'
 
 export type Wallet = 'cash' | 'bank'
 export const categories = ['food', 'home', 'travel', 'other'] as const
 export type Category = typeof categories[number]
-export const isCategory = (value: unknown): value is Category => categories.some(category => category === value)
+export const isCategory = (value: unknown): value is Category => (categories as readonly unknown[]).includes(value)
 type Account = Wallet | 'income' | 'expense' | 'receivable' | 'payable' | 'openingEquity'
 export const billTypes = ['electricity', 'gas', 'rent', 'internet', 'school', 'other'] as const
 export type BillType = typeof billTypes[number]
@@ -31,66 +30,105 @@ export const validId = (value: string) => /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f
 export const validDate = (date: string) => /^\d{4}-\d{2}-\d{2}$/u.test(date) &&
   Number.isFinite(Date.parse(date)) && new Date(date).toISOString().slice(0, 10) === date
 const wallet = (value: unknown): value is Wallet => value === 'cash' || value === 'bank'
-export const parseAmount = minor
+export { minor as parseAmount } from '../accounting/model'
+
+type AmountCommand = Extract<Command, { amountMinor: string }>
+type BillCommand = Extract<Command, { kind: 'bill' | 'billSeries' }>
+
+function normalizeBill(input: BillCommand, header: Header, correction: { correctionOf?: string }): Command {
+  if (!billTypes.includes(input.billType) || !isCategory(input.category) || !validDate(input.dueDate)) {
+    throw new Error('DAILY_COMMAND_INVALID')
+  }
+  const terms = { ...header, kind: input.kind, amountMinor: input.amountMinor, billType: input.billType, category: input.category, dueDate: input.dueDate }
+  if (input.kind === 'bill') {
+    if (input.dueDate < input.date) throw new Error('DAILY_COMMAND_INVALID')
+    return { ...terms, kind: input.kind, ...correction }
+  }
+  if (input.anchorDay === null) throw new Error('DAILY_COMMAND_INVALID')
+  const anchor = input.anchorDay ?? Number(input.dueDate.slice(8))
+  if (!isMonthlyAnchor(anchor) || recurringDueDate(input.date.slice(0, 7), anchor) !== input.dueDate) {
+    throw new Error('DAILY_COMMAND_INVALID')
+  }
+  if (input.anchorDay === undefined) return { ...terms, kind: input.kind }
+  // Keep legacy serialized commands and their pending-outbox digests byte-for-byte.
+  return { ...terms, kind: input.kind, anchorDay: anchor }
+}
+
+function normalizeWallet(input: Exclude<AmountCommand, BillCommand | { kind: 'transfer' | 'budget' }>,
+  header: Header, correction: { correctionOf?: string }): Command {
+  if (!wallet(input.wallet)) throw new Error('DAILY_COMMAND_INVALID')
+  const { kind, amountMinor } = input
+  const common = { ...header, kind, amountMinor }
+  switch (kind) {
+    case 'opening':
+      if (!header.note) throw new Error('DAILY_OPENING_SOURCE_REQUIRED')
+      return { ...common, kind, wallet: input.wallet, ...correction }
+    case 'income':
+      return { ...common, kind, wallet: input.wallet }
+    case 'expense':
+      if (input.category !== undefined && !isCategory(input.category)) throw new Error('DAILY_COMMAND_INVALID')
+      return { ...common, kind, wallet: input.wallet, ...(input.category && { category: input.category }) }
+    case 'borrow':
+    case 'lend':
+      if (!validId(input.personId)) throw new Error('DAILY_COMMAND_INVALID')
+      return { ...common, kind, personId: input.personId, wallet: input.wallet, ...correction }
+    case 'loanRepay':
+    case 'billPay':
+      if (!validId(input.obligationId)) throw new Error('DAILY_COMMAND_INVALID')
+      return { ...common, kind, obligationId: input.obligationId, wallet: input.wallet, ...correction }
+    default:
+      throw new Error('DAILY_COMMAND_INVALID')
+  }
+}
+
+function normalizeAmount(input: AmountCommand, header: Header, correction: { correctionOf?: string }): Command {
+  const { kind, amountMinor } = input
+  if (typeof amountMinor !== 'string' || !/^[1-9]\d{0,11}$/u.test(amountMinor)) throw new Error('DAILY_AMOUNT_INVALID')
+  switch (kind) {
+    case 'transfer':
+      if (!wallet(input.from) || !wallet(input.to) || input.from === input.to) throw new Error('DAILY_COMMAND_INVALID')
+      return { ...header, kind, amountMinor, from: input.from, to: input.to }
+    case 'budget':
+      if (!isCategory(input.category) || !input.date.endsWith('-01')) throw new Error('DAILY_COMMAND_INVALID')
+      return { ...header, kind, amountMinor, category: input.category }
+    case 'bill':
+    case 'billSeries':
+      // The order of these properties is part of older backup digests.
+      return normalizeBill(input, header, correction)
+    default:
+      return normalizeWallet(input, header, correction)
+  }
+}
+
+function normalizeName(value: unknown) {
+  const name = typeof value === 'string' ? value.trim().normalize('NFC') : ''
+  if (!name || name.length > 80) throw new Error('DAILY_COMMAND_INVALID')
+  return name
+}
 
 export function normalize(input: Command): Command {
   if (input.version !== 1 || !validId(input.id) || !validDate(input.date) ||
       typeof input.note !== 'string' || input.note.length > 240) throw new Error('DAILY_COMMAND_INVALID')
   const header = { version: 1 as const, id: input.id, date: input.date, note: input.note.trim() }
-  if (input.kind === 'reversal') {
+  const { kind } = input
+  if (kind === 'reversal') {
     if (!validId(input.originalId) || input.originalId === input.id) throw new Error('DAILY_REVERSAL_INVALID')
-    return { ...header, kind: input.kind, originalId: input.originalId }
+    return { ...header, kind, originalId: input.originalId }
   }
   const correctionOf = 'correctionOf' in input ? input.correctionOf : undefined
   if (correctionOf !== undefined && (!validId(correctionOf) || correctionOf === input.id)) {
     throw new Error('DAILY_COMMAND_INVALID')
   }
-  const correction = correctionOf ? { correctionOf } : {}
-  const { kind } = input
-  if (kind === 'person' && typeof input.name === 'string') {
-    const name = input.name.trim().normalize('NFC')
-    if (name.length > 0 && name.length <= 80) return { ...header, kind, name }
+  switch (kind) {
+    case 'person':
+      return { ...header, kind, name: normalizeName(input.name) }
+    case 'billOccurrence':
+      if (!validId(input.seriesId) || input.id === input.seriesId) throw new Error('DAILY_COMMAND_INVALID')
+      return { ...header, kind, seriesId: input.seriesId }
+    default:
+      if (!('amountMinor' in input)) throw new Error('DAILY_COMMAND_INVALID')
+      return normalizeAmount(input, header, correctionOf ? { correctionOf } : {})
   }
-  if (kind === 'billOccurrence' && validId(input.seriesId) && input.id !== input.seriesId) {
-    return { ...header, kind, seriesId: input.seriesId }
-  }
-  if (!('amountMinor' in input)) throw new Error('DAILY_COMMAND_INVALID')
-  const { amountMinor } = input
-  if (typeof amountMinor !== 'string' || !/^[1-9]\d{0,11}$/u.test(amountMinor)) throw new Error('DAILY_AMOUNT_INVALID')
-  if (kind === 'transfer' && wallet(input.from) && wallet(input.to) && input.from !== input.to) {
-    return { ...header, kind, amountMinor, from: input.from, to: input.to }
-  }
-  if (kind === 'budget' && isCategory(input.category) && input.date.endsWith('-01')) {
-    return { ...header, kind, amountMinor, category: input.category }
-  }
-  if (kind === 'opening' && wallet(input.wallet)) {
-    if (!header.note) throw new Error('DAILY_OPENING_SOURCE_REQUIRED')
-    return { ...header, kind, amountMinor, wallet: input.wallet, ...correction }
-  }
-  if (kind === 'income' && wallet(input.wallet)) return { ...header, kind, amountMinor, wallet: input.wallet }
-  if (kind === 'expense' && wallet(input.wallet) && (input.category === undefined || isCategory(input.category))) {
-    return { ...header, kind, amountMinor, wallet: input.wallet, ...(input.category && { category: input.category }) }
-  }
-  if ((kind === 'borrow' || kind === 'lend') && validId(input.personId) && wallet(input.wallet)) {
-    return { ...header, kind, amountMinor, personId: input.personId, wallet: input.wallet, ...correction }
-  }
-  if ((kind === 'loanRepay' || kind === 'billPay') && validId(input.obligationId) && wallet(input.wallet)) {
-    return { ...header, kind, amountMinor, obligationId: input.obligationId, wallet: input.wallet, ...correction }
-  }
-  if ((kind === 'bill' || kind === 'billSeries') && billTypes.includes(input.billType) &&
-      isCategory(input.category) && validDate(input.dueDate)) {
-    const terms = { amountMinor, billType: input.billType, category: input.category, dueDate: input.dueDate }
-    if (kind === 'bill' && input.dueDate >= input.date) return { ...header, kind, ...terms, ...correction }
-    if (kind === 'billSeries') {
-      const month = input.date.slice(0, 7)
-      const anchor = input.anchorDay === undefined ? Number(input.dueDate.slice(8)) : input.anchorDay
-      if (isMonthlyAnchor(anchor) && recurringDueDate(month, anchor) === input.dueDate) {
-        // Keep legacy serialized commands and their pending-outbox digests byte-for-byte.
-        return { ...header, kind, ...terms, ...(input.anchorDay !== undefined && { anchorDay: anchor }) }
-      }
-    }
-  }
-  throw new Error('DAILY_COMMAND_INVALID')
 }
 
 const child = (id: string, slot: number) => id + ':' + slot
@@ -104,30 +142,51 @@ export function envelope(owner: string, command: Command, postingCount = postCou
     command, childIds: Array.from({ length: postingCount }, (_, slot) => child(command.id, slot)) }
 }
 
+function postReversal(command: Extract<Command, { kind: 'reversal' }>, original?: Entry): Entry {
+  if (!original) throw new Error('DAILY_REVERSAL_INVALID')
+  if (original.command.id !== command.originalId || original.command.kind === 'reversal' ||
+      command.date < original.command.date) throw new Error('DAILY_REVERSAL_INVALID')
+  if (!original.postings.length && original.command.kind !== 'bill' && original.command.kind !== 'billOccurrence') {
+    throw new Error('DAILY_REVERSAL_INVALID')
+  }
+  return { command, postings: original.postings.map((row, i) => ({
+    id: child(command.id, i), account: row.account, delta: (-BigInt(row.delta)).toString(),
+  })) }
+}
+
 export function post(command: Command, original?: Entry): Entry {
-  if (command.kind === 'budget' || command.kind === 'person' || command.kind === 'bill' ||
-      command.kind === 'billSeries' || command.kind === 'billOccurrence') return { command, postings: [] }
-  if (command.kind === 'reversal') {
-    if (!original || original.command.id !== command.originalId ||
-        (!original.postings.length && original.command.kind !== 'bill' && original.command.kind !== 'billOccurrence') ||
-        original.command.kind === 'reversal' || command.date < original.command.date) throw new Error('DAILY_REVERSAL_INVALID')
-    return { command, postings: original.postings.map((row, i) => ({
-      id: child(command.id, i), account: row.account, delta: (-BigInt(row.delta)).toString(),
-    })) }
-  }
-  if (command.kind === 'transfer') return pair(command, command.to, command.from, command.amountMinor)
-  if (command.kind === 'opening') return pair(command, command.wallet, 'openingEquity', command.amountMinor)
-  if (command.kind === 'income') return pair(command, command.wallet, 'income', command.amountMinor)
-  if (command.kind === 'expense') return pair(command, 'expense', command.wallet, command.amountMinor)
-  if (command.kind === 'billPay' && original?.command.id === command.obligationId &&
-      (original.command.kind === 'bill' || original.command.kind === 'billOccurrence')) {
-    return pair(command, 'expense', command.wallet, command.amountMinor)
-  }
-  if (command.kind === 'borrow') return pair(command, command.wallet, 'payable', command.amountMinor)
-  if (command.kind === 'lend') return pair(command, 'receivable', command.wallet, command.amountMinor)
-  if (command.kind === 'loanRepay' && original?.command.id === command.obligationId) {
-    if (original.command.kind === 'borrow') return pair(command, 'payable', command.wallet, command.amountMinor)
-    if (original.command.kind === 'lend') return pair(command, command.wallet, 'receivable', command.amountMinor)
+  switch (command.kind) {
+    case 'budget':
+    case 'person':
+    case 'bill':
+    case 'billSeries':
+    case 'billOccurrence':
+      return { command, postings: [] }
+    case 'reversal':
+      return postReversal(command, original)
+    case 'transfer':
+      return pair(command, command.to, command.from, command.amountMinor)
+    case 'opening':
+      return pair(command, command.wallet, 'openingEquity', command.amountMinor)
+    case 'income':
+      return pair(command, command.wallet, 'income', command.amountMinor)
+    case 'expense':
+      return pair(command, 'expense', command.wallet, command.amountMinor)
+    case 'borrow':
+      return pair(command, command.wallet, 'payable', command.amountMinor)
+    case 'lend':
+      return pair(command, 'receivable', command.wallet, command.amountMinor)
+    case 'billPay':
+      if (original?.command.id === command.obligationId &&
+          (original.command.kind === 'bill' || original.command.kind === 'billOccurrence')) {
+        return pair(command, 'expense', command.wallet, command.amountMinor)
+      }
+      break
+    case 'loanRepay':
+      if (original?.command.id !== command.obligationId) break
+      if (original.command.kind === 'borrow') return pair(command, 'payable', command.wallet, command.amountMinor)
+      if (original.command.kind === 'lend') return pair(command, command.wallet, 'receivable', command.amountMinor)
+      break
   }
   throw new Error('DAILY_REFERENCE_INVALID')
 }
@@ -139,20 +198,29 @@ function pair(command: Command, debit: Account, credit: Account, amountMinor: st
   ] }
 }
 
+type Earnings = Record<'income' | 'expense', bigint>
+
+function tallyPosting(row: Posting, balance: Record<Wallet, bigint>, month: Earnings, day: Earnings,
+  inMonth: boolean, onDay: boolean) {
+  if (wallet(row.account)) {
+    balance[row.account] += BigInt(row.delta)
+    return
+  }
+  if (!inMonth || (row.account !== 'income' && row.account !== 'expense')) return
+  const delta = BigInt(row.delta) * (row.account === 'income' ? -1n : 1n)
+  month[row.account] += delta
+  if (onDay) day[row.account] += delta
+}
+
 export function summarize(entries: readonly Entry[], today: string) {
   const balance = { cash: 0n, bank: 0n }
   const month = { income: 0n, expense: 0n }
   const day = { income: 0n, expense: 0n }
+  const period = today.slice(0, 7)
   for (const { command, postings } of entries) {
     if (command.date > today) continue
-    for (const row of postings) {
-      if (wallet(row.account)) balance[row.account] += BigInt(row.delta)
-      else if ((row.account === 'income' || row.account === 'expense') && command.date.slice(0, 7) === today.slice(0, 7)) {
-        const delta = BigInt(row.delta) * (row.account === 'income' ? -1n : 1n)
-        month[row.account] += delta
-        if (command.date === today) day[row.account] += delta
-      }
-    }
+    const inMonth = command.date.startsWith(period)
+    for (const row of postings) tallyPosting(row, balance, month, day, inMonth, command.date === today)
   }
   return { balance, month, day }
 }

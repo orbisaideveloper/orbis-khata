@@ -25,31 +25,37 @@ async function facts(snapshot: Snapshot) {
   return { bytes, sha256: await sha256(json), journalRows: snapshot.rows.length, outboxRows: snapshot.rows.length }
 }
 
+function restoreEntry(row: BackupRow, accepted: ReadonlyMap<string, Entry>, reversed: Set<string>) {
+  if (!isObject(row) || !isObject(row.entry) || !isObject(row.entry.command) ||
+      typeof row.wire !== 'string' || typeof row.digest !== 'string') {
+    throw new Error('DAILY_BACKUP_ROW_INVALID')
+  }
+  const command = normalize(row.entry.command)
+  if (accepted.has(command.id)) throw new Error('DAILY_BACKUP_DUPLICATE')
+  if (command.kind === 'reversal') {
+    if (reversed.has(command.originalId)) throw new Error('DAILY_BACKUP_DUPLICATE')
+    reversed.add(command.originalId)
+  }
+  const original = command.kind === 'reversal' ? accepted.get(command.originalId) : undefined
+  const needsHistory = needsHouseholdHistory(command) || (original && needsHouseholdHistory(original.command))
+  if (!needsHistory) return post(command, original)
+  const history = [...accepted.values()].reverse()
+  history.sort((a, b) => b.command.date.localeCompare(a.command.date))
+  return postHousehold(command, history, command.date, original)
+}
+
 async function verifyRows(rows: readonly BackupRow[], owner: string) {
-  // Rows arrive in original commit order. Stable date sorting preserves that order within each date.
+  // Each replay depends on preceding rows in the archive's commit order.
   const accepted = new Map<string, Entry>()
   const reversed = new Set<string>()
-  for (const row of rows) {
-    if (!isObject(row) || !isObject(row.entry) || !isObject(row.entry.command) ||
-        typeof row.wire !== 'string' || typeof row.digest !== 'string') {
-      throw new Error('DAILY_BACKUP_ROW_INVALID')
-    }
-    const command = normalize(row.entry.command)
-    if (accepted.has(command.id)) throw new Error('DAILY_BACKUP_DUPLICATE')
-    if (command.kind === 'reversal') {
-      if (reversed.has(command.originalId)) throw new Error('DAILY_BACKUP_DUPLICATE')
-      reversed.add(command.originalId)
-    }
-    const original = command.kind === 'reversal' ? accepted.get(command.originalId) : undefined
-    const needsHistory = needsHouseholdHistory(command) || (original && needsHouseholdHistory(original.command))
-    const expected = needsHistory ? postHousehold(command, [...accepted.values()].reverse().sort(
-      (a, b) => b.command.date.localeCompare(a.command.date),
-    ), command.date, original) : post(command, original)
-    const wire = JSON.stringify(envelope(owner, command, expected.postings.length))
+  await rows.reduce(async (previous, row) => {
+    await previous
+    const expected = restoreEntry(row, accepted, reversed)
+    const wire = JSON.stringify(envelope(owner, expected.command, expected.postings.length))
     if (JSON.stringify(expected) !== JSON.stringify(row.entry) || wire !== row.wire ||
         await sha256(wire) !== row.digest) throw new Error('DAILY_BACKUP_ROW_INVALID')
-    accepted.set(command.id, expected)
-  }
+    accepted.set(expected.command.id, expected)
+  }, Promise.resolve())
 }
 
 export async function exportDailyLedgerArchive(owner: string, rows: readonly BackupRow[], key: Uint8Array<ArrayBuffer>) {

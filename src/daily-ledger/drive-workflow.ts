@@ -28,6 +28,12 @@ export interface DailyLedgerDrivePorts {
 const matches = (a: Bytes, b: Bytes) => a.byteLength === b.byteLength && a.every((byte, i) => b[i] === byte)
 const newVersion = (file: DriveBackupVersion) => /^[\w-]+$/u.test(file.id) && Number.isFinite(Date.parse(file.createdTime))
 
+async function selected(drive: ArchiveDrive, id: string) {
+  const file = (await drive.history()).find(row => row.id === id && newVersion(row))
+  if (!file) throw new Error('DRIVE_BACKUP_NOT_FOUND')
+  return file
+}
+
 /** The closure holds consent metadata only. Keys and encrypted bytes are not persisted. */
 export function createDailyLedgerDriveWorkflow(ports: DailyLedgerDrivePorts, available: () => boolean) {
   let staged: VersionPreview | undefined
@@ -57,12 +63,6 @@ export function createDailyLedgerDriveWorkflow(ports: DailyLedgerDrivePorts, ava
     busy = true
     try { return await work() }
     finally { busy = false }
-  }
-
-  async function selected(drive: ArchiveDrive, id: string) {
-    const file = (await drive.history()).find(row => row.id === id && newVersion(row))
-    if (!file) throw new Error('DRIVE_BACKUP_NOT_FOUND')
-    return file
   }
 
   return {

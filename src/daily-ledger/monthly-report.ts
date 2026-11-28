@@ -14,7 +14,7 @@ export function monthlyReport(entries: readonly Entry[], asOf: string) {
     days.set(command.date, row)
   }
   const csv = ['date,cash_change_paise,bank_change_paise,income_paise,expense_paise']
-  for (const date of [...days.keys()].sort()) {
+  for (const date of [...days.keys()].sort((a, b) => a.localeCompare(b))) {
     const row = days.get(date)!
     csv.push([date, row.cash, row.bank, row.income, row.expense].join(','))
   }

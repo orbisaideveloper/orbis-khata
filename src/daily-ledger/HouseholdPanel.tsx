@@ -98,7 +98,10 @@ export function HouseholdPanel({ entries, day, language, onAction }: Props) {
       {!activeBills.length && <p>{t('noBills')}</p>}
       {activeBills.map(({ command, billType, dueDate, amountMinor, paid, reversed }) => {
         const total = BigInt(amountMinor)
-        const status = reversed ? 'reversed' : paid === total ? 'paid' : paid > 0n ? 'partiallyPaid' : 'unpaid'
+        let status: 'reversed' | 'paid' | 'partiallyPaid' | 'unpaid' = 'unpaid'
+        if (reversed) status = 'reversed'
+        else if (paid === total) status = 'paid'
+        else if (paid > 0n) status = 'partiallyPaid'
         return <section key={command.id} className="daily-household-record">
           <h3>{t(billType)} · {amount(total)}</h3>
           <p>{t('dueDate')} · <time dateTime={dueDate}>{dates.format(new Date(dueDate))}</time></p>

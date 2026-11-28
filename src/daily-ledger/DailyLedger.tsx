@@ -1,5 +1,5 @@
 import { recurringDueDate } from './calendar'
-import { useEffect, useId, useRef, useState, type FormEvent } from 'react'
+import { useEffect, useId, useRef, useState, type SubmitEvent } from 'react'
 import { today } from '../accounting/model'
 import type { Language } from '../i18n'
 import { budgets } from './budget'
@@ -19,37 +19,61 @@ type Props = Readonly<{
 }>
 const text = (language: Language) => (key: LedgerKey) => label(language, key)
 
+function field(form: FormData, name: string) {
+  const value = form.get(name)
+  return typeof value === 'string' ? value : ''
+}
+
+function commandDate(kind: Flow['kind'], form: FormData, currentDay: string) {
+  if (kind === 'budget') return currentDay.slice(0, 7) + '-01'
+  if (kind === 'billOccurrence') return currentDay
+  return field(form, 'date')
+}
+
+function makeBill(flow: Extract<Flow, { kind: 'bill' | 'billSeries' }>, form: FormData,
+  common: { version: 1; id: string; date: string; note: string }, amountMinor: string): Command {
+  const billType = field(form, 'billType') as BillType
+  const category = form.get('category')
+  if (!billTypes.includes(billType) || !isCategory(category)) throw new Error('DAILY_COMMAND_INVALID')
+  const terms = { ...common, amountMinor, billType, category }
+  if (flow.kind === 'billSeries') {
+    const anchorDay = Number(field(form, 'dueDay'))
+    return { ...terms, kind: flow.kind, dueDate: recurringDueDate(common.date.slice(0, 7), anchorDay), anchorDay }
+  }
+  return { ...terms, kind: flow.kind, dueDate: field(form, 'dueDate'),
+    ...(flow.correctionOf && { correctionOf: flow.correctionOf }) }
+}
+
 function makeCommand(flow: Flow, wallet: Wallet, form: FormData): Command {
-  const date = flow.kind === 'budget' ? today().slice(0, 7) + '-01' :
-    flow.kind === 'billOccurrence' ? today() : String(form.get('date'))
-  if (!validDate(date) || date > today()) throw new Error('DAILY_DATE_INVALID')
-  const common = { version: 1 as const, id: crypto.randomUUID(), date, note: String(form.get('note') ?? '') }
+  const currentDay = today()
+  const date = commandDate(flow.kind, form, currentDay)
+  if (!validDate(date) || date > currentDay) throw new Error('DAILY_DATE_INVALID')
+  const common = { version: 1 as const, id: crypto.randomUUID(), date, note: field(form, 'note') }
   if (flow.kind === 'reversal') return { ...common, kind: flow.kind, originalId: flow.originalId }
   if (flow.kind === 'billOccurrence') return { ...common, ...flow }
-  if (flow.kind === 'person') return { ...common, kind: flow.kind, name: String(form.get('name')) }
-  const amountMinor = parseAmount(String(form.get('amount')))
-  if (flow.kind === 'budget' || flow.kind === 'opening') return { ...common, ...flow, amountMinor }
-  if (flow.kind === 'borrow' || flow.kind === 'lend' || flow.kind === 'billPay' || flow.kind === 'loanRepay') {
-    return { ...common, ...flow, amountMinor, wallet }
-  }
-  if (flow.kind === 'transfer') return { ...common, kind: flow.kind, from: wallet, to: wallet === 'cash' ? 'bank' : 'cash', amountMinor }
-  const category = form.get('category')
-  if (flow.kind === 'bill' || flow.kind === 'billSeries') {
-    const billType = String(form.get('billType')) as BillType
-    if (!billTypes.includes(billType) || !isCategory(category)) throw new Error('DAILY_COMMAND_INVALID')
-    const terms = { ...common, amountMinor, billType, category }
-    if (flow.kind === 'billSeries') {
-      const anchorDay = Number(form.get('dueDay'))
-      const dueDate = recurringDueDate(date.slice(0, 7), anchorDay)
-      return { ...terms, kind: flow.kind, dueDate, anchorDay }
+  if (flow.kind === 'person') return { ...common, kind: flow.kind, name: field(form, 'name') }
+  const amountMinor = parseAmount(field(form, 'amount'))
+  switch (flow.kind) {
+    case 'budget':
+    case 'opening':
+      return { ...common, ...flow, amountMinor }
+    case 'borrow':
+    case 'lend':
+    case 'billPay':
+    case 'loanRepay':
+      return { ...common, ...flow, amountMinor, wallet }
+    case 'transfer':
+      return { ...common, kind: flow.kind, from: wallet, to: wallet === 'cash' ? 'bank' : 'cash', amountMinor }
+    case 'bill':
+    case 'billSeries':
+      return makeBill(flow, form, common, amountMinor)
+    case 'expense': {
+      const category = form.get('category')
+      return { ...common, kind: flow.kind, wallet, amountMinor, ...(isCategory(category) && { category }) }
     }
-    return { ...terms, kind: flow.kind, dueDate: String(form.get('dueDate')),
-      ...(flow.correctionOf && { correctionOf: flow.correctionOf }) }
+    case 'income':
+      return { ...common, kind: flow.kind, wallet, amountMinor }
   }
-  if (flow.kind !== 'expense' && flow.kind !== 'income') throw new Error('DAILY_COMMAND_INVALID')
-  return flow.kind === 'expense'
-    ? { ...common, kind: flow.kind, wallet, amountMinor, ...(isCategory(category) && { category }) }
-    : { ...common, kind: flow.kind, wallet, amountMinor }
 }
 
 const editableErrors: Readonly<Record<string, LedgerKey>> = {
@@ -79,7 +103,7 @@ function EntryForm({ store, flow, language, onSave, onCancel }: Props & Readonly
   const selectWallet = money && !bill && flow.kind !== 'budget' && flow.kind !== 'opening'
   useEffect(() => { heading.current?.focus() }, [])
 
-  async function save(event: FormEvent<HTMLFormElement>) {
+  async function save(event: SubmitEvent<HTMLFormElement>) {
     event.preventDefault()
     if (busy.current) return
     let input: Command
@@ -203,7 +227,7 @@ export default function DailyLedger({ store, language, preview = false, separate
     )
     return () => { current = false }
   }, [store, attempt])
-  if (!entries) return <p role="status">{t('loading')}</p>
+  if (!entries) return <output>{t('loading')}</output>
   if (entries === 'failed') return <div role="alert">{t('failed')} <button type="button" onClick={() => {
     setEntries(undefined)
     setAttempt(value => value + 1)
@@ -213,7 +237,8 @@ export default function DailyLedger({ store, language, preview = false, separate
   if (flow) return <div className="daily-ledger"><EntryForm store={store} flow={flow} language={language}
     onCancel={() => setFlow(undefined)} onSave={entry => {
       const next = [entry, ...entries.filter(row => row.command.id !== entry.command.id)]
-      setEntries(next.sort((a, b) => b.command.date.localeCompare(a.command.date)))
+      next.sort((a, b) => b.command.date.localeCompare(a.command.date))
+      setEntries(next)
       setFlow(undefined)
       setSaved(true)
     }} /></div>
@@ -258,7 +283,7 @@ export default function DailyLedger({ store, language, preview = false, separate
         </button>
       })}
     </details>
-    {saved && <output role="status">{t(preview ? 'sampleSaved' : 'saved')}</output>}
+    {saved && <output>{t(preview ? 'sampleSaved' : 'saved')}</output>}
     {shareMonthlyReport && <details className="daily-panel">
       <summary>{t('monthlyReport')}</summary>
       <p>{t('reportHelp')}</p>

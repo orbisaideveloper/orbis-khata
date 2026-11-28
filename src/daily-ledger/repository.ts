@@ -38,10 +38,11 @@ export async function openDailyLedger(db: SqlitePort, codec: NativeRecordCodec, 
     const rows = await db.all<Row>(`SELECT operation,hex(sealed) AS sealed_hex FROM personal_ledger_journal_v1
       WHERE owner=? ORDER BY day DESC,rowid DESC`, [owner])
     const entries: Entry[] = []
-    for (const row of rows) {
+    await rows.reduce(async (previous, row) => {
+      await previous
       guard()
       entries.push(await read(row))
-    }
+    }, Promise.resolve())
     guard()
     return entries
   }
@@ -56,7 +57,8 @@ export async function openDailyLedger(db: SqlitePort, codec: NativeRecordCodec, 
     )
     if (pending?.total !== rows.length) throw new Error('DAILY_BACKUP_JOURNAL_OUTBOX_MISMATCH')
     const result: BackupRow[] = []
-    for (const row of rows) {
+    await rows.reduce(async (previous, row) => {
+      await previous
       guard()
       if (!row.digest) throw new Error('DAILY_BACKUP_JOURNAL_OUTBOX_MISMATCH')
       const entry = await read(row)
@@ -67,7 +69,7 @@ export async function openDailyLedger(db: SqlitePort, codec: NativeRecordCodec, 
       }
       const wire = await codec.unseal(decode(row.outbox_hex), aad('outbox', row.operation))
       result.push({ entry, wire, digest: row.digest })
-    }
+    }, Promise.resolve())
     guard()
     return result
   }
@@ -127,7 +129,10 @@ export async function openDailyLedger(db: SqlitePort, codec: NativeRecordCodec, 
         const current = await readBackupRows()
         const common = commonHistory(rows, current)
         const append = rows.slice(common)
-        for (const row of append) await write(row)
+        await append.reduce(async (previous, row) => {
+          await previous
+          await write(row)
+        }, Promise.resolve())
         // Read the destination before commit to verify authenticated storage and unchanged prefixes.
         if (append.length && JSON.stringify(await readBackupRows()) !== JSON.stringify(rows)) {
           throw new Error('DAILY_BACKUP_RESTORE_NOT_DURABLE')

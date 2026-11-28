@@ -9,6 +9,8 @@ export function recurringDueDate(month: string, anchor: number): string {
   const year = Number(month.slice(0, 4))
   const number = Number(month.slice(5))
   const leap = year % 4 === 0 && (year % 100 !== 0 || year % 400 === 0)
-  const days = number === 2 ? (leap ? 29 : 28) : ([4, 6, 9, 11].includes(number) ? 30 : 31)
+  let days = 31
+  if (number === 2) days = leap ? 29 : 28
+  else if ([4, 6, 9, 11].includes(number)) days = 30
   return month + '-' + String(Math.min(anchor, days)).padStart(2, '0')
 }

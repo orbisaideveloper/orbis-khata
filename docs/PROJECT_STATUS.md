@@ -1,3 +1,17 @@
+## 2026-11-28 — Khata Quality Sonar reliability follow-up
+
+Main baseline `8d4eacacb565f9164dd0510b99baf82c1ceebf42`. Quality run
+`46116468312` passed Vitest (1,484), global function coverage (90.44%),
+and Playwright (64). Sonar rejected new-code reliability (D; A required).
+Android Candidate run `46116468306` passed on the same source.
+
+The fix clarifies Daily Ledger validation, posting, backup replay, and
+form handling. Journal fields, posting order, scope checks, archive digests
+and ordered SQLite writes retain their existing contracts. No new schema or
+Edge changes are required for this repair. The regular Web Daily Ledger
+availability page is gated while server-owned read/write authority remains
+pending. Render deployment remains gated on the exact candidate's hosted CI.
+
 ## 2026-11-28 — Daily Ledger opening balances and main Quality recovery
 
 Main baseline `f05cc7eb33eccf7cdbefa5c0ebe1f69e4692c6fa`. Khata Quality run

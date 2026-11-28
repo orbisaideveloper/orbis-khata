@@ -1,5 +1,17 @@
 import { billDetails } from './household'
-import { categories, type Category, type Entry } from './journal'
+import { categories, type Category, type Command, type Entry } from './journal'
+
+function expenseCategory(command: Command, originals: ReadonlyMap<string, Command>): Category | undefined {
+  const source = command.kind === 'reversal' ? originals.get(command.originalId) : command
+  if (source?.kind === 'expense') return source.category ?? 'other'
+  if (source?.kind !== 'billPay') return
+  const reference = originals.get(source.obligationId)
+  return reference && billDetails(reference, originals)?.category
+}
+
+function keepLatestLimit(limits: Map<Category, bigint>, command: Extract<Command, { kind: 'budget' }>) {
+  if (!limits.has(command.category)) limits.set(command.category, BigInt(command.amountMinor))
+}
 
 /** Journal entries arrive newest-first within each day. Latest plan for the month wins. */
 export function budgets(entries: readonly Entry[], today: string) {
@@ -15,13 +27,10 @@ export function budgets(entries: readonly Entry[], today: string) {
     const period = command.date.slice(0, 7)
     if (command.date > today || (period !== month && period !== lastMonth)) continue
     if (command.kind === 'budget') {
-      if (period === month && !limits.has(command.category)) limits.set(command.category, BigInt(command.amountMinor))
+      if (period === month) keepLatestLimit(limits, command)
       continue
     }
-    const source = command.kind === 'reversal' ? originals.get(command.originalId) : command
-    const reference = source?.kind === 'billPay' ? originals.get(source.obligationId) : undefined
-    const category = source?.kind === 'expense' ? source.category ?? 'other' :
-      reference && billDetails(reference, originals)?.category
+    const category = expenseCategory(command, originals)
     if (!category) continue
     const effect = postings.find(row => row.account === 'expense')
     const totals = period === month ? spent : priorSpent

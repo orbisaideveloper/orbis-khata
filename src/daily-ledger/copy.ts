@@ -106,7 +106,8 @@ const labels = {
 
 export type LedgerKey = keyof typeof labels
 export const locale = { bn: 'bn-IN', hi: 'hi-IN', en: 'en-IN' }
-export const label = (language: Language, key: LedgerKey) => labels[key][language === 'bn' ? 0 : language === 'hi' ? 1 : 2]
+const labelIndex = { bn: 0, hi: 1, en: 2 } as const
+export const label = (language: Language, key: LedgerKey) => labels[key][labelIndex[language]]
 
 export function displayAmount(amount: bigint, language: Language) {
   const absolute = amount < 0n ? -amount : amount

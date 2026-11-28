@@ -66,12 +66,47 @@ function checkCorrection(command: Command, history: readonly Command[], commands
   if (!('correctionOf' in command) || !command.correctionOf) return
   const original = commands.get(command.correctionOf)
   const reversal = history.find(row => row.kind === 'reversal' && row.originalId === command.correctionOf)
-  if (!original || original.kind !== command.kind || !reversal || command.date < reversal.date ||
+  if (original?.kind !== command.kind || !reversal || command.date < reversal.date ||
       (isLoan(command) && (!isLoan(original) || command.personId !== original.personId)) ||
       (isSettlement(command) && (!isSettlement(original) || command.obligationId !== original.obligationId)) ||
       history.some(row => 'correctionOf' in row && row.correctionOf === command.correctionOf)) {
     throw new Error('DAILY_CORRECTION_INVALID')
   }
+}
+
+function checkOccurrence(command: Extract<Command, { kind: 'billOccurrence' }>, currentDay: string,
+  commands: ReadonlyMap<string, Command>, history: readonly Command[]) {
+  if (command.date.slice(0, 7) !== currentDay.slice(0, 7) || command.date > currentDay) {
+    throw new Error('DAILY_OCCURRENCE_MONTH')
+  }
+  const series = commands.get(command.seriesId)
+  if (series?.kind !== 'billSeries' || series.date > command.date) throw new Error('DAILY_REFERENCE_INVALID')
+  const key = occurrenceId(command.seriesId, command.date)
+  if (history.some(row => row.kind === 'billOccurrence' && occurrenceId(row.seriesId, row.date) === key)) {
+    throw new Error('DAILY_OCCURRENCE_EXISTS')
+  }
+}
+
+function checkObligationReversal(command: Extract<Command, { kind: 'reversal' }>, source: Command,
+  commands: ReadonlyMap<string, Command>, history: readonly Command[], reversed: ReadonlySet<string>) {
+  if (reversed.has(source.id)) throw new Error('DAILY_REVERSAL_INVALID')
+  if (isSettlement(source)) {
+    const obligation = obligationFor(source, commands)
+    if (reversed.has(obligation.id)) throw new Error('DAILY_REVERSAL_INVALID')
+    checkTimeline(history, obligation, principalOf(obligation, commands), command)
+  }
+  if (isLoan(source) || isBill(source)) {
+    const events = movements(history, source.id)
+    if (events.some(row => row.date > command.date) || events.reduce((sum, row) => sum + row.cleared, 0n) !== 0n) {
+      throw new Error('DAILY_SETTLEMENT_EXISTS')
+    }
+  }
+}
+
+function checkOpening(command: Extract<Command, { kind: 'opening' }>, history: readonly Command[], reversed: ReadonlySet<string>) {
+  const prior = history.findLast(row => row.kind === 'opening' && row.wallet === command.wallet)
+  if (prior && !reversed.has(prior.id)) throw new Error('DAILY_OPENING_EXISTS')
+  if (prior?.id !== command.correctionOf) throw new Error('DAILY_CORRECTION_INVALID')
 }
 
 export function postHousehold(command: Command, entries: readonly Entry[], currentDay: string, original?: Entry): Entry {
@@ -80,47 +115,19 @@ export function postHousehold(command: Command, entries: readonly Entry[], curre
   const commands = new Map(history.map(row => [row.id, row]))
   const reversed = new Set(history.flatMap(row => row.kind === 'reversal' ? [row.originalId] : []))
   checkCorrection(command, history, commands)
-  if (command.kind === 'opening') {
-    const prior = history.filter(row => row.kind === 'opening' && row.wallet === command.wallet).at(-1)
-    if (prior && !reversed.has(prior.id)) throw new Error('DAILY_OPENING_EXISTS')
-    if (prior?.id !== command.correctionOf) throw new Error('DAILY_CORRECTION_INVALID')
-  }
+  if (command.kind === 'opening') checkOpening(command, history, reversed)
   if (isLoan(command)) {
     const person = commands.get(command.personId)
     if (person?.kind !== 'person' || command.date < person.date) throw new Error('DAILY_REFERENCE_INVALID')
   }
-  if (command.kind === 'billOccurrence') {
-    if (command.date.slice(0, 7) !== currentDay.slice(0, 7) || command.date > currentDay) {
-      throw new Error('DAILY_OCCURRENCE_MONTH')
-    }
-    const series = commands.get(command.seriesId)
-    if (series?.kind !== 'billSeries' || series.date > command.date) throw new Error('DAILY_REFERENCE_INVALID')
-    const key = occurrenceId(command.seriesId, command.date)
-    if (history.some(row => row.kind === 'billOccurrence' && occurrenceId(row.seriesId, row.date) === key)) {
-      throw new Error('DAILY_OCCURRENCE_EXISTS')
-    }
-  }
+  if (command.kind === 'billOccurrence') checkOccurrence(command, currentDay, commands, history)
   if (isSettlement(command)) {
     const obligation = obligationFor(command, commands)
     if (command.date < obligation.date || reversed.has(obligation.id)) throw new Error('DAILY_REFERENCE_INVALID')
     checkTimeline(history, obligation, principalOf(obligation, commands), command)
     return post(command, entries.find(row => row.command.id === obligation.id))
   }
-  if (command.kind === 'reversal' && original) {
-    const source = original.command
-    if (reversed.has(source.id)) throw new Error('DAILY_REVERSAL_INVALID')
-    if (isSettlement(source)) {
-      const obligation = obligationFor(source, commands)
-      if (reversed.has(obligation.id)) throw new Error('DAILY_REVERSAL_INVALID')
-      checkTimeline(history, obligation, principalOf(obligation, commands), command)
-    }
-    if (isLoan(source) || isBill(source)) {
-      const events = movements(history, source.id)
-      if (events.some(row => row.date > command.date) || events.reduce((sum, row) => sum + row.cleared, 0n) !== 0n) {
-        throw new Error('DAILY_SETTLEMENT_EXISTS')
-      }
-    }
-  }
+  if (command.kind === 'reversal' && original) checkObligationReversal(command, original.command, commands, history, reversed)
   return post(command, original)
 }
 

@@ -114,6 +114,27 @@ function useAccountView(account: ReturnType<typeof useAccount>) {
     return { sessionId, view, setView };
 }
 
+function canOpenDailyLedgerWeb(account: ReturnType<typeof useAccount>) {
+    // The Central session controls the entry page. The data gateway owns financial authorization.
+    return !account.loading && !account.unavailable && !account.recovery &&
+      dailyLedgerWebEntry(account.session?.user.id ?? null);
+}
+
+function DailyLedgerScene({ owner, web, language, onBack, languagePicker }: Readonly<{
+    owner: string; web: boolean; language: Language; onBack: () => void; languagePicker: ReactNode;
+}>) {
+    return <section className="scene light-scene active">
+      <header className="bar"><button type="button" className="back" onClick={onBack}
+        aria-label={dailyLabel(language, 'back')}>←</button>{languagePicker}</header>
+      {web ? <section className="profile-page">
+        <h1>{dailyLabel(language, 'title')}</h1>
+        <output>{dailyLabel(language, 'webUnavailable')}</output>
+      </section> : <Suspense fallback={<output>{accountCopy[language].network}</output>}>
+        <DailyLedger key={owner} owner={owner} language={language}/>
+      </Suspense>}
+    </section>;
+}
+
 function App() {
     // Remember only owner-scoped UI location; financial data stays service-owned.
     const account = useAccount();
@@ -131,8 +152,7 @@ function App() {
     }, [view, booksPage]);
     const syncConflict = useNativeCompanySync(androidLocalFirst() ? sessionId : null);
     const signedIn = Boolean(account.session);
-    // Web useAccount exposes a Central-authenticated session. This grants no financial API access.
-    const dailyWebEntry = dailyLedgerWebEntry(account.loading || account.unavailable || account.recovery ? null : sessionId);
+    const dailyWebEntry = canOpenDailyLedgerWeb(account);
     const dailyEntry = dailyLedgerEnabled() || dailyWebEntry;
     useStatementRelay(signedIn ? sessionId : null);
     useForegroundDriveAutoBackup(androidLocalFirst() && signedIn ? sessionId : null);
@@ -268,16 +288,8 @@ function App() {
       {view === 'results' && signedIn && <LotteryResults language={language} onBack={mainHome} onSelect={navigate} languageControl={languagePicker(true)}/>}
       <LotteryScene view={view} owner={sessionId} language={language} onSelect={navigate} controls={<WorkspaceMenu moduleMenu onMainHome={mainHome} onAppearance={showAppearance} settings={<><label className="lottery-language-setting"><span>{languagePresentation[language].pickerLabel}</span>{languagePicker()}</label><Themes language={language}/></>} actions={<><button type="button" onClick={()=>navigate('customer')}>{shareCopy(language,'title')}</button>{(['tds','payments'] as const).map(section=><button type="button" key={section} onClick={event=>{event.currentTarget.closest('.workspace-menu')?.removeAttribute('open');window.dispatchEvent(new CustomEvent('lottery-settings',{detail:section}));}}>{section==='tds'?'TDS':{bn:'পেমেন্টের মাধ্যম',en:'Payment methods',hi:'भुगतान के तरीके'}[language]}</button>)}</>} language={language} signedIn={signedIn} tutorial={tutorial} onTutorial={enabled=>{setTutorial(enabled);saveTutorial(enabled);}} onProfile={()=>navigate('profile')} onLogout={()=>void logout()}/>}/>
       {view==='customer'&&signedIn&&<Suspense fallback={<p>{accountCopy[language].network}</p>}><CustomerView key={sessionId} actor={sessionId ?? undefined} language={language} onSelect={navigate} onBack={mainHome} onBooks={()=>navigate('lottery')}/></Suspense>}
-      {view === 'daily' && sessionId && dailyEntry && <section className="scene light-scene active">
-        <header className="bar"><button type="button" className="back" onClick={mainHome}
-          aria-label={dailyLabel(language, 'back')}>←</button>{languagePicker(true)}</header>
-        {dailyWebEntry ? <section className="profile-page">
-          <h1>{dailyLabel(language, 'title')}</h1>
-          <p role="status">{dailyLabel(language, 'webUnavailable')}</p>
-        </section> : <Suspense fallback={<p role="status">{accountCopy[language].network}</p>}>
-          <DailyLedger key={sessionId} owner={sessionId} language={language}/>
-        </Suspense>}
-      </section>}
+      {view === 'daily' && sessionId && dailyEntry && <DailyLedgerScene
+        owner={sessionId} web={dailyWebEntry} language={language} onBack={mainHome} languagePicker={languagePicker(true)}/>}
 
       {view === 'drive-backup' && sessionId && androidLocalFirst() && <section className="scene light-scene active profile-page" aria-label={backupLabel}>
         {renderBar('khata', 'choose', 'settings')}
