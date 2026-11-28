@@ -4,7 +4,7 @@ import { matchesRemoteLedgerGrant } from './integration-contracts.ts'
 import { normalize, post, validDate, validId, type Command, type Entry } from './journal.ts'
 import { dailyWebInput, type Page, type Receipt } from './web-contract.ts'
 
-type LedgerGrant = Parameters<typeof matchesRemoteLedgerGrant>[0]
+type LedgerGrant = NonNullable<Parameters<typeof matchesRemoteLedgerGrant>[0]>
 export type DailyLedgerPrincipal = Readonly<{ orbisIdentityId: string; dailyLedger?: LedgerGrant }>
 
 interface LockedJournal {

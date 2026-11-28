@@ -7,7 +7,7 @@ export type Receipt = Readonly<{ revision: string; digest: string; entry: Entry 
 export type Page = Readonly<{ records: readonly Receipt[]; nextCursor: string | null; through: string }>
 
 export function validRevision(value: unknown): value is string {
-  return typeof value === 'string' && /^(0|[1-9][0-9]{0,18})$/u.test(value) &&
+  return typeof value === 'string' && /^(0|[1-9]\d{0,18})$/u.test(value) &&
     BigInt(value) <= 9223372036854775807n
 }
 
