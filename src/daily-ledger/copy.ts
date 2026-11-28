@@ -72,6 +72,8 @@ const labels = {
   systemTheme: ['ডিভাইস অনুযায়ী', 'डिवाइस के अनुसार', 'System'],
   lightTheme: ['হালকা', 'हल्की', 'Light'],
   darkTheme: ['গাঢ়', 'गहरी', 'Dark'],
+  webSaved: ['সার্ভারে সেভ হয়েছে', 'सर्वर पर सहेजा गया', 'Saved to the server'],
+  webStorage: ['ওয়েব হিসাব সার্ভারে থাকে। Android-এর অফলাইন হিসাব আলাদা।', 'वेब का हिसाब सर्वर पर है। Android का ऑफ़लाइन हिसाब अलग है।', 'Web entries are stored on the server. The Android offline ledger is separate.'],
   webUnavailable: ['ওয়েবে দৈনিক হিসাব পড়া বা সেভ করা এখনও চালু হয়নি। এই হিসাব দেখতে Android-এ দৈনিক হিসাব খুলুন।', 'वेब पर दैनिक हिसाब पढ़ना या सहेजना अभी चालू नहीं है। हिसाब देखने के लिए Android पर दैनिक हिसाब खोलें।', 'Daily Ledger reading and saving on the web are unavailable. Open Daily Ledger on Android to view your records.'],
   overdue: ['পরিশোধের সময় পেরিয়েছে', 'भुगतान की तारीख़ बीत गई', 'Overdue'],
   dueToday: ['আজ পরিশোধের শেষ দিন', 'आज भुगतान की अंतिम तारीख़ है', 'Due today'],

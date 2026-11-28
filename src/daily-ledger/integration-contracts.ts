@@ -1,5 +1,5 @@
-import { validId } from './journal'
-import type { envelope } from './journal'
+import { validId } from './journal.ts'
+import type { envelope } from './journal.ts'
 
 const validDigest = (value: string) => /^[0-9a-f]{64}$/u.test(value)
 type OwnerScope = Readonly<{ orbisIdentityId: string; scopeKind: 'personal_ledger'; scopeId: string }>

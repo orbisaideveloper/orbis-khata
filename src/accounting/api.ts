@@ -130,6 +130,16 @@ async function accountGateway(actor: string) {
     return createKhataDataClient({ url, token: async () => verified.access_token });
 }
 
+export async function requestOnlineDailyLedger<T>(actor: string, input: unknown): Promise<T> {
+    const request = await accountGateway(actor);
+    try { return await request<T>('daily-ledger', input); }
+    catch (error) {
+        if (error instanceof Error && 'code' in error && typeof error.code === 'string' &&
+            /^DAILY_[A-Z_]{1,64}$/u.test(error.code)) throw new Error(error.code);
+        throw error;
+    }
+}
+
 export async function requestOnlineCustomerView<T>(actor: string, command: ShareCommand): Promise<T> {
     if (!['list', 'statement', 'accept', 'decline'].includes(command.action)) {
         throw new Error('KHATA_CUSTOMER_ACTION_INVALID');

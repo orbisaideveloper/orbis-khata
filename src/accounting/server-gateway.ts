@@ -9,9 +9,11 @@ import { safeBusinessReason } from './business-error.ts';
 import { itemInput, partyInput, masterIdentity } from '../master-input.ts';
 import { billTotal, inventoryCommand } from '../inventory/model.ts';
 import { expenseCommand } from './expense-model.ts';
-type Operation = 'customer-relay' | 'lottery-seller-recovery' | 'lottery-export' | 'company-export' | 'drive-recovery' | 'party-sharing' | 'expense-profiles' | 'lottery' | 'workspace' | 'retired-companies' | 'masters' | 'party-save' | 'item-save' | 'party-delete' | 'item-delete' | 'party-balance' | 'expense-bill' | 'companies' | 'create' | 'report' | 'post' | 'expense-report' | 'expense-post' | 'inventory-post' | 'inventory-report';
-export type KhataPrincipal = {
-    orbisIdentityId: string;
+import { centralDailyLedgerGrant } from '../daily-ledger/central-grant.ts';
+import { dailyWebInput } from '../daily-ledger/web-contract.ts';
+import type { DailyLedgerPrincipal } from '../daily-ledger/server-service.ts';
+type Operation = 'daily-ledger' | 'customer-relay' | 'lottery-seller-recovery' | 'lottery-export' | 'company-export' | 'drive-recovery' | 'party-sharing' | 'expense-profiles' | 'lottery' | 'workspace' | 'retired-companies' | 'masters' | 'party-save' | 'item-save' | 'party-delete' | 'item-delete' | 'party-balance' | 'expense-bill' | 'companies' | 'create' | 'report' | 'post' | 'expense-report' | 'expense-post' | 'inventory-post' | 'inventory-report';
+export type KhataPrincipal = DailyLedgerPrincipal & {
     displayId: string;
 };
 export type KhataOperation = {
@@ -65,6 +67,7 @@ function pagedReportInput(input: Record<string, unknown>) {
 }
 function validOperation(operation: unknown, input: Record<string, unknown>): operation is Operation {
     switch (operation) {
+        case 'daily-ledger': return dailyWebInput(input);
         case 'customer-relay': return relayCommand(input);
         case 'drive-recovery':
             return id(input.actor) && (
@@ -121,13 +124,17 @@ export function createCentralVerifier(options: {
     baseUrl: string;
     fetchImpl?: typeof fetch;
     verificationKey?: string;
+    dailyLedgerCapability?: boolean;
 }) {
     const endpoint = new URL(options.baseUrl);
     if (endpoint.protocol !== 'https:' || endpoint.pathname !== '/' || endpoint.username || endpoint.password || endpoint.search || endpoint.hash) {
         throw new Error('CENTRAL_ENDPOINT_INVALID');
     }
+    const session = new URL(options.verificationKey ? '/api/v1/service/customer/session' : '/api/v1/customer/session', endpoint);
+    const requestGrant = Boolean(options.verificationKey && options.dailyLedgerCapability);
+    if (requestGrant) session.searchParams.set('product', 'orbis-khata');
     return async (token: string): Promise<KhataPrincipal | null> => {
-        const response = await (options.fetchImpl ?? fetch)(endpoint.origin + (options.verificationKey ? '/api/v1/service/customer/session' : '/api/v1/customer/session'), {
+        const response = await (options.fetchImpl ?? fetch)(session.href, {
             credentials: 'omit', redirect: 'error', cache: 'no-store', signal: AbortSignal.timeout(8000),
             headers: { authorization: 'Bearer ' + token, accept: 'application/json', ...(options.verificationKey ? { 'x-orbis-verification-key': options.verificationKey } : {}) },
         });
@@ -151,7 +158,9 @@ export function createCentralVerifier(options: {
             typeof value.customer.displayId !== 'string' || !/^ORB-U-[23456789ABCDEFGHJKLMNPQRSTUVWXYZ]{8}$/u.test(value.customer.displayId)) {
             throw new Error('CENTRAL_RESPONSE_INVALID');
         }
-        return { orbisIdentityId: value.customer.orbisIdentityId, displayId: value.customer.displayId };
+        const orbisIdentityId = value.customer.orbisIdentityId;
+        const dailyLedger = requestGrant ? centralDailyLedgerGrant(value.dailyLedger, orbisIdentityId) : undefined;
+        return { orbisIdentityId, displayId: value.customer.displayId, ...(dailyLedger && { dailyLedger }) };
     };
 }
 function databaseErrorCode(error: unknown) {

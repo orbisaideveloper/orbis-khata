@@ -14,6 +14,7 @@ type Props = Readonly<{
   store: LedgerStore
   language: Language
   preview?: boolean
+  web?: boolean
   separateBackup?: boolean
   shareMonthlyReport?(entries: readonly Entry[], asOf: string): Promise<void>
 }>
@@ -212,7 +213,7 @@ function BudgetPanel({ entries, language, onPlan }: Readonly<{
   </details>
 }
 
-export default function DailyLedger({ store, language, preview = false, separateBackup = false, shareMonthlyReport }: Props) {
+export default function DailyLedger({ store, language, preview = false, web = false, separateBackup = false, shareMonthlyReport }: Props) {
   const t = text(language)
   const [entries, setEntries] = useState<readonly Entry[] | 'failed'>()
   const [attempt, setAttempt] = useState(0)
@@ -236,6 +237,13 @@ export default function DailyLedger({ store, language, preview = false, separate
   const start = (next: Flow) => { setSaved(false); setFlow(next) }
   if (flow) return <div className="daily-ledger"><EntryForm store={store} flow={flow} language={language}
     onCancel={() => setFlow(undefined)} onSave={entry => {
+      if (web) {
+        setEntries(undefined)
+        setAttempt(value => value + 1)
+        setFlow(undefined)
+        setSaved(true)
+        return
+      }
       const next = [entry, ...entries.filter(row => row.command.id !== entry.command.id)]
       next.sort((a, b) => b.command.date.localeCompare(a.command.date))
       setEntries(next)
@@ -258,7 +266,8 @@ export default function DailyLedger({ store, language, preview = false, separate
   return <div className="daily-ledger">
     <section className="daily-panel daily-overview">
       <h1>{t('title')}</h1>
-      {!preview && <p>{t(separateBackup ? 'separateBackup' : 'backup')}</p>}
+      {!preview && !web && <p>{t(separateBackup ? 'separateBackup' : 'backup')}</p>}
+      {web && <p>{t('webStorage')}</p>}
       <p>{t('balance')}</p>
       <strong className="daily-balance">{displayAmount(balance.cash + balance.bank, language)}</strong>
       <dl className="daily-summary">{([
@@ -283,7 +292,8 @@ export default function DailyLedger({ store, language, preview = false, separate
         </button>
       })}
     </details>
-    {saved && <output>{t(preview ? 'sampleSaved' : 'saved')}</output>}
+    {saved && !web && <output>{t(preview ? 'sampleSaved' : 'saved')}</output>}
+    {saved && web && <output>{t('webSaved')}</output>}
     {shareMonthlyReport && <details className="daily-panel">
       <summary>{t('monthlyReport')}</summary>
       <p>{t('reportHelp')}</p>

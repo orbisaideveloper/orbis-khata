@@ -12,6 +12,7 @@ import {ModulePicker,type ModuleTarget} from './ModulePicker';
 import {lazy,Suspense,useEffect,useMemo,useRef,useState,type ReactNode} from 'react';
 const CustomerView=lazy(()=>import('./customer-view/CustomerView'));
 const LotteryPage=lazy(()=>import('./lottery/LotteryPage'));
+const WebDailyLedger=lazy(()=>import('./daily-ledger/WebDailyLedger'));
 const DailyLedger=lazy(()=>import('./daily-ledger/AndroidDailyLedger'));
 import { dailyLedgerEnabled, dailyLedgerWebEntry } from './daily-ledger/availability';
 import { label as dailyLabel } from './daily-ledger/copy';
@@ -120,18 +121,26 @@ function canOpenDailyLedgerWeb(account: ReturnType<typeof useAccount>) {
       dailyLedgerWebEntry(account.session?.user.id ?? null);
 }
 
+function DailyLedgerContent({ owner, web, language }: Readonly<{ owner: string; web: boolean; language: Language }>) {
+    if (web && import.meta.env.VITE_KHATA_DAILY_LEDGER_WEB !== 'enabled') {
+        return <section className="profile-page">
+          <h1>{dailyLabel(language, 'title')}</h1>
+          <output>{dailyLabel(language, 'webUnavailable')}</output>
+        </section>;
+    }
+    return <Suspense fallback={<output>{accountCopy[language].network}</output>}>
+      {web ? <WebDailyLedger key={owner} owner={owner} language={language}/>
+        : <DailyLedger key={owner} owner={owner} language={language}/>}
+    </Suspense>;
+}
+
 function DailyLedgerScene({ owner, web, language, onBack, languagePicker }: Readonly<{
     owner: string; web: boolean; language: Language; onBack: () => void; languagePicker: ReactNode;
 }>) {
     return <section className="scene light-scene active">
       <header className="bar"><button type="button" className="back" onClick={onBack}
         aria-label={dailyLabel(language, 'back')}>←</button>{languagePicker}</header>
-      {web ? <section className="profile-page">
-        <h1>{dailyLabel(language, 'title')}</h1>
-        <output>{dailyLabel(language, 'webUnavailable')}</output>
-      </section> : <Suspense fallback={<output>{accountCopy[language].network}</output>}>
-        <DailyLedger key={owner} owner={owner} language={language}/>
-      </Suspense>}
+      <DailyLedgerContent owner={owner} web={web} language={language}/>
     </section>;
 }
 

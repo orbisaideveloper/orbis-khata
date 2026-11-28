@@ -1,4 +1,4 @@
-import { isMonthlyAnchor, recurringDueDate } from './calendar'
+import { isMonthlyAnchor, recurringDueDate } from './calendar.ts'
 
 export type Wallet = 'cash' | 'bank'
 export const categories = ['food', 'home', 'travel', 'other'] as const
@@ -30,7 +30,7 @@ export const validId = (value: string) => /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f
 export const validDate = (date: string) => /^\d{4}-\d{2}-\d{2}$/u.test(date) &&
   Number.isFinite(Date.parse(date)) && new Date(date).toISOString().slice(0, 10) === date
 const wallet = (value: unknown): value is Wallet => value === 'cash' || value === 'bank'
-export { minor as parseAmount } from '../accounting/model'
+export { minor as parseAmount } from '../accounting/model.ts'
 
 type AmountCommand = Extract<Command, { amountMinor: string }>
 type BillCommand = Extract<Command, { kind: 'bill' | 'billSeries' }>

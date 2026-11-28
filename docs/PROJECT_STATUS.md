@@ -1,3 +1,26 @@
+## 2026-11-28 — Daily Ledger Web storage and gateway candidate
+
+Baseline `9bacfe0eb3e0592b717cde994e533843a4a0ed8a` passed Khata Quality and
+Android Candidate. This local candidate connects the Web Daily Ledger UI to a
+server command journal with dedicated PostgreSQL storage. It does not share
+company or Lottery accounting tables or turn on Android synchronization.
+
+Migration `20261128125000` creates `orbis_daily_ledger` and a restricted
+`orbis_daily_ledger_gateway` role, with forced owner RLS, no direct browser
+grants, append-only permissions and deferred balanced-posting checks. The
+gateway derives the owner from Central's service-authenticated session and
+recognizes a versioned Daily Ledger Web grant only for that owner. Existing
+Central sessions omit the grant so the new route fails closed. A separate,
+least-privilege connection is required; a normal Khata credential never
+substitutes. The Web UI and server write route start disabled.
+
+Release blockers: approved Central grant issuance and revocation, production
+migration and dedicated login, then healthy Edge and exact-commit hosted QA.
+Synthetic tests can issue grants without changing Central or production.
+Rollback by turning off the gateway and browser flags and retaining the journal;
+do not drop a schema containing customer data. Keep existing Web deployment
+manual until the desired release scope has passed its gates.
+
 ## 2026-11-28 — Khata Quality Sonar reliability follow-up
 
 Main baseline `8d4eacacb565f9164dd0510b99baf82c1ceebf42`. Quality run

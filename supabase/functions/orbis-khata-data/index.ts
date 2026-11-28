@@ -8,6 +8,9 @@ import { runProfiles, type ProfileCommand, type ProfileState } from "../../../sr
 import {runLottery,type LotteryInput} from '../../../src/lottery/service.ts';
 import { compactWorkspace, parseHistoryRequest } from '../../../src/lottery/workspace-history.ts';
 import { loadCompactLottery, readLotteryHistory } from './lottery-workspace-read.ts';
+import { createDailyLedgerDatabase } from './daily-ledger-db.ts';
+import { executeDailyLedgerWeb } from '../../../src/daily-ledger/server-service.ts';
+import { today } from '../../../src/accounting/model.ts';
 import postgres from 'npm:postgres@3.4.7';
 import { createCentralVerifier, createKhataGateway } from '../../../src/accounting/server-gateway.ts';
 const env = (key: string) => Deno.env.get(key) ?? '';
@@ -20,6 +23,24 @@ if (!((endpoint.hostname === `db.${ref}.supabase.co`) ||
 const sql = postgres(endpoint.href, { max: 3, prepare: false, ssl: { rejectUnauthorized: true }, connect_timeout: 8, idle_timeout: 10 });
 // Startup readiness checks connectivity only; never reads customer records.
 void sql `select 1 as ready`.then(() => console.info('KHATA_DATABASE_CONNECTION_READY'), () => console.warn('KHATA_DATABASE_CONNECTION_UNAVAILABLE'));
+// Dedicated credentials cannot fall back to the existing Khata/Lottery connection.
+function dailyLedgerDatabase() {
+    const url = env('KHATA_DAILY_LEDGER_WEB_DATABASE_URL');
+    if (env('KHATA_DAILY_LEDGER_WEB') !== 'enabled' || !url) return undefined;
+    let target: URL;
+    try { target = new URL(url); }
+    catch { return undefined; }
+    const login = decodeURIComponent(target.username);
+    const validTarget = target.hostname === `db.${ref}.supabase.co` && login === 'orbis_daily_ledger_runtime' ||
+        target.hostname.endsWith('.pooler.supabase.com') && login === `orbis_daily_ledger_runtime.${ref}`;
+    if (!validTarget || !['postgres:', 'postgresql:'].includes(target.protocol) || target.search || target.hash) {
+        return undefined;
+    }
+    return createDailyLedgerDatabase(postgres(target.href, {
+        max: 2, prepare: false, ssl: { rejectUnauthorized: true }, connect_timeout: 8, idle_timeout: 10,
+    }));
+}
+const dailyDatabase = dailyLedgerDatabase();
 const verificationKey = env('ORBIS_CUSTOMER_VERIFY_KEY');
 if (verificationKey && verificationKey.length < 32) {
     throw new Error('KHATA_VERIFICATION_KEY_INVALID');
@@ -29,7 +50,7 @@ if (verificationKey && verificationKey.length < 32) {
 // selects server-to-server session verification. Khata enforces its own verified-identity quota.
 const verify = createCentralVerifier({
     baseUrl: env('ORBIS_CUSTOMER_API_URL') || 'https://orbis-admin-staging.onrender.com',
-    ...(verificationKey ? { verificationKey } : {}),
+    ...(verificationKey ? { verificationKey, dailyLedgerCapability: Boolean(dailyDatabase) } : {}),
 });
 const handler = createKhataGateway({ origins: (env('KHATA_ORIGINS') || 'https://orbis-khata.onrender.com,http://127.0.0.1:5173').split(',').map(value => value.trim()).filter(Boolean), verify,
     admit:async principal=>{
@@ -38,7 +59,9 @@ const handler = createKhataGateway({ origins: (env('KHATA_ORIGINS') || 'https://
         if(typeof decision?.allowed!=='boolean'||typeof decision?.retryAfter!=='number'||!Number.isFinite(decision.retryAfter)||decision.retryAfter<0||decision.retryAfter>60){throw new Error('KHATA_ADMISSION_UNAVAILABLE');}
         return decision;
     },
-    execute: async (principal, operation) => sql.begin(async (tx) => {
+    execute: (principal, operation) => operation.operation === 'daily-ledger'
+        ? executeDailyLedgerWeb(dailyDatabase, principal, operation.input, today)
+        : sql.begin(async (tx) => {
         if (operation.operation === 'drive-recovery') {
             const actor = principal.orbisIdentityId;
             if (operation.input.actor !== actor) throw new Error('KHATA_RECOVERY_IDENTITY_MISMATCH');

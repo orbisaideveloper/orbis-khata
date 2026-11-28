@@ -1,5 +1,5 @@
-import { recurringDueDate } from './calendar'
-import { post, type BillType, type Category, type Command, type Entry } from './journal'
+import { recurringDueDate } from './calendar.ts'
+import { post, type BillType, type Category, type Command, type Entry } from './journal.ts'
 
 const isLoan = (command: Command): command is Extract<Command, { kind: 'borrow' | 'lend' }> => command.kind === 'borrow' || command.kind === 'lend'
 const isBill = (command: Command): command is Extract<Command, { kind: 'bill' | 'billOccurrence' }> => command.kind === 'bill' || command.kind === 'billOccurrence'
