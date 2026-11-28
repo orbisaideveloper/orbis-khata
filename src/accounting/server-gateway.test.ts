@@ -46,6 +46,20 @@ describe('product-owned Khata gateway', () => {
     expect(await verify('central.token')).toEqual(principal);expect(await verify('revoked.token')).toBeNull()
     await expect(verify('wrong.identity')).rejects.toThrow('CENTRAL_RESPONSE_INVALID')
   })
+  it('marks test access only after server-key Central verification', async () => {
+    const fetchImpl = vi.fn<typeof fetch>(async () => Response.json({
+      version: 'orbis.customer.v1', customer: principal, dailyLedgerTestSession: true,
+    }))
+    const baseUrl = 'https://admin.example.test'
+    expect(await createCentralVerifier({ baseUrl, fetchImpl, dailyLedgerWebTest: true })('token')).toEqual(principal)
+    const verificationKey = 'synthetic-service-verification-key'
+    const verify = createCentralVerifier({ baseUrl, fetchImpl, verificationKey, dailyLedgerWebTest: true })
+    expect(await verify('token')).toEqual({ ...principal, dailyLedgerTestSession: true })
+    expect(fetchImpl).toHaveBeenLastCalledWith(baseUrl + '/api/v1/service/customer/session',
+      expect.objectContaining({ headers: expect.objectContaining({ 'x-orbis-verification-key': verificationKey }) }))
+    fetchImpl.mockResolvedValueOnce(new Response('{}', { status: 401 }))
+    expect(await verify('expired')).toBeNull()
+  })
 })
 
 describe('shared gateway admission',()=>{

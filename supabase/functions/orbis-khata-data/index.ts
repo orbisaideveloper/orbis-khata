@@ -41,6 +41,7 @@ function dailyLedgerDatabase() {
     }));
 }
 const dailyDatabase = dailyLedgerDatabase();
+const dailyLedgerWebTest = Boolean(dailyDatabase) && env('KHATA_DAILY_LEDGER_WEB_ACCESS') === 'verified-session';
 const verificationKey = env('ORBIS_CUSTOMER_VERIFY_KEY');
 if (verificationKey && verificationKey.length < 32) {
     throw new Error('KHATA_VERIFICATION_KEY_INVALID');
@@ -50,7 +51,9 @@ if (verificationKey && verificationKey.length < 32) {
 // selects server-to-server session verification. Khata enforces its own verified-identity quota.
 const verify = createCentralVerifier({
     baseUrl: env('ORBIS_CUSTOMER_API_URL') || 'https://orbis-admin-staging.onrender.com',
-    ...(verificationKey ? { verificationKey, dailyLedgerCapability: Boolean(dailyDatabase) } : {}),
+    ...(verificationKey ? {
+        verificationKey, dailyLedgerCapability: Boolean(dailyDatabase) && !dailyLedgerWebTest, dailyLedgerWebTest,
+    } : {}),
 });
 const handler = createKhataGateway({ origins: (env('KHATA_ORIGINS') || 'https://orbis-khata.onrender.com,http://127.0.0.1:5173').split(',').map(value => value.trim()).filter(Boolean), verify,
     admit:async principal=>{

@@ -125,6 +125,7 @@ export function createCentralVerifier(options: {
     fetchImpl?: typeof fetch;
     verificationKey?: string;
     dailyLedgerCapability?: boolean;
+    dailyLedgerWebTest?: boolean;
 }) {
     const endpoint = new URL(options.baseUrl);
     if (endpoint.protocol !== 'https:' || endpoint.pathname !== '/' || endpoint.username || endpoint.password || endpoint.search || endpoint.hash) {
@@ -132,6 +133,7 @@ export function createCentralVerifier(options: {
     }
     const session = new URL(options.verificationKey ? '/api/v1/service/customer/session' : '/api/v1/customer/session', endpoint);
     const requestGrant = Boolean(options.verificationKey && options.dailyLedgerCapability);
+    const testSession = Boolean(options.verificationKey && options.dailyLedgerWebTest);
     if (requestGrant) session.searchParams.set('product', 'orbis-khata');
     return async (token: string): Promise<KhataPrincipal | null> => {
         const response = await (options.fetchImpl ?? fetch)(session.href, {
@@ -160,7 +162,8 @@ export function createCentralVerifier(options: {
         }
         const orbisIdentityId = value.customer.orbisIdentityId;
         const dailyLedger = requestGrant ? centralDailyLedgerGrant(value.dailyLedger, orbisIdentityId) : undefined;
-        return { orbisIdentityId, displayId: value.customer.displayId, ...(dailyLedger && { dailyLedger }) };
+        return { orbisIdentityId, displayId: value.customer.displayId, ...(dailyLedger && { dailyLedger }),
+            ...(testSession && { dailyLedgerTestSession: true as const }) };
     };
 }
 function databaseErrorCode(error: unknown) {

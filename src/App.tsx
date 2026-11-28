@@ -122,12 +122,6 @@ function canOpenDailyLedgerWeb(account: ReturnType<typeof useAccount>) {
 }
 
 function DailyLedgerContent({ owner, web, language }: Readonly<{ owner: string; web: boolean; language: Language }>) {
-    if (web && import.meta.env.VITE_KHATA_DAILY_LEDGER_WEB !== 'enabled') {
-        return <section className="profile-page">
-          <h1>{dailyLabel(language, 'title')}</h1>
-          <output>{dailyLabel(language, 'webUnavailable')}</output>
-        </section>;
-    }
     return <Suspense fallback={<output>{accountCopy[language].network}</output>}>
       {web ? <WebDailyLedger key={owner} owner={owner} language={language}/>
         : <DailyLedger key={owner} owner={owner} language={language}/>}

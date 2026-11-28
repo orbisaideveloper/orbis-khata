@@ -67,16 +67,16 @@ afterAll(async () => {
   await admin?.end()
 })
 
-function call(token: string, input: unknown) {
-  return handler(new Request('https://khata.example/gateway', {
+function call(token: string, input: unknown, gateway = handler) {
+  return gateway(new Request('https://khata.example/gateway', {
     method: 'POST', headers: { authorization: 'Bearer ' + token, 'content-type': 'application/json', origin: 'https://khata.example' },
     body: JSON.stringify({ version: 'orbis.khata.data.v1', operation: 'daily-ledger', input }),
   }))
 }
 
-function session(token: string) {
+function session(token: string, gateway = handler) {
   return webLedgerStore(async <T>(input: unknown) => {
-    const response = await call(token, input)
+    const response = await call(token, input, gateway)
     const body = await response.json()
     if (!response.ok) throw new Error(body.code)
     return body.data as T
@@ -121,4 +121,36 @@ it.skipIf(!fixtureUrl)('pins paginated reads to a committed revision even while 
   expect(final.nextCursor).toBeNull()
   expect(final.records.some(row => row.entry.command.id === fresh.command.id)).toBe(false)
   expect((await session('owner-new-session').list())[0].command.id).toBe(fresh.command.id)
+})
+
+it.skipIf(!fixtureUrl)('allows verified test accounts to save and reopen independent journals without a subscription grant', async () => {
+  const database = createDailyLedgerDatabase(db!)
+  const verify = createCentralVerifier({
+    baseUrl: 'https://central.example', verificationKey: 'disposable-fixture-verifier', dailyLedgerWebTest: true,
+    fetchImpl: async (url, init) => {
+      const request = new Headers(init?.headers)
+      if (String(url) !== 'https://central.example/api/v1/service/customer/session' ||
+          request.get('x-orbis-verification-key') !== 'disposable-fixture-verifier') return new Response(null, { status: 403 })
+      const token = request.get('authorization')
+      if (token === 'Bearer expired') return new Response(null, { status: 401 })
+      const actor = token === 'Bearer other' ? other : owner
+      return Response.json({ version: 'orbis.customer.v1', customer: {
+        orbisIdentityId: actor, displayId: 'ORB-U-23456789',
+      } })
+    },
+  })
+  const gateway = createKhataGateway({
+    origins: ['https://khata.example'], verify, admit: async () => ({ allowed: true, retryAfter: 0 }),
+    execute: (principal, operation) => executeDailyLedgerWeb(database, principal, operation.input, () => when),
+  })
+  const initial = command(801)
+  const [saved, replay] = await Promise.all([session('owner', gateway).save(initial), session('owner', gateway).save(initial)])
+  expect(saved).toEqual(replay)
+  expect((await session('other', gateway).list()).some(row => row.command.id === initial.id)).toBe(false)
+  await session('other', gateway).save(command(801, '240'))
+  const reopening = (token: string) => session(token, gateway).list().then(rows => rows.find(row => row.command.id === initial.id))
+  expect((await reopening('owner-new-session'))?.postings.map(row => row.delta)).toEqual(['1000', '-1000'])
+  expect((await reopening('other'))?.postings.map(row => row.delta)).toEqual(['240', '-240'])
+  expect((await call('expired', { action: 'list', after: '0' }, gateway)).status).toBe(401)
+  expect((await call('other', { action: 'list', after: '0', ownerId: owner }, gateway)).status).toBe(400)
 })

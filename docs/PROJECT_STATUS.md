@@ -1,3 +1,23 @@
+## 2026-11-28 — Daily Ledger Web multi-account acceptance candidate
+
+The Web test build opens Daily Ledger for any signed-in Central identity
+when `VITE_KHATA_DAILY_LEDGER_WEB=enabled`. Before enabling it, configure
+the restricted `orbis_daily_ledger_runtime` login and its Edge-only
+`KHATA_DAILY_LEDGER_WEB_DATABASE_URL`, deploy the tested Edge revision,
+and set `KHATA_DAILY_LEDGER_WEB=enabled` and
+`KHATA_DAILY_LEDGER_WEB_ACCESS=verified-session` in Edge. This mode requires
+the existing server-to-server Central verification key and checks the
+authenticated identity on every request. The subscription grant path
+remains available when the verified-session mode is off. No billing or
+Android sync is enabled by these Web flags.
+
+Before widening the rollout, use two disposable accounts to verify save,
+reload, logout, account switch, and isolation from each other and from
+Khata/Lottery. To pause Web acceptance, disable the Edge Web flag and
+rebuild with the Web UI flag off. Keep posted journal data. Android
+retains its independent SQLite storage and requires separate internal
+and closed-test acceptance before a public release.
+
 ## 2026-11-28 — Daily Ledger Web storage and gateway candidate
 
 Baseline `9bacfe0eb3e0592b717cde994e533843a4a0ed8a` passed Khata Quality and
