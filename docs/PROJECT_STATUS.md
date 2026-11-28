@@ -1,3 +1,105 @@
+## 2026-11-28 — Daily Ledger calendar-month correction
+
+Base `1ccaed01ed628bf53ad6736bbef0e06731158508`. Recurring series retain an
+anchor from 1–31. A month with fewer days uses its actual Gregorian last day
+for that occurrence. The next month uses the same original anchor.
+Occurrences still require explicit creation for the current month, retain
+their monthly ID and cause no wallet posting on issue. Budgets and reports
+continue to count actual payment dates, including month-end dates.
+
+Legacy series infer their anchor from their stored due date without rewriting
+the journal or outbox. The updated reader accepts the existing encrypted
+archive version. Use the updated build to restore archives that contain new
+anchor fields; older builds are not supported for these archives. Keep the
+staging flags off until the non-production accounts and device run are
+approved. See the [Audit Master Log](https://docs.google.com/document/d/1os9R2V7onk-irGDNtNUODkbHvNDeasyQUhpqbd4l6YI/edit)
+for tests and the exact checkpoint.
+
+## 2026-11-28 — Daily Ledger Batch 4B synthetic Drive integration
+
+Base `b1f37cd0697b77ae595033a76b0922b7cccc289e`. A default-off Android
+staging panel reuses the owner-authenticated Khata recovery read and native
+Drive OAuth transport under a separate Daily Ledger filename in appDataFolder.
+It requires the matching Google account returned by Drive and an unlocked,
+locally registered SQLCipher ledger on a device with a secure screen lock.
+
+Foreground backup saves only status and verified timestamps locally. It
+verifies the newest prior candidate before appending, reads back new uploads
+as bytes, authenticates the resulting archive and preserves old files. A
+lost acknowledgment is recoverable by verifying an already uploaded snapshot.
+A damaged latest archive prevents a new upload. Previous copies remain
+selectable in History.
+
+Restore requires a verified preview, explicit confirmation, and a new device
+credential check. The same account and selected archive are checked again.
+An exact-prefix restore is atomic and append-only. Roll back by withholding
+the staging flag and retaining the archives and SQLCipher data.
+
+Real Drive or recovery-server activity needs separate approval for a
+dedicated non-production ORBIS account, Drive account and recovery endpoint.
+Build an unsigned staging debug APK of the exact checkpoint with
+`VITE_KHATA_DAILY_LEDGER=enabled` and `VITE_KHATA_DAILY_LEDGER_DRIVE=staging`
+only after those fixtures are approved. Use Setup 03 to verify hardware
+protections and replacement-device recovery. See the
+[Audit Master Log](https://docs.google.com/document/d/1os9R2V7onk-irGDNtNUODkbHvNDeasyQUhpqbd4l6YI/edit).
+
+## 2026-11-28 — Daily Ledger Batch 4A local encrypted recovery
+
+Base `2d49d8b4c4e145285904f6ead1d950bc3331bbdd`. Daily Ledger has a distinct
+owner-bound AES-GCM archive using the existing financial backup codec. Its
+versioned manifest carries the schema and protocol boundary, exact row counts
+and SHA-256. Export pairs the journal with its encrypted pending outbox in one
+transaction and checks the original commands, postings and operation digests.
+
+Restore authenticates and validates before opening the write transaction. It
+imports into an empty ledger or appends to an identical prefix, verifies a
+destination read-back before commit, and leaves newer or divergent records
+intact. It re-seals restored rows with the destination codec. Historical
+Khata/Lottery archives retain their format. PWA Preview remains sample-only.
+
+Disable rollout for rollback. Preserve encrypted archive and journal/outbox
+files. Drive upload, recovery-key linking, registered-device identity and
+physical replacement-device restore are Batch 4B gates.
+See the [Daily Ledger Audit](https://docs.google.com/document/d/1os9R2V7onk-irGDNtNUODkbHvNDeasyQUhpqbd4l6YI/edit)
+for the exact verified changes and acceptance limits.
+
+## 2026-11-27 — Daily Ledger Batch 3 household accounting
+
+Base `89b5709678e1ab618a36bd636996c5eeb2b31489`. Person-linked loans, principal
+repayment, month-filtered household bills, partial payments and linked
+reversal/replacement use the encrypted local journal/outbox. Creating a bill
+has zero wallet effect. Bill payments alone count toward the selected category
+budget in their effective period. Loan principal and transfers stay outside
+income and expenses.
+
+Recurring bills allow explicitly creating one current-month occurrence per
+template, due on days 1–28. A reversed occurrence retains its identity.
+Catch-up, days 29–31, advance, overpayment and refund policies remain disabled.
+The Web/PWA artifact is synthetic and in-memory. The Android module remains
+off by default and physical device acceptance is pending.
+
+For rollback, disable the module and preserve encrypted journal/outbox rows.
+Avoid opening Batch 3 household rows with an older enabled preview build.
+See the [Daily Ledger Audit](https://docs.google.com/document/d/1os9R2V7onk-irGDNtNUODkbHvNDeasyQUhpqbd4l6YI/edit)
+for the exact branch, checks and recovery handover.
+
+## 2026-11-27 — Daily Ledger Web/PWA test preview
+
+Based on `0f4ede223e0bdc214afecff521e654edb0380f72`. The separate preview uses the same
+Ledger UI and financial rules as Android, with disposable sample data in memory.
+Run `npm run build:daily-ledger-preview` and `npm run preview:daily-ledger` for a
+loopback preview. The dedicated output is `dist-daily-ledger-preview/`. Deploy
+only to a separately approved HTTPS preview origin. The preview shell uses its
+own static cache. New entries reset on reload, and preview accounting does not
+use a login, financial APIs, Sync or Drive backup. The regular Web build has
+no preview route, and Daily Ledger remains explicitly gated on Android.
+
+Rollback before hosting means discarding the separate build or reverting its
+feature-branch commit. For an approved hosted preview, withdraw that preview and
+retire its own worker/cache without touching the Khata origin. See the
+[versioned Drive audit](https://docs.google.com/document/d/1os9R2V7onk-irGDNtNUODkbHvNDeasyQUhpqbd4l6YI/edit)
+for exact SHA and verification.
+
 <!-- LIVE-CACHE-RELIABILITY-20261122 -->
 ## 2026-11-22 — Live Draw reliability (local implementation)
 

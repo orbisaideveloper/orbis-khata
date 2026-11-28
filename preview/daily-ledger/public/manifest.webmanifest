@@ -1,0 +1,13 @@
+{
+  "id": "./",
+  "name": "ORBIS Khata Daily Ledger Test Preview",
+  "short_name": "Ledger Preview",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#edf3fb",
+  "theme_color": "#2456a5",
+  "icons": [
+    { "src": "./daily-ledger-preview-icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" }
+  ]
+}

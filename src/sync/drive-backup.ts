@@ -4,15 +4,35 @@ import { validRecoveryEmail } from './account-recovery'
 
 const drive = registerPlugin<{ authorize(options?: { email: string; silent?: boolean }): Promise<{ token: string }> }>('OrbisDrive')
 const api = 'https://www.googleapis.com'
-const maximumBytes = 32 * 1024 * 1024 + 128
+const maximumDriveBackupBytes = 32 * 1024 * 1024 + 128
 
 export type DriveBackupVersion = { id: string; size: string; createdTime: string }
 
 export async function connectBackupDrive(actor: string, email?: string, silent = false) {
+  const transport = await connectDriveArchive('financial', actor, email, silent)
+  return {
+    accountEmail: transport.accountEmail,
+    history: transport.history,
+    hasBackup: transport.hasBackup,
+    latest: transport.latest,
+    async upload(archive: Uint8Array<ArrayBuffer>) {
+      const file = await transport.uploadPending(archive)
+      const saved = await transport.latest(file)
+      if (saved.some((byte, index) => byte !== archive[index])) throw new Error('DRIVE_BACKUP_UPLOAD_UNVERIFIED')
+    },
+  }
+}
+
+export function connectDailyLedgerBackupDrive(actor: string, email: string, silent: boolean) {
+  if (!validRecoveryEmail(email)) throw new Error('DRIVE_ACCOUNT_UNAVAILABLE')
+  return connectDriveArchive('daily-ledger', actor, email, silent)
+}
+
+async function connectDriveArchive(domain: 'financial' | 'daily-ledger', actor: string, email: string | undefined, silent: boolean) {
   if (!/^[a-f0-9-]{36}$/iu.test(actor)) throw new Error('DRIVE_OWNER_INVALID')
   const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(actor))
   const owner = Array.from(new Uint8Array(digest), byte => byte.toString(16).padStart(2, '0')).join('')
-  const archiveName = 'orbis-khata-financial-v1-' + owner + '.bin'
+  const archiveName = 'orbis-khata-' + domain + '-v1-' + owner + '.bin'
   const authorize = (address: string) => drive.authorize(silent ? { email: address, silent } : { email: address })
   const { token } = await (email ? authorize(email) : drive.authorize())
   if (!token) throw new Error('DRIVE_AUTH_FAILED')
@@ -66,7 +86,8 @@ export async function connectBackupDrive(actor: string, email?: string, silent =
       if (email && actual !== email.toLowerCase()) throw new Error('DRIVE_ACCOUNT_CHANGED')
       return actual
     },
-    async upload(archive: Uint8Array<ArrayBuffer>) {
+    async uploadPending(archive: Uint8Array<ArrayBuffer>) {
+      if (archive.byteLength < 1 || archive.byteLength > maximumDriveBackupBytes) throw new Error('DRIVE_BACKUP_SIZE_INVALID')
       const boundary = 'orbis-' + crypto.randomUUID()
       const metadata = JSON.stringify({ name: archiveName, parents: ['appDataFolder'] })
       const prefix = '--' + boundary + '\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n' + metadata +
@@ -78,8 +99,7 @@ export async function connectBackupDrive(actor: string, email?: string, silent =
       })
       const { id } = await response.json() as { id?: string }
       if (typeof id !== 'string' || !/^[\w-]+$/u.test(id)) throw new Error('DRIVE_BACKUP_UPLOAD_UNVERIFIED')
-      const saved = await download(id, archive.byteLength)
-      if (saved.some((byte, index) => byte !== archive[index])) throw new Error('DRIVE_BACKUP_UPLOAD_UNVERIFIED')
+      return { id, size: String(archive.byteLength), createdTime: '' }
     },
     history: () => listVersions(10),
     async hasBackup() {
@@ -89,7 +109,7 @@ export async function connectBackupDrive(actor: string, email?: string, silent =
       const [file] = version ? [version] : await listVersions(1)
       if (!file || !/^[\w-]+$/u.test(file.id)) throw new Error('DRIVE_BACKUP_NOT_FOUND')
       const expected = Number(file.size)
-      if (!Number.isSafeInteger(expected) || expected < 1 || expected > maximumBytes) throw new Error('DRIVE_BACKUP_SIZE_INVALID')
+      if (!Number.isSafeInteger(expected) || expected < 1 || expected > maximumDriveBackupBytes) throw new Error('DRIVE_BACKUP_SIZE_INVALID')
       return download(file.id, expected)
     },
   }

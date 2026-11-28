@@ -1,7 +1,8 @@
 import {shareCopy} from "./customer-view/copy";
 import { inLanguage } from "./localize";
 import { translations, type Language } from "./i18n";
-export type ModuleTarget = "khata" | "lottery" | "customer" | "results";
+import { dailyLedgerEnabled } from "./daily-ledger/availability";
+export type ModuleTarget = "khata" | "lottery" | "customer" | "results" | "daily";
 export function ModulePicker({
   language,
   active,
@@ -40,9 +41,10 @@ export function ModulePicker({
             <span aria-hidden="true">→</span>
           </button>
         ))}
-        <button type="button" disabled>
+        <button type="button" disabled={!dailyLedgerEnabled()} aria-current={active === "daily" ? "page" : undefined}
+          onClick={event => { event.currentTarget.closest("details")?.removeAttribute("open"); onSelect("daily"); }}>
           {inLanguage(language,"দৈনিক হিসাব","दैनिक हिसाब","Daily accounts")}
-          <small>{t.later}</small>
+          {!dailyLedgerEnabled() && <small>{t.later}</small>}
         </button>
         <button type="button" disabled>
           {t.farm}

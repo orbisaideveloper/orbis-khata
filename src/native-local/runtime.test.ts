@@ -31,7 +31,9 @@ vi.mock('@capacitor/core', () => ({
 vi.mock('../local-db/android-sqlcipher-runtime', () => ({ createAndroidSqlcipherRuntime: () => ({}) }))
 vi.mock('../local-db/native-cipher-gate', () => ({
   openVerifiedAndroidSqlcipher: async () => ({
+    all: async () => [],
     get: async (sql: string, params: string[]) => {
+      if (sql.includes('count(*) AS total FROM personal_ledger_outbox_v1')) return { total: 0 }
       if (sql.includes('FROM local_outbox')) {
         const state = fixture.outbox.get(params.join(':'))
         return state && (!sql.includes("state<>'synced'") || state !== 'synced') ? { operation_id: 'test-operation' } : null
@@ -47,10 +49,10 @@ vi.mock('../local-db/native-cipher-gate', () => ({
       }
       return { changes: 1 }
     },
-    transaction: async (work: () => Promise<void>) => {
+    transaction: async <T>(work: () => Promise<T>) => {
       const prior = new Map(fixture.rows)
       try {
-        await work()
+        return await work()
       } catch (error) {
         fixture.rows = prior
         throw error
@@ -423,4 +425,38 @@ it('persists customer statements in encrypted local storage before acknowledgeme
  expect(await reopened.readNativeStatementRelay(actor)).toEqual(value)
  reopened.lockNativeOfflineIdentity()
  await expect(reopened.readNativeStatementRelay(actor)).rejects.toThrow('ANDROID_LOCAL_UNLOCK_REQUIRED')
+})
+
+
+it('requires the active native account for Daily Ledger export, verification and restore', async () => {
+  const runtime = await import('./runtime')
+  const { generateFinancialBackupKey } = await import('../sync/financial-backup')
+  const key = generateFinancialBackupKey()
+  await runtime.enrollVerifiedCentralIdentity(actor, displayId)
+  const archive = await runtime.exportNativeDailyLedgerBackup(actor, key)
+  await expect(runtime.verifyNativeDailyLedgerBackup(actor, archive, key)).resolves.toMatchObject({
+    scope: { orbisIdentityId: actor, scopeId: actor, scopeKind: 'personal_ledger' },
+  })
+  await expect(runtime.restoreNativeDailyLedgerBackup(actor, archive, key)).resolves.toEqual({
+    inserted: 0, alreadyPresent: 0,
+  })
+  const other = '11111111-1111-7111-8111-111111111111'
+  await expect(runtime.exportNativeDailyLedgerBackup(other, key)).rejects.toThrow('ANDROID_LOCAL_ACTOR_CHANGED')
+  await expect(runtime.verifyNativeDailyLedgerBackup(other, archive, key)).rejects.toThrow('ANDROID_LOCAL_ACTOR_CHANGED')
+  await expect(runtime.restoreNativeDailyLedgerBackup(other, archive, key)).rejects.toThrow('ANDROID_LOCAL_ACTOR_CHANGED')
+})
+
+it('gates Daily Ledger recovery on the secure device lock, credential and current enrollment generation', async () => {
+  const runtime = await import('./runtime')
+  await runtime.enrollVerifiedCentralIdentity(actor, displayId)
+  fixture.deviceLockStatus.mockResolvedValueOnce({ secure: false })
+  await expect(runtime.authorizeNativeDailyLedgerRecovery(actor, false)).rejects.toThrow('ANDROID_DEVICE_CREDENTIAL_REQUIRED')
+  fixture.credential.mockResolvedValueOnce(false)
+  await expect(runtime.authorizeNativeDailyLedgerRecovery(actor, true)).rejects.toThrow('ANDROID_DEVICE_CREDENTIAL_REQUIRED')
+  const guard = await runtime.authorizeNativeDailyLedgerRecovery(actor, true)
+  expect(guard).not.toThrow()
+  runtime.lockNativeOfflineIdentity()
+  expect(guard).toThrow('ANDROID_LOCAL_UNLOCK_REQUIRED')
+  await runtime.enrollVerifiedCentralIdentity(actor, displayId)
+  expect(guard).toThrow('ANDROID_LOCAL_ACTOR_CHANGED')
 })

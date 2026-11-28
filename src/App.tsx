@@ -12,6 +12,9 @@ import {ModulePicker,type ModuleTarget} from './ModulePicker';
 import {lazy,Suspense,useEffect,useMemo,useRef,useState,type ReactNode} from 'react';
 const CustomerView=lazy(()=>import('./customer-view/CustomerView'));
 const LotteryPage=lazy(()=>import('./lottery/LotteryPage'));
+const DailyLedger=lazy(()=>import('./daily-ledger/AndroidDailyLedger'));
+import { dailyLedgerEnabled } from './daily-ledger/availability';
+import { label as dailyLabel } from './daily-ledger/copy';
 import {selectNumeric} from './select-numeric';
 import {useTheme} from './use-theme';
 import {readLocation,saveLocation,clearLocation} from './workspace-location';
@@ -151,7 +154,7 @@ function App() {
                 khataView?: View;
             } | null)?.khataView;
             // Browser history uses the same access policy as button navigation.
-            setView(resolveKhataView(target, signedIn, guestUiEnabled, guestEntered.current));
+            setView(resolveKhataView(target, signedIn, guestUiEnabled, guestEntered.current, dailyLedgerEnabled()));
         }
         window.addEventListener('popstate', onBack);
         return () => window.removeEventListener('popstate', onBack);
@@ -174,7 +177,7 @@ function App() {
     }
     function navigate(next: View) {
         const enteringGuest = next === 'workspace' && view === 'login';
-        const target = resolveKhataView(next, signedIn, guestUiEnabled, guestEntered.current || enteringGuest);
+        const target = resolveKhataView(next, signedIn, guestUiEnabled, guestEntered.current || enteringGuest, dailyLedgerEnabled());
         if (target === 'workspace' && view === 'login') {
             guestEntered.current = true;
         }
@@ -262,8 +265,17 @@ function App() {
       {view === 'results' && signedIn && <LotteryResults language={language} onBack={mainHome} onSelect={navigate} languageControl={languagePicker(true)}/>}
       <LotteryScene view={view} owner={sessionId} language={language} onSelect={navigate} controls={<WorkspaceMenu moduleMenu onMainHome={mainHome} onAppearance={showAppearance} settings={<><label className="lottery-language-setting"><span>{languagePresentation[language].pickerLabel}</span>{languagePicker()}</label><Themes language={language}/></>} actions={<><button type="button" onClick={()=>navigate('customer')}>{shareCopy(language,'title')}</button>{(['tds','payments'] as const).map(section=><button type="button" key={section} onClick={event=>{event.currentTarget.closest('.workspace-menu')?.removeAttribute('open');window.dispatchEvent(new CustomEvent('lottery-settings',{detail:section}));}}>{section==='tds'?'TDS':{bn:'পেমেন্টের মাধ্যম',en:'Payment methods',hi:'भुगतान के तरीके'}[language]}</button>)}</>} language={language} signedIn={signedIn} tutorial={tutorial} onTutorial={enabled=>{setTutorial(enabled);saveTutorial(enabled);}} onProfile={()=>navigate('profile')} onLogout={()=>void logout()}/>}/>
       {view==='customer'&&signedIn&&<Suspense fallback={<p>{accountCopy[language].network}</p>}><CustomerView key={sessionId} actor={sessionId ?? undefined} language={language} onSelect={navigate} onBack={mainHome} onBooks={()=>navigate('lottery')}/></Suspense>}
+      {view === 'daily' && sessionId && dailyLedgerEnabled() && <section className="scene light-scene active">
+        <header className="bar"><button type="button" className="back" onClick={mainHome}
+          aria-label={dailyLabel(language, 'back')}>←</button>{languagePicker(true)}</header>
+        <Suspense fallback={<p role="status">{accountCopy[language].network}</p>}>
+          <DailyLedger key={sessionId} owner={sessionId} language={language}/>
+        </Suspense>
+      </section>}
+
       {view === 'drive-backup' && sessionId && androidLocalFirst() && <section className="scene light-scene active profile-page" aria-label={backupLabel}>
         {renderBar('khata', 'choose', 'settings')}
+        {dailyLedgerEnabled() && <p className="connection-notice">{dailyLabel(language, 'backup')}</p>}
         <DriveBackupPanel key={sessionId} actor={sessionId} language={language}/>
       </section>}
 

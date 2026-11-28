@@ -16,7 +16,9 @@
     "quality:jscpd": "jscpd src --config .jscpd.json --fail-on-empty --exit-code 1",
     "test:e2e": "playwright test --config playwright.central.config.ts",
     "check": "npm test -- --run && npx oxlint",
-    "test:sql": "node scripts/verify-lottery-rows.mjs && node scripts/verify-production.mjs && node scripts/verify-expense-profiles.mjs && node scripts/verify-party-sharing.mjs && node scripts/verify-report-revision.mjs && node scripts/verify-warehouse-transfer.mjs && node scripts/verify-phase2.mjs && node scripts/verify-company-export.mjs && node scripts/verify-lottery-live.mjs"
+    "test:sql": "node scripts/verify-lottery-rows.mjs && node scripts/verify-production.mjs && node scripts/verify-expense-profiles.mjs && node scripts/verify-party-sharing.mjs && node scripts/verify-report-revision.mjs && node scripts/verify-warehouse-transfer.mjs && node scripts/verify-phase2.mjs && node scripts/verify-company-export.mjs && node scripts/verify-lottery-live.mjs",
+    "build:daily-ledger-preview": "vite build --config vite.daily-ledger-preview.config.ts && node preview/daily-ledger/worker-check.mjs",
+    "preview:daily-ledger": "vite preview --config vite.daily-ledger-preview.config.ts --host 127.0.0.1"
   },
   "dependencies": {
     "@capacitor-community/sqlite": "8.1.1",

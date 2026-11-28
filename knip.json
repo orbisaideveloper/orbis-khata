@@ -4,6 +4,7 @@
     "supabase/functions/orbis-lottery-ticket/index.ts",
     "vendor/foundation-lottery/runtime/lottery-accounting-service.d.ts",
     "public/legal.css",
+    "preview/daily-ledger/service-worker.js",
     "tests/local-db/pwa-vault-browser-test.cjs",
     "tests/offline-integration/pwa-atomic-browser-test.cjs",
     "supabase/functions/orbis-lottery-collector/index.ts",
